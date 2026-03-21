@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VolleyStats">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="theme-color" content="#1E3A5F">
+<title>VolleyStats</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0F172A;color:#E2E8F0}
+button,input,select{font-family:inherit}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:#334155;border-radius:4px}
+::-webkit-scrollbar-track{background:transparent}
+
+#app{display:flex;flex-direction:column;height:100%;height:100dvh;max-width:520px;margin:0 auto;position:relative;overflow:hidden;background:#0F172A}
+@media(min-width:600px){#app{max-width:700px}}
+@media(min-width:900px){#app{max-width:1000px}}
+
+.header{background:linear-gradient(135deg,#1E3A5F,#0F172A);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #334155;flex-shrink:0;padding-top:max(14px,env(safe-area-inset-top))}
+@media(min-width:600px){.header{padding:16px 24px}}
+.header h1{margin:0;font-size:17px;font-weight:700;color:#F8FAFC;letter-spacing:.3px}
+@media(min-width:600px){.header h1{font-size:20px}}
+.header-side{width:80px;display:flex}
+.header-side.right{justify-content:flex-end;gap:6px}
+
+.tab-bar{display:flex;background:#1E293B;border-top:1px solid #334155;flex-shrink:0;padding-bottom:env(safe-area-inset-bottom)}
+.tab-btn{flex:1;padding:12px 4px 10px;border:none;background:none;cursor:pointer;color:#94A3B8;font-weight:400;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:4px;border-top:2px solid transparent;transition:all .2s}
+.tab-btn.active{color:#60A5FA;font-weight:700;border-top-color:#60A5FA}
+.tab-btn .ico{font-size:18px}
+@media(min-width:600px){.tab-btn{padding:14px 4px 12px;font-size:13px}.tab-btn .ico{font-size:22px}}
+
+.btn{padding:10px 18px;border-radius:8px;border:none;font-weight:600;font-size:14px;cursor:pointer;transition:all .15s}
+.btn.sm{padding:6px 12px;font-size:12px}
+.btn.full{width:100%}
+.btn-primary{background:#3B82F6;color:#fff}
+.btn-save{background:#10B981;color:#fff}
+.btn-danger-o{background:transparent;border:1.5px solid #EF4444;color:#EF4444}
+.btn-ghost{background:transparent;border:1.5px solid #94A3B8;color:#94A3B8}
+.btn-export{background:transparent;border:1.5px solid #F59E0B;color:#F59E0B}
+.btn-import{background:transparent;border:1.5px solid #8B5CF6;color:#8B5CF6}
+.btn:disabled{background:#475569;color:#94A3B8;cursor:default}
+
+.pill-row{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;background:#0F172A;border-bottom:1px solid #1E293B;flex-shrink:0}
+@media(min-width:600px){.pill-row{padding:12px 16px;justify-content:center}}
+.pill{padding:7px 14px;border-radius:20px;border:none;white-space:nowrap;font-weight:600;font-size:12px;cursor:pointer;transition:all .15s;background:#1E293B;color:#94A3B8}
+.pill.sm{padding:5px 10px;font-size:11px}
+@media(min-width:600px){.pill{padding:9px 18px;font-size:14px}}
+.pill.active{color:#fff}
+
+.filter-bar{padding:6px 12px;background:#0F172A;border-bottom:1px solid #1E293B;flex-shrink:0;display:flex;flex-direction:column;gap:6px}
+@media(min-width:600px){.filter-bar{padding:8px 16px;flex-direction:row;align-items:center;justify-content:center;flex-wrap:wrap}}
+.pos-row{display:flex;gap:4px;overflow-x:auto}
+@media(min-width:600px){.pos-row{gap:6px}}
+.sub-pills{display:flex;gap:5px;overflow-x:auto}
+@media(min-width:600px){.sub-pills{justify-content:center}}
+
+.content{flex:1;overflow-y:auto}
+
+.setup-grid{display:grid;grid-template-columns:1fr;gap:6px;max-width:900px;margin:0 auto}
+@media(min-width:900px){.setup-grid{grid-template-columns:1fr 1fr;gap:10px}}
+.player-row{display:flex;gap:8px;align-items:center;background:#1E293B;border-radius:10px;padding:8px 10px;border:1px solid #334155}
+@media(min-width:600px){.player-row{padding:10px 14px}}
+.player-row input{background:#0F172A;border:1px solid #334155;border-radius:6px;color:#F8FAFC;outline:none}
+.player-row .name-input{flex:1;padding:8px 10px;font-size:14px;min-width:0}
+@media(min-width:600px){.player-row .name-input{padding:10px 12px;font-size:15px}}
+.player-row .num-input{width:42px;padding:8px 4px;font-size:14px;text-align:center}
+.pos-btns{display:flex;gap:4px}
+.pos-btn{padding:7px 10px;border-radius:8px;border:2px solid #334155;font-size:12px;font-weight:700;cursor:pointer;min-width:38px;text-align:center;background:#0F172A;color:#94A3B8;transition:all .15s}
+.pos-btn.active{background:#6366F1;border-color:#818CF8;color:#fff}
+@media(min-width:600px){.pos-btn{padding:8px 12px;font-size:13px;min-width:42px}}
+
+.grid-header{display:flex;padding:8px 12px;background:#1E293B;border-bottom:1px solid #334155;align-items:center}
+@media(min-width:600px){.grid-header{padding:10px 16px}}
+.grid-header .lbl{font-size:11px;color:#64748B;font-weight:600}
+.grid-header .stat-labels{display:flex;flex:1;justify-content:space-around}
+.grid-header .stat-lbl{text-align:center;font-size:10px;font-weight:700}
+@media(min-width:600px){.grid-header .stat-lbl{font-size:12px}}
+.grid-row{display:flex;align-items:center;padding:5px 12px;border-bottom:1px solid #1E293B}
+@media(min-width:600px){.grid-row{padding:6px 16px}}
+.grid-row .pname{font-size:13px;font-weight:600;color:#F8FAFC}
+@media(min-width:600px){.grid-row .pname{font-size:14px}}
+.grid-row .ppos{font-size:10px;color:#64748B}
+.grid-row .stats-cells{display:flex;flex:1;justify-content:space-around}
+.stat-cell{display:flex;flex-direction:column;align-items:center}
+.stat-btn{width:44px;height:44px;border-radius:10px;font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
+@media(min-width:600px){.stat-btn{width:52px;height:52px;font-size:20px}}
+.dec-btn{margin-top:2px;font-size:11px;background:none;border:none;color:#64748B;cursor:pointer;padding:3px 10px}
+
+.cards-grid{display:grid;grid-template-columns:1fr;gap:8px;max-width:700px;margin:0 auto}
+@media(min-width:600px){.cards-grid{grid-template-columns:1fr 1fr}}
+.p-card{background:#1E293B;border-radius:10px;padding:10px 14px;border:1px solid #334155}
+.p-card .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tag-btn{padding:5px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:none}
+
+.side-layout{display:flex;height:100%}
+.side-nav{width:110px;background:#1E293B;border-right:1px solid #334155;overflow-y:auto;flex-shrink:0;padding:8px 0}
+.side-btn{display:block;width:100%;padding:12px 14px;border:none;text-align:left;background:transparent;border-left:3px solid transparent;color:#94A3B8;font-weight:700;font-size:13px;cursor:pointer}
+.side-btn.active{border-left-color:currentColor;background:rgba(255,255,255,.05)}
+
+.sum-table{width:100%;border-collapse:collapse;font-size:12px}
+@media(min-width:600px){.sum-table{font-size:14px}}
+.sum-table th{padding:8px 6px;user-select:none}
+@media(min-width:600px){.sum-table th,.sum-table td{padding:12px 10px}}
+.sum-table th.sortable{cursor:pointer}
+.sum-table td{padding:10px 6px;text-align:center;color:#E2E8F0}
+.sum-table .sticky{position:sticky;left:0;z-index:1}
+.sum-val{font-weight:700;font-size:16px}
+@media(min-width:600px){.sum-val{font-size:18px}}
+.sum-pct{font-size:10px;color:#64748B}
+
+.totals-bar{padding:10px 12px;background:#1E293B;border-top:1px solid #334155;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;flex-shrink:0}
+@media(min-width:600px){.totals-bar{padding:12px 16px;gap:20px}}
+.totals-bar .t-val{font-size:16px;font-weight:700}
+@media(min-width:600px){.totals-bar .t-val{font-size:18px}}
+.totals-bar .t-lbl{font-size:10px;color:#64748B}
+@media(min-width:600px){.totals-bar .t-lbl{font-size:12px}}
+
+.sess-grid{display:grid;grid-template-columns:1fr;gap:10px;max-width:700px;margin:0 auto}
+@media(min-width:600px){.sess-grid{grid-template-columns:1fr 1fr}}
+.sess-card{background:#1E293B;border-radius:10px;padding:14px;border:1px solid #334155;display:flex;justify-content:space-between;align-items:center}
+
+.modal-bg{position:absolute;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:99;padding:24px}
+.modal{background:#1E293B;border-radius:16px;padding:24px;width:100%;max-width:380px;border:1px solid #334155}
+.modal input{width:100%;background:#0F172A;border:1px solid #334155;border-radius:8px;padding:12px 14px;color:#F8FAFC;font-size:15px;outline:none;margin-bottom:16px}
+
+.toast{position:absolute;top:70px;left:50%;transform:translateX(-50%);background:#334155;color:#F8FAFC;padding:10px 20px;border-radius:10px;font-size:14px;font-weight:600;z-index:100;box-shadow:0 4px 20px rgba(0,0,0,.4);animation:fadeIn .2s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-50%) translateY(-8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+.empty{padding:40px;text-align:center;color:#64748B;font-size:13px}
+.save-bar{padding:10px 16px;background:#0F172A;border-top:1px solid #1E293B;flex-shrink:0}
+@media(min-width:600px){.save-bar{padding:12px 24px}}
+.save-bar .inner{max-width:400px;margin:0 auto}
+
+.data-actions{display:flex;gap:8px;margin-top:16px;justify-content:center;flex-wrap:wrap}
+.autosave-indicator{display:flex;align-items:center;gap:6px;font-size:11px;color:#64748B;padding:4px 0}
+.autosave-indicator .dot{width:6px;height:6px;border-radius:50%;background:#10B981;flex-shrink:0}
+.autosave-indicator.saving .dot{background:#F59E0B;animation:pulse .6s ease infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* File input hidden */
+.file-input-hidden{position:absolute;width:0;height:0;opacity:0;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ═══════════════════════════════════════
+// DATA MODEL & CONSTANTS
+// ═══════════════════════════════════════
+const POSITIONS=[{key:"ALL",label:"Toutes"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
+const SG={
+  services:{name:"Services",color:"#3B82F6",stats:[{key:"srv_ace",label:"Ace"},{key:"srv_in",label:"En jeu"},{key:"srv_err",label:"Erreur"}]},
+  reception:{name:"Réception",color:"#10B981",stats:[{key:"rec_in",label:"En jeu"},{key:"rec_out",label:"Hors sys."}]},
+  passes:{name:"Passes",color:"#8B5CF6",stats:[{key:"pas_att",label:"Attaquable"},{key:"pas_out",label:"Hors sys."}]},
+  attaques:{name:"Attaques",color:"#EF4444",stats:[{key:"atk_kill",label:"Kill"},{key:"atk_ok",label:"Réussie"},{key:"atk_err",label:"Erreur"}]},
+  blocs:{name:"Blocs",color:"#F59E0B",stats:[{key:"blk_kill",label:"Kill"},{key:"blk_solo",label:"Solo"},{key:"blk_aid",label:"Aide"},{key:"blk_err",label:"Erreur"}]},
+  defense:{name:"Défense",color:"#06B6D4",stats:[{key:"def_ok",label:"Réussie"},{key:"def_out",label:"Hors sys."},{key:"sup_in",label:"Soutien"},{key:"sup_err",label:"Sout. err."}]}
+};
+const VIEWS=[
+  {key:"service",label:"🏐 Service",groups:["services"]},
+  {key:"rec_atk",label:"⚡ Réc-Att",groups:["reception","passes","attaques"]},
+  {key:"transition",label:"🔄 Relance",groups:["blocs","defense","passes","attaques"]},
+  {key:"all",label:"📋 Toutes",groups:["services","reception","passes","attaques","blocs","defense"]}
+];
+const ALL_STATS=Object.values(SG).flatMap(g=>g.stats);
+const emptyS=()=>Object.fromEntries(ALL_STATS.map(s=>[s.key,0]));
+const mkPlayers=()=>Array.from({length:12},(_,i)=>({id:i,name:"",position:"OH",number:"",stats:emptyS()}));
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let state={tab:"setup",players:mkPlayers(),sessions:[],viewIdx:0,posFilter:"ALL",expandedGroup:null,groupIdx:0,sortBy:null,sortDir:"desc",saveModal:false,sessionName:"",toast:null};
+
+// ═══════════════════════════════════════
+// PERSISTENCE — localStorage + auto-save
+// ═══════════════════════════════════════
+const SK_SESSIONS="vball_sessions_v5";
+const SK_CURRENT="vball_current_v5";
+const SK_SETUP="vball_setup_v5";
+let autoSaveTimer=null;
+let lastSaveTime=0;
+
+function saveSessions(){
+  try{localStorage.setItem(SK_SESSIONS,JSON.stringify(state.sessions))}catch(e){console.warn("Save sessions failed",e)}
+}
+function loadSessions(){
+  try{const d=localStorage.getItem(SK_SESSIONS);if(d)state.sessions=JSON.parse(d)}catch(e){}
+}
+
+// Auto-save current work (players + stats) every 3 seconds after a change
+function scheduleAutoSave(){
+  if(autoSaveTimer)clearTimeout(autoSaveTimer);
+  autoSaveTimer=setTimeout(()=>{
+    try{
+      localStorage.setItem(SK_CURRENT,JSON.stringify(state.players));
+      localStorage.setItem(SK_SETUP,JSON.stringify({tab:state.tab,viewIdx:state.viewIdx,posFilter:state.posFilter}));
+      lastSaveTime=Date.now();
+    }catch(e){console.warn("Auto-save failed",e)}
+    autoSaveTimer=null;
+  },1500);
+}
+
+function loadCurrent(){
+  try{
+    const d=localStorage.getItem(SK_CURRENT);
+    if(d){
+      const players=JSON.parse(d);
+      // Merge with defaults to handle schema changes
+      state.players=players.map((p,i)=>{
+        const def=mkPlayers()[0];
+        return{...def,...p,stats:{...emptyS(),...(p.stats||{})}};
+      });
+    }
+    const s=localStorage.getItem(SK_SETUP);
+    if(s){
+      const setup=JSON.parse(s);
+      if(setup.tab)state.tab=setup.tab;
+      if(setup.viewIdx!=null)state.viewIdx=setup.viewIdx;
+      if(setup.posFilter)state.posFilter=setup.posFilter;
+    }
+  }catch(e){}
+}
+
+// Export all data as JSON file (for backup / transfer)
+function exportData(){
+  const data={
+    version:5,
+    exportDate:new Date().toISOString(),
+    currentPlayers:state.players,
+    sessions:state.sessions
+  };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=`VolleyStats_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast("📤 Données exportées !");
+}
+
+// Import data from JSON file
+function importData(){
+  const input=document.createElement("input");
+  input.type="file";
+  input.accept=".json";
+  input.onchange=e=>{
+    const file=e.target.files[0];
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const data=JSON.parse(ev.target.result);
+        if(data.currentPlayers){
+          state.players=data.currentPlayers.map((p,i)=>{
+            const def=mkPlayers()[0];
+            return{...def,...p,stats:{...emptyS(),...(p.stats||{})}};
+          });
+        }
+        if(data.sessions&&Array.isArray(data.sessions)){
+          // Merge sessions — avoid exact duplicates by name+date
+          const existing=new Set(state.sessions.map(s=>s.name+"|"+s.date));
+          for(const s of data.sessions){
+            if(!existing.has(s.name+"|"+s.date)){
+              state.sessions.push(s);
+            }
+          }
+          saveSessions();
+        }
+        scheduleAutoSave();
+        showToast("📥 Données importées !");
+      }catch(err){
+        showToast("⚠️ Fichier invalide");
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ═══════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════
+function isTablet(){return window.innerWidth>=600}
+function isWide(){return window.innerWidth>=900}
+function isLand(){return window.innerWidth>window.innerHeight}
+
+function h(tag,attrs,...ch){
+  const el=document.createElement(tag);
+  if(attrs)for(const[k,v]of Object.entries(attrs)){
+    if(k==="onclick"||k==="oninput"||k==="onchange")el[k]=v;
+    else if(k==="style"&&typeof v==="object")Object.assign(el.style,v);
+    else if(k==="className")el.className=v;
+    else el.setAttribute(k,v);
+  }
+  for(const c of ch){
+    if(c==null)continue;
+    if(typeof c==="string")el.appendChild(document.createTextNode(c));
+    else if(Array.isArray(c))c.forEach(x=>{if(x)el.appendChild(x)});
+    else el.appendChild(c);
+  }
+  return el;
+}
+
+function showToast(msg){state.toast=msg;render();setTimeout(()=>{state.toast=null;render()},2500)}
+
+// ═══════════════════════════════════════
+// RENDER FUNCTIONS
+// ═══════════════════════════════════════
+function renderHeader(title,leftEl,rightEl){
+  return h("div",{className:"header"},
+    h("div",{className:"header-side"},leftEl),
+    h("h1",null,title),
+    h("div",{className:"header-side right"},rightEl)
+  );
+}
+
+function renderTabBar(){
+  const tabs=[{key:"setup",label:"Équipe",icon:"👥"},{key:"input",label:"Saisie",icon:"✏️"},{key:"summary",label:"Récap",icon:"📊"},{key:"sessions",label:"Sessions",icon:"💾"}];
+  return h("div",{className:"tab-bar"},
+    tabs.map(t=>h("button",{className:"tab-btn"+(state.tab===t.key?" active":""),onclick:()=>{state.tab=t.key;scheduleAutoSave();render()}},
+      h("span",{className:"ico"},t.icon),t.label
+    ))
+  );
+}
+
+function renderPosFilter(){
+  return h("div",{className:"pos-row"},
+    POSITIONS.map(p=>{
+      const btn=h("button",{className:"pill sm"+(state.posFilter===p.key?" active":""),onclick:()=>{state.posFilter=p.key;state.sortBy=null;render()}},p.label);
+      if(state.posFilter===p.key)btn.style.background="#6366F1";
+      return btn;
+    })
+  );
+}
+
+function filterPlayers(){
+  const a=state.players.filter(p=>p.name.trim());
+  return state.posFilter==="ALL"?a:a.filter(p=>p.position===state.posFilter);
+}
+
+function renderAutoSaveIndicator(){
+  const saving=autoSaveTimer!==null;
+  return h("div",{className:"autosave-indicator"+(saving?" saving":"")},
+    h("span",{className:"dot"}),
+    saving?"Sauvegarde…":"Données sauvegardées"
+  );
+}
+
+function updateStartBtn(){
+  var btn=document.getElementById("startBtn");
+  if(btn){var v=state.players.some(function(p){return p.name.trim()});btn.disabled=!v}
+}
+function renderSetup(){
+  const posOpts=POSITIONS.filter(p=>p.key!=="ALL");
+  const valid=state.players.some(p=>p.name.trim());
+  function onNameChange(i,e){state.players[i].name=e.target.value;scheduleAutoSave();updateStartBtn()}
+  function onNumChange(i,e){state.players[i].number=e.target.value.replace(/\D/g,"").slice(0,3);scheduleAutoSave()}
+  const grid=h("div",{className:"setup-grid"},
+    state.players.map((p,i)=>{
+      const nameIn=h("input",{className:"name-input",placeholder:"Nom",value:p.name});
+      nameIn.addEventListener("input",function(e){onNameChange(i,e)});
+      nameIn.addEventListener("change",function(e){onNameChange(i,e)});
+      nameIn.addEventListener("keyup",function(e){onNameChange(i,e)});
+      nameIn.addEventListener("blur",function(e){onNameChange(i,e)});
+      const numIn=h("input",{className:"num-input",placeholder:"#",value:p.number});
+      numIn.addEventListener("input",function(e){onNumChange(i,e)});
+      numIn.addEventListener("change",function(e){onNumChange(i,e)});
+      numIn.addEventListener("keyup",function(e){onNumChange(i,e)});
+      numIn.addEventListener("blur",function(e){onNumChange(i,e)});
+      const posBtns=h("div",{className:"pos-btns"},
+        posOpts.map(pos=>h("button",{className:"pos-btn"+(p.position===pos.key?" active":""),onclick:()=>{state.players[i].position=pos.key;scheduleAutoSave();render()}},pos.label))
+      );
+      return h("div",{className:"player-row"},
+        h("span",{style:{color:"#64748B",fontSize:"12px",width:"20px",textAlign:"center",fontWeight:"600"}},String(i+1)),
+        nameIn,numIn,posBtns
+      );
+    })
+  );
+  const startBtn=h("button",{className:"btn btn-primary full",disabled:!valid,onclick:()=>{state.tab="input";scheduleAutoSave();render()}},"Commencer la saisie →");
+  startBtn.id="startBtn";
+  return h("div",{style:{padding:isTablet()?"24px":"16px",overflowY:"auto",flex:"1"}},
+    h("div",{style:{textAlign:"center",marginBottom:isTablet()?"28px":"20px"}},
+      h("div",{style:{fontSize:isTablet()?"52px":"42px",marginBottom:"4px"}},"🏐"),
+      h("h2",{style:{color:"#F8FAFC",fontSize:isTablet()?"24px":"20px"}},"Configuration de l'équipe"),
+      h("p",{style:{color:"#94A3B8",fontSize:"13px",marginTop:"6px"}},"Nom, numéro et position de chaque joueuse"),
+      renderAutoSaveIndicator()
+    ),
+    grid,
+    h("div",{style:{marginTop:"20px",maxWidth:"400px",margin:"20px auto 0"}},startBtn)
+  );
+}
+
+function renderInput(){
+  const view=VIEWS[state.viewIdx];
+  const aGroups=view.groups.map(k=>({...SG[k],id:k}));
+  const filtered=filterPlayers();
+  const visGid=aGroups.length===1?aGroups[0].id:state.expandedGroup;
+  const useSide=isLand()&&isTablet()&&aGroups.length>1;
+
+  const viewRow=h("div",{className:"pill-row"},
+    VIEWS.map((v,i)=>{
+      const b=h("button",{className:"pill"+(i===state.viewIdx?" active":""),onclick:()=>{state.viewIdx=i;state.expandedGroup=null;render()}},v.label);
+      if(i===state.viewIdx)b.style.background="#F59E0B";
+      return b;
+    })
+  );
+
+  const filterBar=h("div",{className:"filter-bar"},
+    renderPosFilter(),
+    (aGroups.length>1&&!useSide)?h("div",{className:"sub-pills"},
+      aGroups.map(g=>{
+        const b=h("button",{className:"pill sm"+(visGid===g.id?" active":""),onclick:()=>{state.expandedGroup=visGid===g.id?null:g.id;render()}},g.name);
+        if(visGid===g.id)b.style.background=g.color;
+        return b;
+      })
+    ):null
+  );
+
+  const buildGrid=(g)=>{
+    const nw=isTablet()?"130px":"100px";
+    const header=h("div",{className:"grid-header"},
+      h("div",{className:"lbl",style:{width:nw}},"JOUEUSE"),
+      h("div",{className:"stat-labels"},g.stats.map(s=>h("div",{className:"stat-lbl",style:{color:g.color,width:`${100/g.stats.length}%`}},s.label)))
+    );
+    const rows=filtered.map(p=>{
+      const cells=h("div",{className:"stats-cells"},g.stats.map(s=>{
+        const btn=h("button",{className:"stat-btn",style:{border:`2px solid ${g.color}`,background:`${g.color}15`,color:"#F8FAFC"},onclick:()=>{
+          p.stats[s.key]++;
+          btn.textContent=p.stats[s.key];
+          btn.style.background=g.color;btn.style.color="#fff";btn.style.transform="scale(1.1)";
+          setTimeout(()=>{btn.style.background=`${g.color}15`;btn.style.color="#F8FAFC";btn.style.transform="scale(1)"},250);
+          scheduleAutoSave();
+        }},String(p.stats[s.key]));
+        const decBtn=h("button",{className:"dec-btn",onclick:()=>{if(p.stats[s.key]>0){p.stats[s.key]--;btn.textContent=p.stats[s.key];scheduleAutoSave()}}},"−");
+        return h("div",{className:"stat-cell",style:{width:`${100/g.stats.length}%`}},btn,decBtn);
+      }));
+      return h("div",{className:"grid-row"},
+        h("div",{style:{width:nw,flexShrink:"0"}},
+          h("div",{className:"pname"},(p.number?`#${p.number} `:"")+p.name),
+          h("div",{className:"ppos"},p.position)
+        ),cells
+      );
+    });
+    return h("div",null,header,...rows);
+  };
+
+  let mainContent;
+  if(useSide){
+    const nav=h("div",{className:"side-nav"},
+      aGroups.map(g=>{
+        const b=h("button",{className:"side-btn"+(visGid===g.id?" active":""),style:{color:visGid===g.id?g.color:"#94A3B8"},onclick:()=>{state.expandedGroup=g.id;render()}},g.name);
+        if(visGid===g.id)b.style.background=`${g.color}10`;
+        return b;
+      })
+    );
+    const right=visGid?buildGrid(SG[visGid]):h("div",{className:"empty"},"← Sélectionnez une catégorie");
+    mainContent=h("div",{className:"side-layout"},nav,h("div",{style:{flex:"1",overflowY:"auto"}},right));
+  } else if(visGid){
+    mainContent=buildGrid(SG[visGid]);
+  } else {
+    const cards=h("div",{style:{padding:isTablet()?"16px":"10px"}},
+      h("p",{style:{color:"#64748B",fontSize:"12px",textAlign:"center",margin:"0 0 10px"}},"Sélectionnez une catégorie ci-dessus"),
+      h("div",{className:"cards-grid"},
+        filtered.map(p=>h("div",{className:"p-card"},
+          h("div",{style:{fontSize:"14px",fontWeight:"700",color:"#F8FAFC"}},
+            (p.number?`#${p.number} `:"")+p.name+" ",
+            h("span",{style:{fontWeight:"400",color:"#64748B",fontSize:"11px"}},p.position)
+          ),
+          h("div",{className:"tags"},aGroups.map(g=>{
+            const tot=g.stats.reduce((s,st)=>s+p.stats[st.key],0);
+            return h("button",{className:"tag-btn",style:{background:`${g.color}15`,color:g.color,border:`1px solid ${g.color}40`},onclick:()=>{state.expandedGroup=g.id;render()}},g.name+" "+tot);
+          }))
+        ))
+      )
+    );
+    mainContent=cards;
+  }
+  if(filtered.length===0){
+    mainContent=h("div",{className:"empty"},"Aucune joueuse à cette position");
+  }
+
+  const saveBar=h("div",{className:"save-bar"},h("div",{className:"inner"},
+    h("div",{style:{display:"flex",gap:"8px"}},
+      h("button",{className:"btn btn-save",style:{flex:"1"},onclick:()=>{state.saveModal=true;render()}},"💾 Enregistrer"),
+      renderAutoSaveIndicator()
+    )
+  ));
+
+  return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},viewRow,filterBar,h("div",{className:"content"},mainContent),saveBar);
+}
+
+function renderSummary(){
+  const view=VIEWS[state.viewIdx];
+  const gKeys=view.groups;
+  const gk=gKeys[state.groupIdx]||gKeys[0];
+  const g=SG[gk];
+  const filtered=filterPlayers();
+  const getT=p=>g.stats.reduce((s,st)=>s+p.stats[st.key],0);
+  const getPct=(p,sk)=>{const t=getT(p);return t>0?((p.stats[sk]/t)*100).toFixed(0):"0"};
+
+  let sorted=[...filtered];
+  if(state.sortBy){
+    sorted.sort((a,b)=>state.sortDir==="desc"?b.stats[state.sortBy]-a.stats[state.sortBy]:a.stats[state.sortBy]-b.stats[state.sortBy]);
+  }
+
+  const viewRow=h("div",{className:"pill-row"},
+    VIEWS.map((v,i)=>{
+      const b=h("button",{className:"pill"+(i===state.viewIdx?" active":""),onclick:()=>{state.viewIdx=i;state.groupIdx=0;state.sortBy=null;render()}},v.label);
+      if(i===state.viewIdx)b.style.background="#F59E0B";return b;
+    })
+  );
+  const filterBar=h("div",{className:"filter-bar"},
+    renderPosFilter(),
+    gKeys.length>1?h("div",{className:"sub-pills"},gKeys.map((k,i)=>{
+      const b=h("button",{className:"pill sm"+(state.groupIdx===i?" active":""),onclick:()=>{state.groupIdx=i;state.sortBy=null;render()}},SG[k].name);
+      if(state.groupIdx===i)b.style.background=SG[k].color;return b;
+    })):null
+  );
+
+  const thead=h("tr",{style:{background:"#1E293B"}},
+    h("th",{className:"sticky",style:{padding:"8px 10px",textAlign:"left",color:"#94A3B8",fontWeight:"600",background:"#1E293B"}},"Joueuse"),
+    ...g.stats.map(s=>h("th",{className:"sortable",style:{padding:"8px 6px",textAlign:"center",color:g.color,fontWeight:"700",whiteSpace:"nowrap"},onclick:()=>{
+      if(state.sortBy===s.key)state.sortDir=state.sortDir==="desc"?"asc":"desc";
+      else{state.sortBy=s.key;state.sortDir="desc"};render();
+    }},s.label+(state.sortBy===s.key?(state.sortDir==="desc"?" ▼":" ▲"):""))),
+    h("th",{style:{padding:"8px 6px",textAlign:"center",color:"#F59E0B",fontWeight:"700"}},"Total")
+  );
+
+  const tbody=sorted.length?sorted.map(p=>h("tr",{style:{borderBottom:"1px solid #1E293B"}},
+    h("td",{className:"sticky",style:{padding:"10px 10px",fontWeight:"600",color:"#F8FAFC",background:"#0F172A",whiteSpace:"nowrap"}},
+      (p.number?`#${p.number} `:"")+p.name,h("div",{style:{fontSize:"10px",color:"#64748B",fontWeight:"400"}},p.position)),
+    ...g.stats.map(s=>h("td",null,h("div",{className:"sum-val"},String(p.stats[s.key])),h("div",{className:"sum-pct"},getPct(p,s.key)+"%"))),
+    h("td",null,h("div",{className:"sum-val",style:{color:"#F59E0B"}},String(getT(p))))
+  )):[h("tr",null,h("td",{colspan:String(g.stats.length+2),style:{padding:"30px",textAlign:"center",color:"#64748B"}},"Aucune joueuse"))];
+
+  const table=h("table",{className:"sum-table"},h("thead",null,thead),h("tbody",null,...tbody));
+  const totalsBar=h("div",{className:"totals-bar"},
+    g.stats.map(s=>{
+      const t=filtered.reduce((sum,p)=>sum+p.stats[s.key],0);
+      return h("div",{style:{textAlign:"center"}},h("div",{className:"t-lbl"},s.label),h("div",{className:"t-val",style:{color:g.color}},String(t)));
+    })
+  );
+
+  return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
+    viewRow,filterBar,
+    h("div",{style:{flex:"1",overflowY:"auto",overflowX:"auto"}},table),
+    totalsBar
+  );
+}
+
+function renderSessions(){
+  const dataActions=h("div",{className:"data-actions"},
+    h("button",{className:"btn btn-export sm",onclick:exportData},"📤 Exporter (JSON)"),
+    h("button",{className:"btn btn-import sm",onclick:importData},"📥 Importer")
+  );
+
+  if(!state.sessions.length)return h("div",{style:{flex:"1",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",color:"#64748B",padding:"20px"}},
+    h("div",{style:{fontSize:"48px",marginBottom:"12px"}},"📂"),
+    h("div",{style:{fontSize:"14px",marginBottom:"20px"}},"Aucune session enregistrée"),
+    dataActions
+  );
+  return h("div",{style:{flex:"1",overflowY:"auto",padding:isTablet()?"24px":"16px"}},
+    h("h3",{style:{color:"#F8FAFC",margin:"0 0 16px",fontSize:"18px",textAlign:"center"}},"Sessions enregistrées"),
+    h("div",{className:"sess-grid"},state.sessions.map((s,i)=>
+      h("div",{className:"sess-card"},
+        h("div",null,
+          h("div",{style:{color:"#F8FAFC",fontWeight:"600",fontSize:"14px"}},s.name),
+          h("div",{style:{color:"#64748B",fontSize:"12px",marginTop:"2px"}},s.date),
+          h("div",{style:{color:"#94A3B8",fontSize:"11px",marginTop:"2px"}},s.players.filter(p=>p.name.trim()).length+" joueuses")
+        ),
+        h("div",{style:{display:"flex",gap:"8px"}},
+          h("button",{className:"btn btn-primary sm",onclick:()=>{state.players=JSON.parse(JSON.stringify(s.players));state.tab="input";scheduleAutoSave();showToast('📂 "'+s.name+'" chargée');}},"Charger"),
+          h("button",{className:"btn btn-danger-o sm",onclick:()=>{if(confirm("Supprimer « "+s.name+" » ?")){state.sessions.splice(i,1);saveSessions();showToast("🗑️ Session supprimée")}}},"✕")
+        )
+      )
+    )),
+    h("div",{style:{marginTop:"24px"}},dataActions)
+  );
+}
+
+// ═══════════════════════════════════════
+// MAIN RENDER
+// ═══════════════════════════════════════
+function render(){
+  const app=document.getElementById("app");
+  app.innerHTML="";
+  const titles={setup:"VolleyStats 🏐",input:"Saisie en direct",summary:"Récapitulatif",sessions:"Sessions"};
+  const leftEl=state.tab==="input"?h("button",{className:"btn btn-danger-o sm",onclick:()=>{if(confirm("Réinitialiser toutes les stats ?")){state.players.forEach(p=>{p.stats=emptyS()});scheduleAutoSave();showToast("🔄 Stats réinitialisées")}}},"Reset"):null;
+  const rightEl=state.tab==="summary"?h("button",{className:"btn btn-save sm",onclick:()=>{state.saveModal=true;render()}},"💾"):null;
+  app.appendChild(renderHeader(titles[state.tab],leftEl,rightEl));
+
+  let content;
+  if(state.tab==="setup")content=renderSetup();
+  else if(state.tab==="input")content=renderInput();
+  else if(state.tab==="summary")content=renderSummary();
+  else content=renderSessions();
+  app.appendChild(content);
+  app.appendChild(renderTabBar());
+
+  if(state.saveModal){
+    const bg=h("div",{className:"modal-bg",onclick:()=>{state.saveModal=false;render()}},
+      h("div",{className:"modal",onclick:e=>e.stopPropagation()},
+        h("h3",{style:{margin:"0 0 16px",color:"#F8FAFC",fontSize:"18px"}},"Enregistrer la session"),
+        (function(){var inp=h("input",{placeholder:"Nom (ex: Match vs Lions)",value:state.sessionName});function u(e){state.sessionName=e.target.value}inp.addEventListener("input",u);inp.addEventListener("change",u);inp.addEventListener("keyup",u);inp.addEventListener("blur",u);return inp}()),
+        h("div",{style:{display:"flex",gap:"10px"}},
+          h("button",{className:"btn btn-ghost full",onclick:()=>{state.saveModal=false;render()}},"Annuler"),
+          h("button",{className:"btn btn-save full",onclick:()=>{
+            const name=state.sessionName.trim()||`Match ${state.sessions.length+1}`;
+            state.sessions.push({name,date:new Date().toLocaleDateString("fr-CA",{year:"numeric",month:"long",day:"numeric",hour:"2-digit",minute:"2-digit"}),players:JSON.parse(JSON.stringify(state.players))});
+            saveSessions();state.saveModal=false;state.sessionName="";scheduleAutoSave();showToast("✅ Session enregistrée !");
+          }},"Enregistrer")
+        )
+      )
+    );
+    app.appendChild(bg);
+  }
+
+  if(state.toast){
+    app.appendChild(h("div",{className:"toast"},state.toast));
+  }
+}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+loadSessions();
+loadCurrent();
+render();
+window.addEventListener("resize",function(){render()});
+
+// Save before closing/navigating away
+window.addEventListener("beforeunload",function(){
+  try{
+    localStorage.setItem(SK_CURRENT,JSON.stringify(state.players));
+    localStorage.setItem(SK_SETUP,JSON.stringify({tab:state.tab,viewIdx:state.viewIdx,posFilter:state.posFilter}));
+  }catch(e){}
+});
+
+// Visibility change — save when app goes to background (critical for iPad)
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="hidden"){
+    try{
+      localStorage.setItem(SK_CURRENT,JSON.stringify(state.players));
+      localStorage.setItem(SK_SETUP,JSON.stringify({tab:state.tab,viewIdx:state.viewIdx,posFilter:state.posFilter}));
+    }catch(e){}
+  }
+});
+</script>
+<script>
+// ═══════════════════════════════════════
+// PWA — Service Worker (offline)
+// ═══════════════════════════════════════
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js").catch(function(){});
+}
+</script>
+</body>
+</html>
