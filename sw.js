@@ -1,4 +1,4 @@
-var CACHE = "volleystats-v2";
+var CACHE = "volleystats-v3";
 
 self.addEventListener("install", function(e) {
   e.waitUntil(
