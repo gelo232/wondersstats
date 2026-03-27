@@ -63,7 +63,7 @@ button,input,select{font-family:inherit}
 @media(min-width:600px){.pos-row{gap:6px}}
 .sub-pills{display:flex;gap:5px;overflow-x:auto}
 @media(min-width:600px){.sub-pills{justify-content:center}}
-.content{flex:1;overflow-y:auto}
+.content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .setup-grid{display:grid;grid-template-columns:1fr;gap:6px;max-width:900px;margin:0 auto}
 @media(min-width:900px){.setup-grid{grid-template-columns:1fr 1fr;gap:10px}}
 .player-row{display:flex;gap:8px;align-items:center;background:#1E293B;border-radius:10px;padding:8px 10px;border:1px solid #334155;transition:opacity .2s,transform .2s}
@@ -82,7 +82,7 @@ button,input,select{font-family:inherit}
 .pos-btn{padding:7px 10px;border-radius:8px;border:2px solid #334155;font-size:12px;font-weight:700;cursor:pointer;min-width:38px;text-align:center;background:#0F172A;color:#94A3B8;transition:all .15s}
 .pos-btn.active{background:#6366F1;border-color:#818CF8;color:#fff}
 @media(min-width:600px){.pos-btn{padding:8px 12px;font-size:13px;min-width:42px}}
-.grid-header{display:flex;padding:8px 12px;background:#1E293B;border-bottom:1px solid #334155;align-items:center}
+.grid-header{display:flex;padding:8px 12px;background:#1E293B;border-bottom:1px solid #334155;align-items:center;position:sticky;top:0;z-index:3}
 @media(min-width:600px){.grid-header{padding:10px 16px}}
 .grid-header .lbl{font-size:11px;color:#64748B;font-weight:600}
 .grid-header .stat-labels{display:flex;flex:1;justify-content:space-around}
@@ -109,7 +109,8 @@ button,input,select{font-family:inherit}
 .side-btn.active{border-left-color:currentColor;background:rgba(255,255,255,.05)}
 .sum-table{width:100%;border-collapse:collapse;font-size:12px}
 @media(min-width:600px){.sum-table{font-size:14px}}
-.sum-table th{padding:8px 6px;user-select:none}
+.sum-table thead{position:sticky;top:0;z-index:3}
+.sum-table th{padding:8px 6px;user-select:none;background:#1E293B}
 @media(min-width:600px){.sum-table th,.sum-table td{padding:12px 10px}}
 .sum-table th.sortable{cursor:pointer}
 .sum-table td{padding:10px 6px;text-align:center;color:#E2E8F0}
@@ -156,7 +157,7 @@ button,input,select{font-family:inherit}
 .subteam-chip{padding:5px 12px;border-radius:16px;border:1.5px solid #334155;font-size:12px;font-weight:600;white-space:nowrap;background:transparent;color:#94A3B8;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
 .subteam-chip.active{background:#10B981;border-color:#34D399;color:#fff}
 .subteam-edit{background:none;border:none;font-size:10px;cursor:pointer;padding:0 2px;color:inherit;opacity:.7}
-.quick-panel{flex:1;overflow-y:auto;padding:8px 10px}
+.quick-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 10px}
 @media(min-width:600px){.quick-panel{padding:12px 16px}}
 .qp-group{margin-bottom:10px}
 .qp-group-title{font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;margin-bottom:4px;display:inline-block}
@@ -426,7 +427,7 @@ function renderSetup(){
       if(state.teams.length<=1){showToast("⚠️ Dernière équipe");return}
       if(confirm("Supprimer « "+team.name+" » ?")){state.teams=state.teams.filter(function(t){return t.id!==team.id});state.currentTeamId=state.teams[0].id;saveAll();render()}
     }},"🗑️ Supprimer"));
-  return h("div",{style:{padding:isTablet()?"24px":"16px",overflowY:"auto",flex:"1"}},
+  return h("div",{style:{padding:isTablet()?"24px":"16px",overflowY:"auto",flex:"1",WebkitOverflowScrolling:"touch"},"data-scroll-key":"setup-wrap"},
     h("div",{style:{textAlign:"center",marginBottom:isTablet()?"28px":"20px"}},
       h("div",{style:{fontSize:isTablet()?"52px":"42px",marginBottom:"4px"}},"🏐"),
       h("h2",{style:{color:"#F8FAFC",fontSize:isTablet()?"24px":"20px"}},team.name),
@@ -630,7 +631,7 @@ function renderSummary(){
   var totalsBar=h("div",{className:"totals-bar"},g.stats.map(function(s){var t=filtered.reduce(function(sum,p){return sum+p.stats[s.key]},0);return h("div",{style:{textAlign:"center"}},h("div",{className:"t-lbl"},s.label),h("div",{className:"t-val",style:{color:g.color}},String(t)))}));
   var sessInfo=isG?h("div",{className:"sess-count"},"Cumulé sur "+team.sessions.length+" session"+(team.sessions.length>1?"s":"")):null;
 
-  return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},modeRow,viewRow,filterBar,sessInfo,h("div",{style:{flex:"1",overflowY:"auto",overflowX:"auto"}},h("table",{className:"sum-table"},h("thead",null,thead),h("tbody",null,tbody))),totalsBar)
+  return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},modeRow,viewRow,filterBar,sessInfo,h("div",{className:"content",style:{flex:"1",overflowY:"auto",overflowX:"auto",WebkitOverflowScrolling:"touch"},"data-scroll-key":"summary-scroll"},h("table",{className:"sum-table"},h("thead",null,thead),h("tbody",null,tbody))),totalsBar)
 }
 
 // ═══ SESSIONS ═══
@@ -703,8 +704,31 @@ function renderModal(){
       h("div",{style:{display:"flex",gap:"10px"}},h("button",{className:"btn btn-ghost full",onclick:function(){state.modalType=null;render()}},"Annuler"),h("button",{className:"btn btn-save full",onclick:onOk},cl))))
 }
 
+// ═══ SCROLL STATE ═══
+var scrollPositions={};
+function saveScrollPos(){
+  document.querySelectorAll(".content,.quick-panel,[data-scroll-key]").forEach(function(el){
+    var key=el.getAttribute("data-scroll-key")||el.className.split(" ")[0];
+    if(key)scrollPositions[key]=el.scrollTop;
+  });
+  // Also save the setup wrapper scroll
+  var setupWrap=document.querySelector("[data-scroll-key='setup-wrap']");
+  if(setupWrap)scrollPositions["setup-wrap"]=setupWrap.scrollTop;
+}
+function restoreScrollPos(){
+  requestAnimationFrame(function(){
+    document.querySelectorAll(".content,.quick-panel,[data-scroll-key]").forEach(function(el){
+      var key=el.getAttribute("data-scroll-key")||el.className.split(" ")[0];
+      if(key&&scrollPositions[key])el.scrollTop=scrollPositions[key];
+    });
+    var setupWrap=document.querySelector("[data-scroll-key='setup-wrap']");
+    if(setupWrap&&scrollPositions["setup-wrap"])setupWrap.scrollTop=scrollPositions["setup-wrap"];
+  });
+}
+
 // ═══ MAIN RENDER ═══
 function render(){
+  saveScrollPos();
   var app=document.getElementById("app");app.innerHTML="";
   var team=curTeam();
   var titles={setup:"Effectif 🏐",input:state.inputMode==="quick"?"Saisie rapide":"Saisie grille",summary:"Récapitulatif",sessions:"Sessions"};
@@ -735,7 +759,8 @@ function render(){
   else content=renderSessions();
   app.appendChild(content);app.appendChild(renderTabBar());
   var modal=renderModal();if(modal)app.appendChild(modal);
-  if(state.toast)app.appendChild(h("div",{className:"toast"},state.toast))
+  if(state.toast)app.appendChild(h("div",{className:"toast"},state.toast));
+  restoreScrollPos();
 }
 
 // ═══ INIT ═══
@@ -750,8 +775,8 @@ document.addEventListener("visibilitychange",function(){if(document.visibilitySt
 if(navigator.storage&&navigator.storage.persist){navigator.storage.persist().then(function(granted){if(granted)console.log("Storage persistent")})}
 // Prevent pull-to-refresh on mobile which can lose state
 document.addEventListener("touchmove",function(e){if(document.querySelector(".content")){}},{passive:true});
-// iOS standalone: prevent bounce scroll on the body
-document.body.addEventListener("touchmove",function(e){if(!e.target.closest(".content,.quick-panel,.setup-grid,.court-panel,.player-strip,.court-toggle-grid,.modal,.pill-row,.sub-pills,.pos-row,.team-bar,.sess-grid,.subteam-row"))e.preventDefault()},{passive:false});
+// iOS standalone: prevent bounce scroll on the body but allow all scrollable areas
+document.body.addEventListener("touchmove",function(e){if(!e.target.closest(".content,.quick-panel,.setup-grid,.court-panel,.player-strip,.court-toggle-grid,.modal,.pill-row,.sub-pills,.pos-row,.team-bar,.sess-grid,.subteam-row,.sum-table,[data-scroll-key]"))e.preventDefault()},{passive:false});
 // Handle iOS safe areas for notch devices
 document.documentElement.style.setProperty("--sat",getComputedStyle(document.documentElement).getPropertyValue("env(safe-area-inset-top)")||"0px");
 </script>
