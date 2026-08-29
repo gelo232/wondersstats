@@ -1,17 +1,22 @@
 const {chromium}=require("playwright");
+const fs=require("fs");
+const LOG=process.env.LOG_FILE||"";
+const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
 const BASE=process.env.BASE_URL||"http://127.0.0.1:8899";
 const EXE=process.env.CHROMIUM_PATH||undefined;
 const ERRORS=[];
 (async()=>{
   const b=await chromium.launch(EXE?{executablePath:EXE}:{});
   const ctx=await b.newContext({viewport:{width:414,height:896}});
+  ctx.setDefaultTimeout(8000);
   const page=await ctx.newPage();
   page.on("pageerror",e=>ERRORS.push("PAGEERROR: "+e.message));
   page.on("console",m=>{if(m.type()==="error")ERRORS.push("CONSOLE: "+m.text())});
 
+  let PASS=0;
   const step=async(name,fn)=>{
-    try{ await fn(); console.log("  ✓ "+name); }
-    catch(e){ console.log("  ✗ "+name+" → "+e.message); ERRORS.push("STEP "+name+": "+e.message); }
+    try{ await fn(); PASS++; say("  ✓ "+name); }
+    catch(e){ say("  ✗ "+name+" → "+e.message); ERRORS.push("STEP "+name+": "+e.message); }
   };
   const txt=async()=>await page.textContent("#app");
   const click=async(sel,n=0)=>{ await page.locator(sel).nth(n).click(); await page.waitForTimeout(60); };
@@ -38,7 +43,7 @@ const ERRORS=[];
   await page.goto(BASE+"/index.html");
   await page.waitForTimeout(400);
 
-  console.log("\n── Migration v2 → v3");
+  say("\n── Migration v2 → v3");
   await step("3 joueuses migrées dans la base",async()=>{
     const n=await page.evaluate(()=>DB.players.length);
     if(n!==3) throw new Error("players="+n);
@@ -69,7 +74,7 @@ const ERRORS=[];
     if(n!==3) throw new Error("selected="+n);
   });
 
-  console.log("\n── Navigation onglets coach");
+  say("\n── Navigation onglets coach");
   for(const [tab,marker] of [["Saison","Sélection"],["Joueuses","Base de données"],["Saisie","Terrain"],["Récap","Match"],["Sélection","Vues"]]){
     await step("onglet "+tab,async()=>{
       await page.locator(".tab-btn").filter({hasText:tab}).first().click();
@@ -79,7 +84,7 @@ const ERRORS=[];
     });
   }
 
-  console.log("\n── Renommage : l'historique cumulé survit");
+  say("\n── Renommage : l'historique cumulé survit");
   await step("renommer Léa → historique conservé",async()=>{
     const before=await page.evaluate(()=>{
       const t=DB.seasons[0].teams[0];
@@ -96,7 +101,7 @@ const ERRORS=[];
     if(before!==6||after!==6) throw new Error("before="+before+" after="+after);
   });
 
-  console.log("\n── Numéros : détection des doublons");
+  say("\n── Numéros : détection des doublons");
   await step("doublon détecté",async()=>{
     const d=await page.evaluate(()=>{
       DB.seasons[0].roster[0].number="12";
@@ -107,6 +112,7 @@ const ERRORS=[];
   });
 
   await ctx.close(); await b.close();
-  console.log("\n"+(ERRORS.length?("❌ "+ERRORS.length+" problème(s):\n"+ERRORS.join("\n")):"✅ Aucune erreur JS, tous les contrôles passent"));
+  say("\n"+PASS+" contrôles réussis.");
+  say(ERRORS.length?("❌ "+ERRORS.length+" problème(s):\n"+ERRORS.join("\n")):"✅ Aucun problème");
   process.exit(ERRORS.length?1:0);
 })();

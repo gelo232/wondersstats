@@ -325,6 +325,28 @@ var STATUSES={
 /* Recommandation de sélectionneur → statut de roster */
 var RECO_TO_STATUS={select:"selected",recall:"recalled",cut:"cut"};
 
+/* Statut d'effectif en cours de saison — indépendant du statut de sélection.
+   Une joueuse partie en janvier reste « Retenue » (elle l'a été) et conserve
+   ses matchs joués ; seule son appartenance courante change. */
+var MEMBERSHIPS={
+  active:{label:"Active",color:"#10B981",icon:"●"},
+  injured:{label:"Blessée",color:"#F59E0B",icon:"🩹"},
+  left:{label:"Partie",color:"#94A3B8",icon:"→"}
+};
+var MEMBERSHIP_ORDER=["active","injured","left"];
+
+/* Campagnes d'évaluation : une saison en compte plusieurs, chacune datée.
+   C'est ce qui permet de comparer la sélection d'août au bilan de mai. */
+var CAMPAIGN_KINDS=[
+  {key:"tryout",label:"Sélection",icon:"🎯"},
+  {key:"mid",label:"Mi-saison",icon:"📈"},
+  {key:"final",label:"Fin de saison",icon:"🏁"},
+  {key:"custom",label:"Ponctuelle",icon:"📌"}
+];
+var KIND_BY_KEY={};CAMPAIGN_KINDS.forEach(function(k){KIND_BY_KEY[k.key]=k});
+
+var CATEGORIES=["U11","U13","U15","U16","U18","U21","Senior"];
+
 /* ─── Utilitaires ───────────────────────────────────────────── */
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 function clone(o){return JSON.parse(JSON.stringify(o))}
@@ -337,6 +359,7 @@ function cleanNum(v){return String(v==null?"":v).replace(/\D/g,"").slice(0,3)}
 function nowISO(){return new Date().toISOString()}
 function fmtDate(iso){try{return new Date(iso).toLocaleDateString("fr-CA",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}catch(e){return iso||""}}
 function fmtDay(iso){try{return new Date(iso).toLocaleDateString("fr-CA",{year:"numeric",month:"long",day:"numeric"})}catch(e){return iso||""}}
+function fmtShortDay(d){if(!d)return "?";try{return new Date(d+(d.length===10?"T12:00:00":"")).toLocaleDateString("fr-CA",{month:"short",day:"numeric",year:"numeric"})}catch(e){return d}}
 function plural(n,s,p){return n+" "+(n>1?(p||s+"s"):s)}
 function isTablet(){return window.innerWidth>=600}
 function isLand(){return window.innerWidth>window.innerHeight}
@@ -345,22 +368,35 @@ function isLand(){return window.innerWidth>window.innerHeight}
 function mkDbPlayer(o){
   return Object.assign({id:uid(),firstName:"",lastName:"",birthYear:"",notes:"",archived:false,createdAt:nowISO()},o||{});
 }
+/* Le numéro n'est JAMAIS attribué automatiquement : il est saisi par
+   l'entraîneur, et reste modifiable ensuite depuis le tableau de sélection. */
 function mkRosterEntry(playerId,number,position){
-  return {playerId:playerId,number:cleanNum(number),position:position||"",status:"candidate",note:""};
+  return {playerId:playerId,number:cleanNum(number),position:position||"",
+          status:"candidate",membership:"active",note:""};
+}
+function mkCampaign(o){
+  var kind=(o&&o.kind)||"custom";
+  return Object.assign({id:uid(),kind:kind,name:(KIND_BY_KEY[kind]||{}).label||"Campagne",
+    createdAt:nowISO(),closedAt:null},o||{});
 }
 function mkTeam(name){
   return {id:uid(),name:name||"Équipe",playerIds:[],lineup:[],subteams:[],stats:{},sessions:[]};
 }
 function mkSeason(name){
   var t=mkTeam("Équipe A");
-  return {id:uid(),name:name||("Saison "+new Date().getFullYear()),createdAt:nowISO(),archived:false,
+  var c=mkCampaign({kind:"tryout"});
+  return {id:uid(),name:name||("Saison "+new Date().getFullYear()),createdAt:nowISO(),
+          category:"",startDate:"",endDate:"",notes:"",closedAt:null,archived:false,
+          campaigns:[c],activeCampaignId:c.id,
           roster:[],teams:[t],activeTeamId:t.id,selectorViews:[],submissions:[]};
 }
 function mkSelectorView(o){
   return Object.assign({id:uid(),name:"",selectorName:"",playerIds:[],
     criteria:CRITERIA.map(function(c){return c.key}),
     groups:SG_KEYS.slice(),
-    data:{},createdAt:nowISO(),submittedAt:null,submissionCount:0,origin:"local",seasonName:""},o||{});
+    campaignId:null,campaignName:"",anonymous:true,context:"",
+    data:{},createdAt:nowISO(),submittedAt:null,submissionCount:0,
+    origin:"local",seasonName:"",published:false},o||{});
 }
 function mkEntryData(){return {stats:emptyS(),ratings:{},reco:"",note:""}}
 
@@ -374,7 +410,11 @@ var INBOX={views:[]};
 var state={
   role:"coach",                 // coach | selector
   tab:"season",                 // onglet actif (rôle courant)
-  seasonPane:"selection",       // selection | teams | seasons
+  seasonPane:"selection",       // selection | campaigns | teams | seasons
+  evalCampaignId:null,          // filtre de campagne dans Récap → Évaluations
+  evalMode:"list",              // list | progress
+  progressFrom:null, progressTo:null,
+  cumulScope:"all",             // all | last3 | last5 | last10
   playersPane:"db",             // db | roster
   summaryMode:"session",        // session | global | evals | sessions
   selectionPane:"views",        // views | submissions
@@ -441,8 +481,10 @@ function teamViewPlayers(team){
   return out;
 }
 function lineupPlayers(team){
+  var season=curSeason();
   var all=teamViewPlayers(team);
-  if(!team.lineup||!team.lineup.length)return all;
+  if(!team.lineup||!team.lineup.length)
+    return all.filter(function(p){var e=rosterEntry(season,p.id);return !e||e.membership==="active"});
   return all.filter(function(p){return team.lineup.indexOf(p.id)!==-1});
 }
 function filterPos(list){
@@ -488,9 +530,24 @@ function normalizeDB(db){
   db.players=(db.players||[]).map(function(p){return Object.assign(mkDbPlayer(),p,{archived:!!p.archived})});
   var known={};db.players.forEach(function(p){known[p.id]=true});
   db.seasons=(db.seasons||[]).map(function(s){
-    s=Object.assign({id:uid(),name:"Saison",createdAt:nowISO(),archived:false,roster:[],teams:[],selectorViews:[],submissions:[]},s);
+    s=Object.assign({id:uid(),name:"Saison",createdAt:nowISO(),category:"",startDate:"",endDate:"",
+      notes:"",closedAt:null,archived:false,campaigns:[],activeCampaignId:null,
+      roster:[],teams:[],selectorViews:[],submissions:[]},s);
+
+    /* Campagnes — toute saison en possède au moins une. Les données
+       antérieures à leur introduction sont rattachées à la plus ancienne. */
+    s.campaigns=(s.campaigns||[]).map(function(c){
+      return Object.assign(mkCampaign(),c,{kind:KIND_BY_KEY[c.kind]?c.kind:"custom"});
+    });
+    if(!s.campaigns.length)s.campaigns.push(mkCampaign({kind:"tryout",createdAt:s.createdAt}));
+    var legacyCampaignId=s.campaigns[0].id;
+    var campKnown={};s.campaigns.forEach(function(c){campKnown[c.id]=c});
+    if(!campKnown[s.activeCampaignId])s.activeCampaignId=s.campaigns[s.campaigns.length-1].id;
+
     s.roster=(s.roster||[]).filter(function(e){return e&&known[e.playerId]}).map(function(e){
-      return Object.assign(mkRosterEntry(e.playerId),e,{number:cleanNum(e.number),status:STATUSES[e.status]?e.status:"candidate"});
+      return Object.assign(mkRosterEntry(e.playerId),e,{number:cleanNum(e.number),
+        status:STATUSES[e.status]?e.status:"candidate",
+        membership:MEMBERSHIPS[e.membership]?e.membership:"active"});
     });
     var inRoster={};s.roster.forEach(function(e){inRoster[e.playerId]=true});
     s.teams=(s.teams||[]).map(function(t){
@@ -514,6 +571,9 @@ function normalizeDB(db){
       v.criteria=(v.criteria||[]).filter(function(c){return CRIT_BY_KEY[c]});
       if(!v.criteria.length)v.criteria=CRITERIA.map(function(c){return c.key});
       v.groups=(v.groups||[]).filter(function(g){return SG[g]});
+      if(!campKnown[v.campaignId])v.campaignId=legacyCampaignId;
+      v.campaignName=campKnown[v.campaignId].name;
+      v.anonymous=v.anonymous!==false;
       var d={};v.playerIds.forEach(function(pid){
         var src=(v.data||{})[pid]||{};
         d[pid]={stats:normStats(src.stats),ratings:src.ratings||{},reco:RECO_BY_KEY[src.reco]?src.reco:"",note:src.note||""};
@@ -522,7 +582,9 @@ function normalizeDB(db){
       return v;
     });
     s.submissions=(s.submissions||[]).map(function(sub){
+      var cid=campKnown[sub.campaignId]?sub.campaignId:legacyCampaignId;
       return {id:sub.id||uid(),viewId:sub.viewId||"",viewName:sub.viewName||"Vue",selectorName:sub.selectorName||"",
+        campaignId:cid,campaignName:campKnown[cid].name,context:sub.context||"",
         submittedAt:sub.submittedAt||nowISO(),criteria:sub.criteria||CRITERIA.map(function(c){return c.key}),
         entries:(sub.entries||[]).filter(function(e){return e&&e.playerId}).map(function(e){
           return {playerId:e.playerId,number:cleanNum(e.number),stats:normStats(e.stats),ratings:e.ratings||{},reco:RECO_BY_KEY[e.reco]?e.reco:"",note:e.note||""};
@@ -664,10 +726,16 @@ function findViewAnywhere(id){
 
 /* ══ CUMULS & COMPILATION ══════════════════════════════════════ */
 /* Cumul des sessions d'une équipe, agrégé par playerId (identité stable) */
+var CUMUL_SCOPES=[{k:"all",l:"Toute la saison"},{k:"last3",l:"3 derniers"},{k:"last5",l:"5 derniers"},{k:"last10",l:"10 derniers"}];
+/* Les sessions sont empilées les plus récentes en tête (unshift à l'enregistrement) */
+function scopedSessions(team){
+  var n={all:0,last3:3,last5:5,last10:10}[state.cumulScope]||0;
+  return n?team.sessions.slice(0,n):team.sessions;
+}
 function computeGlobalPlayers(team){
   var season=curSeason();if(!team||!team.sessions.length)return [];
   var map={};
-  team.sessions.forEach(function(sess){
+  scopedSessions(team).forEach(function(sess){
     sess.entries.forEach(function(en){
       if(!hasStats(en.stats))return;
       var m=map[en.playerId];
@@ -683,6 +751,36 @@ function computeGlobalPlayers(team){
   return Object.keys(map).map(function(k){return map[k]});
 }
 
+/* ── Campagnes ─────────────────────────────────────────────── */
+function campaignById(season,id){
+  if(!season)return null;
+  for(var i=0;i<season.campaigns.length;i++)if(season.campaigns[i].id===id)return season.campaigns[i];
+  return null;
+}
+function curCampaign(season){
+  season=season||curSeason();if(!season)return null;
+  return campaignById(season,season.activeCampaignId)||season.campaigns[season.campaigns.length-1]||null;
+}
+function campaignLabel(c){
+  if(!c)return "—";
+  var k=KIND_BY_KEY[c.kind]||KIND_BY_KEY.custom;
+  return k.icon+" "+c.name;
+}
+function campaignOpen(season,c){
+  return !!c && !c.closedAt && !seasonClosed(season);
+}
+function seasonClosed(season){return !!(season&&(season.closedAt||season.archived))}
+function campaignSubs(season,campaignId){
+  if(!season)return [];
+  return season.submissions.filter(function(sub){return !campaignId||sub.campaignId===campaignId});
+}
+function campaignViews(season,campaignId){
+  if(!season)return [];
+  return season.selectorViews.filter(function(v){return !campaignId||v.campaignId===campaignId});
+}
+/* Une joueuse compte dans l'effectif courant si elle est retenue et pas partie */
+function isInSquad(entry){return entry&&entry.status==="selected"&&entry.membership!=="left"}
+
 /* Une entrée ne porte de l'information que si le sélectionneur y a réellement touché */
 function dataFilled(d){
   if(!d)return false;
@@ -692,8 +790,10 @@ function dataFilled(d){
   return CRITERIA.some(function(c){return (d.ratings||{})[c.key]>0});
 }
 
-/* Compilation multi-sélectionneurs : une entrée par joueuse réellement évaluée */
-function compileSubmissions(season){
+/* Compilation multi-sélectionneurs : une entrée par joueuse réellement évaluée.
+   campaignId absent ou null → toutes campagnes confondues ; sinon la campagne
+   nommée seule, ce qui est la seule lecture ayant du sens pour un bilan daté. */
+function compileSubmissions(season,campaignId){
   var out={};
   if(!season)return out;
   function bucket(pid){
@@ -702,6 +802,7 @@ function compileSubmissions(season){
     return out[pid];
   }
   season.submissions.forEach(function(sub){
+    if(campaignId&&sub.campaignId!==campaignId)return;
     var who=(sub.selectorName||"").trim()||sub.viewName||"Sélectionneur";
     sub.entries.forEach(function(e){
       if(!dataFilled(e))return;          // athlète non observée : n'entre pas dans les moyennes
@@ -732,6 +833,62 @@ function compileSubmissions(season){
   });
   return out;
 }
+/* Progression d'une joueuse entre deux campagnes : delta global et par critère.
+   C'est la lecture que la moyenne toutes-campagnes rendait impossible. */
+function compareCampaigns(season,fromId,toId){
+  var a=compileSubmissions(season,fromId),b=compileSubmissions(season,toId);
+  var ids={};Object.keys(a).forEach(function(k){ids[k]=1});Object.keys(b).forEach(function(k){ids[k]=1});
+  return Object.keys(ids).map(function(pid){
+    var ca=a[pid],cb=b[pid];
+    var crits={};
+    CRITERIA.forEach(function(c){
+      var ra=ca&&ca.ratings[c.key],rb=cb&&cb.ratings[c.key];
+      crits[c.key]={from:ra&&ra.n?ra.avg:null,to:rb&&rb.n?rb.avg:null,
+        delta:(ra&&ra.n&&rb&&rb.n)?(rb.avg-ra.avg):null};
+    });
+    return {playerId:pid,
+      from:ca?ca.score:null,to:cb?cb.score:null,
+      delta:(ca&&cb&&ca.n&&cb.n)?(cb.score-ca.score):null,
+      nFrom:ca?ca.n:0,nTo:cb?cb.n:0,criteria:crits};
+  }).sort(function(x,y){
+    if(x.delta==null&&y.delta==null)return (y.to||0)-(x.to||0);
+    if(x.delta==null)return 1;
+    if(y.delta==null)return -1;
+    return y.delta-x.delta;
+  });
+}
+function deltaColor(d){
+  if(d==null)return "#64748B";
+  if(d>=0.5)return "#10B981";
+  if(d>0.05)return "#84CC16";
+  if(d<-0.5)return "#EF4444";
+  if(d<-0.05)return "#F59E0B";
+  return "#64748B";
+}
+function fmtDelta(d){
+  if(d==null)return "—";
+  var v=(d>=0?"+":"")+d.toFixed(1);
+  return v;
+}
+
+/* Cumul de match d'une joueuse sur toute la saison, toutes équipes confondues.
+   Sert la fiche joueuse : le quantitatif que la compilation d'évaluations ignore. */
+function playerSeasonStats(season,pid){
+  var out={stats:emptyS(),sessions:0,teams:[]};
+  if(!season)return out;
+  season.teams.forEach(function(t){
+    var n=0;
+    t.sessions.forEach(function(se){
+      se.entries.forEach(function(en){
+        if(en.playerId!==pid||!hasStats(en.stats))return;
+        addStats(out.stats,en.stats);n++;
+      });
+    });
+    if(n){out.sessions+=n;out.teams.push({name:t.name,sessions:n})}
+  });
+  return out;
+}
+
 function scoreColor(s){
   if(s>=4.2)return "#10B981";
   if(s>=3.4)return "#84CC16";
@@ -818,22 +975,59 @@ function mergeDB(inc){
 }
 function nameKey(p){return (fullName(p)+"|"+(p.birthYear||"")).toLowerCase()}
 
-/* ── Paquet sélectionneur : NUMÉROS UNIQUEMENT, jamais de nom ─ */
+/* ── Paquet sélectionneur ────────────────────────────────────
+   Vue anonyme (défaut) : seuls l'identifiant opaque et le dossard
+   circulent — aucun nom, ni dans l'interface ni dans le fichier.
+   Vue nominative : l'entraîneur a explicitement levé l'anonymat,
+   un libellé court accompagne alors chaque numéro. */
+function viewNumberIssues(season,view){
+  var dup=dupNumbers(season);
+  return view.playerIds.filter(function(pid){var n=numOf(season,pid);return !n||dup[n]});
+}
 function buildPacket(season,view){
+  var camp=campaignById(season,view.campaignId);
+  var anon=view.anonymous!==false;
   return {
     type:"wonderstats-selector-packet",version:3,createdAt:nowISO(),
     seasonId:season.id,seasonName:season.name,
+    campaignId:view.campaignId||null,campaignName:camp?camp.name:"",
     view:{
       id:view.id,name:view.name,selectorName:view.selectorName,
       criteria:view.criteria.slice(),groups:view.groups.slice(),
-      // aucune donnée nominative : uniquement l'identifiant opaque et le dossard
-      players:view.playerIds.map(function(pid){return {playerId:pid,number:numOf(season,pid)}})
+      anonymous:anon,context:view.context||"",
+      players:view.playerIds.map(function(pid){
+        var o={playerId:pid,number:numOf(season,pid)};
+        if(!anon)o.label=shortName(playerById(pid));
+        return o;
+      })
     }
   };
 }
+function packetToView(data){
+  var v=mkSelectorView({
+    id:(data.view&&data.view.id)||uid(),
+    name:(data.view&&data.view.name)||"Vue importée",
+    selectorName:(data.view&&data.view.selectorName)||"",
+    criteria:((data.view&&data.view.criteria)||[]).filter(function(c){return CRIT_BY_KEY[c]}),
+    groups:((data.view&&data.view.groups)||[]).filter(function(g){return SG[g]}),
+    anonymous:!(data.view&&data.view.anonymous===false),
+    context:(data.view&&data.view.context)||"",
+    campaignId:data.campaignId||null,campaignName:data.campaignName||"",
+    origin:"imported",seasonId:data.seasonId,seasonName:data.seasonName||""
+  });
+  if(!v.criteria.length)v.criteria=CRITERIA.map(function(c){return c.key});
+  v.numbers={};v.labels={};
+  ((data.view&&data.view.players)||[]).forEach(function(pl){
+    if(!pl||!pl.playerId)return;
+    v.playerIds.push(pl.playerId);
+    v.numbers[pl.playerId]=cleanNum(pl.number);
+    if(pl.label)v.labels[pl.playerId]=String(pl.label);
+    v.data[pl.playerId]=mkEntryData();
+  });
+  return v;
+}
 function exportPacket(season,view){
-  var dup=dupNumbers(season);
-  var bad=view.playerIds.filter(function(pid){var n=numOf(season,pid);return !n||dup[n]});
+  var bad=viewNumberIssues(season,view);
   if(bad.length){showToast("⚠️ "+plural(bad.length,"numéro")+" manquant(s) ou en double");return}
   if(downloadJSON(buildPacket(season,view),"Vue_"+safeName(view.name)+"_"+stamp()+".json"))
     showToast("📤 Paquet sélectionneur exporté");
@@ -841,20 +1035,7 @@ function exportPacket(season,view){
 function importPacket(){
   pickJSON(function(data){
     if(!data||data.type!=="wonderstats-selector-packet"||!data.view){showToast("⚠️ Ce n'est pas un paquet sélectionneur");return}
-    var v=mkSelectorView({
-      id:data.view.id||uid(),name:data.view.name||"Vue importée",selectorName:data.view.selectorName||"",
-      criteria:(data.view.criteria||[]).filter(function(c){return CRIT_BY_KEY[c]}),
-      groups:(data.view.groups||[]).filter(function(g){return SG[g]}),
-      origin:"imported",seasonId:data.seasonId,seasonName:data.seasonName||""
-    });
-    if(!v.criteria.length)v.criteria=CRITERIA.map(function(c){return c.key});
-    v.numbers={};
-    (data.view.players||[]).forEach(function(pl){
-      if(!pl||!pl.playerId)return;
-      v.playerIds.push(pl.playerId);
-      v.numbers[pl.playerId]=cleanNum(pl.number);
-      v.data[pl.playerId]=mkEntryData();
-    });
+    var v=packetToView(data);
     INBOX.views=INBOX.views.filter(function(x){return x.id!==v.id});
     INBOX.views.push(v);
     state.role="selector";state.tab="sv_views";state.svViewId=v.id;
@@ -868,7 +1049,10 @@ function buildSubmission(view,numberFor){
     type:"wonderstats-submission",version:3,
     id:uid(),viewId:view.id,viewName:view.name,
     selectorName:(view.selectorName||"").trim(),
-    seasonId:view.seasonId||null,submittedAt:nowISO(),
+    seasonId:view.seasonId||null,
+    campaignId:view.campaignId||null,campaignName:view.campaignName||"",
+    context:view.context||"",
+    submittedAt:nowISO(),
     criteria:view.criteria.slice(),
     entries:view.playerIds.map(function(pid){
       var d=view.data[pid]||mkEntryData();
@@ -881,13 +1065,15 @@ function buildSubmission(view,numberFor){
 function submitLocalView(season,view){
   var sub=buildSubmission(view,function(pid){return numOf(season,pid)});
   delete sub.type;delete sub.version;
+  var camp=campaignById(season,view.campaignId);
+  sub.campaignId=view.campaignId;sub.campaignName=camp?camp.name:"";
   season.submissions.push(sub);
   view.submittedAt=sub.submittedAt;
   view.submissionCount=(view.submissionCount||0)+1;
   saveNow();
   return sub;
 }
-/* Soumission depuis une vue importée : produit un fichier à remettre au coach */
+/* Soumission depuis une vue importée : fichier de secours hors-ligne */
 function exportSubmission(view){
   var sub=buildSubmission(view,function(pid){return (view.numbers||{})[pid]||""});
   if(downloadJSON(sub,"Soumission_"+safeName(view.name)+"_"+safeName(view.selectorName)+"_"+stamp()+".json")){
@@ -895,18 +1081,223 @@ function exportSubmission(view){
     saveNow();showToast("📤 Soumission exportée");
   }
 }
+/* Intégration d'une soumission dans la saison — chemin commun au fichier
+   et au relais réseau. Retourne null si elle est refusée. */
+function integrateSubmission(season,data){
+  if(!data||!season)return null;
+  if(season.submissions.some(function(s){return s.id===data.id}))return null;
+  var known={};season.roster.forEach(function(e){known[e.playerId]=true});
+  var entries=(data.entries||[]).filter(function(e){return e&&known[e.playerId]});
+  if(!entries.length)return null;
+  var cid=campaignById(season,data.campaignId)?data.campaignId:season.activeCampaignId;
+  var camp=campaignById(season,cid);
+  var sub={id:data.id||uid(),viewId:data.viewId||"",viewName:data.viewName||"Vue",
+    selectorName:data.selectorName||"",campaignId:cid,campaignName:camp?camp.name:"",
+    context:data.context||"",submittedAt:data.submittedAt||nowISO(),
+    criteria:data.criteria||CRITERIA.map(function(c){return c.key}),
+    entries:entries.map(function(e){return {playerId:e.playerId,number:cleanNum(e.number),
+      stats:normStats(e.stats),ratings:e.ratings||{},reco:RECO_BY_KEY[e.reco]?e.reco:"",note:e.note||""}})};
+  season.submissions.push(sub);
+  return sub;
+}
 function importSubmission(season){
   pickJSON(function(data){
     if(!data||data.type!=="wonderstats-submission"){showToast("⚠️ Ce n'est pas une soumission");return}
     if(season.submissions.some(function(s){return s.id===data.id})){showToast("⚠️ Soumission déjà importée");return}
-    var known={};season.roster.forEach(function(e){known[e.playerId]=true});
-    var entries=(data.entries||[]).filter(function(e){return e&&known[e.playerId]});
-    if(!entries.length){showToast("⚠️ Aucune joueuse de cette saison dans le fichier");return}
-    season.submissions.push({id:data.id||uid(),viewId:data.viewId||"",viewName:data.viewName||"Vue",
-      selectorName:data.selectorName||"",submittedAt:data.submittedAt||nowISO(),
-      criteria:data.criteria||CRITERIA.map(function(c){return c.key}),
-      entries:entries.map(function(e){return {playerId:e.playerId,number:cleanNum(e.number),stats:normStats(e.stats),ratings:e.ratings||{},reco:RECO_BY_KEY[e.reco]?e.reco:"",note:e.note||""}})});
-    saveNow();showToast("📥 Soumission de "+(data.selectorName||"—")+" intégrée");render();
+    var sub=integrateSubmission(season,data);
+    if(!sub){showToast("⚠️ Aucune joueuse de cette saison dans le fichier");return}
+    saveNow();showToast("📥 Soumission de "+(sub.selectorName||"—")+" intégrée");render();
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SYNCHRONISATION RÉSEAU
+   Le sélectionneur travaille sur SON appareil : l'entraîneur publie
+   ses vues sur un relais, le sélectionneur les récupère et téléverse
+   sa soumission. Le relais est choisi par l'entraîneur (voir server/) ;
+   l'application ne parle qu'un contrat HTTP minimal :
+
+     POST {url}?action=publish   corps {room, kind, id, payload}
+     GET  {url}?action=list&room=…&kind=…&since=…  →  {ok, items:[…]}
+
+   Les corps sont envoyés en text/plain : aucune requête préliminaire
+   CORS, donc compatible aussi bien avec un Cloudflare Worker qu'avec
+   un script Google Apps Script.
+   ══════════════════════════════════════════════════════════════ */
+var SYNC={url:"",room:"",pulled:{packet:"",submission:""},lastSyncAt:null};
+var SK_SYNC="wonderstats_sync_v3";
+var syncBusy=false;
+
+function saveSync(){try{localStorage.setItem(SK_SYNC,JSON.stringify(SYNC))}catch(e){}}
+function loadSync(){
+  try{
+    var d=localStorage.getItem(SK_SYNC);
+    if(d)SYNC=Object.assign({url:"",room:"",pulled:{packet:"",submission:""},lastSyncAt:null},JSON.parse(d));
+    if(!SYNC.pulled)SYNC.pulled={packet:"",submission:""};
+  }catch(e){}
+}
+function syncReady(){return !!(SYNC.url&&SYNC.room)}
+function mkRoomCode(){
+  var abc="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",out="";
+  for(var i=0;i<6;i++)out+=abc.charAt(Math.floor(Math.random()*abc.length));
+  return "WNDR-"+out.slice(0,3)+"-"+out.slice(3);
+}
+function normUrl(u){
+  u=(u||"").trim();
+  if(!u)return "";
+  if(!/^https?:\/\//i.test(u))u="https://"+u;
+  return u.replace(/[?#].*$/,"").replace(/\/+$/,"");
+}
+function syncEndpoint(params){
+  var q=[];
+  for(var k in params)if(Object.prototype.hasOwnProperty.call(params,k))
+    q.push(encodeURIComponent(k)+"="+encodeURIComponent(params[k]));
+  return SYNC.url+(SYNC.url.indexOf("?")===-1?"?":"&")+q.join("&");
+}
+function syncFetch(url,opts){
+  /* Un relais lent ne doit pas bloquer l'application indéfiniment. */
+  var ctrl=(typeof AbortController!=="undefined")?new AbortController():null;
+  var timer=setTimeout(function(){if(ctrl)ctrl.abort()},20000);
+  var o=Object.assign({},opts||{});
+  if(ctrl)o.signal=ctrl.signal;
+  return fetch(url,o).then(function(r){
+    clearTimeout(timer);
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    return r.text();
+  }).then(function(txt){
+    var data;
+    try{data=JSON.parse(txt)}catch(e){throw new Error("Réponse illisible du relais")}
+    if(data&&data.ok===false)throw new Error(data.error||"Relais en erreur");
+    return data;
+  }).catch(function(err){
+    clearTimeout(timer);
+    if(err&&err.name==="AbortError")throw new Error("Relais injoignable (délai dépassé)");
+    throw err;
+  });
+}
+function syncPublish(kind,id,payload){
+  if(!syncReady())return Promise.reject(new Error("Synchronisation non configurée"));
+  return syncFetch(syncEndpoint({action:"publish"}),{
+    method:"POST",
+    headers:{"Content-Type":"text/plain;charset=utf-8"},
+    body:JSON.stringify({room:SYNC.room,kind:kind,id:id,payload:payload})
+  });
+}
+function syncList(kind,since){
+  if(!syncReady())return Promise.reject(new Error("Synchronisation non configurée"));
+  return syncFetch(syncEndpoint({action:"list",room:SYNC.room,kind:kind,since:since||""}));
+}
+function syncPing(){
+  return syncFetch(syncEndpoint({action:"ping",room:SYNC.room}));
+}
+
+/* Lien de partage : ouvre l'application déjà configurée sur l'appareil
+   du sélectionneur, en rôle sélectionneur. */
+function b64urlEncode(str){
+  var b=btoa(unescape(encodeURIComponent(str)));
+  return b.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+function b64urlDecode(str){
+  str=String(str).replace(/-/g,"+").replace(/_/g,"/");
+  while(str.length%4)str+="=";
+  return decodeURIComponent(escape(atob(str)));
+}
+function shareLink(){
+  if(!syncReady())return "";
+  var base=location.href.replace(/[?#].*$/,"");
+  return base+"#s="+b64urlEncode(JSON.stringify({u:SYNC.url,r:SYNC.room}));
+}
+function readShareLink(){
+  var m=(location.hash||"").match(/[#&]s=([A-Za-z0-9_-]+)/);
+  if(!m)return null;
+  try{
+    var o=JSON.parse(b64urlDecode(m[1]));
+    if(o&&o.u&&o.r)return {url:normUrl(o.u),room:String(o.r)};
+  }catch(e){}
+  return null;
+}
+function clearHash(){
+  try{history.replaceState(null,"",location.href.replace(/#.*$/,""))}catch(e){location.hash=""}
+}
+
+/* ── Entraîneur : publier une vue, relever les soumissions ─── */
+function publishView(season,view){
+  var bad=viewNumberIssues(season,view);
+  if(bad.length){showToast("⚠️ "+plural(bad.length,"numéro")+" à corriger avant publication");return}
+  syncBusy=true;render();
+  syncPublish("packet",view.id,buildPacket(season,view)).then(function(){
+    view.published=true;SYNC.lastSyncAt=nowISO();
+    syncBusy=false;saveNow();saveSync();showToast("📡 « "+view.name+" » publiée");render();
+  }).catch(function(err){
+    syncBusy=false;showToast("⚠️ "+err.message);render();
+  });
+}
+function pullSubmissions(season){
+  syncBusy=true;render();
+  syncList("submission",SYNC.pulled.submission).then(function(data){
+    var items=(data&&data.items)||[],added=0,skipped=0,latest=SYNC.pulled.submission;
+    items.forEach(function(it){
+      if(it.at&&it.at>latest)latest=it.at;
+      var sub=it.payload;
+      if(!sub||sub.type!=="wonderstats-submission")return;
+      var r=integrateSubmission(season,sub);
+      if(r)added++;else skipped++;
+    });
+    SYNC.pulled.submission=latest;SYNC.lastSyncAt=nowISO();
+    syncBusy=false;saveNow();saveSync();
+    showToast(added?("📥 "+plural(added,"soumission")+" intégrée(s)")
+                   :(skipped?"Aucune nouvelle soumission exploitable":"Aucune nouvelle soumission"));
+    render();
+  }).catch(function(err){
+    syncBusy=false;showToast("⚠️ "+err.message);render();
+  });
+}
+
+/* ── Sélectionneur : récupérer les vues, téléverser sa soumission ─ */
+function pullPackets(){
+  syncBusy=true;render();
+  syncList("packet","").then(function(data){
+    var items=(data&&data.items)||[],added=0,updated=0;
+    items.forEach(function(it){
+      var pk=it.payload;
+      if(!pk||pk.type!=="wonderstats-selector-packet"||!pk.view)return;
+      var existing=null;
+      INBOX.views.forEach(function(v){if(v.id===pk.view.id)existing=v});
+      var fresh=packetToView(pk);
+      if(!existing){INBOX.views.push(fresh);added++}
+      else{
+        /* On ne réécrit jamais un travail en cours : seule la composition
+           de la vue est rafraîchie, les évaluations déjà saisies restent. */
+        existing.name=fresh.name;existing.criteria=fresh.criteria;existing.groups=fresh.groups;
+        existing.anonymous=fresh.anonymous;existing.labels=fresh.labels;
+        existing.campaignId=fresh.campaignId;existing.campaignName=fresh.campaignName;
+        existing.context=fresh.context;existing.numbers=fresh.numbers;
+        existing.playerIds=fresh.playerIds;
+        fresh.playerIds.forEach(function(pid){if(!existing.data[pid])existing.data[pid]=mkEntryData()});
+        updated++;
+      }
+    });
+    SYNC.lastSyncAt=nowISO();
+    syncBusy=false;saveNow();saveSync();
+    showToast(added||updated?("📥 "+added+" nouvelle(s), "+updated+" mise(s) à jour"):"Aucune vue disponible");
+    render();
+  }).catch(function(err){
+    syncBusy=false;showToast("⚠️ "+err.message);render();
+  });
+}
+function uploadSubmission(view){
+  var sub=buildSubmission(view,function(pid){return (view.numbers||{})[pid]||""});
+  syncBusy=true;render();
+  syncPublish("submission",sub.id,sub).then(function(){
+    view.submittedAt=sub.submittedAt;view.submissionCount=(view.submissionCount||0)+1;
+    view.uploadedAt=sub.submittedAt;SYNC.lastSyncAt=nowISO();
+    syncBusy=false;saveNow();saveSync();
+    showToast("✅ Soumission téléversée");
+    state.tab="sv_views";render();
+  }).catch(function(err){
+    syncBusy=false;
+    showToast("⚠️ "+err.message+" — utilisez le fichier de secours");
+    render();
   });
 }
 
@@ -992,13 +1383,16 @@ function renderTabBar(){
   }));
 }
 function renderSeasonBar(){
-  var s=curSeason();
+  var s=curSeason(),c=s?curCampaign(s):null;
   return h("div",{className:"ctx-bar"},
     h("button",{className:"grow",onclick:function(){state.tab="season";state.seasonPane="seasons";render()}},
       h("span",null,"🗓️"),
       h("span",{style:{fontWeight:"700",color:"#CBD5E1"}},s?s.name:"Aucune saison"),
+      s&&s.category?h("span",{className:"muted"},s.category):null,
+      seasonClosed(s)?h("span",{className:"muted"},"🔒"):null,
       h("span",{style:{opacity:".6"}},"▾")),
-    s?h("span",{className:"muted"},plural(s.roster.filter(function(e){return e.status==="selected"}).length,"retenue")):null);
+    c?h("button",{onclick:function(){state.tab="season";state.seasonPane="campaigns";render()},
+      style:{flexShrink:"0"}},h("span",{className:"muted"},campaignLabel(c))):null);
 }
 function renderTeamBar(){
   var s=curSeason();if(!s)return null;
@@ -1041,7 +1435,7 @@ function renderSeasonTab(){
   var season=curSeason();
   if(!season)return emptyBlock("🗓️","Aucune saison","Créez une saison pour démarrer : convocation des joueuses, tryouts, équipe.",
     h("button",{className:"btn btn-primary",onclick:function(){openModal("newseason")}},"+ Créer une saison"));
-  var panes=[{k:"selection",l:"🎯 Sélection"},{k:"teams",l:"👕 Équipes"},{k:"seasons",l:"🗓️ Saisons"}];
+  var panes=[{k:"selection",l:"🎯 Sélection"},{k:"campaigns",l:"📅 Campagnes"},{k:"teams",l:"👕 Équipes"},{k:"seasons",l:"🗓️ Saisons"}];
   var row=h("div",{className:"pill-row"},panes.map(function(p){
     var b=h("button",{className:"pill"+(state.seasonPane===p.k?" active":""),onclick:function(){state.seasonPane=p.k;render()}},p.l);
     if(state.seasonPane===p.k)b.style.background="#3B82F6";
@@ -1050,6 +1444,7 @@ function renderSeasonTab(){
   var body;
   if(state.seasonPane==="teams")body=renderTeamsPane(season);
   else if(state.seasonPane==="seasons")body=renderSeasonsPane();
+  else if(state.seasonPane==="campaigns")body=renderCampaignsPane(season);
   else body=renderSelectionBoard(season);
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},row,
     h("div",{className:"content pad","data-scroll-key":"season-"+state.seasonPane},body));
@@ -1057,13 +1452,14 @@ function renderSeasonTab(){
 
 /* ── Tableau de sélection : retenir / recaller / couper ─────── */
 function renderSelectionBoard(season){
-  var compiled=compileSubmissions(season);
+  var camp=curCampaign(season);
+  var compiled=compileSubmissions(season,camp?camp.id:null);
   var dup=dupNumbers(season);
   var counts={candidate:0,recalled:0,selected:0,cut:0};
   season.roster.forEach(function(e){counts[e.status]=(counts[e.status]||0)+1});
 
-  var filters=[{k:"all",l:"Toutes ("+season.roster.length+")"}].concat(STATUS_ORDER.map(function(s){
-    return {k:s,l:STATUSES[s].icon+" "+STATUSES[s].label+" ("+(counts[s]||0)+")"};
+  var filters=[{k:"all",l:"Toutes ("+season.roster.length+")"}].concat(STATUS_ORDER.map(function(st){
+    return {k:st,l:STATUSES[st].icon+" "+STATUSES[st].label+" ("+(counts[st]||0)+")"};
   }));
   var fRow=h("div",{className:"sub-pills",style:{marginBottom:"12px",paddingBottom:"2px"}},filters.map(function(f){
     var b=h("button",{className:"pill sm"+(state.statusFilter===f.k?" active":""),onclick:function(){state.statusFilter=f.k;render()}},f.l);
@@ -1071,50 +1467,53 @@ function renderSelectionBoard(season){
     return b;
   }));
 
-  var list=season.roster.filter(function(e){return state.statusFilter==="all"||e.status===state.statusFilter});
-  var q=(state.search||"").trim().toLowerCase();
-  if(q)list=list.filter(function(e){
-    var p=playerById(e.playerId);
-    return (fullName(p).toLowerCase().indexOf(q)!==-1)||(e.number.indexOf(q)===0);
-  });
-  /* Tri : score compilé décroissant, puis numéro */
-  list=list.slice().sort(function(a,b){
-    var sa=(compiled[a.playerId]||{}).score||0,sb=(compiled[b.playerId]||{}).score||0;
-    if(sb!==sa)return sb-sa;
-    return (parseInt(a.number,10)||999)-(parseInt(b.number,10)||999);
-  });
+  function visible(){
+    var list=season.roster.filter(function(e){return state.statusFilter==="all"||e.status===state.statusFilter});
+    var q=(state.search||"").trim().toLowerCase();
+    if(q)list=list.filter(function(e){
+      var p=playerById(e.playerId);
+      return (fullName(p).toLowerCase().indexOf(q)!==-1)||(e.number.indexOf(q)===0);
+    });
+    return list.slice().sort(function(a,b){
+      var sa=(compiled[a.playerId]||{}).score||0,sb=(compiled[b.playerId]||{}).score||0;
+      if(sb!==sa)return sb-sa;
+      return (parseInt(a.number,10)||999)-(parseInt(b.number,10)||999);
+    });
+  }
 
   var searchInp=h("input",{className:"txt",placeholder:"Rechercher une joueuse ou un numéro…",value:state.search,style:{marginBottom:"10px"}});
-  searchInp.addEventListener("input",function(e){state.search=e.target.value;refreshSelectionList()});
+  searchInp.addEventListener("input",function(e){state.search=e.target.value;refreshList()});
 
   var listWrap=h("div",{id:"selList"});
   function rowFor(e){
     var p=playerById(e.playerId);if(!p)return null;
     var c=compiled[e.playerId];
-    var numI=h("input",{className:"num-badge"+(e.number&&dup[e.number]?" dup":""),value:e.number,inputmode:"numeric",placeholder:"#",maxlength:"3"});
+    var numI=h("input",{className:"num-badge"+(e.number&&dup[e.number]?" dup":"")+(e.number?"":" dup"),
+      value:e.number,inputmode:"numeric",placeholder:"#",maxlength:"3"});
     numI.addEventListener("input",function(ev){
       e.number=cleanNum(ev.target.value);ev.target.value=e.number;scheduleAutoSave();
     });
-    numI.addEventListener("blur",function(){refreshSelectionList()});
+    numI.addEventListener("blur",function(){refreshList()});
 
     var stBtns=h("div",{className:"status-btns"},RECOS.map(function(r){
-      var target=RECO_TO_STATUS[r.key];
-      var on=e.status===target;
+      var target=RECO_TO_STATUS[r.key],on=e.status===target;
       var b=h("button",{className:"st-btn"+(on?" on":""),title:r.label,onclick:function(){
-        setRosterStatus(season,e,on?"candidate":target);
-        render();
+        setRosterStatus(season,e,on?"candidate":target);render();
       }},r.icon);
       if(on){b.style.background=r.color;b.style.borderColor=r.color}
       return b;
     }));
 
     var meta=[posBadge(e.position),statusBadge(e.status)];
+    if(isInSquad(e)===false&&e.status==="selected")meta.push(membershipBadge(e.membership));
+    else if(e.status==="selected"&&e.membership!=="active")meta.push(membershipBadge(e.membership));
     if(c&&c.n){
       meta.push(h("span",{className:"badge",style:{background:scoreColor(c.score)+"22",color:scoreColor(c.score),borderColor:scoreColor(c.score)+"55"}},
         "★ "+c.score.toFixed(1)+" · "+plural(c.n,"éval")));
       if(c.topReco)meta.push(h("span",{className:"badge",style:{background:RECO_BY_KEY[c.topReco].color+"18",color:RECO_BY_KEY[c.topReco].color}},
         "Avis : "+RECO_BY_KEY[c.topReco].short));
     }
+    if(!e.number)meta.push(h("span",{className:"badge",style:{background:"#EF444422",color:"#FCA5A5",borderColor:"#EF444455"}},"numéro à saisir"));
 
     var row=h("div",{className:"list-row"},numI,
       h("div",{className:"body",onclick:function(){state.expandedPlayerId=state.expandedPlayerId===e.playerId?null:e.playerId;render()}},
@@ -1122,70 +1521,127 @@ function renderSelectionBoard(season){
         h("div",{style:{display:"flex",gap:"4px",flexWrap:"wrap",marginTop:"4px"}},meta)),
       stBtns);
     if(state.expandedPlayerId!==e.playerId)return row;
-    return h("div",null,row,renderPlayerDetail(season,e,p,c));
+    return h("div",null,row,renderPlayerSheet(season,e,p));
   }
-  function refreshSelectionList(){
+  function refreshList(){
     var nl=h("div",{id:"selList"});
-    var fresh=season.roster.filter(function(x){return state.statusFilter==="all"||x.status===state.statusFilter});
-    var qq=(state.search||"").trim().toLowerCase();
-    if(qq)fresh=fresh.filter(function(x){var pp=playerById(x.playerId);return (fullName(pp).toLowerCase().indexOf(qq)!==-1)||(x.number.indexOf(qq)===0)});
+    var fresh=visible();
     if(!fresh.length)nl.appendChild(h("div",{className:"empty"},"Aucun résultat"));
     fresh.forEach(function(x){var r=rowFor(x);if(r)nl.appendChild(r)});
     var cur=document.getElementById("selList");
     if(cur&&cur.parentNode)cur.parentNode.replaceChild(nl,cur);
   }
+  var list=visible();
   if(!list.length)listWrap.appendChild(h("div",{className:"empty"},season.roster.length?"Aucun résultat":"Aucune joueuse convoquée. Onglet Joueuses → Convoquer."));
   list.forEach(function(e){var r=rowFor(e);if(r)listWrap.appendChild(r)});
 
-  var warn=null;
   var miss=missingNumbers(season).length,nDup=Object.keys(dup).length;
-  if(miss||nDup)warn=h("div",{className:"hint warn"},
+  var warn=(miss||nDup)?h("div",{className:"hint warn"},
     "⚠️ "+(miss?plural(miss,"joueuse")+" sans numéro. ":"")+(nDup?nDup+" numéro(s) en double. ":"")+
-    "Les vues sélectionneur n'affichent que les numéros : chacun doit être unique et renseigné.");
+    "Les numéros se saisissent ici, directement dans la case de gauche. Chacun doit être unique : c'est la seule information que verront vos sélectionneurs."):null;
 
-  var nSub=season.submissions.length;
+  var campChip=camp?h("div",{className:"card tight",style:{marginBottom:"12px"}},
+    h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{className:"muted"},"Scores affichés pour la campagne"),
+        h("div",{style:{fontWeight:"700",color:"#F8FAFC",marginTop:"2px"}},campaignLabel(camp))),
+      h("button",{className:"btn btn-ghost xs",onclick:function(){state.seasonPane="campaigns";render()}},"Changer"))):null;
+
+  var nSub=campaignSubs(season,camp?camp.id:null).length;
   var actions=h("div",{className:"btn-row",style:{marginTop:"14px"}},
     h("button",{className:"btn btn-primary sm",onclick:function(){state.tab="players";state.playersPane="db";render()}},"+ Convoquer des joueuses"),
     nSub?h("button",{className:"btn btn-warn sm",onclick:function(){openModal("applyreco")}},"⚡ Appliquer les avis ("+nSub+")"):null,
     h("button",{className:"btn btn-save sm",onclick:function(){promoteSelectedToTeam(season)}},"👕 Composer l'équipe"));
 
   return h("div",null,
-    h("div",{className:"hint"},"Convoquez vos joueuses, faites-les évaluer par vos sélectionneurs, puis tranchez : ",
+    h("div",{className:"hint"},"Convoquez vos joueuses, saisissez leur numéro, faites-les évaluer, puis tranchez : ",
       h("b",null,"✅ Retenir")," (entre dans l'équipe de la saison), ",h("b",null,"🔁 Recaller")," (rappelée pour la suite), ",h("b",null,"⛔ Non retenue"),"."),
-    warn,searchInp,fRow,listWrap,actions);
+    warn,campChip,searchInp,fRow,listWrap,actions);
 }
 
-function renderPlayerDetail(season,entry,p,c){
+/* ── Fiche joueuse de saison ────────────────────────────────
+   Réunit ce que l'audit avait trouvé séparé : le cumul de match
+   (quantitatif) et les évaluations par campagne (qualitatif). */
+function renderPlayerSheet(season,entry,p){
   var box=h("div",{className:"card",style:{marginTop:"-2px",marginBottom:"10px",borderTopLeftRadius:"0",borderTopRightRadius:"0"}});
+
+  /* Position */
   box.appendChild(h("div",{className:"field"},h("label",null,"Position"),
     h("div",{className:"pos-btns"},POSITIONS.filter(function(x){return x.key!=="ALL"}).map(function(pos){
       var v=pos.key==="NONE"?"":pos.key;
       return h("button",{className:"pos-btn"+(entry.position===v?" active":""),onclick:function(){entry.position=v;scheduleAutoSave();render()}},pos.label);
     }))));
+
+  /* Statut d'effectif — seulement une fois retenue */
+  if(entry.status==="selected"){
+    box.appendChild(h("div",{className:"field"},h("label",null,"Dans l'effectif"),
+      h("div",{className:"reco-row"},MEMBERSHIP_ORDER.map(function(k){
+        var m=MEMBERSHIPS[k],on=entry.membership===k;
+        var b=h("button",{className:"reco-btn"+(on?" on":""),onclick:function(){
+          entry.membership=k;scheduleAutoSave();render();
+        }},m.icon+" "+m.label);
+        if(on){b.style.background=m.color;b.style.borderColor=m.color}
+        return b;
+      })),
+      h("div",{className:"muted",style:{marginTop:"6px"}},
+        "Une joueuse blessée ou partie reste retenue et conserve ses matchs joués ; elle sort simplement du terrain.")));
+  }
+
+  /* Cumul de match sur la saison */
+  var ms=playerSeasonStats(season,entry.playerId);
+  box.appendChild(h("div",{className:"section-title"},"Matchs de la saison"));
+  if(ms.sessions){
+    box.appendChild(h("div",{className:"muted",style:{marginBottom:"6px"}},
+      plural(ms.sessions,"session")+" jouée(s) · "+ms.teams.map(function(t){return t.name+" ("+t.sessions+")"}).join(", ")));
+    box.appendChild(renderStatMini(ms.stats));
+  } else box.appendChild(h("div",{className:"muted"},"Aucun match enregistré."));
+
+  /* Évaluations, campagne par campagne */
+  var perCamp=season.campaigns.map(function(c){
+    return {campaign:c,c:compileSubmissions(season,c.id)[entry.playerId]};
+  }).filter(function(x){return x.c&&x.c.n});
+
+  box.appendChild(h("div",{className:"section-title"},"Évaluations par campagne"));
+  if(!perCamp.length)box.appendChild(h("div",{className:"muted"},"Aucune évaluation reçue pour cette joueuse."));
+  perCamp.forEach(function(x,i){
+    var prev=i>0?perCamp[i-1]:null;
+    var delta=prev?(x.c.score-prev.c.score):null;
+    box.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:"10px",margin:"10px 0 6px"}},
+      h("span",{className:"score-pill",style:{background:scoreColor(x.c.score)+"22",color:scoreColor(x.c.score)}},x.c.score.toFixed(1)),
+      h("div",{style:{flex:"1",minWidth:"0"}},
+        h("div",{style:{fontSize:"13px",fontWeight:"700",color:"#F8FAFC"}},campaignLabel(x.campaign)),
+        h("div",{className:"psub"},plural(x.c.n,"évaluation")+" · "+x.c.selectors.join(", "))),
+      delta!=null?h("span",{className:"badge",style:{background:deltaColor(delta)+"20",color:deltaColor(delta)}},fmtDelta(delta)):null));
+    box.appendChild(renderCritBars(x.c));
+  });
+
+  /* Commentaires, toutes campagnes */
+  var allNotes=[];
+  perCamp.forEach(function(x){x.c.notes.forEach(function(n){allNotes.push(Object.assign({camp:x.campaign.name},n))})});
+  if(allNotes.length){
+    box.appendChild(h("div",{className:"section-title"},"Commentaires des sélectionneurs"));
+    allNotes.forEach(function(n){
+      box.appendChild(h("div",{className:"note-item"},h("b",null,n.by+" · "+n.camp+" · "+fmtDay(n.at)),n.text));
+    });
+  }
+
+  /* Note de l'entraîneur */
   var note=h("textarea",{className:"txt",placeholder:"Note de l'entraîneur…",rows:"2"});
   note.value=entry.note||"";
   note.addEventListener("input",function(e){entry.note=e.target.value;scheduleAutoSave()});
-  box.appendChild(h("div",{className:"field"},h("label",null,"Note entraîneur"),note));
+  box.appendChild(h("div",{className:"field",style:{marginTop:"14px"}},h("label",null,"Note entraîneur"),note));
 
-  if(c&&c.n){
-    box.appendChild(h("div",{className:"section-title"},"Évaluations compilées · "+plural(c.n,"soumission")));
-    box.appendChild(renderCritBars(c));
-    if(c.notes.length){
-      box.appendChild(h("div",{className:"section-title"},"Commentaires des sélectionneurs"));
-      c.notes.forEach(function(n){box.appendChild(h("div",{className:"note-item"},h("b",null,n.by+" · "+fmtDay(n.at)),n.text))});
-    }
-    box.appendChild(h("div",{className:"section-title"},"Statistiques soumises"));
-    box.appendChild(renderStatMini(c.stats));
-  } else {
-    box.appendChild(h("div",{className:"muted",style:{marginTop:"8px"}},"Aucune évaluation reçue pour cette joueuse."));
-  }
-  box.appendChild(h("div",{className:"btn-row",style:{marginTop:"12px"}},
+  box.appendChild(h("div",{className:"btn-row",style:{marginTop:"6px"}},
     h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("editplayer",p.id)}},"✏️ Fiche joueuse"),
     h("button",{className:"btn btn-danger-o xs",onclick:function(){
       if(!confirmAct("Retirer "+fullName(p)+" de la saison « "+season.name+" » ?\n(La joueuse reste dans la base de données.)"))return;
       removeFromSeason(season,p.id);render();
     }},"Retirer de la saison")));
   return box;
+}
+function membershipBadge(k){
+  var m=MEMBERSHIPS[k]||MEMBERSHIPS.active;
+  return h("span",{className:"badge",style:{background:m.color+"22",color:m.color,borderColor:m.color+"55"}},m.icon+" "+m.label);
 }
 function renderCritBars(c){
   return h("div",null,CRITERIA.map(function(cr){
@@ -1215,8 +1671,13 @@ function renderStatMini(stats){
 function setRosterStatus(season,entry,status){
   entry.status=status;
   var team=curTeam();
-  if(status==="selected"&&team&&team.playerIds.indexOf(entry.playerId)===-1)team.playerIds.push(entry.playerId);
-  if(status!=="selected")season.teams.forEach(function(t){detachFromTeam(t,entry.playerId)});
+  if(status==="selected"){
+    if(!MEMBERSHIPS[entry.membership])entry.membership="active";
+    if(team&&team.playerIds.indexOf(entry.playerId)===-1)team.playerIds.push(entry.playerId);
+  } else {
+    /* Jamais retenue : elle n'a rien joué, on peut la détacher sans perte. */
+    season.teams.forEach(function(t){detachFromTeam(t,entry.playerId)});
+  }
   scheduleAutoSave();
 }
 function detachFromTeam(team,pid){
@@ -1237,7 +1698,7 @@ function promoteSelectedToTeam(season){
   var team=curTeam();if(!team){showToast("⚠️ Aucune équipe");return}
   var added=0;
   season.roster.forEach(function(e){
-    if(e.status!=="selected")return;
+    if(!isInSquad(e))return;
     if(team.playerIds.indexOf(e.playerId)===-1){team.playerIds.push(e.playerId);added++}
   });
   saveNow();
@@ -1281,25 +1742,91 @@ function renderTeamsPane(season){
 }
 
 /* ── Gestion des saisons ───────────────────────────────────── */
+/* ── Campagnes d'évaluation ────────────────────────────────── */
+function renderCampaignsPane(season){
+  var wrap=h("div",null);
+  wrap.appendChild(h("div",{className:"hint"},
+    "Une ",h("b",null,"campagne")," est un moment d'évaluation daté : la sélection d'août, un point de mi-saison, le bilan de mai. ",
+    "Chaque vue sélectionneur appartient à une campagne, et les moyennes ne se mélangent jamais d'une campagne à l'autre — c'est ce qui rend la progression lisible."));
+
+  if(seasonClosed(season))wrap.appendChild(h("div",{className:"hint warn"},
+    "🔒 Saison clôturée le "+fmtDay(season.closedAt)+". Ses vues n'apparaissent plus côté sélectionneur et aucune nouvelle soumission n'est acceptée."));
+
+  season.campaigns.forEach(function(c){
+    var active=c.id===season.activeCampaignId;
+    var subs=campaignSubs(season,c.id).length;
+    var views=campaignViews(season,c.id).length;
+    var compiled=compileSubmissions(season,c.id);
+    var evaluated=Object.keys(compiled).length;
+    var open=campaignOpen(season,c);
+    var card=h("div",{className:"card"});
+    card.appendChild(h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontSize:"16px",fontWeight:"700",color:active?"#60A5FA":"#F8FAFC"}},
+          (active?"● ":"")+campaignLabel(c)+(c.closedAt?" 🔒":"")),
+        h("div",{className:"muted",style:{marginTop:"3px"}},
+          plural(views,"vue")+" · "+plural(subs,"soumission")+" · "+plural(evaluated,"joueuse")+" évaluée(s)"),
+        h("div",{className:"muted",style:{marginTop:"2px"}},
+          "Ouverte le "+fmtDay(c.createdAt)+(c.closedAt?" · close le "+fmtDay(c.closedAt):""))),
+      h("div",{className:"btn-row"},
+        !active?h("button",{className:"btn btn-primary xs",onclick:function(){
+          season.activeCampaignId=c.id;state.evalCampaignId=c.id;saveNow();render();
+        }},"Activer"):null,
+        h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("renamecampaign",c.id,c.name)}},"✏️"),
+        h("button",{className:"btn btn-ghost xs",onclick:function(){
+          c.closedAt=c.closedAt?null:nowISO();saveNow();
+          showToast(c.closedAt?"🔒 Campagne close":"🔓 Campagne rouverte");render();
+        }},c.closedAt?"🔓":"🔒"),
+        season.campaigns.length>1?h("button",{className:"btn btn-danger-o xs",onclick:function(){
+          if(!confirmAct("Supprimer la campagne « "+c.name+" » ?\n"+plural(subs,"soumission")+" et "+plural(views,"vue")+" seront perdues."))return;
+          season.selectorViews=season.selectorViews.filter(function(v){return v.campaignId!==c.id});
+          season.submissions=season.submissions.filter(function(x){return x.campaignId!==c.id});
+          season.campaigns=season.campaigns.filter(function(x){return x.id!==c.id});
+          if(season.activeCampaignId===c.id)season.activeCampaignId=season.campaigns[0].id;
+          saveNow();render();
+        }},"🗑️"):null)));
+    if(!open&&!c.closedAt)card.appendChild(h("div",{className:"muted",style:{marginTop:"8px"}},"Saison clôturée — campagne en lecture seule."));
+    wrap.appendChild(card);
+  });
+
+  wrap.appendChild(h("button",{className:"btn btn-primary full",style:{marginTop:"6px"},
+    disabled:seasonClosed(season),onclick:function(){openModal("newcampaign")}},"+ Nouvelle campagne"));
+  return wrap;
+}
+
+/* ── Gestion des saisons ───────────────────────────────────── */
 function renderSeasonsPane(){
   var wrap=h("div",null);
-  wrap.appendChild(h("div",{className:"hint"},"Une saison regroupe sa propre convocation, ses équipes, ses vues sélectionneur et ses statistiques. Créez une nouvelle saison pour repartir d'une page blanche tout en conservant votre base de joueuses."));
+  wrap.appendChild(h("div",{className:"hint"},"Une saison regroupe sa convocation, ses équipes, ses campagnes d'évaluation et ses statistiques. Créez une nouvelle saison pour repartir d'une page blanche tout en conservant votre base de joueuses."));
   DB.seasons.forEach(function(s){
     var active=s.id===DB.activeSeasonId;
     var sel=s.roster.filter(function(e){return e.status==="selected"}).length;
     var sess=s.teams.reduce(function(n,t){return n+t.sessions.length},0);
+    var closed=seasonClosed(s);
     var card=h("div",{className:"card"});
+    var period=(s.startDate||s.endDate)?(fmtShortDay(s.startDate)+" → "+fmtShortDay(s.endDate)):"";
     card.appendChild(h("div",{className:"row-between"},
-      h("div",null,
-        h("div",{style:{fontSize:"16px",fontWeight:"700",color:active?"#60A5FA":"#F8FAFC"}},(active?"● ":"")+s.name+(s.archived?" (archivée)":"")),
-        h("div",{className:"muted",style:{marginTop:"3px"}},
-          plural(s.roster.length,"convoquée")+" · "+sel+" retenue"+(sel>1?"s":"")+" · "+plural(s.teams.length,"équipe")+" · "+plural(sess,"session")),
-        h("div",{className:"muted",style:{marginTop:"2px"}},"Créée le "+fmtDay(s.createdAt))),
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontSize:"16px",fontWeight:"700",color:active?"#60A5FA":"#F8FAFC"}},
+          (active?"● ":"")+s.name+(closed?" 🔒":"")),
+        h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",margin:"5px 0 3px"}},
+          s.category?h("span",{className:"badge",style:{background:"#6366F122",color:"#A5B4FC",borderColor:"#6366F155"}},s.category):null,
+          period?h("span",{className:"badge",style:{background:"#0F172A",color:"#94A3B8",borderColor:"#334155"}},period):null,
+          closed?h("span",{className:"badge",style:{background:"#33415530",color:"#94A3B8"}},"clôturée"):null),
+        h("div",{className:"muted"},
+          plural(s.roster.length,"convoquée")+" · "+sel+" retenue"+(sel>1?"s":"")+" · "+
+          plural(s.campaigns.length,"campagne")+" · "+plural(s.teams.length,"équipe")+" · "+plural(sess,"session"))),
       h("div",{className:"btn-row"},
         !active?h("button",{className:"btn btn-primary xs",onclick:function(){
-          DB.activeSeasonId=s.id;state.expandedPlayerId=null;state.svViewId=null;clearUndo();saveNow();render();
+          DB.activeSeasonId=s.id;state.expandedPlayerId=null;state.svViewId=null;state.evalCampaignId=null;
+          clearUndo();saveNow();render();
         }},"Activer"):null,
-        h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("renameseason",s.id)}},"✏️"),
+        h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("editseason",s.id)}},"✏️"),
+        h("button",{className:"btn btn-ghost xs",onclick:function(){
+          if(!closed&&!confirmAct("Clôturer « "+s.name+" » ?\nSes vues disparaîtront du rôle sélectionneur et aucune nouvelle soumission ne sera acceptée. Réversible."))return;
+          s.closedAt=closed?null:nowISO();s.archived=!closed;
+          saveNow();showToast(closed?"🔓 Saison rouverte":"🔒 Saison clôturée");render();
+        }},closed?"🔓 Rouvrir":"🔒 Clôturer"),
         h("button",{className:"btn btn-danger-o xs",onclick:function(){
           if(DB.seasons.length<=1){showToast("⚠️ Dernière saison");return}
           if(!confirmAct("Supprimer « "+s.name+" » ?\nToutes ses équipes, statistiques, vues et soumissions seront perdues.\n(Les joueuses restent dans la base.)"))return;
@@ -1307,6 +1834,7 @@ function renderSeasonsPane(){
           if(DB.activeSeasonId===s.id)DB.activeSeasonId=DB.seasons[0].id;
           saveNow();render();
         }},"🗑️"))));
+    if(s.notes)card.appendChild(h("div",{className:"muted",style:{marginTop:"8px",lineHeight:"1.5"}},s.notes));
     wrap.appendChild(card);
   });
   wrap.appendChild(h("button",{className:"btn btn-primary full",style:{marginTop:"6px"},onclick:function(){openModal("newseason")}},"+ Nouvelle saison"));
@@ -1355,8 +1883,8 @@ function renderDbPane(season){
           if(!confirmAct("Retirer "+fullName(p)+" de « "+season.name+" » ?"))return;
           removeFromSeason(season,p.id);
         } else {
-          season.roster.push(mkRosterEntry(p.id,suggestNumber(season),""));
-          scheduleAutoSave();showToast("✅ "+shortName(p)+" convoquée");
+          season.roster.push(mkRosterEntry(p.id,"",""));
+          scheduleAutoSave();showToast("✅ "+shortName(p)+" convoquée — numéro à saisir");
         }
         render();
       }},inSeason?"✓ Convoquée":"+ Convoquer"):null);
@@ -1377,10 +1905,13 @@ function renderDbPane(season){
   }
   return wrap;
 }
-function suggestNumber(season){
-  var used={};season.roster.forEach(function(e){if(e.number)used[e.number]=1});
-  for(var i=1;i<=99;i++)if(!used[String(i)])return String(i);
-  return "";
+/* Les numéros ne sont jamais attribués par l'application : l'entraîneur les
+   saisit, et les corrige ensuite dans le tableau de sélection. On se contente
+   de signaler ceux qui sont déjà pris. */
+function numberTaken(season,num,exceptPid){
+  num=cleanNum(num);
+  if(!num)return false;
+  return season.roster.some(function(e){return e.number===num&&e.playerId!==exceptPid});
 }
 
 /* ── Convoquées : numéros, positions, ordre ────────────────── */
@@ -1754,7 +2285,20 @@ function renderStatsTable(team,modeRow){
     var t=filtered.reduce(function(sum,p){return sum+(p.stats[s.key]||0)},0);
     return h("div",{style:{textAlign:"center"}},h("div",{className:"t-lbl"},s.label),h("div",{className:"t-val",style:{color:g.color}},String(t)));
   }));
-  var info=isG?h("div",{className:"sess-count"},"Cumulé sur "+plural(team.sessions.length,"session")+" · "+team.name):null;
+  var info=null;
+  if(isG){
+    var used=scopedSessions(team).length;
+    info=h("div",null,
+      h("div",{className:"sub-pills",style:{padding:"0 12px 6px"}},CUMUL_SCOPES.map(function(sc){
+        var b=h("button",{className:"pill sm"+(state.cumulScope===sc.k?" active":""),onclick:function(){
+          state.cumulScope=sc.k;state.sortBy=null;render();
+        }},sc.l);
+        if(state.cumulScope===sc.k)b.style.background="#8B5CF6";
+        return b;
+      })),
+      h("div",{className:"sess-count"},"Cumulé sur "+plural(used,"session")+
+        (used<team.sessions.length?(" (sur "+team.sessions.length+")"):"")+" · "+team.name));
+  }
 
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
     modeRow,viewRow,filterBar,info,
@@ -1763,27 +2307,68 @@ function renderStatsTable(team,modeRow){
     totals);
 }
 
-/* ── Évaluations compilées (vue entraîneur) ────────────────── */
+/* ── Évaluations compilées (vue entraîneur) ──────────────────
+   Filtrées par campagne : c'est la correction du constat A1. */
 function renderEvalsPane(season){
-  var compiled=compileSubmissions(season);
-  var ids=Object.keys(compiled);
-  if(!ids.length)return h("div",null,
+  if(!season.submissions.length)return h("div",null,
     h("div",{className:"hint"},"Aucune évaluation reçue. Créez une vue sélectionneur dans l'onglet 🎯 Sélection, faites-la remplir, puis soumettez-la."),
     h("button",{className:"btn btn-primary full",onclick:function(){state.tab="selection";state.selectionPane="views";render()}},"🎯 Créer une vue sélectionneur"));
 
-  var rows=ids.map(function(pid){return compiled[pid]}).sort(function(a,b){return b.score-a.score});
+  var withSubs=season.campaigns.filter(function(c){return campaignSubs(season,c.id).length});
+  if(state.evalCampaignId&&!campaignById(season,state.evalCampaignId))state.evalCampaignId=null;
+  if(state.evalCampaignId===null&&withSubs.length)state.evalCampaignId=(curCampaign(season)&&campaignSubs(season,curCampaign(season).id).length)
+    ?curCampaign(season).id:withSubs[withSubs.length-1].id;
+
   var wrap=h("div",null);
-  wrap.appendChild(h("div",{className:"hint"},"Synthèse de ",h("b",null,plural(season.submissions.length,"soumission")),
-    " provenant de ",plural(countSelectors(season),"sélectionneur"),". Score = moyenne des critères, toutes soumissions confondues."));
+
+  /* Sélecteur de campagne */
+  var campRow=h("div",{className:"sub-pills",style:{marginBottom:"10px",paddingBottom:"2px"}},
+    withSubs.map(function(c){
+      var b=h("button",{className:"pill sm"+(state.evalCampaignId===c.id?" active":""),onclick:function(){
+        state.evalCampaignId=c.id;state.expandedPlayerId=null;render();
+      }},campaignLabel(c)+" ("+campaignSubs(season,c.id).length+")");
+      if(state.evalCampaignId===c.id)b.style.background="#F59E0B";
+      return b;
+    }),
+    h("button",{className:"pill sm"+(state.evalCampaignId==="__all"?" active":""),onclick:function(){
+      state.evalCampaignId="__all";state.expandedPlayerId=null;render();
+    },style:state.evalCampaignId==="__all"?{background:"#64748B"}:{}},"Toutes"));
+  wrap.appendChild(campRow);
+
+  /* Liste / progression */
+  if(withSubs.length>1){
+    var modes=[{k:"list",l:"📋 Classement"},{k:"progress",l:"📈 Progression"}];
+    wrap.appendChild(h("div",{className:"sub-pills",style:{marginBottom:"12px"}},modes.map(function(m){
+      var b=h("button",{className:"pill sm"+(state.evalMode===m.k?" active":""),onclick:function(){state.evalMode=m.k;render()}},m.l);
+      if(state.evalMode===m.k)b.style.background="#8B5CF6";
+      return b;
+    })));
+  } else if(state.evalMode==="progress")state.evalMode="list";
+
+  if(state.evalMode==="progress"&&withSubs.length>1)return renderProgressPane(season,withSubs,wrap);
+
+  var campId=state.evalCampaignId==="__all"?null:state.evalCampaignId;
+  var camp=campId?campaignById(season,campId):null;
+  var compiled=compileSubmissions(season,campId);
+  var rows=Object.keys(compiled).map(function(pid){return compiled[pid]}).sort(function(a,b){return b.score-a.score});
+  var subs=campaignSubs(season,campId);
+
+  wrap.appendChild(h("div",{className:"hint"},
+    camp?["Campagne ",h("b",null,camp.name)," — ",plural(subs.length,"soumission"),
+          " de ",plural(countSelectors(season,campId),"sélectionneur"),". Les autres campagnes n'entrent pas dans ces moyennes."]
+        :["Toutes campagnes confondues — ",plural(subs.length,"soumission"),
+          ". ",h("b",null,"Attention")," : cette lecture mélange des moments différents ; préférez une campagne pour un bilan daté."]));
 
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
-    h("button",{className:"btn btn-warn sm",onclick:function(){openModal("applyreco")}},"⚡ Appliquer les avis au roster"),
-    h("button",{className:"btn btn-export sm",onclick:function(){exportEvalsCSV(season,rows)}},"📤 Exporter (CSV)")));
+    (camp&&rows.length)?h("button",{className:"btn btn-warn sm",onclick:function(){openModal("applyreco")}},"⚡ Appliquer les avis au roster"):null,
+    rows.length?h("button",{className:"btn btn-export sm",onclick:function(){exportEvalsCSV(season,rows,camp)}},"📤 Exporter (CSV)"):null));
+
+  if(!rows.length){wrap.appendChild(h("div",{className:"empty"},"Aucune joueuse évaluée dans cette campagne"));return wrap}
 
   rows.forEach(function(c){
     var p=playerById(c.playerId),e=rosterEntry(season,c.playerId);
     var open=state.expandedPlayerId===c.playerId;
-    var head=h("div",{className:"compile-row",onclick:function(){
+    wrap.appendChild(h("div",{className:"compile-row",onclick:function(){
       state.expandedPlayerId=open?null:c.playerId;render();
     }},
       h("span",{className:"score-pill",style:{background:scoreColor(c.score)+"22",color:scoreColor(c.score)}},c.score.toFixed(1)),
@@ -1792,8 +2377,7 @@ function renderEvalsPane(season){
         h("div",{className:"psub"},plural(c.n,"évaluation")+" · "+c.selectors.join(", "))),
       c.topReco?h("span",{className:"badge",style:{background:RECO_BY_KEY[c.topReco].color+"20",color:RECO_BY_KEY[c.topReco].color}},
         RECO_BY_KEY[c.topReco].icon+" "+c.reco[c.topReco]+"/"+c.n):null,
-      h("span",{style:{color:"#475569"}},open?"▲":"▼"));
-    wrap.appendChild(head);
+      h("span",{style:{color:"#475569"}},open?"▲":"▼")));
     if(!open)return;
     var box=h("div",{className:"card"});
     box.appendChild(renderCritBars(c));
@@ -1814,38 +2398,117 @@ function renderEvalsPane(season){
       box.appendChild(h("div",{className:"section-title"},"Commentaires"));
       c.notes.forEach(function(n){box.appendChild(h("div",{className:"note-item"},h("b",null,n.by+" · "+fmtDay(n.at)),n.text))});
     }
-    box.appendChild(h("div",{className:"section-title"},"Statistiques soumises"));
+    box.appendChild(h("div",{className:"section-title"},"Statistiques observées"));
     box.appendChild(renderStatMini(c.stats));
+    box.appendChild(h("div",{className:"btn-row",style:{marginTop:"12px"}},
+      h("button",{className:"btn btn-ghost xs",onclick:function(){
+        state.tab="season";state.seasonPane="selection";state.statusFilter="all";
+        state.expandedPlayerId=c.playerId;render();
+      }},"📄 Fiche de saison complète")));
     wrap.appendChild(box);
   });
   return wrap;
 }
-function countSelectors(season){
-  var s={};season.submissions.forEach(function(sub){s[(sub.selectorName||sub.viewName||"?").trim()]=1});
-  return Object.keys(s).length;
-}
-function exportEvalsCSV(season,rows){
-  var head=["Numero","Joueuse","Position","Statut","Evaluations","Score"]
-    .concat(CRITERIA.map(function(c){return c.label}))
-    .concat(["Retenir","Recaller","Non_retenue"])
-    .concat(ALL_STATS.map(function(s){return s.key}));
-  var lines=[head.join(";")];
-  rows.forEach(function(c){
-    var p=playerById(c.playerId),e=rosterEntry(season,c.playerId);
-    var r=[(e&&e.number)||"",fullName(p).replace(/;/g,","),(e&&e.position)||"",(e&&STATUSES[e.status].label)||"",c.n,c.score.toFixed(2)]
-      .concat(CRITERIA.map(function(cr){var x=c.ratings[cr.key];return x&&x.n?x.avg.toFixed(2):""}))
-      .concat([c.reco.select||0,c.reco.recall||0,c.reco.cut||0])
-      .concat(ALL_STATS.map(function(s){return c.stats[s.key]||0}));
-    lines.push(r.join(";"));
+
+/* ── Progression entre deux campagnes ───────────────────────── */
+function renderProgressPane(season,withSubs,wrap){
+  if(!campaignById(season,state.progressFrom)||!campaignSubs(season,state.progressFrom).length)
+    state.progressFrom=withSubs[0].id;
+  if(!campaignById(season,state.progressTo)||!campaignSubs(season,state.progressTo).length||state.progressTo===state.progressFrom)
+    state.progressTo=withSubs[withSubs.length-1].id;
+
+  function picker(label,key){
+    var sel=h("select",{className:"txt"},withSubs.map(function(c){return h("option",{value:c.id},campaignLabel(c))}));
+    sel.value=state[key];
+    sel.addEventListener("change",function(e){state[key]=e.target.value;render()});
+    return h("div",{className:"field"},h("label",null,label),sel);
+  }
+  wrap.appendChild(h("div",{className:"hint"},"Comparaison de deux campagnes, critère par critère. Une joueuse n'apparaît avec un écart que si elle a été évaluée dans les deux."));
+  wrap.appendChild(h("div",{className:"grid2"},picker("De","progressFrom"),picker("À","progressTo")));
+
+  var from=campaignById(season,state.progressFrom),to=campaignById(season,state.progressTo);
+  if(state.progressFrom===state.progressTo){
+    wrap.appendChild(h("div",{className:"empty"},"Choisissez deux campagnes différentes"));
+    return wrap;
+  }
+  var rows=compareCampaigns(season,state.progressFrom,state.progressTo);
+  if(!rows.length){wrap.appendChild(h("div",{className:"empty"},"Aucune donnée à comparer"));return wrap}
+
+  wrap.appendChild(h("div",{className:"btn-row",style:{margin:"4px 0 12px"}},
+    h("button",{className:"btn btn-export sm",onclick:function(){exportProgressCSV(season,rows,from,to)}},"📤 Exporter (CSV)")));
+
+  rows.forEach(function(r){
+    var p=playerById(r.playerId),e=rosterEntry(season,r.playerId);
+    var open=state.expandedPlayerId===r.playerId;
+    wrap.appendChild(h("div",{className:"compile-row",onclick:function(){
+      state.expandedPlayerId=open?null:r.playerId;render();
+    }},
+      h("span",{className:"score-pill",style:{background:deltaColor(r.delta)+"22",color:deltaColor(r.delta)}},fmtDelta(r.delta)),
+      h("div",{style:{flex:"1",minWidth:"0"}},
+        h("div",{className:"pname"},(e&&e.number?"#"+e.number+" ":"")+fullName(p)),
+        h("div",{className:"psub"},
+          (r.from!=null?r.from.toFixed(1):"—")+" → "+(r.to!=null?r.to.toFixed(1):"—")+
+          (r.delta==null?" · évaluée dans une seule campagne":""))),
+      h("span",{style:{color:"#475569"}},open?"▲":"▼")));
+    if(!open)return;
+    var box=h("div",{className:"card"});
+    CRITERIA.forEach(function(cr){
+      var d=r.criteria[cr.key];
+      box.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:"10px",marginBottom:"6px"}},
+        h("span",{style:{fontSize:"12px",color:"#94A3B8",width:"104px",flexShrink:"0"}},cr.label),
+        h("span",{style:{fontSize:"12px",color:"#64748B",flex:"1"}},
+          (d.from!=null?d.from.toFixed(1):"—")+" → "+(d.to!=null?d.to.toFixed(1):"—")),
+        h("span",{style:{fontSize:"12px",fontWeight:"800",color:deltaColor(d.delta),width:"48px",textAlign:"right"}},fmtDelta(d.delta))));
+    });
+    wrap.appendChild(box);
   });
+  return wrap;
+}
+function exportProgressCSV(season,rows,from,to){
+  var head=["Numero","Joueuse",from.name+"_score",to.name+"_score","Delta"]
+    .concat(CRITERIA.map(function(c){return "Delta_"+c.label}));
+  var lines=[head.join(";")];
+  rows.forEach(function(r){
+    var p=playerById(r.playerId),e=rosterEntry(season,r.playerId);
+    lines.push([(e&&e.number)||"",fullName(p).replace(/;/g,","),
+      r.from!=null?r.from.toFixed(2):"",r.to!=null?r.to.toFixed(2):"",
+      r.delta!=null?r.delta.toFixed(2):""]
+      .concat(CRITERIA.map(function(c){var d=r.criteria[c.key].delta;return d!=null?d.toFixed(2):""})).join(";"));
+  });
+  downloadCSV(lines,"Progression_"+safeName(season.name)+"_"+stamp()+".csv");
+}
+function countSelectors(season,campaignId){
+  var m={};
+  campaignSubs(season,campaignId).forEach(function(sub){m[(sub.selectorName||sub.viewName||"?").trim()]=1});
+  return Object.keys(m).length;
+}
+function downloadCSV(lines,filename){
   try{
-    var blob=new Blob(["﻿"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
+    var blob=new Blob(["\ufeff"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
     var u=URL.createObjectURL(blob),a=document.createElement("a");
-    a.href=u;a.download="Evaluations_"+safeName(season.name)+"_"+stamp()+".csv";
+    a.href=u;a.download=filename;
     document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(u)},1000);
     showToast("📤 CSV exporté");
   }catch(e){showToast("⚠️ Export impossible")}
+}
+function exportEvalsCSV(season,rows,camp){
+  var head=["Campagne","Numero","Joueuse","Position","Statut","Effectif","Evaluations","Score"]
+    .concat(CRITERIA.map(function(c){return c.label}))
+    .concat(["Retenir","Recaller","Non_retenue"])
+    .concat(ALL_STATS.map(function(st){return st.key}));
+  var lines=[head.join(";")];
+  rows.forEach(function(c){
+    var p=playerById(c.playerId),e=rosterEntry(season,c.playerId);
+    lines.push([camp?camp.name:"toutes",(e&&e.number)||"",fullName(p).replace(/;/g,","),
+      (e&&e.position)||"",(e&&STATUSES[e.status].label)||"",
+      (e&&e.status==="selected"&&MEMBERSHIPS[e.membership])?MEMBERSHIPS[e.membership].label:"",
+      c.n,c.score.toFixed(2)]
+      .concat(CRITERIA.map(function(cr){var x=c.ratings[cr.key];return x&&x.n?x.avg.toFixed(2):""}))
+      .concat([c.reco.select||0,c.reco.recall||0,c.reco.cut||0])
+      .concat(ALL_STATS.map(function(st){return c.stats[st.key]||0})).join(";"));
+  });
+  downloadCSV(lines,"Evaluations_"+safeName(season.name)+"_"+safeName(camp?camp.name:"toutes")+"_"+stamp()+".csv");
 }
 
 /* ── Sessions enregistrées ─────────────────────────────────── */
@@ -1902,83 +2565,154 @@ function renderSelectionTab(){
 
 function renderViewsPane(season){
   var wrap=h("div",null);
+  var camp=curCampaign(season);
   wrap.appendChild(h("div",{className:"hint"},
-    "Une ",h("b",null,"vue sélectionneur")," regroupe les joueuses qu'un évaluateur doit observer. ",
-    "Une même joueuse peut figurer dans plusieurs vues. Le sélectionneur ne voit que les ",h("b",null,"numéros d'athlète"),"."));
+    "Une ",h("b",null,"vue sélectionneur")," regroupe les joueuses qu'un évaluateur doit observer, ",
+    "au sein d'une ",h("b",null,"campagne")," donnée. Une même joueuse peut figurer dans plusieurs vues."));
+
+  if(seasonClosed(season))wrap.appendChild(h("div",{className:"hint warn"},
+    "🔒 Saison clôturée — les vues ne sont plus distribuées et les soumissions sont refusées."));
+
+  wrap.appendChild(renderSyncPanel(season));
+
   var dup=dupNumbers(season),miss=missingNumbers(season).length;
   if(Object.keys(dup).length||miss)
     wrap.appendChild(h("div",{className:"hint warn"},"⚠️ Corrigez d'abord les numéros ("+
       (miss?plural(miss,"manquant"):"")+(miss&&Object.keys(dup).length?", ":"")+
-      (Object.keys(dup).length?Object.keys(dup).length+" en double":"")+") — onglet Joueuses → Convoquées."));
+      (Object.keys(dup).length?Object.keys(dup).length+" en double":"")+") — onglet 🗓️ Saison → Sélection."));
 
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
-    h("button",{className:"btn btn-primary sm",onclick:function(){
+    h("button",{className:"btn btn-primary sm",disabled:seasonClosed(season),onclick:function(){
       if(!season.roster.length){showToast("⚠️ Convoquez d'abord des joueuses");return}
       state.editViewId=null;state.modalSel=[];openModal("editview");
     }},"+ Nouvelle vue"),
     h("button",{className:"btn btn-import sm",onclick:function(){importSubmission(season)}},"📥 Importer une soumission")));
 
+  /* Groupées par campagne : on ne mélange plus les moments */
+  var byCamp={};
+  season.selectorViews.forEach(function(v){(byCamp[v.campaignId]=byCamp[v.campaignId]||[]).push(v)});
   if(!season.selectorViews.length)wrap.appendChild(h("div",{className:"empty"},"Aucune vue sélectionneur"));
-  season.selectorViews.forEach(function(v){
-    var filled=v.playerIds.filter(function(pid){return entryFilled(v,pid)}).length;
-    var pct=v.playerIds.length?Math.round(filled/v.playerIds.length*100):0;
-    var subs=season.submissions.filter(function(s){return s.viewId===v.id}).length;
-    var card=h("div",{className:"view-card"+(subs?" submitted":"")});
-    card.appendChild(h("div",{className:"row-between"},
-      h("div",{style:{minWidth:"0"}},
-        h("h4",null,v.name),
-        h("div",{className:"muted"},(v.selectorName?"👤 "+v.selectorName+" · ":"")+plural(v.playerIds.length,"joueuse")+
-          " · "+plural(v.criteria.length,"critère")+(subs?" · "+plural(subs,"soumission"):""))),
-      h("div",{className:"btn-row"},
-        h("button",{className:"btn btn-ghost xs",onclick:function(){state.editViewId=v.id;state.modalSel=v.playerIds.slice();openModal("editview")}},"✏️"),
-        h("button",{className:"btn btn-danger-o xs",onclick:function(){
-          if(!confirmAct("Supprimer la vue « "+v.name+" » ?\nLes soumissions déjà reçues sont conservées."))return;
-          season.selectorViews=season.selectorViews.filter(function(x){return x.id!==v.id});
-          if(state.svViewId===v.id)state.svViewId=null;
-          saveNow();render();
-        }},"🗑️"))));
-    card.appendChild(h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"8px"}},
-      v.playerIds.map(function(pid){
-        var n=numOf(season,pid);
-        return h("span",{className:"badge",style:{background:"#0F172A",color:entryFilled(v,pid)?"#34D399":"#94A3B8",borderColor:"#334155",fontSize:"12px",padding:"4px 9px"}},numLabel(n));
-      })));
-    card.appendChild(h("div",{className:"progress"},h("i",{style:{width:pct+"%"}})));
-    card.appendChild(h("div",{className:"muted",style:{marginTop:"5px"}},filled+"/"+v.playerIds.length+" joueuses évaluées"+(v.submittedAt?" · dernière soumission le "+fmtDay(v.submittedAt):"")));
-    card.appendChild(h("div",{className:"btn-row",style:{marginTop:"10px"}},
-      h("button",{className:"btn btn-warn sm",onclick:function(){
-        state.role="selector";state.tab="sv_eval";state.svViewId=v.id;state.svPlayerId=null;saveNow();render();
-      }},"🎯 Ouvrir en mode sélectionneur"),
-      h("button",{className:"btn btn-export xs",onclick:function(){exportPacket(season,v)}},"📤 Paquet")));
-    wrap.appendChild(card);
+
+  season.campaigns.forEach(function(c){
+    var views=byCamp[c.id]||[];
+    if(!views.length)return;
+    wrap.appendChild(h("div",{className:"section-title"},
+      campaignLabel(c)+(c.id===season.activeCampaignId?" · active":"")+(c.closedAt?" · close":"")));
+    views.forEach(function(v){wrap.appendChild(renderViewCard(season,c,v))});
   });
   return wrap;
 }
+
+function renderViewCard(season,camp,v){
+  var filled=v.playerIds.filter(function(pid){return entryFilled(v,pid)}).length;
+  var pct=v.playerIds.length?Math.round(filled/v.playerIds.length*100):0;
+  var subs=season.submissions.filter(function(x){return x.viewId===v.id}).length;
+  var open=campaignOpen(season,camp);
+  var card=h("div",{className:"view-card"+(subs?" submitted":"")});
+  card.appendChild(h("div",{className:"row-between"},
+    h("div",{style:{minWidth:"0"}},
+      h("h4",null,v.name),
+      h("div",{className:"muted"},(v.selectorName?"👤 "+v.selectorName+" · ":"")+plural(v.playerIds.length,"joueuse")+
+        " · "+plural(v.criteria.length,"critère")+(subs?" · "+plural(subs,"soumission"):"")),
+      h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"5px"}},
+        h("span",{className:"badge",style:v.anonymous
+          ?{background:"#F59E0B22",color:"#FBBF24",borderColor:"#F59E0B55"}
+          :{background:"#33415530",color:"#94A3B8"}},v.anonymous?"🔒 Anonyme":"👁 Nominative"),
+        v.published?h("span",{className:"badge",style:{background:"#10B98122",color:"#34D399"}},"📡 Publiée"):null,
+        v.context?h("span",{className:"badge",style:{background:"#0F172A",color:"#94A3B8",borderColor:"#334155"}},v.context):null)),
+    h("div",{className:"btn-row"},
+      h("button",{className:"btn btn-ghost xs",onclick:function(){state.editViewId=v.id;state.modalSel=v.playerIds.slice();openModal("editview")}},"✏️"),
+      h("button",{className:"btn btn-danger-o xs",onclick:function(){
+        if(!confirmAct("Supprimer la vue « "+v.name+" » ?\nLes soumissions déjà reçues sont conservées."))return;
+        season.selectorViews=season.selectorViews.filter(function(x){return x.id!==v.id});
+        if(state.svViewId===v.id)state.svViewId=null;
+        saveNow();render();
+      }},"🗑️"))));
+  card.appendChild(h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"8px"}},
+    v.playerIds.map(function(pid){
+      var n=numOf(season,pid);
+      return h("span",{className:"badge",style:{background:"#0F172A",color:entryFilled(v,pid)?"#34D399":(n?"#94A3B8":"#FCA5A5"),borderColor:"#334155",fontSize:"12px",padding:"4px 9px"}},numLabel(n));
+    })));
+  card.appendChild(h("div",{className:"progress"},h("i",{style:{width:pct+"%"}})));
+  card.appendChild(h("div",{className:"muted",style:{marginTop:"5px"}},
+    filled+"/"+v.playerIds.length+" joueuses évaluées"+(v.submittedAt?" · dernière soumission le "+fmtDay(v.submittedAt):"")));
+
+  var acts=h("div",{className:"btn-row",style:{marginTop:"10px"}});
+  if(open){
+    acts.appendChild(h("button",{className:"btn btn-warn sm",onclick:function(){
+      state.role="selector";state.tab="sv_eval";state.svViewId=v.id;state.svPlayerId=null;saveNow();render();
+    }},"🎯 Ouvrir ici"));
+    if(syncReady())acts.appendChild(h("button",{className:"btn btn-primary xs",disabled:syncBusy,onclick:function(){
+      publishView(season,v);
+    }},syncBusy?"…":(v.published?"📡 Republier":"📡 Publier")));
+    acts.appendChild(h("button",{className:"btn btn-export xs",onclick:function(){exportPacket(season,v)}},"📤 Fichier"));
+  }
+  /* Correction du constat A2 : on ne resoumet jamais des notes périmées.
+     Réévaluer, c'est dupliquer la vue dans une autre campagne, données vierges. */
+  if(subs||v.submittedAt)acts.appendChild(h("button",{className:"btn btn-ghost xs",onclick:function(){
+    state.modalCtx=v.id;openModal("duplicateview",v.id);
+  }},"🔁 Réévaluer"));
+  card.appendChild(acts);
+  return card;
+}
+
+/* ── Panneau de synchronisation (entraîneur) ────────────────── */
+function renderSyncPanel(season){
+  var box=h("div",{className:"card tight",style:{marginBottom:"12px"}});
+  if(!syncReady()){
+    box.appendChild(h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontWeight:"700",color:"#F8FAFC",fontSize:"14px"}},"📡 Synchronisation désactivée"),
+        h("div",{className:"muted",style:{marginTop:"3px"}},"Vos sélectionneurs échangent par fichier. Activez la synchronisation pour qu'ils travaillent sur leur propre appareil.")),
+      h("button",{className:"btn btn-primary xs",onclick:function(){openModal("syncconfig")}},"Configurer")));
+    return box;
+  }
+  box.appendChild(h("div",{className:"row-between"},
+    h("div",{style:{minWidth:"0"}},
+      h("div",{style:{fontWeight:"700",color:"#34D399",fontSize:"14px"}},"📡 Synchronisation active"),
+      h("div",{className:"muted",style:{marginTop:"3px",wordBreak:"break-all"}},"Salon "+SYNC.room),
+      SYNC.lastSyncAt?h("div",{className:"muted",style:{marginTop:"2px"}},"Dernier échange : "+fmtDate(SYNC.lastSyncAt)):null),
+    h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("syncconfig")}},"⚙️")));
+  box.appendChild(h("div",{className:"btn-row",style:{marginTop:"10px"}},
+    h("button",{className:"btn btn-save sm",disabled:syncBusy,onclick:function(){pullSubmissions(season)}},
+      syncBusy?"⏳ En cours…":"📥 Relever les soumissions"),
+    h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("sharelink")}},"🔗 Lien sélectionneur")));
+  return box;
+}
+
 function entryFilled(view,pid){return dataFilled(view.data[pid])}
 
 function renderSubmissionsPane(season){
   var wrap=h("div",null);
-  wrap.appendChild(h("div",{className:"hint"},"Chaque soumission est un instantané figé du travail d'un sélectionneur. Les soumissions se cumulent : plusieurs avis sur une même joueuse sont moyennés dans l'onglet Récap → ⭐ Évaluations."));
+  wrap.appendChild(h("div",{className:"hint"},"Chaque soumission est un instantané figé, rattaché à sa campagne. Plusieurs avis sur une même joueuse sont moyennés — mais uniquement à l'intérieur d'une même campagne."));
+  wrap.appendChild(renderSyncPanel(season));
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
     h("button",{className:"btn btn-import sm",onclick:function(){importSubmission(season)}},"📥 Importer un fichier de soumission")));
   if(!season.submissions.length)wrap.appendChild(h("div",{className:"empty"},"Aucune soumission reçue"));
-  season.submissions.slice().sort(function(a,b){return (b.submittedAt||"").localeCompare(a.submittedAt||"")}).forEach(function(sub){
-    var evaluated=sub.entries.filter(dataFilled).length;
-    wrap.appendChild(h("div",{className:"card tight"},
-      h("div",{className:"row-between"},
-        h("div",{style:{minWidth:"0"}},
-          h("div",{style:{color:"#F8FAFC",fontWeight:"700",fontSize:"14px"}},sub.viewName),
-          h("div",{className:"muted",style:{marginTop:"2px"}},"👤 "+(sub.selectorName||"Anonyme")+" · "+fmtDate(sub.submittedAt)),
-          h("div",{className:"muted",style:{marginTop:"2px"}},evaluated+"/"+sub.entries.length+" joueuses évaluées")),
-        h("button",{className:"btn btn-danger-o xs",onclick:function(){
-          if(!confirmAct("Supprimer cette soumission ?\nLes moyennes compilées seront recalculées."))return;
-          season.submissions=season.submissions.filter(function(x){return x.id!==sub.id});
-          saveNow();render();
-        }},"🗑️")),
-      h("div",{style:{display:"flex",gap:"4px",flexWrap:"wrap",marginTop:"8px"}},sub.entries.map(function(e){
-        var r=e.reco?RECO_BY_KEY[e.reco]:null,seen=dataFilled(e);
-        return h("span",{className:"badge",style:{background:(r?r.color:"#334155")+"20",color:r?r.color:(seen?"#94A3B8":"#475569"),fontSize:"11px",padding:"3px 7px",opacity:seen?"1":".55"}},
-          numLabel(e.number)+(r?" "+r.icon:""));
-      }))));
+
+  season.campaigns.forEach(function(c){
+    var subs=campaignSubs(season,c.id).slice().sort(function(a,b){return (b.submittedAt||"").localeCompare(a.submittedAt||"")});
+    if(!subs.length)return;
+    wrap.appendChild(h("div",{className:"section-title"},campaignLabel(c)+" · "+plural(subs.length,"soumission")));
+    subs.forEach(function(sub){
+      var evaluated=sub.entries.filter(dataFilled).length;
+      wrap.appendChild(h("div",{className:"card tight"},
+        h("div",{className:"row-between"},
+          h("div",{style:{minWidth:"0"}},
+            h("div",{style:{color:"#F8FAFC",fontWeight:"700",fontSize:"14px"}},sub.viewName),
+            h("div",{className:"muted",style:{marginTop:"2px"}},"👤 "+(sub.selectorName||"Anonyme")+" · "+fmtDate(sub.submittedAt)),
+            h("div",{className:"muted",style:{marginTop:"2px"}},evaluated+"/"+sub.entries.length+" joueuses évaluées")),
+          h("button",{className:"btn btn-danger-o xs",onclick:function(){
+            if(!confirmAct("Supprimer cette soumission ?\nLes moyennes compilées seront recalculées."))return;
+            season.submissions=season.submissions.filter(function(x){return x.id!==sub.id});
+            saveNow();render();
+          }},"🗑️")),
+        h("div",{style:{display:"flex",gap:"4px",flexWrap:"wrap",marginTop:"8px"}},sub.entries.map(function(e){
+          var r=e.reco?RECO_BY_KEY[e.reco]:null,seen=dataFilled(e);
+          return h("span",{className:"badge",style:{background:(r?r.color:"#334155")+"20",color:r?r.color:(seen?"#94A3B8":"#475569"),fontSize:"11px",padding:"3px 7px",opacity:seen?"1":".55"}},
+            numLabel(e.number)+(r?" "+r.icon:""));
+        }))));
+    });
   });
   return wrap;
 }
@@ -1993,10 +2727,27 @@ function renderSubmissionsPane(season){
 function svSources(){
   var out=[];
   DB.seasons.forEach(function(s){
-    s.selectorViews.forEach(function(v){out.push({view:v,kind:"local",season:s,seasonName:s.name})});
+    if(seasonClosed(s))return;                       // une saison clôturée ne distribue plus rien
+    s.selectorViews.forEach(function(v){
+      var c=campaignById(s,v.campaignId);
+      if(c&&c.closedAt)return;                       // ni une campagne close
+      out.push({view:v,kind:"local",season:s,seasonName:s.name,campaign:c});
+    });
   });
-  INBOX.views.forEach(function(v){out.push({view:v,kind:"inbox",season:null,seasonName:v.seasonName||"—"})});
+  INBOX.views.forEach(function(v){out.push({view:v,kind:"inbox",season:null,seasonName:v.seasonName||"—",campaign:null})});
   return out;
+}
+/* Libellé d'une athlète pour le sélectionneur. Par défaut : le numéro seul.
+   Un nom n'apparaît que si l'entraîneur a explicitement levé l'anonymat. */
+function svDisplay(src,pid){
+  var num=numLabel(svNumber(src,pid));
+  if(src.view.anonymous!==false)return num;
+  var label=(src.kind==="local")?shortName(playerById(pid)):((src.view.labels||{})[pid]||"");
+  return label?(num+" "+label):num;
+}
+function svCampaignLabel(src){
+  if(src.kind==="local"&&src.campaign)return campaignLabel(src.campaign);
+  return src.view.campaignName||"";
 }
 function svFind(id){
   var all=svSources();
@@ -2033,13 +2784,37 @@ function renderSvViews(){
   var sources=svSources();
   var wrap=h("div",null);
   wrap.appendChild(h("div",{className:"hint"},
-    "Mode ",h("b",null,"sélectionneur"),". Vous évaluez les athlètes ",h("b",null,"par leur numéro uniquement"),
-    " — aucun nom n'est affiché, afin de garder un regard neutre."));
+    "Mode ",h("b",null,"sélectionneur"),". Sauf mention contraire de l'entraîneur, vous évaluez les athlètes ",
+    h("b",null,"par leur numéro uniquement")," — aucun nom n'est affiché, afin de garder un regard neutre."));
+
+  /* Connexion au salon de l'entraîneur : c'est ce qui permet de travailler
+     sur son propre appareil sans échanger de fichiers. */
+  var syncBox=h("div",{className:"card tight",style:{marginBottom:"12px"}});
+  if(syncReady()){
+    syncBox.appendChild(h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontWeight:"700",color:"#34D399",fontSize:"14px"}},"📡 Connecté"),
+        h("div",{className:"muted",style:{marginTop:"3px"}},"Salon "+SYNC.room),
+        SYNC.lastSyncAt?h("div",{className:"muted",style:{marginTop:"2px"}},"Dernier échange : "+fmtDate(SYNC.lastSyncAt)):null),
+      h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("syncconfig")}},"⚙️")));
+    syncBox.appendChild(h("div",{className:"btn-row",style:{marginTop:"10px"}},
+      h("button",{className:"btn btn-save sm",disabled:syncBusy,onclick:pullPackets},
+        syncBusy?"⏳ En cours…":"📥 Récupérer mes vues")));
+  } else {
+    syncBox.appendChild(h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontWeight:"700",color:"#F8FAFC",fontSize:"14px"}},"📡 Pas encore connecté"),
+        h("div",{className:"muted",style:{marginTop:"3px"}},"Ouvrez le lien que l'entraîneur vous a envoyé, ou saisissez le code de salon à la main.")),
+      h("button",{className:"btn btn-primary xs",onclick:function(){openModal("syncconfig")}},"Se connecter")));
+  }
+  wrap.appendChild(syncBox);
+
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
-    h("button",{className:"btn btn-import sm",onclick:importPacket},"📥 Importer un paquet")));
+    h("button",{className:"btn btn-import sm",onclick:importPacket},"📥 Importer un paquet (fichier)")));
 
   if(!sources.length)wrap.appendChild(h("div",{className:"empty"},
-    "Aucune vue disponible. Demandez à l'entraîneur un « paquet sélectionneur » (fichier .json) et importez-le ci-dessus."));
+    syncReady()?"Aucune vue reçue. Touchez « Récupérer mes vues » une fois que l'entraîneur a publié."
+               :"Aucune vue disponible. Connectez-vous au salon de l'entraîneur, ou importez un fichier de paquet."));
 
   sources.forEach(function(src){
     var v=src.view,pr=svProgress(src);
@@ -2047,13 +2822,15 @@ function renderSvViews(){
     card.appendChild(h("div",{className:"row-between"},
       h("div",{style:{minWidth:"0"}},
         h("h4",null,v.name||"Vue sans nom"),
-        h("div",{className:"muted"},src.seasonName+" · "+plural(v.playerIds.length,"athlète")+
-          (src.kind==="inbox"?" · importée":""))),
-      v.submittedAt?h("span",{className:"badge",style:{background:"#10B98122",color:"#34D399"}},"✅ Soumise"):null));
+        h("div",{className:"muted"},[src.seasonName,svCampaignLabel(src),plural(v.playerIds.length,"athlète")]
+          .filter(Boolean).join(" · ")+(src.kind==="inbox"?" · reçue":""))),
+      v.submittedAt?h("span",{className:"badge",style:{background:"#10B98122",color:"#34D399"}},
+        v.uploadedAt?"📡 Téléversée":"✅ Soumise"):null));
+    if(v.context)card.appendChild(h("div",{className:"muted",style:{marginTop:"4px"}},"Contexte : "+v.context));
     card.appendChild(h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"8px"}},
       svOrdered(src).map(function(pid){
         return h("span",{className:"badge",style:{background:"#0F172A",color:entryFilled(v,pid)?"#34D399":"#94A3B8",borderColor:"#334155",fontSize:"12px",padding:"4px 9px"}},
-          numLabel(svNumber(src,pid)));
+          svDisplay(src,pid));
       })));
     card.appendChild(h("div",{className:"progress"},h("i",{style:{width:pr.pct+"%"}})));
     card.appendChild(h("div",{className:"muted",style:{marginTop:"5px"}},pr.done+"/"+pr.total+" évaluées"));
@@ -2093,9 +2870,11 @@ function renderSvEval(){
     var on=pid===state.svPlayerId,done=entryFilled(v,pid);
     var d=v.data[pid]||mkEntryData();
     var r=d.reco?RECO_BY_KEY[d.reco]:null;
-    return h("button",{className:"num-tile"+(on?" active":"")+(done&&!on?" done":""),onclick:function(){
+    var disp=svDisplay(src,pid),anon=src.view.anonymous!==false;
+    return h("button",{className:"num-tile"+(on?" active":"")+(done&&!on?" done":""),
+      style:anon?null:{fontSize:"14px",lineHeight:"1.15",padding:"0 4px"},onclick:function(){
       state.svPlayerId=pid;state.svGroupIdx=0;render();
-    }},h("span",null,numLabel(svNumber(src,pid))),
+    }},h("span",null,disp),
       h("span",{className:"st"},r?r.icon:(done?"•":"")));
   }));
   var strip=h("div",{style:{padding:"10px 12px",background:"#162032",borderBottom:"1px solid #1E293B",flexShrink:"0",maxHeight:"36vh",overflowY:"auto"},"data-scroll-key":"sv-tiles"},tiles);
@@ -2110,7 +2889,9 @@ function renderSvEval(){
   var pr=svProgress(src);
   var bar=h("div",{className:"ctx-bar"},
     h("button",{className:"grow",onclick:function(){state.tab="sv_views";render()}},h("span",null,"🎯"),
-      h("span",{style:{fontWeight:"700",color:"#CBD5E1"}},v.name),h("span",{style:{opacity:".6"}},"▾")),
+      h("span",{style:{fontWeight:"700",color:"#CBD5E1"}},v.name),
+      svCampaignLabel(src)?h("span",{className:"muted"},"· "+svCampaignLabel(src)):null,
+      h("span",{style:{opacity:".6"}},"▾")),
     h("span",{className:"muted"},pr.done+"/"+pr.total));
 
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},bar,strip,body,
@@ -2127,7 +2908,7 @@ function renderSvPlayerPanel(src,pid,ordered){
   var idx=ordered.indexOf(pid);
   panel.appendChild(h("div",{className:"row-between",style:{marginBottom:"12px"}},
     h("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},
-      h("span",{style:{fontSize:"30px",fontWeight:"800",color:"#FDE68A"}},numLabel(num)),
+      h("span",{style:{fontSize:src.view.anonymous!==false?"30px":"20px",fontWeight:"800",color:"#FDE68A"}},svDisplay(src,pid)),
       h("span",{className:"muted"},"athlète "+(idx+1)+"/"+ordered.length)),
     h("div",{className:"btn-row"},
       h("button",{className:"btn btn-ghost xs",disabled:idx<=0,onclick:function(){state.svPlayerId=ordered[idx-1];render()}},"←"),
@@ -2208,7 +2989,7 @@ function renderSvPlayerPanel(src,pid,ordered){
 
   /* Commentaire */
   panel.appendChild(h("div",{className:"section-title"},"Commentaire"));
-  var ta=h("textarea",{className:"txt",placeholder:"Observations sur l'athlète "+numLabel(num)+"…",rows:"3"});
+  var ta=h("textarea",{className:"txt",placeholder:"Observations sur l'athlète "+svDisplay(src,pid)+"…",rows:"3"});
   ta.value=d.note||"";
   ta.addEventListener("input",function(e){d.note=e.target.value;scheduleAutoSave()});
   panel.appendChild(ta);
@@ -2227,9 +3008,11 @@ function renderSvSubmit(){
   nameInp.addEventListener("input",function(e){v.selectorName=e.target.value;scheduleAutoSave()});
 
   var wrap=h("div",null);
+  var canUpload=src.kind==="inbox"&&syncReady();
   wrap.appendChild(h("div",{className:"hint"},"Vérifiez votre saisie, indiquez votre nom, puis soumettez. ",
     src.kind==="local"?"La soumission est transmise directement à l'entraîneur sur cet appareil."
-                      :"Un fichier de soumission sera généré : transmettez-le à l'entraîneur."));
+    :(canUpload?"Vos données seront téléversées vers l'entraîneur."
+               :"Vous n'êtes pas connecté au salon : un fichier de soumission sera généré, à transmettre à l'entraîneur.")));
   wrap.appendChild(h("div",{className:"field"},h("label",null,"Sélectionneur"),nameInp));
   wrap.appendChild(h("div",{className:"card tight"},
     h("div",{className:"row-between"},
@@ -2250,27 +3033,39 @@ function renderSvSubmit(){
     }},
       h("span",{className:"score-pill",style:{background:scoreColor(avg)+"22",color:scoreColor(avg)}},avg?avg.toFixed(1):"—"),
       h("div",{style:{flex:"1",minWidth:"0"}},
-        h("div",{className:"pname"},numLabel(svNumber(src,pid))),
+        h("div",{className:"pname"},svDisplay(src,pid)),
         h("div",{className:"psub"},crits.length+"/"+v.criteria.length+" critères · "+plural(nStats,"action")+((d.note||"").trim()?" · 💬":""))),
       r?h("span",{className:"badge",style:{background:r.color+"20",color:r.color}},r.icon+" "+r.short):
         h("span",{className:"badge",style:{background:"#33415530",color:"#64748B"}},"sans avis")));
   });
 
-  var submitBtn=h("button",{className:"btn btn-save full",style:{marginTop:"16px"},onclick:function(){
-    if(!pr.done){showToast("⚠️ Aucune athlète évaluée");return}
-    if(!(v.selectorName||"").trim()){showToast("⚠️ Indiquez votre nom");nameInp.focus();return}
-    if(pr.done<pr.total&&!confirmAct((pr.total-pr.done)+" athlète(s) non évaluée(s).\nSoumettre quand même ?"))return;
+  function guard(){
+    if(!pr.done){showToast("⚠️ Aucune athlète évaluée");return false}
+    if(!(v.selectorName||"").trim()){showToast("⚠️ Indiquez votre nom");nameInp.focus();return false}
+    if(src.kind==="local"&&!campaignOpen(src.season,src.campaign)){showToast("⚠️ Campagne close");return false}
+    if(pr.done<pr.total&&!confirmAct((pr.total-pr.done)+" athlète(s) non évaluée(s).\nSoumettre quand même ?"))return false;
+    return true;
+  }
+  var submitBtn=h("button",{className:"btn btn-save full",style:{marginTop:"16px"},disabled:syncBusy,onclick:function(){
+    if(!guard())return;
     if(src.kind==="local"){
       submitLocalView(src.season,v);
       showToast("✅ Statistiques soumises à l'entraîneur");
       state.tab="sv_views";render();
+    } else if(canUpload){
+      uploadSubmission(v);
     } else {
       exportSubmission(v);render();
     }
-  }},src.kind==="local"?"✅ Soumettre les statistiques":"📤 Générer le fichier de soumission");
+  }},syncBusy?"⏳ Téléversement…":(src.kind==="local"?"✅ Soumettre les statistiques"
+      :(canUpload?"📡 Téléverser ma soumission":"📤 Générer le fichier de soumission")));
   wrap.appendChild(submitBtn);
+  if(canUpload)wrap.appendChild(h("button",{className:"btn btn-ghost sm full",style:{marginTop:"8px"},onclick:function(){
+    if(!guard())return;
+    exportSubmission(v);render();
+  }},"📤 Plutôt générer un fichier (secours hors-ligne)"));
   if(v.submittedAt)wrap.appendChild(h("div",{className:"muted",style:{textAlign:"center",marginTop:"8px"}},
-    "Dernière soumission : "+fmtDate(v.submittedAt)+" · vous pouvez soumettre à nouveau après modification."));
+    "Dernière soumission : "+fmtDate(v.submittedAt)+" · vous pouvez soumettre à nouveau après correction."));
   wrap.appendChild(h("div",{style:{height:"20px"}}));
   return h("div",{className:"content pad","data-scroll-key":"sv-submit"},wrap);
 }
@@ -2325,40 +3120,201 @@ function renderModal(){
   var cancel=h("button",{className:"btn btn-ghost full",onclick:closeModal},"Annuler");
 
   /* ── Saison ── */
-  if(T==="newseason"){
-    var copyFrom=state.modalInput2||"";
-    var sel=h("select",null,
-      h("option",{value:""},"Partir d'une base vide"),
-      DB.seasons.map(function(s){return h("option",{value:s.id},"Reprendre l'effectif de « "+s.name+" »")}));
-    sel.value=copyFrom;
-    sel.addEventListener("change",function(e){state.modalInput2=e.target.value});
-    return modalShell("Nouvelle saison",
+  if(T==="newseason"||T==="editseason"){
+    var s1=T==="editseason"?seasonById(state.modalCtx):null;
+    if(T==="editseason"&&!s1)return null;
+    var d=state.modalDraft||(state.modalDraft=s1
+      ?{name:s1.name,category:s1.category||"",startDate:s1.startDate||"",endDate:s1.endDate||"",notes:s1.notes||"",copyFrom:""}
+      :{name:"",category:"",startDate:"",endDate:"",notes:"",copyFrom:""});
+    function sf(key,label,ph,attrs){
+      var inp=h("input",Object.assign({placeholder:ph,value:d[key]||""},attrs||{}));
+      inp.addEventListener("input",function(e){d[key]=e.target.value});
+      return h("div",{className:"field"},h("label",null,label),inp);
+    }
+    var catSel=h("select",null,h("option",{value:""},"Non précisée"),
+      CATEGORIES.map(function(c){return h("option",{value:c},c)}));
+    catSel.value=d.category;
+    catSel.addEventListener("change",function(e){d.category=e.target.value});
+    var nts=h("textarea",{placeholder:"Objectifs, contexte, remarques…",rows:"2"});
+    nts.value=d.notes;
+    nts.addEventListener("input",function(e){d.notes=e.target.value});
+
+    var body=h("div",null,
+      sf("name","Nom de la saison","Ex. Saison 2026-2027"),
+      h("div",{className:"field"},h("label",null,"Catégorie"),catSel),
+      h("div",{className:"grid2"},
+        sf("startDate","Début","",{type:"date"}),
+        sf("endDate","Fin","",{type:"date"})),
+      h("div",{className:"field"},h("label",null,"Objectifs / notes"),nts));
+
+    if(!s1){
+      var cpy=h("select",null,h("option",{value:""},"Partir d'une base vide"),
+        DB.seasons.map(function(x){return h("option",{value:x.id},"Reprendre l'effectif de « "+x.name+" »")}));
+      cpy.value=d.copyFrom;
+      cpy.addEventListener("change",function(e){d.copyFrom=e.target.value});
+      body.appendChild(h("div",{className:"field"},h("label",null,"Effectif de départ"),cpy));
+      body.appendChild(h("div",{className:"muted"},"Votre base de joueuses reste commune à toutes les saisons. Les joueuses reprises arrivent au statut « Candidate », avec leur numéro — que vous pourrez modifier."));
+    }
+
+    return modalShell(s1?"Informations de la saison":"Nouvelle saison",body,
+      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+        var n=(d.name||"").trim();
+        if(!n){showToast("⚠️ Entrez un nom");return}
+        if(d.startDate&&d.endDate&&d.startDate>d.endDate){showToast("⚠️ La fin précède le début");return}
+        if(s1){
+          s1.name=n;s1.category=d.category;s1.startDate=d.startDate;s1.endDate=d.endDate;s1.notes=d.notes;
+        } else {
+          var ns=mkSeason(n);
+          ns.category=d.category;ns.startDate=d.startDate;ns.endDate=d.endDate;ns.notes=d.notes;
+          var from=d.copyFrom?seasonById(d.copyFrom):null;
+          if(from)from.roster.forEach(function(e){ns.roster.push(mkRosterEntry(e.playerId,e.number,e.position))});
+          DB.seasons.push(ns);DB.activeSeasonId=ns.id;
+          state.seasonPane="selection";state.expandedPlayerId=null;state.evalCampaignId=null;clearUndo();
+        }
+        state.modalDraft=null;closeModal();saveNow();showToast(s1?"✅ Saison mise à jour":"✅ « "+n+" » créée");
+      }},s1?"Enregistrer":"Créer")]);
+  }
+
+  /* ── Campagnes ── */
+  if(T==="newcampaign"){
+    if(!season)return null;
+    var kind=state.modalInput2||"final";
+    var kSel=h("select",null,CAMPAIGN_KINDS.map(function(k){return h("option",{value:k.key},k.icon+" "+k.label)}));
+    kSel.value=kind;
+    var nameInpC=h("input",{placeholder:"Nom de la campagne",value:state.modalInput||(KIND_BY_KEY[kind]||{}).label||""});
+    nameInpC.addEventListener("input",function(e){state.modalInput=e.target.value});
+    kSel.addEventListener("change",function(e){
+      state.modalInput2=e.target.value;
+      state.modalInput=(KIND_BY_KEY[e.target.value]||{}).label||"";
+      nameInpC.value=state.modalInput;
+    });
+    return modalShell("Nouvelle campagne d'évaluation",
       h("div",null,
-        textField("Ex. Saison 2026-2027",state.modalInput,function(v){state.modalInput=v},"Nom de la saison"),
-        h("div",{className:"field"},h("label",null,"Effectif de départ"),sel),
-        h("div",{className:"muted"},"Votre base de joueuses reste commune à toutes les saisons. Les joueuses reprises arrivent au statut « Candidate » : à vous de les retenir, recaller ou écarter.")),
+        h("div",{className:"field"},h("label",null,"Type"),kSel),
+        h("div",{className:"field"},h("label",null,"Nom"),nameInpC),
+        h("div",{className:"muted"},"Les évaluations d'une campagne ne se mélangent jamais avec celles d'une autre. C'est ce qui permet de comparer la sélection au bilan de fin de saison.")),
       [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
         var n=(state.modalInput||"").trim();
         if(!n){showToast("⚠️ Entrez un nom");return}
-        var s=mkSeason(n);
-        var from=state.modalInput2?seasonById(state.modalInput2):null;
-        if(from)from.roster.forEach(function(e){
-          var ne=mkRosterEntry(e.playerId,e.number,e.position);s.roster.push(ne);
-        });
-        DB.seasons.push(s);DB.activeSeasonId=s.id;
-        state.seasonPane="selection";state.expandedPlayerId=null;clearUndo();
-        closeModal();saveNow();showToast("✅ « "+n+" » créée");
+        var c=mkCampaign({kind:state.modalInput2||"final",name:n});
+        season.campaigns.push(c);season.activeCampaignId=c.id;state.evalCampaignId=c.id;
+        closeModal();saveNow();showToast("✅ Campagne « "+n+" » ouverte");
       }},"Créer")]);
   }
-  if(T==="renameseason"){
-    var s0=seasonById(state.modalCtx);
-    if(s0&&!state.modalInput)state.modalInput=s0.name;
-    return modalShell("Renommer la saison",
+  if(T==="renamecampaign"){
+    if(!season)return null;
+    var c1=campaignById(season,state.modalCtx);
+    if(!c1)return null;
+    return modalShell("Renommer la campagne",
       textField("Nom",state.modalInput,function(v){state.modalInput=v}),
       [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
-        var n=(state.modalInput||"").trim();if(!n||!s0){showToast("⚠️ Entrez un nom");return}
-        s0.name=n;closeModal();saveNow();showToast("✅ Renommée");
+        var n=(state.modalInput||"").trim();if(!n){showToast("⚠️ Entrez un nom");return}
+        c1.name=n;
+        season.selectorViews.forEach(function(v){if(v.campaignId===c1.id)v.campaignName=n});
+        season.submissions.forEach(function(x){if(x.campaignId===c1.id)x.campaignName=n});
+        closeModal();saveNow();showToast("✅ Renommée");
       }},"Renommer")]);
+  }
+
+  /* ── Réévaluer : dupliquer la vue dans une autre campagne, à blanc ── */
+  if(T==="duplicateview"){
+    if(!season)return null;
+    var vSrc=viewById(season,state.modalCtx);
+    if(!vSrc)return null;
+    var others=season.campaigns.filter(function(c){return !c.closedAt});
+    var target=state.modalInput2||(others.length?others[others.length-1].id:"");
+    var tSel=h("select",null,others.map(function(c){return h("option",{value:c.id},campaignLabel(c))}));
+    tSel.value=target;
+    tSel.addEventListener("change",function(e){state.modalInput2=e.target.value});
+    return modalShell("Réévaluer ces athlètes",
+      h("div",null,
+        h("div",{className:"muted",style:{marginBottom:"10px"}},
+          "Une vue déjà soumise n'est jamais réutilisée telle quelle : ses notes appartiennent à sa campagne. ",
+          "On en crée une copie ",h("b",null,"vierge")," dans la campagne choisie, avec les mêmes athlètes et les mêmes critères."),
+        h("div",{className:"field"},h("label",null,"Campagne cible"),tSel),
+        others.length<2?h("div",{className:"hint warn"},"Une seule campagne ouverte. Créez-en une nouvelle (🗓️ Saison → Campagnes) pour comparer deux moments."):null),
+      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",disabled:!others.length,onclick:function(){
+        var cid=state.modalInput2||target;
+        var camp=campaignById(season,cid);
+        if(!camp){showToast("⚠️ Choisissez une campagne");return}
+        var nv=mkSelectorView({
+          name:vSrc.name+" · "+camp.name,selectorName:vSrc.selectorName,
+          criteria:vSrc.criteria.slice(),groups:vSrc.groups.slice(),
+          anonymous:vSrc.anonymous,context:vSrc.context,
+          campaignId:camp.id,campaignName:camp.name,
+          seasonId:season.id,seasonName:season.name
+        });
+        nv.playerIds=vSrc.playerIds.slice();
+        nv.playerIds.forEach(function(pid){nv.data[pid]=mkEntryData()});   // données vierges
+        season.selectorViews.push(nv);
+        season.activeCampaignId=camp.id;
+        closeModal();saveNow();showToast("✅ Vue vierge créée dans « "+camp.name+" »");
+      }},"Créer la copie vierge")],"440px");
+  }
+
+  /* ── Synchronisation ── */
+  if(T==="syncconfig"){
+    var sd=state.modalDraft||(state.modalDraft={url:SYNC.url,room:SYNC.room});
+    var uInp=h("input",{placeholder:"https://mon-relais.exemple.workers.dev",value:sd.url});
+    uInp.addEventListener("input",function(e){sd.url=e.target.value});
+    var rInp=h("input",{placeholder:"WNDR-ABC-123",value:sd.room});
+    rInp.addEventListener("input",function(e){sd.room=e.target.value.toUpperCase()});
+    return modalShell("Synchronisation",
+      h("div",null,
+        h("div",{className:"muted",style:{marginBottom:"10px"}},syncReady()?"Connecté au salon "+SYNC.room:"Non configuré"),
+        h("div",{className:"field"},h("label",null,"Adresse du relais"),uInp),
+        h("div",{className:"field"},h("label",null,"Code de salon"),rInp),
+        h("div",{className:"btn-row",style:{marginBottom:"12px"}},
+          h("button",{className:"btn btn-ghost xs",onclick:function(){
+            sd.room=mkRoomCode();rInp.value=sd.room;
+          }},"🎲 Générer un code"),
+          h("button",{className:"btn btn-ghost xs",onclick:function(){
+            var prev={url:SYNC.url,room:SYNC.room};
+            SYNC.url=normUrl(sd.url);SYNC.room=(sd.room||"").trim();
+            if(!syncReady()){Object.assign(SYNC,prev);showToast("⚠️ Renseignez adresse et salon");return}
+            showToast("⏳ Test en cours…");
+            syncPing().then(function(){showToast("✅ Relais joignable")})
+                      .catch(function(err){showToast("⚠️ "+err.message)})
+                      .then(function(){Object.assign(SYNC,prev)});
+          }},"🔌 Tester")),
+        h("div",{className:"hint"},"Le relais est un petit service que vous déployez gratuitement — voir le dossier ",
+          h("b",null,"server/")," du dépôt (Cloudflare Worker ou Google Apps Script). ",
+          "Le ",h("b",null,"code de salon")," fait office de mot de passe partagé : ne le diffusez qu'à vos sélectionneurs."),
+        h("div",{className:"muted"},"Sans synchronisation, tout continue de fonctionner par échange de fichiers.")),
+      [cancel,
+       syncReady()?h("button",{className:"btn btn-danger-o full",onclick:function(){
+         SYNC.url="";SYNC.room="";SYNC.pulled={packet:"",submission:""};
+         state.modalDraft=null;saveSync();closeModal();showToast("Synchronisation désactivée");
+       }},"Déconnecter"):null,
+       h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+        var u=normUrl(sd.url),r=(sd.room||"").trim();
+        if(!u||!r){showToast("⚠️ Renseignez l'adresse et le code de salon");return}
+        if(u!==SYNC.url||r!==SYNC.room)SYNC.pulled={packet:"",submission:""};
+        SYNC.url=u;SYNC.room=r;
+        state.modalDraft=null;saveSync();closeModal();showToast("📡 Synchronisation activée");
+      }},"Enregistrer")],"440px");
+  }
+  if(T==="sharelink"){
+    var link=shareLink();
+    var ta2=h("textarea",{className:"txt",rows:"3",readonly:"readonly"});
+    ta2.value=link;
+    ta2.addEventListener("focus",function(){ta2.select()});
+    return modalShell("Lien pour vos sélectionneurs",
+      h("div",null,
+        h("div",{className:"muted",style:{marginBottom:"10px"}},
+          "Envoyez ce lien à chaque sélectionneur. En l'ouvrant sur son propre téléphone, l'application se configure seule et se place en mode sélectionneur — il n'a plus qu'à récupérer ses vues."),
+        ta2,
+        h("div",{className:"btn-row",style:{marginTop:"10px"}},
+          h("button",{className:"btn btn-primary sm",onclick:function(){
+            if(navigator.clipboard&&navigator.clipboard.writeText)
+              navigator.clipboard.writeText(link).then(function(){showToast("🔗 Lien copié")},function(){showToast("Sélectionnez le texte pour le copier")});
+            else{ta2.select();showToast("Sélectionnez le texte pour le copier")}
+          }},"📋 Copier"),
+          navigator.share?h("button",{className:"btn btn-ghost sm",onclick:function(){
+            navigator.share({title:"WonderStats — vue sélectionneur",url:link}).catch(function(){});
+          }},"↗ Partager"):null),
+        h("div",{className:"hint warn",style:{marginTop:"12px"}},"Ce lien contient le code de salon : toute personne qui l'obtient peut lire les vues publiées et déposer des soumissions.")),
+      [h("button",{className:"btn btn-ghost full",onclick:closeModal},"Fermer")],"440px");
   }
 
   /* ── Équipe ── */
@@ -2406,7 +3362,10 @@ function renderModal(){
   if(T==="newplayer"||T==="editplayer"){
     var p0=T==="editplayer"?playerById(state.modalCtx):null;
     if(T==="editplayer"&&!p0)return null;
-    var draft=state.modalDraft||(state.modalDraft=p0?{firstName:p0.firstName,lastName:p0.lastName,birthYear:p0.birthYear,notes:p0.notes}:{firstName:"",lastName:"",birthYear:"",notes:""});
+    var entry0=(p0&&season)?rosterEntry(season,p0.id):null;
+    var draft=state.modalDraft||(state.modalDraft=p0
+      ?{firstName:p0.firstName,lastName:p0.lastName,birthYear:p0.birthYear,notes:p0.notes,number:entry0?entry0.number:""}
+      :{firstName:"",lastName:"",birthYear:"",notes:"",number:""});
     function fld(key,label,ph,attrs){
       var inp=h("input",Object.assign({placeholder:ph,value:draft[key]||""},attrs||{}));
       inp.addEventListener("input",function(e){draft[key]=e.target.value});
@@ -2418,11 +3377,17 @@ function renderModal(){
     var btns=[cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
       var f=(draft.firstName||"").trim(),l=(draft.lastName||"").trim();
       if(!f&&!l){showToast("⚠️ Entrez au moins un nom");return}
-      if(p0){Object.assign(p0,{firstName:f,lastName:l,birthYear:cleanNum(draft.birthYear).slice(0,4),notes:draft.notes||""})}
-      else{
-        var np=mkDbPlayer({firstName:f,lastName:l,birthYear:String(draft.birthYear||"").replace(/\D/g,"").slice(0,4),notes:draft.notes||""});
+      var num=cleanNum(draft.number);
+      if(num&&season&&numberTaken(season,num,p0?p0.id:null)){
+        showToast("⚠️ Le numéro "+num+" est déjà pris dans cette saison");return;
+      }
+      if(p0){
+        Object.assign(p0,{firstName:f,lastName:l,birthYear:cleanNum(draft.birthYear).slice(0,4),notes:draft.notes||""});
+        if(entry0)entry0.number=num;
+      } else {
+        var np=mkDbPlayer({firstName:f,lastName:l,birthYear:cleanNum(draft.birthYear).slice(0,4),notes:draft.notes||""});
         DB.players.push(np);
-        if(season)season.roster.push(mkRosterEntry(np.id,suggestNumber(season),""));
+        if(season)season.roster.push(mkRosterEntry(np.id,num,""));
       }
       state.modalDraft=null;closeModal();saveNow();showToast(p0?"✅ Fiche mise à jour":"✅ Joueuse ajoutée et convoquée");
     }},p0?"Enregistrer":"Ajouter")];
@@ -2442,6 +3407,9 @@ function renderModal(){
     return modalShell(p0?"Fiche joueuse":"Nouvelle joueuse",
       h("div",null,fld("firstName","Prénom","Prénom"),fld("lastName","Nom","Nom de famille"),
         fld("birthYear","Année de naissance","Ex. 2011",{inputmode:"numeric",maxlength:"4"}),
+        (season&&(!p0||entry0))?fld("number","Numéro d'athlète","À saisir",{inputmode:"numeric",maxlength:"3"}):null,
+        (season&&(!p0||entry0))?h("div",{className:"muted",style:{margin:"-4px 0 10px"}},
+          "Vous pouvez le laisser vide et le renseigner plus tard dans le tableau de sélection."):null,
         h("div",{className:"field"},h("label",null,"Notes"),notes),
         p0?h("div",{className:"muted"},"Présente dans "+plural(DB.seasons.filter(function(s){return rosterEntry(s,p0.id)}).length,"saison")):null),
       btns);
@@ -2451,7 +3419,8 @@ function renderModal(){
     ta.value=state.modalInput;
     ta.addEventListener("input",function(e){state.modalInput=e.target.value});
     return modalShell("Ajout en lot",
-      h("div",null,h("div",{className:"muted",style:{marginBottom:"8px"}},"Format : Prénom Nom [numéro]. Les joueuses sont ajoutées à la base et convoquées dans la saison active."),ta),
+      h("div",null,h("div",{className:"muted",style:{marginBottom:"8px"}},
+        "Format : Prénom Nom [numéro]. Le numéro est facultatif — laissé vide, il reste à saisir dans le tableau de sélection. Aucun numéro n'est attribué automatiquement."),ta),
       [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
         var lines=(state.modalInput||"").split("\n").map(function(x){return x.trim()}).filter(Boolean);
         if(!lines.length){showToast("⚠️ Aucune ligne");return}
@@ -2462,7 +3431,7 @@ function renderModal(){
           var parts=line.split(/\s+/);
           var np=mkDbPlayer({firstName:parts.shift()||"",lastName:parts.join(" ")});
           DB.players.push(np);n++;
-          if(season)season.roster.push(mkRosterEntry(np.id,num||suggestNumber(season),""));
+          if(season)season.roster.push(mkRosterEntry(np.id,num,""));
         });
         closeModal();saveNow();showToast("✅ "+plural(n,"joueuse")+" ajoutée(s)");
       }},"Ajouter")],"440px");
@@ -2473,14 +3442,16 @@ function renderModal(){
     if(!free.length)return modalShell("Convoquer",h("div",{className:"muted"},"Toutes les joueuses actives de la base sont déjà convoquées."),[cancel]);
     var items2=free.map(function(p){return {id:p.id,label:fullName(p)+(p.birthYear?" ("+p.birthYear+")":"")}});
     return modalShell("Convoquer dans « "+season.name+" »",
-      h("div",null,selCount(),toggleGrid(items2,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){toggleSel(it.id)})),
+      h("div",null,selCount(),toggleGrid(items2,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){toggleSel(it.id)}),
+        h("div",{className:"muted",style:{marginTop:"10px"}},"Les numéros d'athlète ne sont pas attribués automatiquement : vous les saisirez dans le tableau de sélection.")),
       [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
         if(!state.modalSel.length){showToast("⚠️ Sélectionnez au moins une joueuse");return}
         var n=state.modalSel.length;
         state.modalSel.forEach(function(pid){
-          if(!rosterEntry(season,pid))season.roster.push(mkRosterEntry(pid,suggestNumber(season),""));
+          if(!rosterEntry(season,pid))season.roster.push(mkRosterEntry(pid,"",""));
         });
-        closeModal();saveNow();showToast("✅ "+plural(n,"joueuse")+" convoquée(s)");
+        state.tab="season";state.seasonPane="selection";state.statusFilter="all";
+        closeModal();saveNow();showToast("✅ "+plural(n,"joueuse")+" convoquée(s) — saisissez les numéros");
       }},"Convoquer")],"460px");
   }
 
@@ -2524,23 +3495,61 @@ function renderModal(){
   if(T==="editview"){
     if(!season)return null;
     var v0=state.editViewId?viewById(season,state.editViewId):null;
+    var openCamps=season.campaigns.filter(function(c){return !c.closedAt});
+    if(!openCamps.length)openCamps=season.campaigns.slice();
     var draft2=state.modalDraft||(state.modalDraft={
-      name:v0?v0.name:"Vue "+(season.selectorViews.length+1),
+      name:v0?v0.name:((curCampaign(season)||{}).name||"Vue")+" "+(season.selectorViews.length+1),
       selectorName:v0?v0.selectorName:"",
+      context:v0?(v0.context||""):"",
+      anonymous:v0?(v0.anonymous!==false):true,
+      campaignId:v0?v0.campaignId:(season.activeCampaignId||openCamps[0].id),
       criteria:v0?v0.criteria.slice():CRITERIA.map(function(c){return c.key}),
       groups:v0?v0.groups.slice():SG_KEYS.slice()
     });
     if(v0&&!state.modalSel.length&&v0.playerIds.length)state.modalSel=v0.playerIds.slice();
     var dupN=dupNumbers(season);
+
+    /* A9 : le statut est visible au moment de composer la vue */
     var items4=season.roster.map(function(e){
       var p=playerById(e.playerId);
       var warn=(!e.number||dupN[e.number])?" ⚠️":"";
-      return {id:e.playerId,label:numLabel(e.number)+" "+shortName(p)+warn};
+      return {id:e.playerId,label:(STATUSES[e.status]||STATUSES.candidate).icon+" "+numLabel(e.number)+" "+shortName(p)+warn};
     });
+
+    var campSel=h("select",null,openCamps.map(function(c){return h("option",{value:c.id},campaignLabel(c))}));
+    campSel.value=draft2.campaignId;
+    campSel.addEventListener("change",function(e){draft2.campaignId=e.target.value});
+
+    var anonBtn=h("button",{className:"court-toggle"+(draft2.anonymous?" on":""),style:{width:"100%",textAlign:"center",padding:"10px"}},
+      draft2.anonymous?"🔒 Vue anonyme — numéros seuls":"👁 Vue nominative — numéro + nom");
+    anonBtn.onclick=function(){
+      draft2.anonymous=!draft2.anonymous;
+      anonBtn.className="court-toggle"+(draft2.anonymous?" on":"");
+      anonBtn.textContent=draft2.anonymous?"🔒 Vue anonyme — numéros seuls":"👁 Vue nominative — numéro + nom";
+    };
+
+    var quick=h("div",{className:"btn-row",style:{marginBottom:"8px"}},
+      h("button",{className:"btn btn-ghost xs",onclick:function(){
+        state.modalSel=season.roster.filter(function(e){return isInSquad(e)}).map(function(e){return e.playerId});
+        state.modalDraft=draft2;render();
+      }},"L'équipe"),
+      h("button",{className:"btn btn-ghost xs",onclick:function(){
+        state.modalSel=season.roster.map(function(e){return e.playerId});
+        state.modalDraft=draft2;render();
+      }},"Toutes"),
+      h("button",{className:"btn btn-ghost xs",onclick:function(){
+        state.modalSel=[];state.modalDraft=draft2;render();
+      }},"Aucune"));
+
     var body4=h("div",null,
       textField("Ex. Tryouts – groupe A",draft2.name,function(x){draft2.name=x},"Nom de la vue"),
       textField("Nom du sélectionneur (optionnel)",draft2.selectorName,function(x){draft2.selectorName=x},"Sélectionneur"),
-      h("div",{className:"field"},h("label",null,"Athlètes de la vue"),selCount(),
+      h("div",{className:"field"},h("label",null,"Campagne"),campSel),
+      textField("Ex. Match vs Lions, 12 nov.",draft2.context,function(x){draft2.context=x},"Contexte (optionnel)"),
+      h("div",{className:"field"},h("label",null,"Anonymat"),anonBtn,
+        h("div",{className:"muted",style:{marginTop:"5px"}},
+          "Anonyme en sélection, pour un regard neutre. Nominative pour un bilan de fin de saison, où l'évaluateur connaît déjà l'équipe.")),
+      h("div",{className:"field"},h("label",null,"Athlètes de la vue"),quick,selCount(),
         toggleGrid(items4,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){toggleSel(it.id)})),
       h("div",{className:"field"},h("label",null,"Critères d'évaluation"),
         toggleGrid(CRITERIA.map(function(c){return {id:c.key,label:c.label}}),
@@ -2550,7 +3559,8 @@ function renderModal(){
         toggleGrid(SG_KEYS.map(function(k){return {id:k,label:SG[k].name}}),
           function(it){return draft2.groups.indexOf(it.id)!==-1},
           function(it){var i=draft2.groups.indexOf(it.id);if(i!==-1)draft2.groups.splice(i,1);else draft2.groups.push(it.id)})),
-      h("div",{className:"muted"},"Le sélectionneur ne verra que les numéros. Une joueuse peut appartenir à plusieurs vues."));
+      h("div",{className:"muted"},"Une joueuse peut appartenir à plusieurs vues, y compris dans la même campagne."));
+
     var btns4=[cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
       var n=(draft2.name||"").trim();
       if(!n){showToast("⚠️ Entrez un nom");return}
@@ -2558,13 +3568,17 @@ function renderModal(){
       if(!draft2.criteria.length){showToast("⚠️ Gardez au moins un critère");return}
       var bad=state.modalSel.filter(function(pid){var num=numOf(season,pid);return !num||dupN[num]});
       if(bad.length&&!confirmAct(plural(bad.length,"athlète")+" sans numéro valide (manquant ou en double).\nLe sélectionneur ne pourra pas les distinguer. Continuer ?"))return;
+      var camp=campaignById(season,draft2.campaignId)||curCampaign(season);
       var v=v0||mkSelectorView();
       v.name=n;v.selectorName=(draft2.selectorName||"").trim();
+      v.context=(draft2.context||"").trim();
+      v.anonymous=!!draft2.anonymous;
       v.criteria=draft2.criteria.slice();v.groups=draft2.groups.slice();
       v.playerIds=state.modalSel.slice();
+      v.campaignId=camp?camp.id:null;v.campaignName=camp?camp.name:"";
       v.seasonId=season.id;v.seasonName=season.name;
-      var d={};v.playerIds.forEach(function(pid){d[pid]=v.data[pid]||mkEntryData()});
-      v.data=d;
+      var dd={};v.playerIds.forEach(function(pid){dd[pid]=v.data[pid]||mkEntryData()});
+      v.data=dd;
       if(!v0)season.selectorViews.push(v);
       state.modalDraft=null;state.editViewId=null;
       closeModal();saveNow();showToast("✅ Vue « "+n+" » enregistrée");
@@ -2575,7 +3589,10 @@ function renderModal(){
   /* ── Application des avis compilés au roster ── */
   if(T==="applyreco"){
     if(!season)return null;
-    var comp=compileSubmissions(season);
+    var applyCampId=(state.evalCampaignId&&state.evalCampaignId!=="__all")
+      ?state.evalCampaignId:(curCampaign(season)||{}).id;
+    var applyCamp=campaignById(season,applyCampId);
+    var comp=compileSubmissions(season,applyCampId);
     var changes=[];
     Object.keys(comp).forEach(function(pid){
       var c=comp[pid],e=rosterEntry(season,pid);
@@ -2594,7 +3611,8 @@ function renderModal(){
     });
     return modalShell("Appliquer les avis des sélectionneurs",
       h("div",null,h("div",{className:"muted",style:{marginBottom:"8px"}},
-        "Le statut de chaque joueuse est aligné sur l'avis majoritaire reçu. Vous restez libre de le modifier ensuite."),list),
+        "Le statut de chaque joueuse est aligné sur l'avis majoritaire reçu dans la campagne "+
+        (applyCamp?"« "+applyCamp.name+" »":"active")+". Vous restez libre de le modifier ensuite."),list),
       [cancel,changes.length?h("button",{id:"modalOk",className:"btn btn-warn full",onclick:function(){
         changes.forEach(function(ch){setRosterStatus(season,ch.entry,ch.target)});
         closeModal();saveNow();showToast("⚡ "+plural(changes.length,"statut")+" mis à jour");
@@ -2699,6 +3717,22 @@ function render(){
    DÉMARRAGE
    ══════════════════════════════════════════════════════════════ */
 loadAll();
+loadSync();
+
+/* Lien de partage ouvert par un sélectionneur : l'application se
+   configure seule et bascule dans le bon rôle. */
+(function(){
+  var cfg=readShareLink();
+  if(!cfg)return;
+  var changed=(cfg.url!==SYNC.url||cfg.room!==SYNC.room);
+  SYNC.url=cfg.url;SYNC.room=cfg.room;
+  if(changed)SYNC.pulled={packet:"",submission:""};
+  saveSync();clearHash();
+  state.role="selector";state.tab="sv_views";
+  saveAll();
+  setTimeout(function(){showToast("📡 Connecté au salon "+cfg.room)},300);
+})();
+
 render();
 
 /* Re-rendu au redimensionnement uniquement si aucun champ n'a le focus

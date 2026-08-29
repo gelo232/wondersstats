@@ -123,20 +123,62 @@ DB (clé localStorage: wonderstats_v3)
 
 ---
 
-## 5. Vérification
+## 5. Audit du workflow de saison (second passage)
 
-Trois suites Playwright pilotent l'application réelle (`tests/run.sh`, **51 contrôles**, aucune erreur JS) :
+Une fois la v3 en place, le parcours complet — de l'ouverture d'une saison au bilan
+de fin d'année — a été retracé dans le code. Dix constats, tous corrigés depuis.
+
+| Réf | Constat | Gravité | Correction |
+|---|---|---|---|
+| **A1** | `compileSubmissions` moyennait **toutes** les soumissions d'une saison, sans axe temporel. Une joueuse notée 2,5 en sélection et 4,5 en mai affichait 3,5. | Bloquant | Notion de **campagne** portée par la saison ; chaque vue et chaque soumission y sont rattachées ; `compileSubmissions(season, campaignId)` filtre ; écran **Progression** comparant deux campagnes critère par critère. |
+| **A2** | `submitLocalView` ne réinitialisait pas `view.data` : rouvrir en mai la vue d'août présentait des notes déjà cochées, resoumises comme neuves. | Bloquant | Une vue appartient à une campagne et n'est jamais réutilisée. **🔁 Réévaluer** crée une copie **vierge** dans la campagne cible. |
+| **A3** | Le champ `archived` existait, était affiché, mais **rien ne l'écrivait**. | Majeur | Clôture réversible de saison **et** de campagne ; les vues concernées disparaissent du rôle sélectionneur et les soumissions sont refusées. |
+| **A4** | Une saison ne portait qu'un nom. | Majeur | Catégorie, dates de début et de fin, objectifs ; modifiables après coup. |
+| **A5** | Le cumul de match et les évaluations ne se rejoignaient sur aucun écran. | Majeur | **Fiche joueuse de saison** : cumul toutes équipes, évaluations campagne par campagne avec l'écart, commentaires signés, note de l'entraîneur. |
+| **A6** | `candidate / recalled / selected / cut` ne décrivait qu'une sélection. Une joueuse partant en janvier ne pouvait être qu'« écartée ». | Majeur | Statut d'**effectif** distinct : active / blessée / partie. Elle reste *Retenue*, garde ses matchs et son cumul, sort simplement du terrain. |
+| **A7** | L'anonymat s'appliquait même quand l'entraîneur évalue sa propre équipe. | À arbitrer | Réglage **par vue**. Anonyme par défaut ; en mode nominatif seul un libellé court (« Léa T. ») accompagne le numéro. |
+| **A8** | Une soumission n'était rattachée à aucun match. | Mineur | Champ **contexte** libre sur la vue (« Match vs Lions, 12 nov. »), repris dans la soumission. |
+| **A9** | Le choix des athlètes d'une vue n'affichait pas leur statut. | Mineur | Badge de statut dans la liste, plus des raccourcis *L'équipe / Toutes / Aucune*. |
+| **A10** | `computeGlobalPlayers` additionnait toutes les sessions. | Mineur | Filtre de période sur le cumul : toute la saison, 3, 5 ou 10 derniers matchs. |
+
+## 6. Évolutions de la même passe
+
+**Numéros d'athlète saisis à la main.** L'attribution automatique (`suggestNumber`)
+est supprimée de tous les chemins : création de fiche, ajout en lot, convocation
+unitaire ou en lot. Le numéro est un champ de la fiche joueuse, facultatif à la
+création, refusé s'il est déjà pris, et **modifiable à tout moment** dans la case
+de gauche du tableau de sélection. Les joueuses sans numéro sont signalées en
+rouge et bloquent la publication d'une vue.
+
+**Sélectionneurs sur leur propre appareil.** Une couche de synchronisation HTTP
+minimale (`publish` / `list` / `ping`) permet à l'entraîneur de publier ses vues
+et aux sélectionneurs de les récupérer puis de téléverser leurs soumissions
+depuis leur propre téléphone. Un lien de partage configure l'application du
+sélectionneur en un geste. Deux relais de référence gratuits sont fournis
+(`server/worker.js` pour Cloudflare, `server/apps-script.gs` pour Google) ;
+l'échange par fichier demeure comme repli hors-ligne, et l'anonymat tient
+jusque dans ce qui transite par le relais.
+
+## 7. Vérification
+
+Cinq suites Playwright pilotent l'application réelle (`tests/run.sh`, **88 contrôles**, aucune erreur JS) :
 
 | Suite | Ce qui est vérifié |
 |---|---|
-| `smoke.js` | La migration v2 → v3 reconstruit joueuses, roster, compositions, sous-équipes, statistiques et sessions ; renommer une joueuse **et** changer son numéro laisse son cumul intact (régression **A2**) ; les doublons de numéro sont détectés. |
-| `e2e.js` | Parcours complet saison → vues → évaluation → soumission → compilation → sélection → match. Contrôle explicite de l'**anonymat** : aucun des noms du jeu de données n'apparaît dans le DOM du rôle sélectionneur ni dans le paquet exporté. Contrôle qu'après suppression d'une joueuse il ne subsiste **aucune référence orpheline** (régression **A1**). |
-| `modals.js` | Les 13 modales s'ouvrent, se rendent et se ferment sans erreur ni fuite d'état. |
+| `smoke.js` | Migration v2 → v3, navigation, stabilité de l'identité d'une joueuse (renommage **et** changement de numéro sans perte de cumul), détection des doublons. |
+| `e2e.js` | Parcours complet saison → vues → évaluation → soumission → compilation → sélection → match. Anonymat contrôlé dans le DOM **et** dans le paquet exporté. Aucune référence orpheline après suppression. Aucun numéro attribué automatiquement. |
+| `modals.js` | Les 17 modales s'ouvrent, se rendent et se ferment sans fuite d'état ; le numéro saisi est conservé, un doublon est refusé. |
+| `campaigns.js` | A1 : 2,0 en sélection et 4,0 en fin de saison restent distincts, la progression vaut +2,0, l'écran est cloisonné. A2 : une copie de vue repart vierge. A3 : une campagne ou une saison close disparaît du rôle sélectionneur. A5, A6, A7, A10. |
+| `sync.js` | **Deux navigateurs isolés** : l'entraîneur publie, le lien configure l'appareil du sélectionneur, celui-ci récupère ses vues, évalue, téléverse ; l'entraîneur relève. Contrôles : aucun nom sur le relais, aucune donnée de l'entraîneur sur l'appareil du sélectionneur, pas de doublon au second relevé, relais injoignable signalé et non silencieux, repli par fichier disponible. |
 
 L'application reste sans dépendance : Playwright ne sert qu'aux tests, `index.html` demeure autonome.
 
-## 6. Reste à considérer
+## 8. Reste à considérer
 
-- **Transport des paquets** : le circuit hors-ligne passe par des fichiers `.json`. Un partage réseau (QR code, lien) supprimerait cette manipulation, au prix d'un serveur.
-- **Pondération des critères** : le score est une moyenne simple. Pondérer par critère ou par sélectionneur (expérience) est une évolution naturelle.
-- **Quota `localStorage`** : ~5 Mo. À raison de ~2 Ko par session, la limite est loin, mais l'échec d'écriture est désormais signalé à l'utilisateur au lieu d'être avalé.
+- **Le code de salon n'est pas une authentification.** Quiconque obtient le lien
+  peut lire les vues publiées et déposer des soumissions. Suffisant pour un club,
+  insuffisant si les données devenaient sensibles.
+- **Pondération des critères** : le score reste une moyenne simple. Pondérer par
+  critère ou par expérience du sélectionneur est l'évolution naturelle.
+- **Quota `localStorage`** : ~5 Mo, très loin des besoins ; l'échec d'écriture est
+  désormais signalé à l'utilisateur au lieu d'être avalé.

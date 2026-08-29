@@ -13,9 +13,9 @@ trap 'kill $SERVER 2>/dev/null || true' EXIT
 sleep 1
 
 FAIL=0
-for suite in smoke e2e modals; do
+for suite in smoke e2e modals campaigns sync; do
   echo ""
   echo "════ ${suite} ════"
-  node "tests/${suite}.js" || FAIL=1
+  LOG_FILE="" node "tests/${suite}.js" || FAIL=1
 done
 exit $FAIL

@@ -1,4 +1,7 @@
 const {chromium}=require("playwright");
+const fs=require("fs");
+const LOG=process.env.LOG_FILE||"";
+const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
 const BASE=process.env.BASE_URL||"http://127.0.0.1:8899";
 const EXE=process.env.CHROMIUM_PATH||undefined;
 const ERRORS=[];let PASS=0;
@@ -6,12 +9,13 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
 (async()=>{
   const b=await chromium.launch(EXE?{executablePath:EXE}:{});
   const ctx=await b.newContext({viewport:{width:414,height:896}});
+  ctx.setDefaultTimeout(8000);
   const page=await ctx.newPage();
   page.on("pageerror",e=>ERRORS.push("PAGEERROR: "+e.message));
   page.on("console",m=>{const t=m.text();if(m.type()==="error"&&!/favicon/.test(t))ERRORS.push("CONSOLE: "+t)});
   page.on("dialog",d=>d.accept());
 
-  const step=async(name,fn)=>{try{await fn();PASS++;console.log("  ✓ "+name)}catch(e){console.log("  ✗ "+name+" → "+e.message);ERRORS.push(name+": "+e.message)}};
+  const step=async(name,fn)=>{try{await fn();PASS++;say("  ✓ "+name)}catch(e){say("  ✗ "+name+" → "+e.message);ERRORS.push(name+": "+e.message)}};
   const tab=async t=>{await page.locator(".tab-btn").filter({hasText:t}).first().click();await page.waitForTimeout(150)};
   const btn=async t=>{await page.locator("button").filter({hasText:t}).first().click();await page.waitForTimeout(150)};
   const dom=async()=>await page.innerHTML("#app");
@@ -20,7 +24,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   await page.evaluate(()=>localStorage.clear());
   await page.reload();await page.waitForTimeout(300);
 
-  console.log("\n── 1. Création d'une saison et d'un effectif");
+  say("\n── 1. Création d'une saison et d'un effectif");
   await step("créer la saison 2026-2027",async()=>{
     await tab("Saison");
     await page.locator(".pill").filter({hasText:"Saisons"}).click();await page.waitForTimeout(120);
@@ -39,6 +43,16 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     await btn("Ajouter");await page.waitForTimeout(200);
     const r=await page.evaluate(()=>curSeason().roster.map(e=>e.number));
     if(r.join(",")!=="7,12,3,9,14")throw new Error("numéros="+r.join(","));
+    // aucun numéro n'est inventé : une ligne sans numéro reste vide
+    const vide=await page.evaluate(()=>{
+      const s=curSeason(),before=s.roster.length;
+      const np=mkDbPlayer({firstName:"Test",lastName:"SansNumero"});
+      DB.players.push(np);s.roster.push(mkRosterEntry(np.id,"",""));
+      const num=s.roster[before].number;
+      s.roster.pop();DB.players.pop();
+      return num;
+    });
+    if(vide!=="")throw new Error("numéro attribué automatiquement : "+vide);
     const p=await page.evaluate(()=>DB.players.length);
     if(p!==5)throw new Error("players="+p);
   });
@@ -47,7 +61,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(!ok)throw new Error("numéros invalides");
   });
 
-  console.log("\n── 2. Vues sélectionneur (une joueuse dans deux vues)");
+  say("\n── 2. Vues sélectionneur (une joueuse dans deux vues)");
   await step("créer « Tryouts – groupe A » (#7 #12 #3)",async()=>{
     await tab("Sélection");
     await btn("Nouvelle vue");
@@ -73,9 +87,9 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(shared!==2)throw new Error("#3 présente dans "+shared+" vue(s)");
   });
 
-  console.log("\n── 3. Rôle sélectionneur : anonymat strict");
+  say("\n── 3. Rôle sélectionneur : anonymat strict");
   await step("passer en mode sélectionneur sur la vue A",async()=>{
-    await page.locator("button").filter({hasText:"Ouvrir en mode sélectionneur"}).first().click();
+    await page.locator("button").filter({hasText:"Ouvrir ici"}).first().click();
     await page.waitForTimeout(250);
     const role=await page.evaluate(()=>state.role);
     if(role!=="selector")throw new Error("role="+role);
@@ -91,7 +105,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(nums.join(",")!=="3,7,12")throw new Error("tuiles="+nums.join(","));   // triées numériquement
   });
 
-  console.log("\n── 4. Évaluation et soumission (sélectionneur 1)");
+  say("\n── 4. Évaluation et soumission (sélectionneur 1)");
   await step("évaluer #7 : critères, stats, avis, note",async()=>{
     await page.locator(".num-tile").filter({hasText:"7"}).first().click();await page.waitForTimeout(150);
     const scales=page.locator(".rate-scale");
@@ -133,7 +147,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(n!==1)throw new Error("submissions="+n);
   });
 
-  console.log("\n── 5. Deuxième sélectionneur sur la vue B");
+  say("\n── 5. Deuxième sélectionneur sur la vue B");
   await step("évaluer #3 différemment puis soumettre",async()=>{
     await tab("Mes vues");
     await page.locator(".view-card").filter({hasText:"groupe B"}).locator("button").filter({hasText:"Évaluer"}).click();
@@ -149,7 +163,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(n!==2)throw new Error("submissions="+n);
   });
 
-  console.log("\n── 6. Compilation côté entraîneur");
+  say("\n── 6. Compilation côté entraîneur");
   await step("retour en mode coach",async()=>{
     await page.locator(".role-badge").click();await page.waitForTimeout(250);
     const r=await page.evaluate(()=>state.role);
@@ -192,7 +206,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(noN)throw new Error("#9 non observée ne doit pas apparaître dans la compilation");
   });
 
-  console.log("\n── 7. Équipe de la saison & saisie de match");
+  say("\n── 7. Équipe de la saison & saisie de match");
   await step("composer l'équipe à partir des retenues",async()=>{
     await tab("Saison");
     await page.locator(".pill").filter({hasText:"Sélection"}).first().click();await page.waitForTimeout(150);
@@ -221,7 +235,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(before!==1||after!==0)throw new Error("before="+before+" after="+after);
   });
 
-  console.log("\n── 8. Paquet sélectionneur : zéro donnée nominative");
+  say("\n── 8. Paquet sélectionneur : zéro donnée nominative");
   await step("le paquet ne contient aucun nom",async()=>{
     const json=await page.evaluate(()=>{
       const s=curSeason();return JSON.stringify(buildPacket(s,s.selectorViews[0]));
@@ -260,7 +274,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(ok.names)throw new Error("nom dans la soumission : "+ok.names[0]);
   });
 
-  console.log("\n── 9. Persistance");
+  say("\n── 9. Persistance");
   await step("les données survivent au rechargement",async()=>{
     await page.evaluate(()=>saveNow());
     await page.reload();await page.waitForTimeout(400);
@@ -283,7 +297,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   });
 
   await ctx.close();await b.close();
-  console.log("\n"+PASS+" contrôles réussis.");
-  console.log(ERRORS.length?("❌ "+ERRORS.length+" problème(s):\n"+ERRORS.join("\n")):"✅ Aucun problème");
+  say("\n"+PASS+" contrôles réussis.");
+  say(ERRORS.length?("❌ "+ERRORS.length+" problème(s):\n"+ERRORS.join("\n")):"✅ Aucun problème");
   process.exit(ERRORS.length?1:0);
 })();
