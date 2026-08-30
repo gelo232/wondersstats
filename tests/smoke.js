@@ -14,6 +14,31 @@ const ERRORS=[];
   page.on("console",m=>{if(m.type()==="error")ERRORS.push("CONSOLE: "+m.text())});
 
   let PASS=0;
+  /* v4 : les écrans entraîneur vivent dans un contexte (équipe, rôle). */
+  const asCoach=async(teamName)=>{
+    await page.evaluate((teamName)=>{
+      var t=null;
+      DB.teams.forEach(function(x){if(!t&&(!teamName||x.name===teamName))t=x});
+      if(!t)return;
+      var m=me();
+      if(m&&!DB.assignments.some(function(a){return a.personId===m.id&&a.teamId===t.id&&a.role==="coach"}))
+        DB.assignments.push(mkAssignment(m.id,t.id,"coach"));
+      switchCtx({role:"coach",teamId:t.id});
+    },teamName||null);
+    await page.waitForTimeout(200);
+  };
+  const asSelector=async(teamName)=>{
+    await page.evaluate((teamName)=>{
+      var t=null;
+      DB.teams.forEach(function(x){if(!t&&(!teamName||x.name===teamName))t=x});
+      if(!t)return;
+      var m=me();
+      if(m&&!DB.assignments.some(function(a){return a.personId===m.id&&a.teamId===t.id&&a.role==="selector"}))
+        DB.assignments.push(mkAssignment(m.id,t.id,"selector"));
+      switchCtx({role:"selector",teamId:t.id});
+    },teamName||null);
+    await page.waitForTimeout(200);
+  };
   const step=async(name,fn)=>{
     try{ await fn(); PASS++; say("  ✓ "+name); }
     catch(e){ say("  ✗ "+name+" → "+e.message); ERRORS.push("STEP "+name+": "+e.message); }
@@ -43,38 +68,51 @@ const ERRORS=[];
   await page.goto(BASE+"/index.html");
   await page.waitForTimeout(400);
 
-  say("\n── Migration v2 → v3");
-  await step("3 joueuses migrées dans la base",async()=>{
+  say("\n── Migration v1/v2 → v4");
+  await step("3 joueuses migrées dans la base du club",async()=>{
     const n=await page.evaluate(()=>DB.players.length);
     if(n!==3) throw new Error("players="+n);
   });
-  await step("saison créée avec roster",async()=>{
-    const r=await page.evaluate(()=>DB.seasons[0].roster.length);
-    if(r!==3) throw new Error("roster="+r);
+  await step("l'équipe devient durable, avec son squad",async()=>{
+    const r=await page.evaluate(()=>({teams:DB.teams.length,squads:DB.squads.length,
+      name:(DB.teams[0]||{}).name,roster:(DB.squads[0]||{}).roster.length}));
+    if(r.teams!==1)throw new Error("teams="+r.teams);
+    if(r.squads!==1)throw new Error("squads="+r.squads);
+    if(r.name!=="U15 Wonders")throw new Error("nom d'équipe="+r.name);
+    if(r.roster!==3)throw new Error("roster="+r.roster);
   });
-  await step("lineup converti en playerIds",async()=>{
+  await step("un administrateur est créé et affecté",async()=>{
+    const r=await page.evaluate(()=>({
+      admins:DB.people.filter(p=>p.isAdmin).length,
+      assigns:DB.assignments.length,
+      role:(DB.assignments[0]||{}).role}));
+    if(r.admins!==1)throw new Error("administrateurs="+r.admins);
+    if(r.assigns!==1||r.role!=="coach")throw new Error("affectations="+JSON.stringify(r));
+  });
+  await step("lineup et sous-équipes convertis en playerIds",async()=>{
     const ok=await page.evaluate(()=>{
-      const t=DB.seasons[0].teams[0];
+      const t=DB.squads[0];
       return t.lineup.length===2 && t.lineup.every(x=>typeof x==="string"&&x.length>4)
           && t.subteams[0].playerIds.length===2;
     });
     if(!ok) throw new Error("lineup/subteam non converti");
   });
-  await step("stats et session migrées",async()=>{
+  await step("stats, sessions et campagnes migrées",async()=>{
     const ok=await page.evaluate(()=>{
-      const t=DB.seasons[0].teams[0];
+      const t=DB.squads[0];
       const anyStats=Object.keys(t.stats).some(pid=>t.stats[pid].srv_ace===2);
       return anyStats && t.sessions.length===1 && t.sessions[0].entries.length===2
-             && t.sessions[0].entries[0].playerId;
+             && t.sessions[0].entries[0].playerId && t.campaigns.length>=1;
     });
-    if(!ok) throw new Error("stats/session non migrées");
+    if(!ok) throw new Error("stats/session/campagne non migrées");
   });
   await step("toutes retenues (selected)",async()=>{
-    const n=await page.evaluate(()=>DB.seasons[0].roster.filter(e=>e.status==="selected").length);
+    const n=await page.evaluate(()=>DB.squads[0].roster.filter(e=>e.status==="selected").length);
     if(n!==3) throw new Error("selected="+n);
   });
 
   say("\n── Navigation onglets coach");
+  await asCoach();
   for(const [tab,marker] of [["Saison","Sélection"],["Joueuses","Base de données"],["Saisie","Terrain"],["Récap","Match"],["Sélection","Vues"]]){
     await step("onglet "+tab,async()=>{
       await page.locator(".tab-btn").filter({hasText:tab}).first().click();
@@ -87,15 +125,15 @@ const ERRORS=[];
   say("\n── Renommage : l'historique cumulé survit");
   await step("renommer Léa → historique conservé",async()=>{
     const before=await page.evaluate(()=>{
-      const t=DB.seasons[0].teams[0];
+      const t=DB.squads[0];
       state.tab="summary";state.summaryMode="global";render();
       return computeGlobalPlayers(t).find(p=>p.name.indexOf("Léa")!==-1).stats.atk_kill;
     });
     const after=await page.evaluate(()=>{
       const p=DB.players.find(x=>x.firstName==="Léa");
       p.firstName="Léa-Rose"; p.lastName="Tremblay-Roy";
-      const e=DB.seasons[0].roster.find(r=>r.playerId===p.id); e.number="21";
-      const t=DB.seasons[0].teams[0];
+      const e=DB.squads[0].roster.find(r=>r.playerId===p.id); e.number="21";
+      const t=DB.squads[0];
       return computeGlobalPlayers(t).find(p2=>p2.name.indexOf("Léa-Rose")!==-1).stats.atk_kill;
     });
     if(before!==6||after!==6) throw new Error("before="+before+" after="+after);
@@ -104,11 +142,11 @@ const ERRORS=[];
   say("\n── Numéros : détection des doublons");
   await step("doublon détecté",async()=>{
     const d=await page.evaluate(()=>{
-      DB.seasons[0].roster[0].number="12";
-      return Object.keys(dupNumbers(DB.seasons[0]));
+      DB.squads[0].roster[0].number="12";
+      return Object.keys(dupNumbers(DB.squads[0]));
     });
     if(d.length!==1||d[0]!=="12") throw new Error(JSON.stringify(d));
-    await page.evaluate(()=>{DB.seasons[0].roster[0].number="7";});
+    await page.evaluate(()=>{DB.squads[0].roster[0].number="7";});
   });
 
   await ctx.close(); await b.close();

@@ -15,6 +15,31 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   page.on("console",m=>{const t=m.text();if(m.type()==="error"&&!/favicon/.test(t))ERRORS.push("CONSOLE: "+t)});
   page.on("dialog",d=>d.accept());
 
+  /* v4 : les écrans entraîneur vivent dans un contexte (équipe, rôle). */
+  const asCoach=async(teamName)=>{
+    await page.evaluate((teamName)=>{
+      var t=null;
+      DB.teams.forEach(function(x){if(!t&&(!teamName||x.name===teamName))t=x});
+      if(!t)return;
+      var m=me();
+      if(m&&!DB.assignments.some(function(a){return a.personId===m.id&&a.teamId===t.id&&a.role==="coach"}))
+        DB.assignments.push(mkAssignment(m.id,t.id,"coach"));
+      switchCtx({role:"coach",teamId:t.id});
+    },teamName||null);
+    await page.waitForTimeout(200);
+  };
+  const asSelector=async(teamName)=>{
+    await page.evaluate((teamName)=>{
+      var t=null;
+      DB.teams.forEach(function(x){if(!t&&(!teamName||x.name===teamName))t=x});
+      if(!t)return;
+      var m=me();
+      if(m&&!DB.assignments.some(function(a){return a.personId===m.id&&a.teamId===t.id&&a.role==="selector"}))
+        DB.assignments.push(mkAssignment(m.id,t.id,"selector"));
+      switchCtx({role:"selector",teamId:t.id});
+    },teamName||null);
+    await page.waitForTimeout(200);
+  };
   const step=async(name,fn)=>{try{await fn();PASS++;say("  ✓ "+name)}catch(e){say("  ✗ "+name+" → "+e.message);ERRORS.push(name+": "+e.message)}};
   const tab=async t=>{await page.locator(".tab-btn").filter({hasText:t}).first().click();await page.waitForTimeout(150)};
   const btn=async t=>{await page.locator("button").filter({hasText:t}).first().click();await page.waitForTimeout(150)};
@@ -25,27 +50,29 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   await page.reload();await page.waitForTimeout(300);
 
   say("\n── 1. Création d'une saison et d'un effectif");
-  await step("créer la saison 2026-2027",async()=>{
-    await tab("Saison");
-    await page.locator(".pill").filter({hasText:"Saisons"}).click();await page.waitForTimeout(120);
+  await step("l'administrateur crée la saison 2026-2027",async()=>{
+    await page.evaluate(()=>switchCtx({role:"admin"}));
+    await page.waitForTimeout(200);
+    await tab("Saisons");
     await btn("Nouvelle saison");
     await page.locator(".modal input").first().fill("Saison 2026-2027");
-    await btn("Créer");await page.waitForTimeout(200);
+    await btn("Créer");await page.waitForTimeout(250);
     const n=await page.evaluate(()=>DB.seasons.length);
     if(n!==2)throw new Error("seasons="+n);
     const active=await page.evaluate(()=>curSeason().name);
     if(active!=="Saison 2026-2027")throw new Error("active="+active);
+    await asCoach();
   });
   await step("ajout en lot de 5 joueuses avec numéros",async()=>{
     await tab("Joueuses");
     await btn("Ajout en lot");
     await page.locator(".modal textarea").fill("Léa Tremblay 7\nSofia Nguyen 12\nMaya Roy 3\nAlice Bouchard 9\nZoé Gagnon 14");
     await btn("Ajouter");await page.waitForTimeout(200);
-    const r=await page.evaluate(()=>curSeason().roster.map(e=>e.number));
+    const r=await page.evaluate(()=>curSquad().roster.map(e=>e.number));
     if(r.join(",")!=="7,12,3,9,14")throw new Error("numéros="+r.join(","));
     // aucun numéro n'est inventé : une ligne sans numéro reste vide
     const vide=await page.evaluate(()=>{
-      const s=curSeason(),before=s.roster.length;
+      const s=curSquad(),before=s.roster.length;
       const np=mkDbPlayer({firstName:"Test",lastName:"SansNumero"});
       DB.players.push(np);s.roster.push(mkRosterEntry(np.id,"",""));
       const num=s.roster[before].number;
@@ -57,7 +84,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(p!==5)throw new Error("players="+p);
   });
   await step("aucun doublon / aucun numéro manquant",async()=>{
-    const ok=await page.evaluate(()=>Object.keys(dupNumbers(curSeason())).length===0&&missingNumbers(curSeason()).length===0);
+    const ok=await page.evaluate(()=>Object.keys(dupNumbers(curSquad())).length===0&&missingNumbers(curSquad()).length===0);
     if(!ok)throw new Error("numéros invalides");
   });
 
@@ -70,7 +97,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     for(const n of ["#7","#12","#3"])
       await page.locator(".modal .court-toggle").filter({hasText:n}).first().click();
     await btn("Créer la vue");await page.waitForTimeout(200);
-    const v=await page.evaluate(()=>curSeason().selectorViews[0].playerIds.length);
+    const v=await page.evaluate(()=>curSquad().selectorViews[0].playerIds.length);
     if(v!==3)throw new Error("playerIds="+v);
   });
   await step("créer « Tryouts – groupe B » (#3 #9 #14) — #3 partagée",async()=>{
@@ -81,7 +108,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
       await page.locator(".modal .court-toggle").filter({hasText:n}).first().click();
     await btn("Créer la vue");await page.waitForTimeout(200);
     const shared=await page.evaluate(()=>{
-      const s=curSeason(),pid=s.roster.find(e=>e.number==="3").playerId;
+      const s=curSquad(),pid=s.roster.find(e=>e.number==="3").playerId;
       return s.selectorViews.filter(v=>v.playerIds.indexOf(pid)!==-1).length;
     });
     if(shared!==2)throw new Error("#3 présente dans "+shared+" vue(s)");
@@ -91,7 +118,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   await step("passer en mode sélectionneur sur la vue A",async()=>{
     await page.locator("button").filter({hasText:"Ouvrir ici"}).first().click();
     await page.waitForTimeout(250);
-    const role=await page.evaluate(()=>state.role);
+    const role=await page.evaluate(()=>state.ctx.role);
     if(role!=="selector")throw new Error("role="+role);
   });
   await step("AUCUN nom de joueuse dans le DOM",async()=>{
@@ -143,12 +170,14 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     const leak=NAMES.filter(n=>html.includes(n));
     if(leak.length)throw new Error("fuite de noms : "+leak.join(", "));
     await btn("Soumettre les statistiques");await page.waitForTimeout(250);
-    const n=await page.evaluate(()=>DB.seasons.find(s=>s.name==="Saison 2026-2027").submissions.length);
+    const n=await page.evaluate(()=>DB.squads.filter(sq=>sq.seasonId===DB.seasons.find(x=>x.name==="Saison 2026-2027").id)[0].submissions.length);
     if(n!==1)throw new Error("submissions="+n);
   });
 
   say("\n── 5. Deuxième sélectionneur sur la vue B");
   await step("évaluer #3 différemment puis soumettre",async()=>{
+    await tab("Mes vues");
+    await asSelector();
     await tab("Mes vues");
     await page.locator(".view-card").filter({hasText:"groupe B"}).locator("button").filter({hasText:"Évaluer"}).click();
     await page.waitForTimeout(200);
@@ -159,19 +188,19 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     await page.waitForTimeout(120);
     await tab("Soumettre");
     await btn("Soumettre les statistiques");await page.waitForTimeout(250);
-    const n=await page.evaluate(()=>DB.seasons.find(s=>s.name==="Saison 2026-2027").submissions.length);
+    const n=await page.evaluate(()=>DB.squads.filter(sq=>sq.seasonId===DB.seasons.find(x=>x.name==="Saison 2026-2027").id)[0].submissions.length);
     if(n!==2)throw new Error("submissions="+n);
   });
 
   say("\n── 6. Compilation côté entraîneur");
-  await step("retour en mode coach",async()=>{
-    await page.locator(".role-badge").click();await page.waitForTimeout(250);
-    const r=await page.evaluate(()=>state.role);
+  await step("retour en contexte entraîneur",async()=>{
+    await asCoach();
+    const r=await page.evaluate(()=>state.ctx.role);
     if(r!=="coach")throw new Error("role="+r);
   });
   await step("#3 : moyenne de deux avis = 4.0",async()=>{
     const c=await page.evaluate(()=>{
-      const s=curSeason(),pid=s.roster.find(e=>e.number==="3").playerId;
+      const s=curSquad(),pid=s.roster.find(e=>e.number==="3").playerId;
       const comp=compileSubmissions(s)[pid];
       return {n:comp.n,score:comp.score,tech:comp.ratings.tech,reco:comp.reco,top:comp.topReco};
     });
@@ -193,14 +222,14 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     await btn("Appliquer les avis");await page.waitForTimeout(200);
     await page.locator(".modal button").filter({hasText:"Appliquer ("}).click();await page.waitForTimeout(250);
     const st=await page.evaluate(()=>{
-      const s=curSeason(),m={};
+      const s=curSquad(),m={};
       s.roster.forEach(e=>m[e.number]=e.status);return m;
     });
     if(st["7"]!=="selected")throw new Error("#7="+st["7"]);
     if(st["12"]!=="recalled")throw new Error("#12="+st["12"]);
     if(st["9"]!=="candidate")throw new Error("#9 non observée devrait rester candidate, obtenu "+st["9"]);
     const noN=await page.evaluate(()=>{
-      const s2=curSeason(),pid=s2.roster.find(e=>e.number==="9").playerId;
+      const s2=curSquad(),pid=s2.roster.find(e=>e.number==="9").playerId;
       return compileSubmissions(s2)[pid];
     });
     if(noN)throw new Error("#9 non observée ne doit pas apparaître dans la compilation");
@@ -212,7 +241,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     await page.locator(".pill").filter({hasText:"Sélection"}).first().click();await page.waitForTimeout(150);
     await btn("Composer l'équipe");await page.waitForTimeout(250);
     const n=await page.evaluate(()=>curTeam().playerIds.length);
-    const sel=await page.evaluate(()=>curSeason().roster.filter(e=>e.status==="selected").length);
+    const sel=await page.evaluate(()=>curSquad().roster.filter(e=>e.status==="selected").length);
     if(n!==sel||n===0)throw new Error("équipe="+n+" retenues="+sel);
   });
   await step("saisir des statistiques puis enregistrer la session",async()=>{
@@ -238,7 +267,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   say("\n── 8. Paquet sélectionneur : zéro donnée nominative");
   await step("le paquet ne contient aucun nom",async()=>{
     const json=await page.evaluate(()=>{
-      const s=curSeason();return JSON.stringify(buildPacket(s,s.selectorViews[0]));
+      const s=curSquad();return JSON.stringify(buildPacket(s,s.selectorViews[0]));
     });
     const leak=NAMES.filter(n=>json.includes(n));
     if(leak.length)throw new Error("fuite : "+leak.join(", "));
@@ -248,7 +277,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   });
   await step("aller-retour paquet → soumission",async()=>{
     const ok=await page.evaluate(()=>{
-      const s=curSeason(),v=s.selectorViews[0];
+      const s=curSquad(),v=s.selectorViews[0];
       const packet=buildPacket(s,v);
       // Simule l'appareil du sélectionneur : la vue est reconstruite à partir du paquet seul
       const iv=mkSelectorView({id:"remote1",name:packet.view.name,selectorName:"Sélectionneur distant",
@@ -278,16 +307,19 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   await step("les données survivent au rechargement",async()=>{
     await page.evaluate(()=>saveNow());
     await page.reload();await page.waitForTimeout(400);
-    const r=await page.evaluate(()=>({seasons:DB.seasons.length,players:DB.players.length,
-      subs:DB.seasons.find(s=>s.name==="Saison 2026-2027").submissions.length,
-      views:DB.seasons.find(s=>s.name==="Saison 2026-2027").selectorViews.length}));
+    const r=await page.evaluate(()=>{
+      const sid=DB.seasons.find(x=>x.name==="Saison 2026-2027").id;
+      const sq=DB.squads.filter(x=>x.seasonId===sid)[0];
+      return {seasons:DB.seasons.length,players:DB.players.length,
+        subs:sq.submissions.length,views:sq.selectorViews.length};
+    });
     if(r.seasons!==2||r.players!==5||r.subs!==3||r.views!==2)throw new Error(JSON.stringify(r));
   });
   await step("suppression d'une joueuse : aucune référence orpheline",async()=>{
     const ok=await page.evaluate(()=>{
-      const s=curSeason(),pid=s.roster.find(e=>e.number==="3").playerId;
-      removeFromSeason(s,pid);
-      const orphan=s.teams.some(t=>t.playerIds.indexOf(pid)!==-1||t.lineup.indexOf(pid)!==-1||t.stats[pid])
+      const s=curSquad(),pid=s.roster.find(e=>e.number==="3").playerId;
+      removeFromSquad(s,pid);
+      const orphan=s.playerIds.indexOf(pid)!==-1||s.lineup.indexOf(pid)!==-1||!!s.stats[pid]
         ||s.selectorViews.some(v=>v.playerIds.indexOf(pid)!==-1||v.data[pid])
         ||!!rosterEntry(s,pid);
       render();

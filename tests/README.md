@@ -1,6 +1,6 @@
 # Suite de non-régression
 
-Cinq suites Playwright pilotent l'application réelle dans Chromium et vérifient
+Six suites Playwright pilotent l'application réelle dans Chromium et vérifient
 qu'aucune erreur JS n'est levée.
 
 | Suite | Couverture |
@@ -9,7 +9,8 @@ qu'aucune erreur JS n'est levée.
 | `e2e.js` | Parcours complet : création de saison → effectif → vues sélectionneur (joueuse partagée entre deux vues) → **anonymat strict** (aucun nom dans le DOM ni dans le paquet exporté) → évaluation → soumission → compilation multi-évaluateurs → application des avis → composition de l'équipe → saisie de match → undo → persistance → suppression sans référence orpheline. Vérifie aussi qu'**aucun numéro n'est attribué automatiquement** |
 | `modals.js` | Ouverture, rendu et fermeture de chacune des 17 modales, absence de fuite d'état entre modales, saisie manuelle du numéro et refus d'un doublon |
 | `campaigns.js` | **Cloisonnement des campagnes** (2,0 en sélection et 4,0 en fin de saison ne se moyennent pas), mesure de la progression, copie de vue vierge, clôture de campagne et de saison, statut d'effectif préservant les matchs joués, fiche joueuse réunissant match et évaluations, anonymat réglable, filtre de période |
-| `sync.js` | **Deux navigateurs isolés** avec un relais simulé : l'entraîneur publie, le lien de partage configure l'appareil du sélectionneur, celui-ci récupère ses vues, évalue et téléverse, l'entraîneur relève. Contrôle qu'aucun nom ne transite par le relais, qu'aucune donnée de l'entraîneur n'atteint l'appareil du sélectionneur, qu'un second relevé ne duplique rien, qu'un relais injoignable est signalé, et que le repli par fichier reste disponible |
+| `roles.js` | **La matrice des accès** de `ROLES.md` : un rôle est une arête (personne · équipe · rôle), Sofia cumule entraîneuse des U15 et sélectionneuse des U18, chacun ne voit que son périmètre, un contexte forgé à la main ne survit pas au rendu, la vue libre expose un catalogue sans nom, l'export d'équipe n'emporte pas les collègues, et supprimer une équipe ne laisse aucune affectation orpheline |
+| `sync.js` | **Trois navigateurs isolés** contre un relais simulé conforme au contrat v2. Au-delà du parcours nominal, vérifie ce que le relais **refuse** : une vue adressée n'est lisible que par son destinataire, aucun sélectionneur ne peut lister les soumissions (pas même la sienne), une vue forgée par un sélectionneur est rejetée, un jeton inconnu ou révoqué est refusé. Plus : identité estampillée par le relais, catalogue sans nom, relais injoignable signalé |
 
 ## Exécution
 

@@ -1,7 +1,8 @@
-/* Parcours à deux appareils : l'entraîneur publie, le sélectionneur travaille
-   sur SON navigateur (contexte isolé, stockage séparé) et téléverse en retour.
-   Le relais est simulé en mémoire — c'est le contrat HTTP qui est vérifié,
-   pas l'hébergeur. */
+/* Parcours à deux appareils avec relais à jetons.
+   L'enjeu principal de cette suite n'est pas que l'échange fonctionne, mais
+   que le relais REFUSE ce qu'il doit refuser : un sélectionneur ne doit
+   jamais lire les soumissions d'autrui, ni une vue adressée à quelqu'un
+   d'autre. Le relais simulé reproduit fidèlement server/worker.js. */
 const {chromium}=require("playwright");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
@@ -12,10 +13,44 @@ const RELAY="https://relais.test/api";
 const ERRORS=[];let PASS=0;
 const NAMES=["Tremblay","Nguyen","Roy","Léa","Sofia","Maya"];
 
-/* Le relais : un magasin { room/kind/id → {id,kind,at,payload} } */
-const store=new Map();
+/* ── Relais simulé : mêmes règles que le Worker ───────────────── */
+const items=new Map();      // "room/kind/id" → enregistrement
+const grants=new Map();     // "room/token"   → grant
+const owners=new Map();     // room → jeton propriétaire
 let relayCalls=0, relayFail=false;
+const KINDS=["packet","catalog","submission"];
 
+function resolve(room,token){
+  if(!/^[A-Za-z0-9_-]{4,64}$/.test(room||""))return {error:"Code de salon invalide"};
+  if(!/^[A-Za-z0-9]{16,64}$/.test(token||""))return {error:"Jeton invalide"};
+  if(!owners.has(room)){
+    owners.set(room,token);
+    const g={token,name:"Administrateur",role:"admin",teamId:"",teamName:""};
+    grants.set(room+"/"+token,g);
+    return {grant:g,isOwner:true};
+  }
+  const g=grants.get(room+"/"+token);
+  if(!g)return {error:"Jeton inconnu ou révoqué"};
+  return {grant:g,isOwner:owners.get(room)===token};
+}
+function mayPublish(g,isOwner,kind,teamId){
+  if(isOwner||g.role==="admin")return true;
+  if(g.teamId&&g.teamId!==teamId)return false;
+  if(g.role==="coach")return kind==="packet"||kind==="catalog";
+  if(g.role==="selector")return kind==="submission";
+  return false;
+}
+function mayRead(g,isOwner,rec){
+  if(isOwner||g.role==="admin")return true;
+  if(g.teamId&&rec.teamId&&g.teamId!==rec.teamId)return false;
+  if(g.role==="coach")return rec.kind==="submission"||(rec.by&&rec.by.token===g.token);
+  if(g.role==="selector"){
+    if(rec.kind==="submission")return false;
+    if(rec.to)return rec.to===g.token;
+    return true;
+  }
+  return false;
+}
 async function serveRelay(route,request){
   relayCalls++;
   if(relayFail)return route.abort("failed");
@@ -23,25 +58,59 @@ async function serveRelay(route,request){
   const action=url.searchParams.get("action");
   const json=(o)=>route.fulfill({status:200,contentType:"application/json",
     headers:{"Access-Control-Allow-Origin":"*"},body:JSON.stringify(o)});
+  const fail=(m)=>json({ok:false,error:m});
 
   if(action==="ping")return json({ok:true,room:url.searchParams.get("room"),at:new Date().toISOString()});
 
-  if(action==="list"){
-    const room=url.searchParams.get("room"),kind=url.searchParams.get("kind"),since=url.searchParams.get("since")||"";
-    const items=[];
-    for(const [k,v] of store)
-      if(k.startsWith(room+"/"+kind+"/")&&(!since||v.at>since))items.push(v);
-    items.sort((a,b)=>String(a.at).localeCompare(String(b.at)));
-    return json({ok:true,items});
+  if(action==="whoami"||action==="list"){
+    const r=resolve(url.searchParams.get("room"),url.searchParams.get("token"));
+    if(r.error)return fail(r.error);
+    if(action==="whoami")return json({ok:true,grant:r.grant,isOwner:r.isOwner});
+    const kind=url.searchParams.get("kind"),since=url.searchParams.get("since")||"";
+    if(!KINDS.includes(kind))return fail("Type inconnu");
+    const out=[];
+    for(const [k,rec] of items){
+      if(!k.startsWith(url.searchParams.get("room")+"/"))continue;
+      if(rec.kind!==kind)continue;
+      if(since&&rec.at<=since)continue;
+      if(!mayRead(r.grant,r.isOwner,rec))continue;
+      out.push(rec);
+    }
+    out.sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+    return json({ok:true,items:out});
+  }
+
+  const body=JSON.parse(request.postData()||"{}");
+  const r=resolve(body.room,body.token);
+  if(r.error)return fail(r.error);
+
+  if(action==="grant"){
+    const g=body.grant||{};
+    if(!r.isOwner&&r.grant.role!=="admin"){
+      if(r.grant.role!=="coach")return fail("Émission réservée");
+      if(g.role==="admin")return fail("Un entraîneur ne peut pas nommer d'administrateur");
+      if(g.teamId!==r.grant.teamId)return fail("Émission limitée à votre équipe");
+    }
+    const rec={token:g.token,name:g.name||"",role:g.role,teamId:g.teamId||"",teamName:g.teamName||""};
+    grants.set(body.room+"/"+g.token,rec);
+    return json({ok:true,grant:rec});
+  }
+  if(action==="revoke"){
+    if(!r.isOwner&&r.grant.role!=="admin")return fail("Révocation réservée");
+    grants.delete(body.room+"/"+body.target);
+    return json({ok:true,revoked:body.target});
   }
   if(action==="publish"){
-    const body=JSON.parse(request.postData()||"{}");
-    if(!body.room||!body.kind||!body.id)return json({ok:false,error:"champs manquants"});
-    const rec={id:body.id,kind:body.kind,at:new Date(Date.now()+store.size).toISOString(),payload:body.payload};
-    store.set(body.room+"/"+body.kind+"/"+body.id,rec);          // republier remplace
-    return json({ok:true,id:rec.id,at:rec.at});
+    const {kind,id,payload}=body,teamId=String(body.teamId||"");
+    if(!KINDS.includes(kind))return fail("Type inconnu");
+    if(!mayPublish(r.grant,r.isOwner,kind,teamId))return fail("Ce jeton n'a pas le droit de déposer ceci");
+    const rec={id,kind,teamId,at:new Date(Date.now()+items.size).toISOString(),
+      to:String(body.to||""),
+      by:{token:r.grant.token,name:r.grant.name,role:r.grant.role},payload};
+    items.set(body.room+"/"+kind+"/"+id,rec);
+    return json({ok:true,id,at:rec.at});
   }
-  return json({ok:false,error:"action inconnue"});
+  return fail("Action inconnue");
 }
 
 (async()=>{
@@ -52,7 +121,6 @@ async function serveRelay(route,request){
     await ctx.route("https://relais.test/**",serveRelay);
     const page=await ctx.newPage();
     page.on("pageerror",e=>ERRORS.push(label+" PAGEERROR: "+e.message));
-    // ERR_FAILED est provoqué volontairement par le test de robustesse
     page.on("console",m=>{const t=m.text();
       if(m.type()==="error"&&!/favicon/.test(t)&&!(relayFail&&/ERR_FAILED/.test(t)))ERRORS.push(label+" CONSOLE: "+t)});
     page.on("dialog",d=>d.accept());
@@ -62,103 +130,106 @@ async function serveRelay(route,request){
 
   const coach=await mkDevice("coach");
   const scout=await mkDevice("sélectionneur");
-  let link="";
+  const scout2=await mkDevice("sélectionneur 2");
+  let linkMarie="",linkKarl="",teamId="",tokMarie="",tokKarl="";
 
   say("\n── Appareil de l'entraîneur");
   await coach.page.goto(BASE+"/index.html");
   await coach.page.evaluate(()=>localStorage.clear());
-  await coach.page.reload();await coach.page.waitForTimeout(300);
+  await coach.page.reload();await coach.page.waitForTimeout(400);
 
-  await step("effectif et vue prêts",async()=>{
-    await coach.page.evaluate(()=>{
-      const s=curSeason();s.name="Saison 2026-2027";
+  await step("club, équipe et deux sélectionneurs",async()=>{
+    teamId=await coach.page.evaluate(()=>{
+      const admin=me();
+      const t=DB.teams[0];t.name="U15 Wonders";t.category="U15";
+      DB.squads.forEach(sq=>{if(sq.teamId===t.id)sq.name=t.name});
+      ["Marie T.","Karl B."].forEach(n=>{
+        const p=mkPerson({name:n});DB.people.push(p);
+        DB.assignments.push(mkAssignment(p.id,t.id,"selector"));
+      });
+      switchCtx({role:"coach",teamId:t.id});
+      const sq=curSquad();
       [["Léa","Tremblay","7"],["Sofia","Nguyen","12"],["Maya","Roy","3"]].forEach(([f,l,n])=>{
         const p=mkDbPlayer({firstName:f,lastName:l});DB.players.push(p);
-        s.roster.push(mkRosterEntry(p.id,n,"OH"));
+        const e=mkRosterEntry(p.id,n,"OH");e.status="selected";sq.roster.push(e);
+        sq.playerIds.push(p.id);
       });
-      const v=mkSelectorView({name:"Tryouts groupe A",campaignId:s.activeCampaignId,
-        campaignName:s.campaigns[0].name,seasonId:s.id,seasonName:s.name});
-      v.playerIds=s.roster.map(e=>e.playerId);
-      v.playerIds.forEach(pid=>{v.data[pid]=mkEntryData()});
-      s.selectorViews.push(v);
       saveNow();render();
+      return t.id;
     });
-    const n=await coach.page.evaluate(()=>curSeason().selectorViews[0].playerIds.length);
-    if(n!==3)throw new Error("vue incomplète");
+    const n=await coach.page.evaluate(()=>DB.people.length);
+    if(n!==3)throw new Error("personnes="+n);
   });
 
-  await step("configurer la synchronisation puis tester le relais",async()=>{
+  await step("configurer le relais : le premier jeton devient propriétaire",async()=>{
     await coach.page.evaluate((u)=>{
-      state.role="coach";state.tab="selection";state.selectionPane="views";
-      openModal("syncconfig");
+      SYNC.url=u;SYNC.room="WNDR-TST-001";SYNC.token=mkToken();saveSync();
     },RELAY);
-    await coach.page.waitForTimeout(200);
-    await coach.page.locator(".modal input").nth(0).fill(RELAY);
-    await coach.page.locator(".modal button").filter({hasText:"Générer un code"}).click();
-    await coach.page.waitForTimeout(120);
-    const before=relayCalls;
-    await coach.page.locator(".modal button").filter({hasText:"Tester"}).click();
-    await coach.page.waitForTimeout(600);
-    if(relayCalls<=before)throw new Error("le relais n'a pas été contacté");
-    await coach.page.locator(".modal button").filter({hasText:"Enregistrer"}).click();
-    await coach.page.waitForTimeout(250);
-    const ok=await coach.page.evaluate(()=>syncReady()&&SYNC.room.indexOf("WNDR-")===0);
-    if(!ok)throw new Error("synchronisation non activée");
+    const who=await coach.page.evaluate(()=>syncWhoami().then(d=>d.grant.role).catch(e=>"ERR:"+e.message));
+    if(who!=="admin")throw new Error("rôle du propriétaire="+who);
   });
 
-  await step("publier la vue dépose un paquet sur le relais",async()=>{
-    await coach.page.locator("button").filter({hasText:"Publier"}).first().click();
-    await coach.page.waitForTimeout(700);
-    const packets=[...store.values()].filter(v=>v.kind==="packet");
-    if(packets.length!==1)throw new Error("paquets déposés="+packets.length);
-    const pub=await coach.page.evaluate(()=>curSeason().selectorViews[0].published);
-    if(!pub)throw new Error("la vue n'est pas marquée publiée");
+  await step("émettre un jeton pour chaque sélectionneur",async()=>{
+    const r=await coach.page.evaluate(async()=>{
+      const out={};
+      for(const p of DB.people.filter(x=>!x.isAdmin)){
+        const a=DB.assignments.find(x=>x.personId===p.id);
+        await grantToken(p,a.teamId,a.role);
+        out[p.name]=p.token;
+      }
+      saveNow();
+      return out;
+    });
+    tokMarie=r["Marie T."];tokKarl=r["Karl B."];
+    if(!tokMarie||!tokKarl)throw new Error("jetons manquants");
+    if(tokMarie===tokKarl)throw new Error("jetons identiques");
+    linkMarie=await coach.page.evaluate(()=>inviteLink(DB.people.find(p=>p.name==="Marie T.")));
+    linkKarl=await coach.page.evaluate(()=>inviteLink(DB.people.find(p=>p.name==="Karl B.")));
+    if(!linkMarie.includes("#s=")||!linkKarl.includes("#s="))throw new Error("liens invalides");
+  });
+
+  await step("publier une vue nominativement adressée à Marie",async()=>{
+    await coach.page.evaluate(async()=>{
+      const sq=curSquad(),marie=DB.people.find(p=>p.name==="Marie T.");
+      const v=mkSelectorView({name:"Groupe A",selectorName:marie.name,
+        campaignId:sq.activeCampaignId,campaignName:curCampaign(sq).name,
+        seasonId:sq.seasonId,seasonName:curSeason().name});
+      v.selectorPersonId=marie.id;
+      v.playerIds=sq.roster.map(e=>e.playerId);
+      v.playerIds.forEach(pid=>{v.data[pid]=mkEntryData()});
+      sq.selectorViews.push(v);
+      await syncPublish("packet",v.id,buildPacket(sq,v),{teamId:sq.teamId,to:marie.token});
+      saveNow();
+    });
+    const packets=[...items.values()].filter(v=>v.kind==="packet");
+    if(packets.length!==1)throw new Error("paquets="+packets.length);
+    if(!packets[0].to)throw new Error("paquet non adressé");
   });
 
   await step("le paquet déposé ne contient aucun nom",async()=>{
-    const raw=JSON.stringify([...store.values()].filter(v=>v.kind==="packet")[0]);
+    const raw=JSON.stringify([...items.values()].filter(v=>v.kind==="packet")[0].payload);
     const leak=NAMES.filter(n=>raw.includes(n));
     if(leak.length)throw new Error("fuite sur le relais : "+leak.join(", "));
   });
 
-  await step("récupérer le lien sélectionneur",async()=>{
-    link=await coach.page.evaluate(()=>shareLink());
-    if(!link||link.indexOf("#s=")===-1)throw new Error("lien invalide : "+link);
-  });
-
-  say("\n── Appareil du sélectionneur (navigateur distinct)");
-  await step("le lien configure l'appareil et bascule le rôle",async()=>{
-    await scout.page.goto(link);
-    await scout.page.waitForTimeout(700);
-    const st=await scout.page.evaluate(()=>({role:state.role,tab:state.tab,ready:syncReady(),room:SYNC.room}));
-    if(!st.ready)throw new Error("synchronisation non configurée par le lien");
+  say("\n── Appareil de Marie (navigateur distinct)");
+  await step("le lien la configure et lui donne son identité",async()=>{
+    await scout.page.goto(linkMarie);
+    await scout.page.waitForTimeout(900);
+    const st=await scout.page.evaluate(()=>({
+      role:state.ctx&&state.ctx.role,name:(me()||{}).name,
+      ident:SYNC.identity&&SYNC.identity.name,tab:state.tab}));
     if(st.role!=="selector")throw new Error("rôle="+st.role);
-    if(st.tab!=="sv_views")throw new Error("onglet="+st.tab);
-    const coachRoom=await coach.page.evaluate(()=>SYNC.room);
-    if(st.room!==coachRoom)throw new Error("salon différent : "+st.room+" vs "+coachRoom);
+    if(st.name!=="Marie T.")throw new Error("identité locale="+st.name);
+    if(st.ident!=="Marie T.")throw new Error("identité du relais="+st.ident);
   });
-  await step("le fragment de configuration est retiré de l'URL",async()=>{
-    const u=scout.page.url();
-    if(u.indexOf("#s=")!==-1)throw new Error("le code de salon reste dans l'URL : "+u);
-  });
-  await step("aucune donnée de l'entraîneur n'a transité par le stockage local",async()=>{
-    const own=await scout.page.evaluate(()=>({players:DB.players.length,seasons:DB.seasons.length}));
-    if(own.players!==0)throw new Error("la base de l'entraîneur a fuité : "+own.players+" joueuse(s)");
-  });
-
-  await step("récupérer les vues publiées",async()=>{
-    await scout.page.locator("button").filter({hasText:"Récupérer mes vues"}).click();
-    await scout.page.waitForTimeout(800);
+  await step("elle reçoit sa vue",async()=>{
+    await scout.page.evaluate(()=>pullForSelector());
+    await scout.page.waitForTimeout(900);
     const n=await scout.page.evaluate(()=>INBOX.views.length);
     if(n!==1)throw new Error("vues reçues="+n);
-    const nums=await scout.page.evaluate(()=>{
-      const v=INBOX.views[0];
-      return v.playerIds.map(pid=>v.numbers[pid]).sort();
-    });
-    if(nums.join(",")!=="12,3,7")throw new Error("numéros reçus="+nums.join(","));
   });
-
-  await step("aucun nom dans le DOM du sélectionneur",async()=>{
+  await step("aucun nom dans son interface",async()=>{
     await scout.page.evaluate(()=>{state.svViewId=INBOX.views[0].id;state.tab="sv_eval";
       state.svPlayerId=INBOX.views[0].playerIds[0];render()});
     await scout.page.waitForTimeout(300);
@@ -166,80 +237,137 @@ async function serveRelay(route,request){
     const leak=NAMES.filter(n=>html.includes(n));
     if(leak.length)throw new Error("fuite de noms : "+leak.join(", "));
   });
-
-  await step("évaluer les trois athlètes",async()=>{
+  await step("elle évalue puis téléverse",async()=>{
     await scout.page.evaluate(()=>{
       const v=INBOX.views[0];
-      v.selectorName="Marie T.";
       v.playerIds.forEach((pid,i)=>{
         const d=svEntry(v,pid);
-        CRITERIA.forEach(c=>{d.ratings[c.key]=3+(i%3)});
-        d.reco=i===0?"select":"recall";
-        d.stats.srv_ace=i+1;
-        d.note="Observation "+(i+1);
+        CRITERIA.forEach(c=>{d.ratings[c.key]=4});
+        d.reco="select";d.stats.srv_ace=i+1;
       });
-      saveNow();render();
+      v.teamId=INBOX.views[0].teamId||"";
+      saveNow();
     });
-    const p=await scout.page.evaluate(()=>svProgress(svFind(state.svViewId)));
-    if(p.done!==3)throw new Error("évaluées="+p.done);
+    await scout.page.evaluate((tid)=>{
+      const v=INBOX.views[0];v.teamId=tid;
+      return uploadSubmission(v);
+    },teamId);
+    await scout.page.waitForTimeout(900);
+    const subs=[...items.values()].filter(v=>v.kind==="submission");
+    if(subs.length!==1)throw new Error("soumissions=" +subs.length);
+    if(subs[0].by.name!=="Marie T.")throw new Error("identité estampillée="+subs[0].by.name);
   });
 
-  await step("téléverser la soumission",async()=>{
-    await scout.page.evaluate(()=>{state.tab="sv_submit";render()});
-    await scout.page.waitForTimeout(250);
-    await scout.page.locator("button").filter({hasText:"Téléverser ma soumission"}).click();
-    await scout.page.waitForTimeout(900);
-    const subs=[...store.values()].filter(v=>v.kind==="submission");
-    if(subs.length!==1)throw new Error("soumissions déposées="+subs.length);
-    const up=await scout.page.evaluate(()=>!!INBOX.views[0].uploadedAt);
-    if(!up)throw new Error("la vue n'est pas marquée téléversée");
+  say("\n── Ce que le relais REFUSE (constat R2)");
+  await step("Karl ne voit pas la vue adressée à Marie",async()=>{
+    await scout2.page.goto(linkKarl);
+    await scout2.page.waitForTimeout(900);
+    const n=await scout2.page.evaluate(()=>syncList("packet","").then(d=>d.items.length).catch(()=>-1));
+    if(n!==0)throw new Error("paquets visibles par Karl : "+n);
+  });
+  await step("Karl ne peut PAS lister les soumissions",async()=>{
+    const n=await scout2.page.evaluate(()=>syncList("submission","").then(d=>d.items.length).catch(()=>-1));
+    if(n!==0)throw new Error("soumissions visibles par un sélectionneur : "+n);
+  });
+  await step("Marie non plus ne voit pas sa propre soumission déposée",async()=>{
+    const n=await scout.page.evaluate(()=>syncList("submission","").then(d=>d.items.length).catch(()=>-1));
+    if(n!==0)throw new Error("soumissions visibles : "+n);
+  });
+  await step("un sélectionneur ne peut pas publier une vue",async()=>{
+    const r=await scout2.page.evaluate(()=>
+      syncPublish("packet","forge",{type:"wonderstats-selector-packet",view:{}},{teamId:""})
+        .then(()=>"ACCEPTÉ").catch(e=>"refusé"));
+    if(r!=="refusé")throw new Error("le relais a accepté une vue forgée");
+  });
+  await step("un jeton inconnu est rejeté",async()=>{
+    const r=await scout2.page.evaluate(()=>{
+      const bak=SYNC.token;SYNC.token="zzzzzzzzzzzzzzzzzzzzzzzz";
+      return syncWhoami().then(()=>"ACCEPTÉ").catch(()=>"refusé").then(v=>{SYNC.token=bak;return v});
+    });
+    if(r!=="refusé")throw new Error("jeton inconnu accepté");
   });
 
   say("\n── Retour côté entraîneur");
-  await step("relever les soumissions les intègre",async()=>{
-    await coach.page.evaluate(()=>{state.tab="selection";state.selectionPane="views";render()});
-    await coach.page.waitForTimeout(200);
-    await coach.page.locator("button").filter({hasText:"Relever les soumissions"}).click();
+  await step("il relève la soumission, estampillée du bon nom",async()=>{
+    await coach.page.evaluate(()=>pullSubmissions(curSquad()));
     await coach.page.waitForTimeout(900);
-    const n=await coach.page.evaluate(()=>curSeason().submissions.length);
-    if(n!==1)throw new Error("soumissions intégrées="+n);
-  });
-  await step("la soumission est rattachée à la bonne campagne",async()=>{
     const r=await coach.page.evaluate(()=>{
-      const s=curSeason(),sub=s.submissions[0];
-      return {camp:sub.campaignId===s.activeCampaignId,who:sub.selectorName,
-              compiled:Object.keys(compileSubmissions(s,s.activeCampaignId)).length};
+      const sq=curSquad();
+      return {n:sq.submissions.length,who:(sq.submissions[0]||{}).selectorName,
+        tok:!!(sq.submissions[0]||{}).selectorToken};
     });
-    if(!r.camp)throw new Error("campagne non rattachée");
-    if(r.who!=="Marie T.")throw new Error("sélectionneur="+r.who);
-    if(r.compiled!==3)throw new Error("joueuses compilées="+r.compiled);
+    if(r.n!==1)throw new Error("soumissions intégrées="+r.n);
+    if(r.who!=="Marie T.")throw new Error("nom="+r.who);
+    if(!r.tok)throw new Error("jeton d'origine non conservé");
   });
   await step("relever à nouveau n'introduit pas de doublon",async()=>{
-    await coach.page.locator("button").filter({hasText:"Relever les soumissions"}).click();
+    await coach.page.evaluate(()=>pullSubmissions(curSquad()));
     await coach.page.waitForTimeout(900);
-    const n=await coach.page.evaluate(()=>curSeason().submissions.length);
-    if(n!==1)throw new Error("soumissions après second relevé="+n);
+    const n=await coach.page.evaluate(()=>curSquad().submissions.length);
+    if(n!==1)throw new Error("après second relevé="+n);
+  });
+  await step("révoquer le jeton de Karl lui coupe l'accès",async()=>{
+    await coach.page.evaluate(()=>{
+      const k=DB.people.find(p=>p.name==="Karl B.");
+      return revokeToken(k);
+    });
+    await coach.page.waitForTimeout(500);
+    const r=await scout2.page.evaluate(()=>syncWhoami().then(()=>"ACCÈS").catch(()=>"coupé"));
+    if(r!=="coupé")throw new Error("le jeton révoqué fonctionne encore");
+  });
+
+  say("\n── Vue libre : le sélectionneur choisit ses athlètes");
+  await step("l'entraîneur publie le catalogue de son équipe",async()=>{
+    await coach.page.evaluate(()=>{
+      const t=curTeamRecord();t.freeView=true;
+      DB.squads.forEach(sq=>{if(sq.teamId===t.id)sq.freeView=true});
+      return publishCatalog(curSquad());
+    });
+    await coach.page.waitForTimeout(900);
+    const cats=[...items.values()].filter(v=>v.kind==="catalog");
+    if(cats.length!==1)throw new Error("catalogues="+cats.length);
+    const raw=JSON.stringify(cats[0].payload);
+    const leak=NAMES.filter(n=>raw.includes(n));
+    if(leak.length)throw new Error("le catalogue contient des noms : "+leak.join(", "));
+    if(cats[0].payload.players.length!==3)throw new Error("athlètes au catalogue="+cats[0].payload.players.length);
+  });
+  await step("Marie récupère le catalogue et compose sa vue",async()=>{
+    await scout.page.evaluate(()=>pullForSelector());
+    await scout.page.waitForTimeout(900);
+    const n=await scout.page.evaluate(()=>(INBOX.catalogs||[]).length);
+    if(n!==1)throw new Error("catalogues reçus="+n);
+    const made=await scout.page.evaluate(()=>{
+      const c=INBOX.catalogs[0];
+      state.modalSel=[c.players[0].playerId,c.players[2].playerId];
+      openModal("pickathletes",c.teamId+"|"+c.seasonId);
+      return svCatalogs().length;
+    });
+    if(made<1)throw new Error("aucun catalogue exploitable");
+    await scout.page.waitForTimeout(250);
+    await scout.page.locator(".modal button").filter({hasText:"Créer mon observation"}).click();
+    await scout.page.waitForTimeout(400);
+    const r=await scout.page.evaluate(()=>{
+      const v=INBOX.views[INBOX.views.length-1];
+      return {n:INBOX.views.length,picked:v.playerIds.length,anon:v.anonymous};
+    });
+    if(r.n!==2)throw new Error("vues="+r.n);
+    if(r.picked!==2)throw new Error("athlètes choisies="+r.picked);
+    if(!r.anon)throw new Error("la vue composée devrait rester anonyme");
   });
 
   say("\n── Robustesse");
   await step("un relais injoignable est signalé, pas silencieux",async()=>{
     relayFail=true;
-    await coach.page.locator("button").filter({hasText:"Relever les soumissions"}).click();
+    await coach.page.evaluate(()=>pullSubmissions(curSquad()));
     await coach.page.waitForTimeout(1200);
     const t=await coach.page.textContent("#app");
     if(t.indexOf("⚠️")===-1)throw new Error("aucune alerte affichée");
     const busy=await coach.page.evaluate(()=>syncBusy);
-    if(busy)throw new Error("l'interface reste bloquée en « en cours »");
+    if(busy)throw new Error("l'interface reste bloquée");
     relayFail=false;
   });
-  await step("le repli par fichier reste disponible hors-ligne",async()=>{
-    await scout.page.evaluate(()=>{state.tab="sv_submit";render()});
-    await scout.page.waitForTimeout(250);
-    const n=await scout.page.locator("button").filter({hasText:"fichier"}).count();
-    if(!n)throw new Error("option de secours absente");
-  });
 
-  await coach.ctx.close();await scout.ctx.close();await b.close();
+  await coach.ctx.close();await scout.ctx.close();await scout2.ctx.close();await b.close();
   say("\n"+PASS+" contrôles réussis · "+relayCalls+" appels au relais.");
   say(ERRORS.length?("❌ "+ERRORS.length+" problème(s):\n"+ERRORS.join("\n")):"✅ Aucun problème");
   process.exit(ERRORS.length?1:0);

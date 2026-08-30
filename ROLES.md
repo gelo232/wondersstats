@@ -104,23 +104,45 @@ de données de mineures devant un tiers.
 
 ---
 
-## 5. Évolution du contrat de relais (niveau 2)
+## 5. Contrat de relais (niveau 2)
 
-Aujourd'hui les dépôts sont rangés sous `{salon}/{type}/{id}` et `list` renvoie
-**tout** ce qui porte ce préfixe. Cible :
+Toute requête porte un `token`. Le **premier jeton présenté sur un salon vierge en
+devient propriétaire** — c'est l'amorçage, il n'y a personne d'autre pour
+l'autoriser.
 
 ```
-{salon}/{jeton}/{type}/{id}
+GET  {url}?action=ping&room=R
+GET  {url}?action=whoami&room=R&token=T        -> {ok, grant, isOwner}
+GET  {url}?action=list&room=R&token=T&kind=...&since=...&teamId=...
+POST {url}?action=publish   {room, token, kind, id, teamId, to?, payload}
+POST {url}?action=grant     {room, token, grant:{token, name, role, teamId, teamName}}
+POST {url}?action=revoke    {room, token, target}
 ```
 
-- `publish` exige un `token` valide ; le dépôt est rangé sous ce jeton.
-- `list` ne renvoie que ce qui est **destiné** au porteur du jeton : ses vues, et
-  pour un entraîneur les soumissions de son équipe.
-- une soumission porte l'identité du jeton — le champ `selectorName` cesse d'être
-  du texte libre.
+`kind` vaut `packet` (une vue), `catalog` (le roster d'une équipe : numéros et
+postes) ou `submission`.
 
-Les jetons sont émis à l'invitation et révocables. Ils ne remplacent pas une
-authentification : ils empêchent la lecture croisée, ce qui est l'objectif.
+**Ce que le relais autorise**
+
+| Porteur | publish | list |
+|---|---|---|
+| propriétaire / admin | tout | tout |
+| entraîneur de T | `packet`, `catalog` sur T | les `submission` de T, et ses propres dépôts |
+| sélectionneur de T | `submission` sur T | les `catalog` de T, et les `packet` non adressés ou qui lui sont adressés |
+
+Trois conséquences, vérifiées par `tests/sync.js` :
+
+1. **un sélectionneur ne lit jamais une `submission`**, la sienne comprise ;
+2. une vue déposée avec `to = jeton` n'est lisible que par son destinataire ;
+3. le champ `by` d'un dépôt est **estampillé par le relais**, jamais fourni par
+   l'appelant : `selectorName` cesse d'être du texte libre (constat R8).
+
+Les jetons sont émis à l'invitation (lien personnel `#s=`) et révocables. Ils ne
+remplacent pas une authentification : ils empêchent la lecture croisée, ce qui
+est l'objectif.
+
+Deux implémentations conformes sont fournies : `server/worker.js` (Cloudflare) et
+`server/apps-script.gs` (Google).
 
 ---
 

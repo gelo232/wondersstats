@@ -8,15 +8,33 @@ index.html      application complète (HTML + CSS + JS vanilla)
 manifest.json   métadonnées PWA
 sw.js           service worker (app-shell en cache-first)
 server/         relais de synchronisation optionnel (deux implémentations)
-AUDIT.md        audit, modèle de données, suivi des corrections
+AUDIT.md        audit du workflow, modèle de données, suivi des corrections
+ROLES.md        profils, matrice des accès, contrat de relais
 tests/          suite de non-régression Playwright
 ```
 
 ---
 
-## Les deux rôles
+## Trois profils, des rôles par équipe
 
-Le bouton en haut à droite bascule entre les deux modes.
+Un rôle n'appartient pas à une personne : il la relie à **une équipe**. Sofia est
+*entraîneuse des U15* et peut être *sélectionneuse des U18* — les deux coexistent.
+Le bouton en haut à droite ouvre le **sélecteur de contexte** : « j'agis en tant
+que… ».
+
+### 🛡️ Administrateur
+
+Gère le club : les personnes, les **équipes durables** (qui traversent les saisons),
+les affectations, les saisons, la base de joueuses et le relais. Il ne saisit pas
+les matchs et n'évalue pas — ce sont des actes de terrain qui engagent leur auteur.
+
+| Onglet | Rôle |
+|---|---|
+| 👤 **Personnes** | Créer, affecter à une équipe, inviter (émission d'un jeton personnel) |
+| 👕 **Équipes** | Créer, catégorie, réglage *vue imposée / vue libre* |
+| 🗓️ **Saisons** | Créer, dater, clôturer · sauvegarde complète du club |
+| 🗂️ **Joueuses** | Base commune au club |
+| 📡 **Relais** | Configuration, jetons en circulation, révocation |
 
 ### 👔 Entraîneur
 
@@ -28,11 +46,26 @@ Le bouton en haut à droite bascule entre les deux modes.
 | 📊 **Récap** | Match en cours · cumul (filtrable par période) · **⭐ évaluations par campagne** et **📈 progression** · sessions |
 | 🎯 **Sélection** | Vues sélectionneur · publication · soumissions reçues |
 
+Il ne voit que **son** équipe : roster, statistiques, campagnes et soumissions.
+Il peut ajouter des athlètes à la base du club et inviter des sélectionneurs sur
+son équipe, mais ni nommer un entraîneur, ni exporter le club entier.
+
 ### 🎯 Sélectionneur
 
 Interface réduite : chaque athlète est désignée par son **numéro**. Pour chacune,
 5 critères notés de 1 à 5, des compteurs de statistiques, une recommandation et un
 commentaire. Puis `📤 Soumettre`.
+
+Deux façons de recevoir du travail :
+
+- **vue imposée** — l'entraîneur compose la vue et la lui adresse ;
+- **vue libre** — l'entraîneur publie le *catalogue* de l'équipe (numéros et
+  postes) et le sélectionneur **choisit lui-même** les athlètes qu'il observe.
+
+Il ne voit que les équipes où il est affecté, et **jamais** l'avis d'un collègue.
+
+> Le détail des profils, la matrice complète des accès et ce que l'application
+> peut réellement garantir : [`ROLES.md`](ROLES.md).
 
 ---
 
@@ -97,10 +130,10 @@ Base de joueuses ──convocation──▶ Roster de la saison (numéros saisis
 **Sur un seul appareil** — `🎯 Ouvrir ici` passe le téléphone au sélectionneur.
 
 **Sur son propre appareil, par le réseau** *(recommandé)* — configurez un relais une
-fois (voir ci-dessous), puis `📡 Publier` la vue et envoyez le `🔗 Lien sélectionneur`.
-Le sélectionneur ouvre le lien sur son téléphone : l'application se configure seule,
-il récupère ses vues, évalue, et `📡 Téléverse` sa soumission. Vous la relevez d'un
-bouton.
+fois (voir ci-dessous), invitez la personne depuis 🛡️ Administration → Personnes
+(un **jeton personnel** est émis), puis `📡 Publier` la vue. Le sélectionneur ouvre
+son lien : l'application se configure seule, reconnaît son identité auprès du
+relais, il récupère ses vues, évalue, et `📡 Téléverse` sa soumission.
 
 **Par fichier, hors-ligne** — `📤 Fichier` produit un paquet JSON ; le sélectionneur
 l'importe, évalue, et renvoie un fichier de soumission. Aucun réseau requis.
@@ -125,9 +158,13 @@ fournis dans [`server/`](server/README.md) avec leurs instructions.
 Ensuite, dans `🎯 Sélection → Configurer` : collez l'URL, générez un code de salon,
 testez, enregistrez.
 
-> Le **code de salon fait office de mot de passe partagé** : il n'y a pas de compte
-> utilisateur. Ne diffusez le lien qu'à vos sélectionneurs, et changez de code entre
-> deux saisons.
+Chaque invitation émet un **jeton personnel**, révocable. Le relais ne restitue à
+chacun que ce qui lui revient : un sélectionneur reçoit ses vues et le catalogue de
+son équipe, jamais les soumissions — pas même la sienne une fois déposée.
+
+> Un jeton identifie, il n'authentifie pas : quiconque obtient un lien d'invitation
+> en prend l'identité. Révoquez-le si un appareil est perdu, et changez de salon
+> entre deux saisons.
 
 ---
 

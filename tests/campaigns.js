@@ -15,15 +15,41 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
   page.on("pageerror",e=>ERRORS.push("PAGEERROR: "+e.message));
   page.on("console",m=>{const t=m.text();if(m.type()==="error"&&!/favicon/.test(t))ERRORS.push("CONSOLE: "+t)});
   page.on("dialog",d=>d.accept());
+  /* v4 : les écrans entraîneur vivent dans un contexte (équipe, rôle). */
+  const asCoach=async(teamName)=>{
+    await page.evaluate((teamName)=>{
+      var t=null;
+      DB.teams.forEach(function(x){if(!t&&(!teamName||x.name===teamName))t=x});
+      if(!t)return;
+      var m=me();
+      if(m&&!DB.assignments.some(function(a){return a.personId===m.id&&a.teamId===t.id&&a.role==="coach"}))
+        DB.assignments.push(mkAssignment(m.id,t.id,"coach"));
+      switchCtx({role:"coach",teamId:t.id});
+    },teamName||null);
+    await page.waitForTimeout(200);
+  };
+  const asSelector=async(teamName)=>{
+    await page.evaluate((teamName)=>{
+      var t=null;
+      DB.teams.forEach(function(x){if(!t&&(!teamName||x.name===teamName))t=x});
+      if(!t)return;
+      var m=me();
+      if(m&&!DB.assignments.some(function(a){return a.personId===m.id&&a.teamId===t.id&&a.role==="selector"}))
+        DB.assignments.push(mkAssignment(m.id,t.id,"selector"));
+      switchCtx({role:"selector",teamId:t.id});
+    },teamName||null);
+    await page.waitForTimeout(200);
+  };
   const step=async(n,f)=>{try{await f();PASS++;say("  ✓ "+n)}catch(e){say("  ✗ "+n+" → "+e.message);ERRORS.push(n+": "+e.message)}};
 
   await page.goto(BASE+"/index.html");
   await page.evaluate(()=>localStorage.clear());
   await page.reload();await page.waitForTimeout(300);
+  await asCoach();
 
   // Effectif de départ, numéros saisis explicitement
   await page.evaluate(()=>{
-    const s=curSeason();s.name="Saison test";curTeam().name="U15";
+    const s=curSquad();
     [["Léa","Tremblay","7","OH"],["Sofia","Nguyen","12","S"],["Maya","Roy","3","MB"]].forEach(([f,l,n,pos])=>{
       const p=mkDbPlayer({firstName:f,lastName:l});DB.players.push(p);
       s.roster.push(mkRosterEntry(p.id,n,pos));
@@ -33,7 +59,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
 
   // Dépose une soumission complète dans une campagne donnée
   const submit=(campName,who,score)=>page.evaluate(([campName,who,score])=>{
-    const s=curSeason();
+    const s=curSquad();
     const c=s.campaigns.filter(x=>x.name===campName)[0];
     const v=mkSelectorView({name:"Vue "+campName,selectorName:who,campaignId:c.id,campaignName:c.name,seasonId:s.id});
     v.playerIds=s.roster.map(e=>e.playerId);
@@ -50,19 +76,19 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
   say("\n── A1 : les campagnes ne se mélangent pas");
   await step("créer une campagne « Fin de saison »",async()=>{
     await page.evaluate(()=>{
-      const s=curSeason();
+      const s=curSquad();
       s.campaigns[0].name="Sélection";
       const c=mkCampaign({kind:"final",name:"Fin de saison"});
       s.campaigns.push(c);saveNow();
     });
-    const n=await page.evaluate(()=>curSeason().campaigns.length);
+    const n=await page.evaluate(()=>curSquad().campaigns.length);
     if(n!==2)throw new Error("campagnes="+n);
   });
   await step("2,0 en sélection puis 4,0 en fin de saison",async()=>{
     await submit("Sélection","Marie T.",2);
     await submit("Fin de saison","Marie T.",4);
     const r=await page.evaluate(()=>{
-      const s=curSeason(),pid=s.roster[0].playerId;
+      const s=curSquad(),pid=s.roster[0].playerId;
       const a=s.campaigns[0].id,b=s.campaigns[1].id;
       return {sel:compileSubmissions(s,a)[pid].score,fin:compileSubmissions(s,b)[pid].score,
               tout:compileSubmissions(s)[pid].score};
@@ -73,7 +99,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
   });
   await step("la progression est mesurable (+2,0)",async()=>{
     const rows=await page.evaluate(()=>{
-      const s=curSeason();
+      const s=curSquad();
       return compareCampaigns(s,s.campaigns[0].id,s.campaigns[1].id)
         .map(r=>({d:r.delta,from:r.from,to:r.to}));
     });
@@ -81,8 +107,8 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
     if(rows.some(r=>r.d!==2))throw new Error("deltas="+JSON.stringify(rows));
   });
   await step("l'écran Évaluations est cloisonné par campagne",async()=>{
-    await page.evaluate(()=>{state.role="coach";state.tab="summary";state.summaryMode="evals";
-      state.evalCampaignId=curSeason().campaigns[0].id;state.evalMode="list";render()});
+    await page.evaluate(()=>{state.ctx={role:'coach',teamId:(curTeamRecord()||DB.teams[0]).id};state.tab="summary";state.summaryMode="evals";
+      state.evalCampaignId=curSquad().campaigns[0].id;state.evalMode="list";render()});
     await page.waitForTimeout(250);
     const t=await page.textContent("#app");
     if(!/2[.,]0/.test(t))throw new Error("score 2,0 de la campagne Sélection absent");
@@ -90,8 +116,8 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
   });
   await step("le mode Progression est proposé et rend un écart",async()=>{
     await page.evaluate(()=>{state.evalMode="progress";
-      state.progressFrom=curSeason().campaigns[0].id;
-      state.progressTo=curSeason().campaigns[1].id;render()});
+      state.progressFrom=curSquad().campaigns[0].id;
+      state.progressTo=curSquad().campaigns[1].id;render()});
     await page.waitForTimeout(250);
     const t=await page.textContent("#app");
     if(t.indexOf("+2.0")===-1&&t.indexOf("+2,0")===-1)throw new Error("écart +2.0 absent de l'écran");
@@ -100,7 +126,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
   say("\n── A2 : une vue resoumise ne recycle jamais ses notes");
   await step("dupliquer une vue produit des données vierges",async()=>{
     const r=await page.evaluate(()=>{
-      const s=curSeason(),src=s.selectorViews[0];
+      const s=curSquad(),src=s.selectorViews[0];
       const camp=s.campaigns[1];
       const nv=mkSelectorView({name:src.name+" · "+camp.name,criteria:src.criteria.slice(),
         groups:src.groups.slice(),campaignId:camp.id,campaignName:camp.name,seasonId:s.id});
@@ -116,14 +142,14 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
     if(r.memeCampagne)throw new Error("la copie devrait changer de campagne");
   });
   await step("la modale « Réévaluer » crée bien une copie vierge",async()=>{
-    const before=await page.evaluate(()=>curSeason().selectorViews.length);
-    await page.evaluate(()=>{state.role="coach";state.tab="selection";state.selectionPane="views";
-      openModal("duplicateview",curSeason().selectorViews[0].id)});
+    const before=await page.evaluate(()=>curSquad().selectorViews.length);
+    await page.evaluate(()=>{state.ctx={role:'coach',teamId:(curTeamRecord()||DB.teams[0]).id};state.tab="selection";state.selectionPane="views";
+      openModal("duplicateview",curSquad().selectorViews[0].id)});
     await page.waitForTimeout(200);
     await page.locator(".modal button").filter({hasText:"copie vierge"}).click();
     await page.waitForTimeout(250);
     const r=await page.evaluate(()=>{
-      const s=curSeason(),v=s.selectorViews[s.selectorViews.length-1];
+      const s=curSquad(),v=s.selectorViews[s.selectorViews.length-1];
       return {n:s.selectorViews.length,vide:v.playerIds.filter(pid=>entryFilled(v,pid)).length};
     });
     if(r.n!==before+1)throw new Error("vue non créée");
@@ -133,24 +159,25 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
   say("\n── A3 : clôture de saison et de campagne");
   await step("une campagne close disparaît du rôle sélectionneur",async()=>{
     const before=await page.evaluate(()=>svSources().length);
-    await page.evaluate(()=>{curSeason().campaigns[0].closedAt=nowISO()});
+    await page.evaluate(()=>{curSquad().campaigns[0].closedAt=nowISO()});
     const after=await page.evaluate(()=>svSources().length);
     if(after>=before)throw new Error("avant="+before+" après="+after);
-    await page.evaluate(()=>{curSeason().campaigns[0].closedAt=null});
+    await page.evaluate(()=>{curSquad().campaigns[0].closedAt=null});
   });
   await step("une saison clôturée ne distribue plus rien",async()=>{
-    await page.evaluate(()=>{const s=curSeason();s.closedAt=nowISO();s.archived=true});
-    const n=await page.evaluate(()=>svSources().filter(x=>x.season&&x.season.id===DB.activeSeasonId).length);
+    /* La clôture porte sur la saison ; un squad y répond via son seasonId. */
+    await page.evaluate(()=>{const x=curSeason();x.closedAt=nowISO();x.archived=true});
+    const n=await page.evaluate(()=>svSources().filter(x=>x.kind==="local").length);
     if(n!==0)throw new Error("vues encore distribuées : "+n);
-    const closed=await page.evaluate(()=>seasonClosed(curSeason()));
+    const closed=await page.evaluate(()=>seasonClosed(curSquad())&&seasonClosed(curSeason()));
     if(!closed)throw new Error("seasonClosed() ne reflète pas la clôture");
-    await page.evaluate(()=>{const s=curSeason();s.closedAt=null;s.archived=false;saveNow();render()});
+    await page.evaluate(()=>{const x=curSeason();x.closedAt=null;x.archived=false;saveNow();render()});
   });
 
   say("\n── A6 : statut d'effectif distinct du statut de sélection");
   await step("une joueuse partie garde ses matchs et son statut Retenue",async()=>{
     const r=await page.evaluate(()=>{
-      const s=curSeason(),t=curTeam(),e=s.roster[0];
+      const s=curSquad(),t=curTeam(),e=s.roster[0];
       setRosterStatus(s,e,"selected");
       promoteSelectedToTeam(s);
       // un match joué avant son départ
@@ -171,21 +198,21 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
   say("\n── A5 : la fiche joueuse réunit match et évaluations");
   await step("la fiche affiche le cumul de match ET les campagnes",async()=>{
     await page.evaluate(()=>{
-      state.role="coach";state.tab="season";state.seasonPane="selection";state.statusFilter="all";
-      state.expandedPlayerId=curSeason().roster[0].playerId;render();
+      state.ctx={role:'coach',teamId:(curTeamRecord()||DB.teams[0]).id};state.tab="season";state.seasonPane="selection";state.statusFilter="all";
+      state.expandedPlayerId=curSquad().roster[0].playerId;render();
     });
     await page.waitForTimeout(300);
     const t=await page.textContent("#app");
     for(const marker of ["Matchs de la saison","Évaluations par campagne","Sélection","Fin de saison","Dans l'effectif"])
       if(t.indexOf(marker)===-1)throw new Error("section « "+marker+" » absente");
-    const ms=await page.evaluate(()=>playerSeasonStats(curSeason(),curSeason().roster[0].playerId));
+    const ms=await page.evaluate(()=>playerSeasonStats(curSquad(),curSquad().roster[0].playerId));
     if(ms.stats.atk_kill!==5)throw new Error("statistiques de match absentes de la fiche");
   });
 
   say("\n── A7 : anonymat réglable par vue");
   await step("vue nominative : le nom accompagne le numéro",async()=>{
     const r=await page.evaluate(()=>{
-      const s=curSeason(),v=s.selectorViews[0],pid=v.playerIds[0];
+      const s=curSquad(),v=s.selectorViews[0],pid=v.playerIds[0];
       v.anonymous=false;
       const src={view:v,kind:"local",season:s};
       const nom=svDisplay(src,pid);
@@ -200,7 +227,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
   });
   await step("une vue nominative expose un libellé court, jamais le nom complet",async()=>{
     const r=await page.evaluate(()=>{
-      const s=curSeason(),v=s.selectorViews[0];
+      const s=curSquad(),v=s.selectorViews[0];
       v.anonymous=false;
       const packet=buildPacket(s,v);
       v.anonymous=true;
@@ -214,7 +241,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
   say("\n── A10 : filtre de période sur le cumul");
   await step("le cumul se restreint aux derniers matchs",async()=>{
     const r=await page.evaluate(()=>{
-      const s=curSeason(),t=curTeam(),pid=s.roster[0].playerId;
+      const s=curSquad(),t=curTeam(),pid=s.roster[0].playerId;
       for(let i=0;i<4;i++){t.stats[pid]=normStats({atk_kill:1});saveSession(t,"Match "+(i+2))}
       state.cumulScope="all";
       const tout=computeGlobalPlayers(t).filter(p=>p.id===pid)[0].stats.atk_kill;

@@ -270,7 +270,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "3.0";
+var APP_VERSION = "4.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -347,6 +347,17 @@ var KIND_BY_KEY={};CAMPAIGN_KINDS.forEach(function(k){KIND_BY_KEY[k.key]=k});
 
 var CATEGORIES=["U11","U13","U15","U16","U18","U21","Senior"];
 
+/* ─── Rôles ──────────────────────────────────────────────────────────
+   Un rôle n'est pas un attribut d'une personne : c'est une arête entre
+   une personne et une équipe. « Entraîneur des U15 » et « sélectionneur
+   des U18 » coexistent donc sans se contredire. Voir ROLES.md.        */
+var ROLES={
+  coach:{key:"coach",label:"Entraîneur",icon:"👔",color:"#60A5FA"},
+  selector:{key:"selector",label:"Sélectionneur",icon:"🎯",color:"#F59E0B"}
+};
+var ROLE_KEYS=["coach","selector"];
+var ADMIN_CTX={key:"admin",label:"Administration",icon:"🛡️",color:"#F87171"};
+
 /* ─── Utilitaires ───────────────────────────────────────────── */
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
 function clone(o){return JSON.parse(JSON.stringify(o))}
@@ -368,6 +379,17 @@ function isLand(){return window.innerWidth>window.innerHeight}
 function mkDbPlayer(o){
   return Object.assign({id:uid(),firstName:"",lastName:"",birthYear:"",notes:"",archived:false,createdAt:nowISO()},o||{});
 }
+function mkPerson(o){
+  return Object.assign({id:uid(),name:"",isAdmin:false,token:"",createdAt:nowISO(),revoked:false},o||{});
+}
+/* Équipe durable : elle traverse les saisons, et l'affectation d'un
+   entraîneur la suit. */
+function mkTeamRecord(o){
+  return Object.assign({id:uid(),name:"Équipe",category:"",freeView:false,archived:false,createdAt:nowISO()},o||{});
+}
+function mkAssignment(personId,teamId,role){
+  return {id:uid(),personId:personId,teamId:teamId,role:ROLES[role]?role:"selector",createdAt:nowISO()};
+}
 /* Le numéro n'est JAMAIS attribué automatiquement : il est saisi par
    l'entraîneur, et reste modifiable ensuite depuis le tableau de sélection. */
 function mkRosterEntry(playerId,number,position){
@@ -379,16 +401,21 @@ function mkCampaign(o){
   return Object.assign({id:uid(),kind:kind,name:(KIND_BY_KEY[kind]||{}).label||"Campagne",
     createdAt:nowISO(),closedAt:null},o||{});
 }
-function mkTeam(name){
-  return {id:uid(),name:name||"Équipe",playerIds:[],lineup:[],subteams:[],stats:{},sessions:[]};
+/* Squad = équipe × saison. Porte tout ce qui vit une saison : la
+   convocation, l'effectif, les statistiques, les campagnes, les vues
+   et les soumissions. `name`, `category` et `freeView` sont des copies
+   de l'équipe durable, rafraîchies au chargement — jamais la source. */
+function mkSquad(teamId,seasonId,name){
+  var c=mkCampaign({kind:"tryout"});
+  return {id:uid(),teamId:teamId||null,seasonId:seasonId||null,
+          name:name||"Équipe",category:"",freeView:false,
+          roster:[],playerIds:[],lineup:[],subteams:[],stats:{},sessions:[],
+          campaigns:[c],activeCampaignId:c.id,
+          selectorViews:[],submissions:[]};
 }
 function mkSeason(name){
-  var t=mkTeam("Équipe A");
-  var c=mkCampaign({kind:"tryout"});
   return {id:uid(),name:name||("Saison "+new Date().getFullYear()),createdAt:nowISO(),
-          category:"",startDate:"",endDate:"",notes:"",closedAt:null,archived:false,
-          campaigns:[c],activeCampaignId:c.id,
-          roster:[],teams:[t],activeTeamId:t.id,selectorViews:[],submissions:[]};
+          startDate:"",endDate:"",notes:"",closedAt:null,archived:false};
 }
 function mkSelectorView(o){
   return Object.assign({id:uid(),name:"",selectorName:"",playerIds:[],
@@ -401,14 +428,17 @@ function mkSelectorView(o){
 function mkEntryData(){return {stats:emptyS(),ratings:{},reco:"",note:""}}
 
 /* ─── Base de données ───────────────────────────────────────── */
-var DB={version:3,players:[],seasons:[],activeSeasonId:null};
+function emptyDB(){return {version:4,people:[],teams:[],assignments:[],
+  players:[],seasons:[],squads:[],activeSeasonId:null}}
+var DB=emptyDB();
 
 /* Vues sélectionneur importées d'un autre appareil (rôle sélectionneur autonome) */
 var INBOX={views:[]};
 
 /* ─── État de l'interface ───────────────────────────────────── */
 var state={
-  role:"coach",                 // coach | selector
+  meId:null,                    // qui utilise cet appareil
+  ctx:null,                     // {role:"admin"} ou {role:"coach"|"selector", teamId}
   tab:"season",                 // onglet actif (rôle courant)
   seasonPane:"selection",       // selection | campaigns | teams | seasons
   evalCampaignId:null,          // filtre de campagne dans Récap → Évaluations
@@ -431,11 +461,106 @@ var state={
 
 /* ─── Accès ─────────────────────────────────────────────────── */
 function curSeason(){for(var i=0;i<DB.seasons.length;i++)if(DB.seasons[i].id===DB.activeSeasonId)return DB.seasons[i];return DB.seasons[0]||null}
-function curTeam(){var s=curSeason();if(!s)return null;for(var i=0;i<s.teams.length;i++)if(s.teams[i].id===s.activeTeamId)return s.teams[i];return s.teams[0]||null}
+function personById(id){for(var i=0;i<DB.people.length;i++)if(DB.people[i].id===id)return DB.people[i];return null}
+function teamById(id){for(var i=0;i<DB.teams.length;i++)if(DB.teams[i].id===id)return DB.teams[i];return null}
+function squadFor(teamId,seasonId){
+  for(var i=0;i<DB.squads.length;i++)
+    if(DB.squads[i].teamId===teamId&&DB.squads[i].seasonId===seasonId)return DB.squads[i];
+  return null;
+}
+/* Crée le squad à la volée : une équipe existe dès qu'on la fait jouer. */
+function ensureSquad(teamId,seasonId){
+  var sq=squadFor(teamId,seasonId);
+  if(sq)return sq;
+  var t=teamById(teamId);
+  if(!t||!seasonId)return null;
+  sq=mkSquad(teamId,seasonId,t.name);
+  sq.category=t.category;sq.freeView=!!t.freeView;
+  DB.squads.push(sq);
+  return sq;
+}
+/* Le squad courant : croisement du contexte (équipe) et de la saison active.
+   C'est l'objet que manipulent tous les écrans entraîneur. */
+function curSquad(){
+  var tid=state.ctx&&state.ctx.teamId;
+  var s=curSeason();
+  if(!tid||!s)return null;
+  return ensureSquad(tid,s.id);
+}
+/* Conservé pour les écrans qui manipulent l'effectif et les statistiques :
+   dans le modèle v4, ce « team » est le squad. */
+function curTeam(){return curSquad()}
+function curTeamRecord(){var tid=state.ctx&&state.ctx.teamId;return tid?teamById(tid):null}
 function playerById(id){for(var i=0;i<DB.players.length;i++)if(DB.players[i].id===id)return DB.players[i];return null}
-function rosterEntry(season,pid){if(!season)return null;for(var i=0;i<season.roster.length;i++)if(season.roster[i].playerId===pid)return season.roster[i];return null}
+function rosterEntry(squad,pid){if(!squad)return null;for(var i=0;i<squad.roster.length;i++)if(squad.roster[i].playerId===pid)return squad.roster[i];return null}
 function seasonById(id){for(var i=0;i<DB.seasons.length;i++)if(DB.seasons[i].id===id)return DB.seasons[i];return null}
-function viewById(season,id){if(!season)return null;for(var i=0;i<season.selectorViews.length;i++)if(season.selectorViews[i].id===id)return season.selectorViews[i];return null}
+function viewById(squad,id){if(!squad)return null;for(var i=0;i<squad.selectorViews.length;i++)if(squad.selectorViews[i].id===id)return squad.selectorViews[i];return null}
+
+/* ══ ACCÈS ═══════════════════════════════════════════════════════
+   Applique la matrice de ROLES.md. Garde-fou ergonomique : sur un
+   appareil, rien n'empêche de modifier ces valeurs — la seule frontière
+   réellement tenue est celle du relais (jetons). Voir ROLES.md § 4.   */
+function me(){return state.meId?personById(state.meId):null}
+function isAdmin(){var p=me();return !!(p&&p.isAdmin&&!p.revoked)}
+function myAssignments(){
+  var p=me();if(!p)return [];
+  return DB.assignments.filter(function(a){return a.personId===p.id&&teamById(a.teamId)});
+}
+function hasRole(teamId,role){
+  if(isAdmin())return true;
+  var p=me();if(!p)return false;
+  return DB.assignments.some(function(a){return a.personId===p.id&&a.teamId===teamId&&a.role===role});
+}
+function canCoach(teamId){return hasRole(teamId,"coach")}
+function canSelect(teamId){return hasRole(teamId,"selector")}
+/* Équipes visibles dans un rôle donné. L'administrateur les voit toutes. */
+function teamsForRole(role){
+  if(isAdmin())return DB.teams.filter(function(t){return !t.archived});
+  var p=me();if(!p)return [];
+  var ids={};
+  DB.assignments.forEach(function(a){if(a.personId===p.id&&a.role===role)ids[a.teamId]=1});
+  return DB.teams.filter(function(t){return !t.archived&&ids[t.id]});
+}
+/* Les contextes offerts au sélecteur : administration, puis une entrée
+   par affectation. */
+function myContexts(){
+  var out=[];
+  if(isAdmin())out.push({role:"admin"});
+  ROLE_KEYS.forEach(function(role){
+    teamsForRole(role).forEach(function(t){out.push({role:role,teamId:t.id})});
+  });
+  return out;
+}
+function ctxLabel(c){
+  if(!c)return "Aucun contexte";
+  if(c.role==="admin")return ADMIN_CTX.icon+" "+ADMIN_CTX.label;
+  var t=teamById(c.teamId);
+  return ROLES[c.role].icon+" "+ROLES[c.role].label+" · "+(t?t.name:"—");
+}
+function sameCtx(a,b){
+  return !!a&&!!b&&a.role===b.role&&(a.role==="admin"||a.teamId===b.teamId);
+}
+/* Replace le contexte sur quelque chose de valide après tout changement
+   d'affectation, de personne ou d'équipe. */
+function normalizeCtx(){
+  var all=myContexts();
+  if(!all.length){state.ctx=null;return}
+  if(!state.ctx||!all.some(function(c){return sameCtx(c,state.ctx)}))state.ctx=all[0];
+}
+/* Bascule vers le rôle sélectionneur, en s'affectant si nécessaire :
+   un entraîneur peut évaluer sa propre équipe. */
+function ensureSelectorCtx(teamId){
+  var m=me();
+  if(teamId&&m&&!DB.assignments.some(function(a){
+    return a.personId===m.id&&a.teamId===teamId&&a.role==="selector";}))
+    DB.assignments.push(mkAssignment(m.id,teamId,"selector"));
+  state.ctx=teamId?{role:"selector",teamId:teamId}:{role:"selector",teamId:(state.ctx||{}).teamId};
+  normalizeCtx();
+  clearUndo();
+}
+function isCoachCtx(){return !!state.ctx&&state.ctx.role==="coach"}
+function isSelectorCtx(){return !!state.ctx&&state.ctx.role==="selector"}
+function isAdminCtx(){return !!state.ctx&&state.ctx.role==="admin"}
 
 function fullName(p){
   if(!p)return "—";
@@ -449,7 +574,7 @@ function shortName(p){
   return f||l||"Sans nom";
 }
 /* Numéro d'athlète — seule information exposée au rôle sélectionneur */
-function numOf(season,pid){var e=rosterEntry(season,pid);return e&&e.number?e.number:""}
+function numOf(squad,pid){var e=rosterEntry(squad,pid);return e&&e.number?e.number:""}
 function numLabel(n){return n?"#"+n:"#?"}
 
 function statsOf(team,pid){
@@ -457,21 +582,21 @@ function statsOf(team,pid){
   return team.stats[pid];
 }
 /* Détecte les numéros en double dans une saison (bloquant pour les vues sélectionneur) */
-function dupNumbers(season){
+function dupNumbers(squad){
   var seen={},dup={};
-  (season?season.roster:[]).forEach(function(e){
+  (squad?squad.roster:[]).forEach(function(e){
     if(!e.number)return;
     if(seen[e.number])dup[e.number]=true;else seen[e.number]=true;
   });
   return dup;
 }
-function missingNumbers(season){
-  return (season?season.roster:[]).filter(function(e){return !e.number});
+function missingNumbers(squad){
+  return (squad?squad.roster:[]).filter(function(e){return !e.number});
 }
 
 /* Vue "joueuse" consommée par les écrans de saisie : stats par référence */
 function teamViewPlayers(team){
-  var season=curSeason();if(!season||!team)return [];
+  var season=team;if(!team)return [];
   var out=[];
   team.playerIds.forEach(function(pid){
     var p=playerById(pid),e=rosterEntry(season,pid);
@@ -481,7 +606,7 @@ function teamViewPlayers(team){
   return out;
 }
 function lineupPlayers(team){
-  var season=curSeason();
+  var season=team;
   var all=teamViewPlayers(team);
   if(!team.lineup||!team.lineup.length)
     return all.filter(function(p){var e=rosterEntry(season,p.id);return !e||e.membership==="active"});
@@ -503,7 +628,7 @@ function saveAll(){
   try{
     localStorage.setItem(SK,JSON.stringify(DB));
     localStorage.setItem(SK_INBOX,JSON.stringify(INBOX));
-    localStorage.setItem(SK_UI,JSON.stringify({role:state.role,tab:state.tab,viewIdx:state.viewIdx,posFilter:state.posFilter,inputMode:state.inputMode,svViewId:state.svViewId}));
+    localStorage.setItem(SK_UI,JSON.stringify({meId:state.meId,ctx:state.ctx,tab:state.tab,viewIdx:state.viewIdx,posFilter:state.posFilter,inputMode:state.inputMode,svViewId:state.svViewId}));
     saveFailed=false;
   }catch(e){
     if(!saveFailed){saveFailed=true;showToast("⚠️ Sauvegarde impossible (stockage plein)")}
@@ -525,82 +650,175 @@ function scheduleAutoSave(){
 function saveNow(){if(autoSaveTimer){clearTimeout(autoSaveTimer);autoSaveTimer=null}saveAll();updateIndicators(false)}
 
 /* ── Normalisation défensive (import & rechargement) ───────── */
-function normalizeDB(db){
-  db.version=3;
-  db.players=(db.players||[]).map(function(p){return Object.assign(mkDbPlayer(),p,{archived:!!p.archived})});
-  var known={};db.players.forEach(function(p){known[p.id]=true});
-  db.seasons=(db.seasons||[]).map(function(s){
-    s=Object.assign({id:uid(),name:"Saison",createdAt:nowISO(),category:"",startDate:"",endDate:"",
-      notes:"",closedAt:null,archived:false,campaigns:[],activeCampaignId:null,
-      roster:[],teams:[],selectorViews:[],submissions:[]},s);
-
-    /* Campagnes — toute saison en possède au moins une. Les données
-       antérieures à leur introduction sont rattachées à la plus ancienne. */
-    s.campaigns=(s.campaigns||[]).map(function(c){
-      return Object.assign(mkCampaign(),c,{kind:KIND_BY_KEY[c.kind]?c.kind:"custom"});
-    });
-    if(!s.campaigns.length)s.campaigns.push(mkCampaign({kind:"tryout",createdAt:s.createdAt}));
-    var legacyCampaignId=s.campaigns[0].id;
-    var campKnown={};s.campaigns.forEach(function(c){campKnown[c.id]=c});
-    if(!campKnown[s.activeCampaignId])s.activeCampaignId=s.campaigns[s.campaigns.length-1].id;
-
-    s.roster=(s.roster||[]).filter(function(e){return e&&known[e.playerId]}).map(function(e){
-      return Object.assign(mkRosterEntry(e.playerId),e,{number:cleanNum(e.number),
-        status:STATUSES[e.status]?e.status:"candidate",
-        membership:MEMBERSHIPS[e.membership]?e.membership:"active"});
-    });
-    var inRoster={};s.roster.forEach(function(e){inRoster[e.playerId]=true});
-    s.teams=(s.teams||[]).map(function(t){
-      t=Object.assign(mkTeam(t&&t.name),t);
-      t.playerIds=(t.playerIds||[]).filter(function(pid){return inRoster[pid]});
-      t.lineup=(t.lineup||[]).filter(function(pid){return t.playerIds.indexOf(pid)!==-1});
-      t.subteams=(t.subteams||[]).map(function(st){return {id:st.id||uid(),name:st.name||"Sous-équipe",playerIds:(st.playerIds||[]).filter(function(pid){return t.playerIds.indexOf(pid)!==-1})}});
-      var st={};Object.keys(t.stats||{}).forEach(function(pid){if(inRoster[pid])st[pid]=normStats(t.stats[pid])});
-      t.stats=st;
-      t.sessions=(t.sessions||[]).map(function(se){
-        return {id:se.id||uid(),name:se.name||"Session",date:se.date||nowISO(),teamName:se.teamName||t.name,
-          entries:(se.entries||[]).map(function(en){return {playerId:en.playerId,name:en.name||"",number:cleanNum(en.number),position:en.position||"",stats:normStats(en.stats)}})};
-      });
-      return t;
-    });
-    if(!s.teams.length){var nt=mkTeam("Équipe A");s.teams.push(nt)}
-    if(!s.teams.some(function(t){return t.id===s.activeTeamId}))s.activeTeamId=s.teams[0].id;
-    s.selectorViews=(s.selectorViews||[]).map(function(v){
-      v=Object.assign(mkSelectorView(),v);
-      v.playerIds=(v.playerIds||[]).filter(function(pid){return inRoster[pid]});
-      v.criteria=(v.criteria||[]).filter(function(c){return CRIT_BY_KEY[c]});
-      if(!v.criteria.length)v.criteria=CRITERIA.map(function(c){return c.key});
-      v.groups=(v.groups||[]).filter(function(g){return SG[g]});
-      if(!campKnown[v.campaignId])v.campaignId=legacyCampaignId;
-      v.campaignName=campKnown[v.campaignId].name;
-      v.anonymous=v.anonymous!==false;
-      var d={};v.playerIds.forEach(function(pid){
-        var src=(v.data||{})[pid]||{};
-        d[pid]={stats:normStats(src.stats),ratings:src.ratings||{},reco:RECO_BY_KEY[src.reco]?src.reco:"",note:src.note||""};
-      });
-      v.data=d;
-      return v;
-    });
-    s.submissions=(s.submissions||[]).map(function(sub){
-      var cid=campKnown[sub.campaignId]?sub.campaignId:legacyCampaignId;
-      return {id:sub.id||uid(),viewId:sub.viewId||"",viewName:sub.viewName||"Vue",selectorName:sub.selectorName||"",
-        campaignId:cid,campaignName:campKnown[cid].name,context:sub.context||"",
-        submittedAt:sub.submittedAt||nowISO(),criteria:sub.criteria||CRITERIA.map(function(c){return c.key}),
-        entries:(sub.entries||[]).filter(function(e){return e&&e.playerId}).map(function(e){
-          return {playerId:e.playerId,number:cleanNum(e.number),stats:normStats(e.stats),ratings:e.ratings||{},reco:RECO_BY_KEY[e.reco]?e.reco:"",note:e.note||""};
-        })};
-    });
-    return s;
+function normalizeSquad(sq,knownPlayers){
+  sq=Object.assign(mkSquad(),sq);
+  sq.roster=(sq.roster||[]).filter(function(e){return e&&knownPlayers[e.playerId]}).map(function(e){
+    return Object.assign(mkRosterEntry(e.playerId),e,{number:cleanNum(e.number),
+      status:STATUSES[e.status]?e.status:"candidate",
+      membership:MEMBERSHIPS[e.membership]?e.membership:"active"});
   });
-  if(!db.seasons.some(function(s){return s.id===db.activeSeasonId}))db.activeSeasonId=db.seasons.length?db.seasons[0].id:null;
+  var inRoster={};sq.roster.forEach(function(e){inRoster[e.playerId]=true});
+
+  /* Campagnes — tout squad en possède au moins une. */
+  sq.campaigns=(sq.campaigns||[]).map(function(c){
+    return Object.assign(mkCampaign(),c,{kind:KIND_BY_KEY[c.kind]?c.kind:"custom"});
+  });
+  if(!sq.campaigns.length)sq.campaigns.push(mkCampaign({kind:"tryout"}));
+  var legacyCampaignId=sq.campaigns[0].id,campKnown={};
+  sq.campaigns.forEach(function(c){campKnown[c.id]=c});
+  if(!campKnown[sq.activeCampaignId])sq.activeCampaignId=sq.campaigns[sq.campaigns.length-1].id;
+
+  sq.playerIds=(sq.playerIds||[]).filter(function(pid){return inRoster[pid]});
+  sq.lineup=(sq.lineup||[]).filter(function(pid){return sq.playerIds.indexOf(pid)!==-1});
+  sq.subteams=(sq.subteams||[]).map(function(st){
+    return {id:st.id||uid(),name:st.name||"Sous-équipe",
+      playerIds:(st.playerIds||[]).filter(function(pid){return sq.playerIds.indexOf(pid)!==-1})};
+  });
+  var st={};Object.keys(sq.stats||{}).forEach(function(pid){if(inRoster[pid])st[pid]=normStats(sq.stats[pid])});
+  sq.stats=st;
+  sq.sessions=(sq.sessions||[]).map(function(se){
+    return {id:se.id||uid(),name:se.name||"Session",date:se.date||nowISO(),teamName:se.teamName||sq.name,
+      entries:(se.entries||[]).map(function(en){return {playerId:en.playerId,name:en.name||"",
+        number:cleanNum(en.number),position:en.position||"",stats:normStats(en.stats)}})};
+  });
+  sq.selectorViews=(sq.selectorViews||[]).map(function(v){
+    v=Object.assign(mkSelectorView(),v);
+    v.playerIds=(v.playerIds||[]).filter(function(pid){return inRoster[pid]});
+    v.criteria=(v.criteria||[]).filter(function(c){return CRIT_BY_KEY[c]});
+    if(!v.criteria.length)v.criteria=CRITERIA.map(function(c){return c.key});
+    v.groups=(v.groups||[]).filter(function(g){return SG[g]});
+    if(!campKnown[v.campaignId])v.campaignId=legacyCampaignId;
+    v.campaignName=campKnown[v.campaignId].name;
+    v.anonymous=v.anonymous!==false;
+    var d={};v.playerIds.forEach(function(pid){
+      var src=(v.data||{})[pid]||{};
+      d[pid]={stats:normStats(src.stats),ratings:src.ratings||{},
+        reco:RECO_BY_KEY[src.reco]?src.reco:"",note:src.note||""};
+    });
+    v.data=d;
+    return v;
+  });
+  sq.submissions=(sq.submissions||[]).map(function(sub){
+    var cid=campKnown[sub.campaignId]?sub.campaignId:legacyCampaignId;
+    return {id:sub.id||uid(),viewId:sub.viewId||"",viewName:sub.viewName||"Vue",
+      selectorName:sub.selectorName||"",selectorToken:sub.selectorToken||"",
+      campaignId:cid,campaignName:campKnown[cid].name,context:sub.context||"",
+      submittedAt:sub.submittedAt||nowISO(),criteria:sub.criteria||CRITERIA.map(function(c){return c.key}),
+      entries:(sub.entries||[]).filter(function(e){return e&&e.playerId}).map(function(e){
+        return {playerId:e.playerId,number:cleanNum(e.number),stats:normStats(e.stats),
+          ratings:e.ratings||{},reco:RECO_BY_KEY[e.reco]?e.reco:"",note:e.note||""};
+      })};
+  });
+  return sq;
+}
+
+function normalizeDB(db){
+  db=Object.assign(emptyDB(),db);
+  db.version=4;
+
+  db.people=(db.people||[]).map(function(p){return Object.assign(mkPerson(),p,{isAdmin:!!p.isAdmin,revoked:!!p.revoked})});
+  db.players=(db.players||[]).map(function(p){return Object.assign(mkDbPlayer(),p,{archived:!!p.archived})});
+  db.teams=(db.teams||[]).map(function(t){return Object.assign(mkTeamRecord(),t,{freeView:!!t.freeView,archived:!!t.archived})});
+  db.seasons=(db.seasons||[]).map(function(s){
+    return Object.assign({id:uid(),name:"Saison",createdAt:nowISO(),startDate:"",endDate:"",
+      notes:"",closedAt:null,archived:false},s);
+  });
+
+  var knownPlayers={};db.players.forEach(function(p){knownPlayers[p.id]=true});
+  var knownPeople={};db.people.forEach(function(p){knownPeople[p.id]=true});
+  var knownTeams={};db.teams.forEach(function(t){knownTeams[t.id]=t});
+  var knownSeasons={};db.seasons.forEach(function(x){knownSeasons[x.id]=true});
+
+  /* Une affectation ne survit pas à la disparition de sa personne ou de
+     son équipe : c'est une arête, elle tombe avec ses extrémités. */
+  var seen={};
+  db.assignments=(db.assignments||[]).filter(function(a){
+    if(!a||!knownPeople[a.personId]||!knownTeams[a.teamId])return false;
+    if(!ROLES[a.role])return false;
+    var k=a.personId+"|"+a.teamId+"|"+a.role;
+    if(seen[k])return false;
+    seen[k]=1;return true;
+  }).map(function(a){return Object.assign({id:uid(),createdAt:nowISO()},a)});
+
+  db.squads=(db.squads||[]).filter(function(sq){
+    return sq&&knownTeams[sq.teamId]&&knownSeasons[sq.seasonId];
+  }).map(function(sq){
+    var out=normalizeSquad(sq,knownPlayers);
+    var t=knownTeams[out.teamId];
+    /* Copies rafraîchies depuis l'équipe durable — jamais la source. */
+    out.name=t.name;out.category=t.category;out.freeView=!!t.freeView;
+    return out;
+  });
+
+  if(!db.seasons.length)db.seasons.push(mkSeason());
+  if(!db.seasons.some(function(x){return x.id===db.activeSeasonId}))db.activeSeasonId=db.seasons[0].id;
+  return db;
+}
+
+/* ── Migration v3 → v4 ──────────────────────────────────────
+   season.teams[i] devient une équipe durable plus un squad. Les
+   campagnes, jusque-là portées par la saison, descendent dans chaque
+   squad : chaque équipe mène désormais ses propres campagnes. */
+function migrateV3(old){
+  var db=emptyDB();
+  db.players=(old.players||[]).slice();
+  var admin=mkPerson({name:"Administrateur",isAdmin:true});
+  db.people.push(admin);
+
+  (old.seasons||[]).forEach(function(os){
+    var season={id:os.id||uid(),name:os.name||"Saison",createdAt:os.createdAt||nowISO(),
+      startDate:os.startDate||"",endDate:os.endDate||"",notes:os.notes||"",
+      closedAt:os.closedAt||null,archived:!!os.archived};
+    db.seasons.push(season);
+
+    (os.teams||[]).forEach(function(ot){
+      /* Une équipe portant déjà ce nom est réutilisée : c'est le même
+         groupe d'une saison à l'autre. */
+      var team=null;
+      db.teams.forEach(function(t){if(t.name===(ot.name||"Équipe"))team=t});
+      if(!team){
+        team=mkTeamRecord({name:ot.name||"Équipe",category:os.category||""});
+        db.teams.push(team);
+        db.assignments.push(mkAssignment(admin.id,team.id,"coach"));
+      }
+      var sq=mkSquad(team.id,season.id,team.name);
+      sq.category=team.category;
+      sq.playerIds=(ot.playerIds||[]).slice();
+      sq.lineup=(ot.lineup||[]).slice();
+      sq.subteams=(ot.subteams||[]).slice();
+      sq.stats=Object.assign({},ot.stats||{});
+      sq.sessions=(ot.sessions||[]).slice();
+      /* Roster, campagnes, vues et soumissions étaient au niveau saison :
+         ils appartenaient en réalité à l'équipe qui les a produits. */
+      sq.roster=clone(os.roster||[]);
+      sq.campaigns=clone(os.campaigns||[]);
+      sq.activeCampaignId=os.activeCampaignId||null;
+      sq.selectorViews=clone((os.selectorViews||[]));
+      sq.submissions=clone((os.submissions||[]));
+      db.squads.push(sq);
+    });
+  });
+  if(!db.teams.length){
+    var t=mkTeamRecord({name:"Équipe A"});
+    db.teams.push(t);
+    db.assignments.push(mkAssignment(admin.id,t.id,"coach"));
+  }
+  if(!db.seasons.length)db.seasons.push(mkSeason());
+  db.activeSeasonId=old.activeSeasonId||db.seasons[0].id;
   return db;
 }
 
 /* ── Migration v2 → v3 ─────────────────────────────────────── */
 function migrateV2(old){
   var db={version:3,players:[],seasons:[],activeSeasonId:null};
-  var season=mkSeason("Saison "+new Date().getFullYear());
-  season.teams=[];
+  var c0=mkCampaign({kind:"tryout"});
+  var season={id:uid(),name:"Saison "+new Date().getFullYear(),createdAt:nowISO(),
+    category:"",startDate:"",endDate:"",notes:"",closedAt:null,archived:false,
+    campaigns:[c0],activeCampaignId:c0.id,
+    roster:[],teams:[],activeTeamId:null,selectorViews:[],submissions:[]};
+  function mkV3Team(name){
+    return {id:uid(),name:name||"Équipe",playerIds:[],lineup:[],subteams:[],stats:{},sessions:[]};
+  }
   var byKey={};
   function ensurePlayer(name,number,position){
     var key=(name||"").trim().toLowerCase()+"#"+cleanNum(number);
@@ -616,7 +834,7 @@ function migrateV2(old){
   function rosterEntryIn(s,pid){for(var i=0;i<s.roster.length;i++)if(s.roster[i].playerId===pid)return s.roster[i];return null}
 
   (old.teams||[]).forEach(function(ot){
-    var t=mkTeam(ot.name||"Équipe");
+    var t=mkV3Team(ot.name||"Équipe");
     var idxToPid=[];
     (ot.players||[]).forEach(function(op,i){
       if(!op||!(op.name||"").trim()){idxToPid[i]=null;return}
@@ -639,7 +857,7 @@ function migrateV2(old){
     });
     season.teams.push(t);
   });
-  if(!season.teams.length)season.teams.push(mkTeam("Équipe A"));
+  if(!season.teams.length)season.teams.push(mkV3Team("Équipe A"));
   season.activeTeamId=season.teams[0].id;
   db.seasons.push(season);db.activeSeasonId=season.id;
   return db;
@@ -656,34 +874,58 @@ function readLegacyV1(){
 function loadAll(){
   try{
     var raw=localStorage.getItem(SK);
-    if(raw){DB=normalizeDB(JSON.parse(raw))}
-    else{
+    if(raw){
+      var parsed=JSON.parse(raw);
+      /* Chaîne de migration : v1 → v2 → v3 → v4, sans perte à chaque étape. */
+      DB=normalizeDB((parsed.version>=4)?parsed:migrateV3(parsed));
+      if(parsed.version<4)setTimeout(function(){showToast("✅ Données migrées vers la v4")},400);
+    } else {
       var legacy=null;
       for(var i=0;i<LEGACY_KEYS.length&&!legacy;i++){
         var d=localStorage.getItem(LEGACY_KEYS[i]);
         if(d)legacy=JSON.parse(d);
       }
       if(!legacy)legacy=readLegacyV1();
-      DB=legacy?normalizeDB(migrateV2(legacy)):{version:3,players:[],seasons:[],activeSeasonId:null};
-      if(legacy)setTimeout(function(){showToast("✅ Données migrées vers la v3")},400);
+      DB=legacy?normalizeDB(migrateV3(migrateV2(legacy))):emptyDB();
+      if(legacy)setTimeout(function(){showToast("✅ Données migrées vers la v4")},400);
     }
-  }catch(e){DB={version:3,players:[],seasons:[],activeSeasonId:null}}
+  }catch(e){DB=emptyDB()}
+
+  /* Un club a toujours au moins une saison, une équipe et un administrateur :
+     sans quoi l'application n'offrirait aucun point d'entrée. */
+  if(!DB.seasons.length)DB.seasons.push(mkSeason());
+  if(!DB.seasons.some(function(x){return x.id===DB.activeSeasonId}))DB.activeSeasonId=DB.seasons[0].id;
+  if(!DB.people.some(function(p){return p.isAdmin&&!p.revoked}))
+    DB.people.unshift(mkPerson({name:"Administrateur",isAdmin:true}));
+  if(!DB.teams.length){
+    var t0=mkTeamRecord({name:"Équipe A"});
+    DB.teams.push(t0);
+    var adm=null;DB.people.forEach(function(p){if(p.isAdmin&&!adm)adm=p});
+    if(adm)DB.assignments.push(mkAssignment(adm.id,t0.id,"coach"));
+  }
+
   try{var ib=localStorage.getItem(SK_INBOX);if(ib){INBOX=JSON.parse(ib);INBOX.views=(INBOX.views||[]).map(function(v){return Object.assign(mkSelectorView(),v)})}}catch(e){INBOX={views:[]}}
   try{
     var ui=localStorage.getItem(SK_UI);
     if(ui){var o=JSON.parse(ui);
-      if(o.role==="coach"||o.role==="selector")state.role=o.role;
+      if(o.meId&&personById(o.meId))state.meId=o.meId;
+      if(o.ctx)state.ctx=o.ctx;
       if(o.viewIdx!=null)state.viewIdx=Math.max(0,Math.min(VIEWS.length-1,o.viewIdx));
       if(o.posFilter)state.posFilter=o.posFilter;
       if(o.inputMode)state.inputMode=o.inputMode;
       if(o.svViewId)state.svViewId=o.svViewId;
-      if(o.tab&&tabsFor(state.role).some(function(t){return t.key===o.tab}))state.tab=o.tab;
+      if(o.tab)state.tab=o.tab;
     }
   }catch(e){}
-  if(!DB.seasons.length){
-    var s=mkSeason();DB.seasons.push(s);DB.activeSeasonId=s.id;
+
+  /* Par défaut, cet appareil est celui de l'administrateur : c'est le seul
+     choix qui ne verrouille personne dehors au premier lancement. */
+  if(!state.meId||!personById(state.meId)){
+    var first=null;DB.people.forEach(function(p){if(p.isAdmin&&!p.revoked&&!first)first=p});
+    state.meId=first?first.id:(DB.people.length?DB.people[0].id:null);
   }
-  if(!DB.activeSeasonId)DB.activeSeasonId=DB.seasons[0].id;
+  normalizeCtx();
+  if(!tabsForCtx().some(function(t){return t.key===state.tab}))state.tab=(tabsForCtx()[0]||{}).key||"season";
 }
 
 /* ══ UNDO ══════════════════════════════════════════════════════
@@ -709,8 +951,8 @@ function doUndo(){
   if(!undoStack.length){showToast("Rien à annuler");return}
   var snap=undoStack.pop();
   if(snap.kind==="teamStats"){
-    var s=curSeason(),t=null;
-    if(s)s.teams.forEach(function(x){if(x.id===snap.teamId)t=x});
+    var t=null;
+    DB.squads.forEach(function(x){if(x.id===snap.teamId)t=x});
     if(t)t.stats=snap.data;
   } else if(snap.kind==="viewData"){
     var v=findViewAnywhere(snap.viewId);
@@ -733,7 +975,7 @@ function scopedSessions(team){
   return n?team.sessions.slice(0,n):team.sessions;
 }
 function computeGlobalPlayers(team){
-  var season=curSeason();if(!team||!team.sessions.length)return [];
+  var season=team;if(!team||!team.sessions.length)return [];
   var map={};
   scopedSessions(team).forEach(function(sess){
     sess.entries.forEach(function(en){
@@ -752,34 +994,42 @@ function computeGlobalPlayers(team){
 }
 
 /* ── Campagnes ─────────────────────────────────────────────── */
-function campaignById(season,id){
-  if(!season)return null;
-  for(var i=0;i<season.campaigns.length;i++)if(season.campaigns[i].id===id)return season.campaigns[i];
+function campaignById(squad,id){
+  if(!squad)return null;
+  for(var i=0;i<squad.campaigns.length;i++)if(squad.campaigns[i].id===id)return squad.campaigns[i];
   return null;
 }
-function curCampaign(season){
-  season=season||curSeason();if(!season)return null;
-  return campaignById(season,season.activeCampaignId)||season.campaigns[season.campaigns.length-1]||null;
+function curCampaign(squad){
+  squad=squad||curSquad();if(!squad)return null;
+  return campaignById(squad,squad.activeCampaignId)||squad.campaigns[squad.campaigns.length-1]||null;
 }
 function campaignLabel(c){
   if(!c)return "—";
   var k=KIND_BY_KEY[c.kind]||KIND_BY_KEY.custom;
   return k.icon+" "+c.name;
 }
-function campaignOpen(season,c){
-  return !!c && !c.closedAt && !seasonClosed(season);
+function campaignOpen(squad,c){
+  return !!c && !c.closedAt && !seasonClosed(squad);
 }
-function seasonClosed(season){return !!(season&&(season.closedAt||season.archived))}
-function campaignSubs(season,campaignId){
-  if(!season)return [];
-  return season.submissions.filter(function(sub){return !campaignId||sub.campaignId===campaignId});
+/* Accepte indifféremment une saison ou un squad : dans les deux cas la
+   question est « la saison est-elle close ? ». */
+function seasonClosed(x){
+  if(!x)return false;
+  var s=x.seasonId?seasonById(x.seasonId):x;
+  return !!(s&&(s.closedAt||s.archived));
 }
-function campaignViews(season,campaignId){
-  if(!season)return [];
-  return season.selectorViews.filter(function(v){return !campaignId||v.campaignId===campaignId});
+function campaignSubs(squad,campaignId){
+  if(!squad)return [];
+  return squad.submissions.filter(function(sub){return !campaignId||sub.campaignId===campaignId});
+}
+function campaignViews(squad,campaignId){
+  if(!squad)return [];
+  return squad.selectorViews.filter(function(v){return !campaignId||v.campaignId===campaignId});
 }
 /* Une joueuse compte dans l'effectif courant si elle est retenue et pas partie */
 function isInSquad(entry){return entry&&entry.status==="selected"&&entry.membership!=="left"}
+/* Les squads où une joueuse est convoquée — la mesure de sa présence au club. */
+function squadsOf(pid){return DB.squads.filter(function(sq){return !!rosterEntry(sq,pid)})}
 
 /* Une entrée ne porte de l'information que si le sélectionneur y a réellement touché */
 function dataFilled(d){
@@ -793,15 +1043,15 @@ function dataFilled(d){
 /* Compilation multi-sélectionneurs : une entrée par joueuse réellement évaluée.
    campaignId absent ou null → toutes campagnes confondues ; sinon la campagne
    nommée seule, ce qui est la seule lecture ayant du sens pour un bilan daté. */
-function compileSubmissions(season,campaignId){
+function compileSubmissions(squad,campaignId){
   var out={};
-  if(!season)return out;
+  if(!squad)return out;
   function bucket(pid){
     if(!out[pid])out[pid]={playerId:pid,n:0,stats:emptyS(),ratings:{},
       reco:{select:0,recall:0,cut:0},topReco:null,score:0,notes:[],selectors:[]};
     return out[pid];
   }
-  season.submissions.forEach(function(sub){
+  squad.submissions.forEach(function(sub){
     if(campaignId&&sub.campaignId!==campaignId)return;
     var who=(sub.selectorName||"").trim()||sub.viewName||"Sélectionneur";
     sub.entries.forEach(function(e){
@@ -835,8 +1085,8 @@ function compileSubmissions(season,campaignId){
 }
 /* Progression d'une joueuse entre deux campagnes : delta global et par critère.
    C'est la lecture que la moyenne toutes-campagnes rendait impossible. */
-function compareCampaigns(season,fromId,toId){
-  var a=compileSubmissions(season,fromId),b=compileSubmissions(season,toId);
+function compareCampaigns(squad,fromId,toId){
+  var a=compileSubmissions(squad,fromId),b=compileSubmissions(squad,toId);
   var ids={};Object.keys(a).forEach(function(k){ids[k]=1});Object.keys(b).forEach(function(k){ids[k]=1});
   return Object.keys(ids).map(function(pid){
     var ca=a[pid],cb=b[pid];
@@ -873,18 +1123,21 @@ function fmtDelta(d){
 
 /* Cumul de match d'une joueuse sur toute la saison, toutes équipes confondues.
    Sert la fiche joueuse : le quantitatif que la compilation d'évaluations ignore. */
-function playerSeasonStats(season,pid){
+function playerSeasonStats(squad,pid){
   var out={stats:emptyS(),sessions:0,teams:[]};
-  if(!season)return out;
-  season.teams.forEach(function(t){
+  if(!squad)return out;
+  /* Une athlète peut jouer dans plusieurs équipes d'une même saison
+     (surclassement, dépannage) : on additionne tous les squads de la saison. */
+  DB.squads.forEach(function(sq){
+    if(sq.seasonId!==squad.seasonId)return;
     var n=0;
-    t.sessions.forEach(function(se){
+    sq.sessions.forEach(function(se){
       se.entries.forEach(function(en){
         if(en.playerId!==pid||!hasStats(en.stats))return;
         addStats(out.stats,en.stats);n++;
       });
     });
-    if(n){out.sessions+=n;out.teams.push({name:t.name,sessions:n})}
+    if(n){out.sessions+=n;out.teams.push({name:sq.name,sessions:n})}
   });
   return out;
 }
@@ -925,7 +1178,22 @@ function pickJSON(cb){
 function stamp(){return new Date().toISOString().slice(0,10)}
 function safeName(s){return String(s||"").replace(/[^\w\-]+/g,"_").slice(0,40)||"export"}
 
-/* Sauvegarde complète */
+/* Export limité à une équipe : un entraîneur n'emporte pas les données
+   de ses collègues (constat R6). */
+function exportMyTeam(){
+  var squad=curSquad(),team=curTeamRecord();
+  if(!squad||!team){showToast("⚠️ Aucune équipe");return}
+  var pids={};squad.roster.forEach(function(e){pids[e.playerId]=1});
+  var payload={type:"wonderstats-team",version:4,exportDate:nowISO(),
+    team:clone(team),
+    seasons:DB.seasons.filter(function(x){return x.id===squad.seasonId}).map(clone),
+    squads:[clone(squad)],
+    players:DB.players.filter(function(p){return pids[p.id]}).map(clone)};
+  if(downloadJSON(payload,"Equipe_"+safeName(team.name)+"_"+stamp()+".json"))
+    showToast("📤 Équipe exportée");
+}
+
+/* Sauvegarde complète du club — réservée à l'administration */
 function exportBackup(){
   if(downloadJSON({type:"wonderstats-backup",version:3,exportDate:nowISO(),db:DB},
     "WonderStats_"+stamp()+".json")) showToast("📤 Sauvegarde exportée");
@@ -933,17 +1201,35 @@ function exportBackup(){
 function importBackup(){
   pickJSON(function(data){
     var incoming=null;
-    if(data&&data.type==="wonderstats-backup"&&data.db)incoming=normalizeDB(clone(data.db));
-    else if(data&&data.version===3&&data.seasons)incoming=normalizeDB(clone(data));
-    else if(data&&Array.isArray(data.teams))incoming=normalizeDB(migrateV2(data));       // export v7 (ancien)
-    else if(data&&(data.currentPlayers||data.sessions))incoming=normalizeDB(migrateV2({teams:[{id:uid(),name:"Import",players:data.currentPlayers||[],sessions:data.sessions||[]}]}));
+    if(data&&data.type==="wonderstats-backup"&&data.db){
+      var db=clone(data.db);
+      incoming=normalizeDB(db.version>=4?db:migrateV3(db));
+    }
+    else if(data&&data.type==="wonderstats-team")incoming=normalizeDB(teamExportToDB(clone(data)));
+    else if(data&&data.version>=4&&data.squads)incoming=normalizeDB(clone(data));
+    else if(data&&data.version===3&&data.seasons)incoming=normalizeDB(migrateV3(clone(data)));
+    else if(data&&Array.isArray(data.teams))incoming=normalizeDB(migrateV3(migrateV2(data)));
+    else if(data&&(data.currentPlayers||data.sessions))
+      incoming=normalizeDB(migrateV3(migrateV2({teams:[{id:uid(),name:"Import",players:data.currentPlayers||[],sessions:data.sessions||[]}]})));
     if(!incoming){showToast("⚠️ Format non reconnu");return}
-    if(!confirm("Fusionner "+plural(incoming.seasons.length,"saison")+" et "+plural(incoming.players.length,"joueuse")+" avec les données actuelles ?"))return;
+    if(!confirmAct("Fusionner "+plural(incoming.teams.length,"équipe")+" et "+
+      plural(incoming.players.length,"joueuse")+" avec les données actuelles ?"))return;
     mergeDB(incoming);
-    saveNow();showToast("📥 Import terminé");render();
+    normalizeCtx();saveNow();showToast("📥 Import terminé");render();
   });
 }
-/* Fusion : les joueuses sont dédoublonnées sur id, sinon sur nom+année */
+/* Un export d'équipe est un club minuscule : une équipe, une saison. */
+function teamExportToDB(data){
+  var db=emptyDB();
+  db.players=(data.players||[]).slice();
+  db.teams=(data.team?[data.team]:[]);
+  db.seasons=(data.seasons||[]).slice();
+  db.squads=(data.squads||[]).slice();
+  db.activeSeasonId=db.seasons.length?db.seasons[0].id:null;
+  return db;
+}
+/* Fusion : les joueuses sont dédoublonnées sur id, sinon sur nom + année ;
+   les équipes sur id, sinon sur nom. */
 function mergeDB(inc){
   var byId={},byName={};
   DB.players.forEach(function(p){byId[p.id]=p;byName[nameKey(p)]=p});
@@ -955,21 +1241,61 @@ function mergeDB(inc){
     DB.players.push(p);byId[p.id]=p;byName[nameKey(p)]=p;remap[p.id]=p.id;
   });
   function rp(id){return remap[id]||id}
-  inc.seasons.forEach(function(s){
-    s.roster.forEach(function(e){e.playerId=rp(e.playerId)});
-    s.teams.forEach(function(t){
-      t.playerIds=t.playerIds.map(rp);t.lineup=t.lineup.map(rp);
-      t.subteams.forEach(function(st){st.playerIds=st.playerIds.map(rp)});
-      var ns={};Object.keys(t.stats).forEach(function(pid){ns[rp(pid)]=t.stats[pid]});t.stats=ns;
-      t.sessions.forEach(function(se){se.entries.forEach(function(en){en.playerId=rp(en.playerId)})});
-    });
-    s.selectorViews.forEach(function(v){
+
+  var teamRemap={},teamById_={},teamByName={};
+  DB.teams.forEach(function(t){teamById_[t.id]=t;teamByName[t.name.toLowerCase()]=t});
+  inc.teams.forEach(function(t){
+    if(teamById_[t.id]){teamRemap[t.id]=t.id;return}
+    var ex=teamByName[(t.name||"").toLowerCase()];
+    if(ex){teamRemap[t.id]=ex.id;return}
+    DB.teams.push(t);teamById_[t.id]=t;teamByName[(t.name||"").toLowerCase()]=t;teamRemap[t.id]=t.id;
+  });
+  function rt(id){return teamRemap[id]||id}
+
+  var seasonRemap={},seasonByName={};
+  DB.seasons.forEach(function(x){seasonByName[x.name.toLowerCase()]=x});
+  inc.seasons.forEach(function(x){
+    var ex=null;
+    DB.seasons.forEach(function(y){if(y.id===x.id)ex=y});
+    if(!ex)ex=seasonByName[(x.name||"").toLowerCase()]||null;
+    if(ex){seasonRemap[x.id]=ex.id;return}
+    DB.seasons.push(x);seasonByName[(x.name||"").toLowerCase()]=x;seasonRemap[x.id]=x.id;
+  });
+  function rs(id){return seasonRemap[id]||id}
+
+  var peopleByName={};
+  DB.people.forEach(function(p){peopleByName[(p.name||"").toLowerCase()]=p});
+  var personRemap={};
+  inc.people.forEach(function(p){
+    var ex=null;DB.people.forEach(function(y){if(y.id===p.id)ex=y});
+    if(!ex)ex=peopleByName[(p.name||"").toLowerCase()]||null;
+    if(ex){personRemap[p.id]=ex.id;return}
+    DB.people.push(p);peopleByName[(p.name||"").toLowerCase()]=p;personRemap[p.id]=p.id;
+  });
+  function rpe(id){return personRemap[id]||id}
+
+  inc.assignments.forEach(function(a){
+    a.personId=rpe(a.personId);a.teamId=rt(a.teamId);
+    var dup=DB.assignments.some(function(x){
+      return x.personId===a.personId&&x.teamId===a.teamId&&x.role===a.role;});
+    if(!dup)DB.assignments.push(a);
+  });
+
+  inc.squads.forEach(function(sq){
+    sq.teamId=rt(sq.teamId);sq.seasonId=rs(sq.seasonId);
+    sq.roster.forEach(function(e){e.playerId=rp(e.playerId)});
+    sq.playerIds=sq.playerIds.map(rp);
+    sq.lineup=sq.lineup.map(rp);
+    sq.subteams.forEach(function(st){st.playerIds=st.playerIds.map(rp)});
+    var ns={};Object.keys(sq.stats).forEach(function(pid){ns[rp(pid)]=sq.stats[pid]});sq.stats=ns;
+    sq.sessions.forEach(function(se){se.entries.forEach(function(en){en.playerId=rp(en.playerId)})});
+    sq.selectorViews.forEach(function(v){
       v.playerIds=v.playerIds.map(rp);
       var nd={};Object.keys(v.data).forEach(function(pid){nd[rp(pid)]=v.data[pid]});v.data=nd;
     });
-    s.submissions.forEach(function(sub){sub.entries.forEach(function(e){e.playerId=rp(e.playerId)})});
-    if(DB.seasons.some(function(x){return x.id===s.id}))s.id=uid();
-    DB.seasons.push(s);
+    sq.submissions.forEach(function(sub){sub.entries.forEach(function(e){e.playerId=rp(e.playerId)})});
+    /* Un squad déjà présent pour ce couple équipe × saison n'est pas écrasé. */
+    if(!squadFor(sq.teamId,sq.seasonId))DB.squads.push(sq);
   });
   normalizeDB(DB);
 }
@@ -980,23 +1306,23 @@ function nameKey(p){return (fullName(p)+"|"+(p.birthYear||"")).toLowerCase()}
    circulent — aucun nom, ni dans l'interface ni dans le fichier.
    Vue nominative : l'entraîneur a explicitement levé l'anonymat,
    un libellé court accompagne alors chaque numéro. */
-function viewNumberIssues(season,view){
-  var dup=dupNumbers(season);
-  return view.playerIds.filter(function(pid){var n=numOf(season,pid);return !n||dup[n]});
+function viewNumberIssues(squad,view){
+  var dup=dupNumbers(squad);
+  return view.playerIds.filter(function(pid){var n=numOf(squad,pid);return !n||dup[n]});
 }
-function buildPacket(season,view){
-  var camp=campaignById(season,view.campaignId);
+function buildPacket(squad,view){
+  var camp=campaignById(squad,view.campaignId);
   var anon=view.anonymous!==false;
   return {
     type:"wonderstats-selector-packet",version:3,createdAt:nowISO(),
-    seasonId:season.id,seasonName:season.name,
+    seasonId:squad.id,seasonName:squad.name,
     campaignId:view.campaignId||null,campaignName:camp?camp.name:"",
     view:{
       id:view.id,name:view.name,selectorName:view.selectorName,
       criteria:view.criteria.slice(),groups:view.groups.slice(),
       anonymous:anon,context:view.context||"",
       players:view.playerIds.map(function(pid){
-        var o={playerId:pid,number:numOf(season,pid)};
+        var o={playerId:pid,number:numOf(squad,pid)};
         if(!anon)o.label=shortName(playerById(pid));
         return o;
       })
@@ -1026,10 +1352,10 @@ function packetToView(data){
   });
   return v;
 }
-function exportPacket(season,view){
-  var bad=viewNumberIssues(season,view);
+function exportPacket(squad,view){
+  var bad=viewNumberIssues(squad,view);
   if(bad.length){showToast("⚠️ "+plural(bad.length,"numéro")+" manquant(s) ou en double");return}
-  if(downloadJSON(buildPacket(season,view),"Vue_"+safeName(view.name)+"_"+stamp()+".json"))
+  if(downloadJSON(buildPacket(squad,view),"Vue_"+safeName(view.name)+"_"+stamp()+".json"))
     showToast("📤 Paquet sélectionneur exporté");
 }
 function importPacket(){
@@ -1038,7 +1364,8 @@ function importPacket(){
     var v=packetToView(data);
     INBOX.views=INBOX.views.filter(function(x){return x.id!==v.id});
     INBOX.views.push(v);
-    state.role="selector";state.tab="sv_views";state.svViewId=v.id;
+    ensureSelectorCtx(v.teamId);
+    state.tab="sv_views";state.svViewId=v.id;
     saveNow();showToast("📥 Vue « "+v.name+" » importée");render();
   });
 }
@@ -1062,12 +1389,12 @@ function buildSubmission(view,numberFor){
   };
 }
 /* Soumission locale : la vue vit dans la saison, on écrit directement */
-function submitLocalView(season,view){
-  var sub=buildSubmission(view,function(pid){return numOf(season,pid)});
+function submitLocalView(squad,view){
+  var sub=buildSubmission(view,function(pid){return numOf(squad,pid)});
   delete sub.type;delete sub.version;
-  var camp=campaignById(season,view.campaignId);
+  var camp=campaignById(squad,view.campaignId);
   sub.campaignId=view.campaignId;sub.campaignName=camp?camp.name:"";
-  season.submissions.push(sub);
+  squad.submissions.push(sub);
   view.submittedAt=sub.submittedAt;
   view.submissionCount=(view.submissionCount||0)+1;
   saveNow();
@@ -1083,28 +1410,29 @@ function exportSubmission(view){
 }
 /* Intégration d'une soumission dans la saison — chemin commun au fichier
    et au relais réseau. Retourne null si elle est refusée. */
-function integrateSubmission(season,data){
-  if(!data||!season)return null;
-  if(season.submissions.some(function(s){return s.id===data.id}))return null;
-  var known={};season.roster.forEach(function(e){known[e.playerId]=true});
+function integrateSubmission(squad,data){
+  if(!data||!squad)return null;
+  if(squad.submissions.some(function(s){return s.id===data.id}))return null;
+  var known={};squad.roster.forEach(function(e){known[e.playerId]=true});
   var entries=(data.entries||[]).filter(function(e){return e&&known[e.playerId]});
   if(!entries.length)return null;
-  var cid=campaignById(season,data.campaignId)?data.campaignId:season.activeCampaignId;
-  var camp=campaignById(season,cid);
+  var cid=campaignById(squad,data.campaignId)?data.campaignId:squad.activeCampaignId;
+  var camp=campaignById(squad,cid);
   var sub={id:data.id||uid(),viewId:data.viewId||"",viewName:data.viewName||"Vue",
-    selectorName:data.selectorName||"",campaignId:cid,campaignName:camp?camp.name:"",
+    selectorName:data.selectorName||"",selectorToken:data.selectorToken||"",
+    campaignId:cid,campaignName:camp?camp.name:"",
     context:data.context||"",submittedAt:data.submittedAt||nowISO(),
     criteria:data.criteria||CRITERIA.map(function(c){return c.key}),
     entries:entries.map(function(e){return {playerId:e.playerId,number:cleanNum(e.number),
       stats:normStats(e.stats),ratings:e.ratings||{},reco:RECO_BY_KEY[e.reco]?e.reco:"",note:e.note||""}})};
-  season.submissions.push(sub);
+  squad.submissions.push(sub);
   return sub;
 }
-function importSubmission(season){
+function importSubmission(squad){
   pickJSON(function(data){
     if(!data||data.type!=="wonderstats-submission"){showToast("⚠️ Ce n'est pas une soumission");return}
-    if(season.submissions.some(function(s){return s.id===data.id})){showToast("⚠️ Soumission déjà importée");return}
-    var sub=integrateSubmission(season,data);
+    if(squad.submissions.some(function(s){return s.id===data.id})){showToast("⚠️ Soumission déjà importée");return}
+    var sub=integrateSubmission(squad,data);
     if(!sub){showToast("⚠️ Aucune joueuse de cette saison dans le fichier");return}
     saveNow();showToast("📥 Soumission de "+(sub.selectorName||"—")+" intégrée");render();
   });
@@ -1124,23 +1452,32 @@ function importSubmission(season){
    CORS, donc compatible aussi bien avec un Cloudflare Worker qu'avec
    un script Google Apps Script.
    ══════════════════════════════════════════════════════════════ */
-var SYNC={url:"",room:"",pulled:{packet:"",submission:""},lastSyncAt:null};
-var SK_SYNC="wonderstats_sync_v3";
+var SYNC={url:"",room:"",token:"",identity:null,pulled:{packet:"",catalog:"",submission:""},lastSyncAt:null};
+var SK_SYNC="wonderstats_sync_v4";
 var syncBusy=false;
 
 function saveSync(){try{localStorage.setItem(SK_SYNC,JSON.stringify(SYNC))}catch(e){}}
 function loadSync(){
   try{
     var d=localStorage.getItem(SK_SYNC);
-    if(d)SYNC=Object.assign({url:"",room:"",pulled:{packet:"",submission:""},lastSyncAt:null},JSON.parse(d));
-    if(!SYNC.pulled)SYNC.pulled={packet:"",submission:""};
+    if(d)SYNC=Object.assign({url:"",room:"",token:"",identity:null,
+      pulled:{packet:"",catalog:"",submission:""},lastSyncAt:null},JSON.parse(d));
+    if(!SYNC.pulled)SYNC.pulled={packet:"",catalog:"",submission:""};
   }catch(e){}
 }
-function syncReady(){return !!(SYNC.url&&SYNC.room)}
+function syncReady(){return !!(SYNC.url&&SYNC.room&&SYNC.token)}
 function mkRoomCode(){
   var abc="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",out="";
   for(var i=0;i<6;i++)out+=abc.charAt(Math.floor(Math.random()*abc.length));
   return "WNDR-"+out.slice(0,3)+"-"+out.slice(3);
+}
+/* Un jeton n'est pas un mot de passe : c'est un porte-clé opaque, émis
+   par l'administrateur et révocable. Il identifie une personne auprès du
+   relais et détermine ce qu'elle peut y lire. */
+function mkToken(){
+  var abc="abcdefghijklmnopqrstuvwxyz0123456789",out="";
+  for(var i=0;i<32;i++)out+=abc.charAt(Math.floor(Math.random()*abc.length));
+  return out;
 }
 function normUrl(u){
   u=(u||"").trim();
@@ -1150,12 +1487,11 @@ function normUrl(u){
 }
 function syncEndpoint(params){
   var q=[];
-  for(var k in params)if(Object.prototype.hasOwnProperty.call(params,k))
+  for(var k in params)if(Object.prototype.hasOwnProperty.call(params,k)&&params[k]!=null)
     q.push(encodeURIComponent(k)+"="+encodeURIComponent(params[k]));
   return SYNC.url+(SYNC.url.indexOf("?")===-1?"?":"&")+q.join("&");
 }
 function syncFetch(url,opts){
-  /* Un relais lent ne doit pas bloquer l'application indéfiniment. */
   var ctrl=(typeof AbortController!=="undefined")?new AbortController():null;
   var timer=setTimeout(function(){if(ctrl)ctrl.abort()},20000);
   var o=Object.assign({},opts||{});
@@ -1175,24 +1511,44 @@ function syncFetch(url,opts){
     throw err;
   });
 }
-function syncPublish(kind,id,payload){
-  if(!syncReady())return Promise.reject(new Error("Synchronisation non configurée"));
-  return syncFetch(syncEndpoint({action:"publish"}),{
+function syncPost(action,body){
+  return syncFetch(syncEndpoint({action:action}),{
     method:"POST",
     headers:{"Content-Type":"text/plain;charset=utf-8"},
-    body:JSON.stringify({room:SYNC.room,kind:kind,id:id,payload:payload})
+    body:JSON.stringify(Object.assign({room:SYNC.room,token:SYNC.token},body||{}))
   });
 }
-function syncList(kind,since){
+function syncPing(){return syncFetch(syncEndpoint({action:"ping",room:SYNC.room,token:SYNC.token}))}
+function syncWhoami(){return syncFetch(syncEndpoint({action:"whoami",room:SYNC.room,token:SYNC.token}))}
+function syncPublish(kind,id,payload,extra){
   if(!syncReady())return Promise.reject(new Error("Synchronisation non configurée"));
-  return syncFetch(syncEndpoint({action:"list",room:SYNC.room,kind:kind,since:since||""}));
+  return syncPost("publish",Object.assign({kind:kind,id:id,payload:payload},extra||{}));
 }
-function syncPing(){
-  return syncFetch(syncEndpoint({action:"ping",room:SYNC.room}));
+function syncList(kind,since,teamId){
+  if(!syncReady())return Promise.reject(new Error("Synchronisation non configurée"));
+  return syncFetch(syncEndpoint({action:"list",room:SYNC.room,token:SYNC.token,
+    kind:kind,since:since||"",teamId:teamId||""}));
 }
 
-/* Lien de partage : ouvre l'application déjà configurée sur l'appareil
-   du sélectionneur, en rôle sélectionneur. */
+/* ── Émission et révocation des jetons (administrateur) ────── */
+function grantToken(person,teamId,role){
+  if(!person.token)person.token=mkToken();
+  var t=teamId?teamById(teamId):null;
+  return syncPost("grant",{grant:{
+    token:person.token,name:person.name,
+    role:person.isAdmin?"admin":role,
+    teamId:teamId||"",teamName:t?t.name:""
+  }});
+}
+function revokeToken(person){
+  if(!person||!person.token)return Promise.resolve();
+  var tok=person.token;
+  person.token="";
+  if(!syncReady())return Promise.resolve();
+  return syncPost("revoke",{target:tok}).catch(function(){});
+}
+
+/* ── Lien d'invitation : porte le jeton personnel ──────────── */
 function b64urlEncode(str){
   var b=btoa(unescape(encodeURIComponent(str)));
   return b.replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
@@ -1202,17 +1558,17 @@ function b64urlDecode(str){
   while(str.length%4)str+="=";
   return decodeURIComponent(escape(atob(str)));
 }
-function shareLink(){
-  if(!syncReady())return "";
+function inviteLink(person){
+  if(!SYNC.url||!SYNC.room||!person||!person.token)return "";
   var base=location.href.replace(/[?#].*$/,"");
-  return base+"#s="+b64urlEncode(JSON.stringify({u:SYNC.url,r:SYNC.room}));
+  return base+"#s="+b64urlEncode(JSON.stringify({u:SYNC.url,r:SYNC.room,t:person.token}));
 }
 function readShareLink(){
   var m=(location.hash||"").match(/[#&]s=([A-Za-z0-9_-]+)/);
   if(!m)return null;
   try{
     var o=JSON.parse(b64urlDecode(m[1]));
-    if(o&&o.u&&o.r)return {url:normUrl(o.u),room:String(o.r)};
+    if(o&&o.u&&o.r&&o.t)return {url:normUrl(o.u),room:String(o.r),token:String(o.t)};
   }catch(e){}
   return null;
 }
@@ -1220,45 +1576,85 @@ function clearHash(){
   try{history.replaceState(null,"",location.href.replace(/#.*$/,""))}catch(e){location.hash=""}
 }
 
-/* ── Entraîneur : publier une vue, relever les soumissions ─── */
-function publishView(season,view){
-  var bad=viewNumberIssues(season,view);
+/* ── Entraîneur : publier, relever ─────────────────────────── */
+function publishView(squad,view){
+  var bad=viewNumberIssues(squad,view);
   if(bad.length){showToast("⚠️ "+plural(bad.length,"numéro")+" à corriger avant publication");return}
+  var target=view.selectorPersonId?personById(view.selectorPersonId):null;
   syncBusy=true;render();
-  syncPublish("packet",view.id,buildPacket(season,view)).then(function(){
+  syncPublish("packet",view.id,buildPacket(squad,view),
+      {teamId:squad.teamId,to:(target&&target.token)||""}).then(function(){
     view.published=true;SYNC.lastSyncAt=nowISO();
-    syncBusy=false;saveNow();saveSync();showToast("📡 « "+view.name+" » publiée");render();
+    syncBusy=false;saveNow();saveSync();
+    showToast("📡 « "+view.name+" » publiée"+(target?" pour "+target.name:""));render();
   }).catch(function(err){
     syncBusy=false;showToast("⚠️ "+err.message);render();
   });
 }
-function pullSubmissions(season){
+/* Catalogue d'équipe : ce qui permet à un sélectionneur de choisir
+   lui-même ses athlètes. Numéros et positions uniquement. */
+function buildCatalog(squad){
+  var camp=curCampaign(squad),season=seasonById(squad.seasonId);
+  return {
+    type:"wonderstats-catalog",version:4,createdAt:nowISO(),
+    teamId:squad.teamId,teamName:squad.name,category:squad.category,
+    seasonId:squad.seasonId,seasonName:season?season.name:"",
+    campaignId:camp?camp.id:null,campaignName:camp?camp.name:"",
+    criteria:CRITERIA.map(function(c){return c.key}),groups:SG_KEYS.slice(),
+    players:squad.roster.filter(function(e){return e.number&&isInSquad(e)}).map(function(e){
+      return {playerId:e.playerId,number:e.number,position:e.position||""};
+    })
+  };
+}
+function publishCatalog(squad){
+  var cat=buildCatalog(squad);
+  if(!cat.players.length){showToast("⚠️ Aucune joueuse retenue avec un numéro");return}
   syncBusy=true;render();
-  syncList("submission",SYNC.pulled.submission).then(function(data){
-    var items=(data&&data.items)||[],added=0,skipped=0,latest=SYNC.pulled.submission;
+  syncPublish("catalog",squad.teamId+"|"+squad.seasonId,cat,{teamId:squad.teamId}).then(function(){
+    squad.catalogPublishedAt=nowISO();SYNC.lastSyncAt=nowISO();
+    syncBusy=false;saveNow();saveSync();
+    showToast("📡 Catalogue publié — "+plural(cat.players.length,"athlète"));render();
+  }).catch(function(err){
+    syncBusy=false;showToast("⚠️ "+err.message);render();
+  });
+}
+function pullSubmissions(squad){
+  syncBusy=true;render();
+  syncList("submission",SYNC.pulled.submission,squad.teamId).then(function(data){
+    var items=(data&&data.items)||[],added=0,latest=SYNC.pulled.submission;
     items.forEach(function(it){
       if(it.at&&it.at>latest)latest=it.at;
       var sub=it.payload;
       if(!sub||sub.type!=="wonderstats-submission")return;
-      var r=integrateSubmission(season,sub);
-      if(r)added++;else skipped++;
+      /* L'identité vient du jeton, estampillée par le relais — plus du
+         texte libre saisi par le sélectionneur (constat R8). */
+      if(it.by&&it.by.name)sub.selectorName=it.by.name;
+      if(it.by&&it.by.token)sub.selectorToken=it.by.token;
+      if(integrateSubmission(squad,sub))added++;
     });
     SYNC.pulled.submission=latest;SYNC.lastSyncAt=nowISO();
     syncBusy=false;saveNow();saveSync();
-    showToast(added?("📥 "+plural(added,"soumission")+" intégrée(s)")
-                   :(skipped?"Aucune nouvelle soumission exploitable":"Aucune nouvelle soumission"));
+    showToast(added?("📥 "+plural(added,"soumission")+" intégrée(s)"):"Aucune nouvelle soumission");
     render();
   }).catch(function(err){
     syncBusy=false;showToast("⚠️ "+err.message);render();
   });
 }
 
-/* ── Sélectionneur : récupérer les vues, téléverser sa soumission ─ */
-function pullPackets(){
+/* ── Sélectionneur : récupérer, téléverser ─────────────────── */
+function pullForSelector(){
   syncBusy=true;render();
-  syncList("packet","").then(function(data){
-    var items=(data&&data.items)||[],added=0,updated=0;
-    items.forEach(function(it){
+  Promise.all([syncList("catalog",""),syncList("packet","")]).then(function(res){
+    var cats=(res[0]&&res[0].items)||[],packs=(res[1]&&res[1].items)||[];
+    var nCat=0,added=0,updated=0;
+    INBOX.catalogs=INBOX.catalogs||[];
+    cats.forEach(function(it){
+      var c=it.payload;
+      if(!c||c.type!=="wonderstats-catalog")return;
+      INBOX.catalogs=INBOX.catalogs.filter(function(x){return !(x.teamId===c.teamId&&x.seasonId===c.seasonId)});
+      INBOX.catalogs.push(c);nCat++;
+    });
+    packs.forEach(function(it){
       var pk=it.payload;
       if(!pk||pk.type!=="wonderstats-selector-packet"||!pk.view)return;
       var existing=null;
@@ -1279,7 +1675,9 @@ function pullPackets(){
     });
     SYNC.lastSyncAt=nowISO();
     syncBusy=false;saveNow();saveSync();
-    showToast(added||updated?("📥 "+added+" nouvelle(s), "+updated+" mise(s) à jour"):"Aucune vue disponible");
+    showToast((nCat||added||updated)
+      ?("📥 "+plural(nCat,"équipe")+" · "+added+" nouvelle(s) vue(s), "+updated+" mise(s) à jour")
+      :"Rien de nouveau");
     render();
   }).catch(function(err){
     syncBusy=false;showToast("⚠️ "+err.message);render();
@@ -1288,7 +1686,7 @@ function pullPackets(){
 function uploadSubmission(view){
   var sub=buildSubmission(view,function(pid){return (view.numbers||{})[pid]||""});
   syncBusy=true;render();
-  syncPublish("submission",sub.id,sub).then(function(){
+  syncPublish("submission",sub.id,sub,{teamId:view.teamId||""}).then(function(){
     view.submittedAt=sub.submittedAt;view.submissionCount=(view.submissionCount||0)+1;
     view.uploadedAt=sub.submittedAt;SYNC.lastSyncAt=nowISO();
     syncBusy=false;saveNow();saveSync();
@@ -1351,17 +1749,27 @@ function renderAutoSave(){
   var s=autoSaveTimer!==null;
   return h("div",{className:"autosave-indicator"+(s?" saving":"")},h("span",{className:"dot"}),s?"Sauvegarde…":(saveFailed?"Non sauvegardé":"Sauvegardé"));
 }
-function roleBadge(){
-  var isCoach=state.role==="coach";
-  return h("button",{className:"role-badge "+(isCoach?"coach":"selector"),onclick:function(){
-    state.role=isCoach?"selector":"coach";
-    state.tab=tabsFor(state.role)[0].key;
-    state.quickPlayer=null;state.svPlayerId=null;clearUndo();
-    saveNow();render();
-  }},isCoach?"👔 COACH":"🎯 SÉLECT.");
+/* Sélecteur de contexte : « j'agis en tant que … ». Remplace la bascule
+   binaire, qui ne savait pas exprimer « entraîneur des U15 ET
+   sélectionneur des U18 ». */
+function ctxBadge(){
+  var c=state.ctx;
+  var cls=c?(c.role==="admin"?"admin":(c.role==="coach"?"coach":"selector")):"coach";
+  var short={coach:"COACH",selector:"SÉLECT."};
+  var lbl=c?(c.role==="admin"?"🛡️ ADMIN":(ROLES[c.role].icon+" "+short[c.role])):"🔑 —";
+  return h("button",{className:"role-badge "+cls,onclick:function(){openModal("ctxpicker")}},lbl);
 }
-function tabsFor(role){
-  if(role==="selector")return [
+function tabsForCtx(){
+  var c=state.ctx;
+  if(!c)return [{key:"season",label:"Saison",icon:"🗓️"}];
+  if(c.role==="admin")return [
+    {key:"adm_people",label:"Personnes",icon:"👤"},
+    {key:"adm_teams",label:"Équipes",icon:"👕"},
+    {key:"adm_seasons",label:"Saisons",icon:"🗓️"},
+    {key:"adm_players",label:"Joueuses",icon:"🗂️"},
+    {key:"adm_sync",label:"Relais",icon:"📡"}
+  ];
+  if(c.role==="selector")return [
     {key:"sv_views",label:"Mes vues",icon:"🎯"},
     {key:"sv_eval",label:"Évaluer",icon:"✏️"},
     {key:"sv_submit",label:"Soumettre",icon:"📤"}
@@ -1374,8 +1782,15 @@ function tabsFor(role){
     {key:"selection",label:"Sélection",icon:"🎯"}
   ];
 }
+function switchCtx(c){
+  state.ctx=c;
+  state.tab=(tabsForCtx()[0]||{}).key;
+  state.quickPlayer=null;state.svPlayerId=null;state.svViewId=null;
+  state.expandedPlayerId=null;state.evalCampaignId=null;
+  clearUndo();saveNow();render();
+}
 function renderTabBar(){
-  var tabs=tabsFor(state.role),sel=state.role==="selector";
+  var tabs=tabsForCtx(),sel=isSelectorCtx();
   return h("div",{className:"tab-bar"},tabs.map(function(t){
     return h("button",{className:"tab-btn"+(sel?" sel":"")+(state.tab===t.key?" active":""),onclick:function(){
       state.tab=t.key;state.sortBy=null;saveNow();render();
@@ -1383,7 +1798,7 @@ function renderTabBar(){
   }));
 }
 function renderSeasonBar(){
-  var s=curSeason(),c=s?curCampaign(s):null;
+  var s=curSeason(),sq=curSquad(),c=sq?curCampaign(sq):null;
   return h("div",{className:"ctx-bar"},
     h("button",{className:"grow",onclick:function(){state.tab="season";state.seasonPane="seasons";render()}},
       h("span",null,"🗓️"),
@@ -1394,16 +1809,20 @@ function renderSeasonBar(){
     c?h("button",{onclick:function(){state.tab="season";state.seasonPane="campaigns";render()},
       style:{flexShrink:"0"}},h("span",{className:"muted"},campaignLabel(c))):null);
 }
-function renderTeamBar(){
-  var s=curSeason();if(!s)return null;
-  return h("div",{className:"team-bar"},
-    s.teams.map(function(t){
-      return h("button",{className:"team-chip"+(t.id===s.activeTeamId?" active":""),onclick:function(){
-        s.activeTeamId=t.id;state.quickPlayer=null;state.summaryMode="session";clearUndo();saveNow();render();
-      }},t.name);
-    }),
-    h("button",{className:"team-chip add",onclick:function(){openModal("newteam")}},"+ Équipe"));
+/* Barre de contexte : qui je suis, et à quel titre j'agis. */
+function renderCtxBar(){
+  var p=me(),c=state.ctx;
+  var others=myContexts().filter(function(x){return !sameCtx(x,c)});
+  return h("div",{className:"ctx-bar"},
+    h("button",{className:"grow",onclick:function(){openModal("ctxpicker")}},
+      h("span",null,c?(c.role==="admin"?ADMIN_CTX.icon:ROLES[c.role].icon):"🔑"),
+      h("span",{style:{fontWeight:"700",color:"#CBD5E1"}},
+        c?(c.role==="admin"?ADMIN_CTX.label:(ROLES[c.role].label+" · "+((teamById(c.teamId)||{}).name||"—"))):"Aucun contexte"),
+      others.length?h("span",{style:{opacity:".6"}},"▾"):null),
+    h("button",{onclick:function(){openModal("whoami")},style:{flexShrink:"0"}},
+      h("span",{className:"muted"},p?p.name:"—")));
 }
+
 function renderPosFilter(){
   return h("div",{className:"pos-row"},POSITIONS.map(function(p){
     var btn=h("button",{className:"pill sm"+(state.posFilter===p.key?" active":""),onclick:function(){
@@ -1432,18 +1851,17 @@ function emptyBlock(icon,title,sub,action){
    ONGLET SAISON — sélection · équipes · saisons
    ══════════════════════════════════════════════════════════════ */
 function renderSeasonTab(){
-  var season=curSeason();
+  var season=curSquad();
   if(!season)return emptyBlock("🗓️","Aucune saison","Créez une saison pour démarrer : convocation des joueuses, tryouts, équipe.",
     h("button",{className:"btn btn-primary",onclick:function(){openModal("newseason")}},"+ Créer une saison"));
-  var panes=[{k:"selection",l:"🎯 Sélection"},{k:"campaigns",l:"📅 Campagnes"},{k:"teams",l:"👕 Équipes"},{k:"seasons",l:"🗓️ Saisons"}];
+  var panes=[{k:"selection",l:"🎯 Sélection"},{k:"campaigns",l:"📅 Campagnes"},{k:"seasons",l:"🗓️ Saisons"}];
   var row=h("div",{className:"pill-row"},panes.map(function(p){
     var b=h("button",{className:"pill"+(state.seasonPane===p.k?" active":""),onclick:function(){state.seasonPane=p.k;render()}},p.l);
     if(state.seasonPane===p.k)b.style.background="#3B82F6";
     return b;
   }));
   var body;
-  if(state.seasonPane==="teams")body=renderTeamsPane(season);
-  else if(state.seasonPane==="seasons")body=renderSeasonsPane();
+  if(state.seasonPane==="seasons")body=renderSeasonsPane();
   else if(state.seasonPane==="campaigns")body=renderCampaignsPane(season);
   else body=renderSelectionBoard(season);
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},row,
@@ -1451,14 +1869,14 @@ function renderSeasonTab(){
 }
 
 /* ── Tableau de sélection : retenir / recaller / couper ─────── */
-function renderSelectionBoard(season){
-  var camp=curCampaign(season);
-  var compiled=compileSubmissions(season,camp?camp.id:null);
-  var dup=dupNumbers(season);
+function renderSelectionBoard(squad){
+  var camp=curCampaign(squad);
+  var compiled=compileSubmissions(squad,camp?camp.id:null);
+  var dup=dupNumbers(squad);
   var counts={candidate:0,recalled:0,selected:0,cut:0};
-  season.roster.forEach(function(e){counts[e.status]=(counts[e.status]||0)+1});
+  squad.roster.forEach(function(e){counts[e.status]=(counts[e.status]||0)+1});
 
-  var filters=[{k:"all",l:"Toutes ("+season.roster.length+")"}].concat(STATUS_ORDER.map(function(st){
+  var filters=[{k:"all",l:"Toutes ("+squad.roster.length+")"}].concat(STATUS_ORDER.map(function(st){
     return {k:st,l:STATUSES[st].icon+" "+STATUSES[st].label+" ("+(counts[st]||0)+")"};
   }));
   var fRow=h("div",{className:"sub-pills",style:{marginBottom:"12px",paddingBottom:"2px"}},filters.map(function(f){
@@ -1468,7 +1886,7 @@ function renderSelectionBoard(season){
   }));
 
   function visible(){
-    var list=season.roster.filter(function(e){return state.statusFilter==="all"||e.status===state.statusFilter});
+    var list=squad.roster.filter(function(e){return state.statusFilter==="all"||e.status===state.statusFilter});
     var q=(state.search||"").trim().toLowerCase();
     if(q)list=list.filter(function(e){
       var p=playerById(e.playerId);
@@ -1498,7 +1916,7 @@ function renderSelectionBoard(season){
     var stBtns=h("div",{className:"status-btns"},RECOS.map(function(r){
       var target=RECO_TO_STATUS[r.key],on=e.status===target;
       var b=h("button",{className:"st-btn"+(on?" on":""),title:r.label,onclick:function(){
-        setRosterStatus(season,e,on?"candidate":target);render();
+        setRosterStatus(squad,e,on?"candidate":target);render();
       }},r.icon);
       if(on){b.style.background=r.color;b.style.borderColor=r.color}
       return b;
@@ -1521,7 +1939,7 @@ function renderSelectionBoard(season){
         h("div",{style:{display:"flex",gap:"4px",flexWrap:"wrap",marginTop:"4px"}},meta)),
       stBtns);
     if(state.expandedPlayerId!==e.playerId)return row;
-    return h("div",null,row,renderPlayerSheet(season,e,p));
+    return h("div",null,row,renderPlayerSheet(squad,e,p));
   }
   function refreshList(){
     var nl=h("div",{id:"selList"});
@@ -1532,10 +1950,10 @@ function renderSelectionBoard(season){
     if(cur&&cur.parentNode)cur.parentNode.replaceChild(nl,cur);
   }
   var list=visible();
-  if(!list.length)listWrap.appendChild(h("div",{className:"empty"},season.roster.length?"Aucun résultat":"Aucune joueuse convoquée. Onglet Joueuses → Convoquer."));
+  if(!list.length)listWrap.appendChild(h("div",{className:"empty"},squad.roster.length?"Aucun résultat":"Aucune joueuse convoquée. Onglet Joueuses → Convoquer."));
   list.forEach(function(e){var r=rowFor(e);if(r)listWrap.appendChild(r)});
 
-  var miss=missingNumbers(season).length,nDup=Object.keys(dup).length;
+  var miss=missingNumbers(squad).length,nDup=Object.keys(dup).length;
   var warn=(miss||nDup)?h("div",{className:"hint warn"},
     "⚠️ "+(miss?plural(miss,"joueuse")+" sans numéro. ":"")+(nDup?nDup+" numéro(s) en double. ":"")+
     "Les numéros se saisissent ici, directement dans la case de gauche. Chacun doit être unique : c'est la seule information que verront vos sélectionneurs."):null;
@@ -1547,11 +1965,11 @@ function renderSelectionBoard(season){
         h("div",{style:{fontWeight:"700",color:"#F8FAFC",marginTop:"2px"}},campaignLabel(camp))),
       h("button",{className:"btn btn-ghost xs",onclick:function(){state.seasonPane="campaigns";render()}},"Changer"))):null;
 
-  var nSub=campaignSubs(season,camp?camp.id:null).length;
+  var nSub=campaignSubs(squad,camp?camp.id:null).length;
   var actions=h("div",{className:"btn-row",style:{marginTop:"14px"}},
     h("button",{className:"btn btn-primary sm",onclick:function(){state.tab="players";state.playersPane="db";render()}},"+ Convoquer des joueuses"),
     nSub?h("button",{className:"btn btn-warn sm",onclick:function(){openModal("applyreco")}},"⚡ Appliquer les avis ("+nSub+")"):null,
-    h("button",{className:"btn btn-save sm",onclick:function(){promoteSelectedToTeam(season)}},"👕 Composer l'équipe"));
+    h("button",{className:"btn btn-save sm",onclick:function(){promoteSelectedToTeam(squad)}},"👕 Composer l'équipe"));
 
   return h("div",null,
     h("div",{className:"hint"},"Convoquez vos joueuses, saisissez leur numéro, faites-les évaluer, puis tranchez : ",
@@ -1562,7 +1980,7 @@ function renderSelectionBoard(season){
 /* ── Fiche joueuse de saison ────────────────────────────────
    Réunit ce que l'audit avait trouvé séparé : le cumul de match
    (quantitatif) et les évaluations par campagne (qualitatif). */
-function renderPlayerSheet(season,entry,p){
+function renderPlayerSheet(squad,entry,p){
   var box=h("div",{className:"card",style:{marginTop:"-2px",marginBottom:"10px",borderTopLeftRadius:"0",borderTopRightRadius:"0"}});
 
   /* Position */
@@ -1588,7 +2006,7 @@ function renderPlayerSheet(season,entry,p){
   }
 
   /* Cumul de match sur la saison */
-  var ms=playerSeasonStats(season,entry.playerId);
+  var ms=playerSeasonStats(squad,entry.playerId);
   box.appendChild(h("div",{className:"section-title"},"Matchs de la saison"));
   if(ms.sessions){
     box.appendChild(h("div",{className:"muted",style:{marginBottom:"6px"}},
@@ -1597,8 +2015,8 @@ function renderPlayerSheet(season,entry,p){
   } else box.appendChild(h("div",{className:"muted"},"Aucun match enregistré."));
 
   /* Évaluations, campagne par campagne */
-  var perCamp=season.campaigns.map(function(c){
-    return {campaign:c,c:compileSubmissions(season,c.id)[entry.playerId]};
+  var perCamp=squad.campaigns.map(function(c){
+    return {campaign:c,c:compileSubmissions(squad,c.id)[entry.playerId]};
   }).filter(function(x){return x.c&&x.c.n});
 
   box.appendChild(h("div",{className:"section-title"},"Évaluations par campagne"));
@@ -1634,8 +2052,8 @@ function renderPlayerSheet(season,entry,p){
   box.appendChild(h("div",{className:"btn-row",style:{marginTop:"6px"}},
     h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("editplayer",p.id)}},"✏️ Fiche joueuse"),
     h("button",{className:"btn btn-danger-o xs",onclick:function(){
-      if(!confirmAct("Retirer "+fullName(p)+" de la saison « "+season.name+" » ?\n(La joueuse reste dans la base de données.)"))return;
-      removeFromSeason(season,p.id);render();
+      if(!confirmAct("Retirer "+fullName(p)+" de la saison « "+squad.name+" » ?\n(La joueuse reste dans la base de données.)"))return;
+      removeFromSquad(squad,p.id);render();
     }},"Retirer de la saison")));
   return box;
 }
@@ -1668,15 +2086,14 @@ function renderStatMini(stats){
   return wrap;
 }
 
-function setRosterStatus(season,entry,status){
+function setRosterStatus(squad,entry,status){
   entry.status=status;
-  var team=curTeam();
   if(status==="selected"){
     if(!MEMBERSHIPS[entry.membership])entry.membership="active";
-    if(team&&team.playerIds.indexOf(entry.playerId)===-1)team.playerIds.push(entry.playerId);
+    if(squad.playerIds.indexOf(entry.playerId)===-1)squad.playerIds.push(entry.playerId);
   } else {
     /* Jamais retenue : elle n'a rien joué, on peut la détacher sans perte. */
-    season.teams.forEach(function(t){detachFromTeam(t,entry.playerId)});
+    detachFromTeam(squad,entry.playerId);
   }
   scheduleAutoSave();
 }
@@ -1685,80 +2102,46 @@ function detachFromTeam(team,pid){
   team.lineup=team.lineup.filter(function(x){return x!==pid});
   team.subteams.forEach(function(st){st.playerIds=st.playerIds.filter(function(x){return x!==pid})});
 }
-function removeFromSeason(season,pid){
-  season.roster=season.roster.filter(function(e){return e.playerId!==pid});
-  season.teams.forEach(function(t){detachFromTeam(t,pid);delete t.stats[pid]});
-  season.selectorViews.forEach(function(v){
+/* Retire une joueuse de l'équipe pour cette saison. Elle reste dans la
+   base du club, et ses matchs déjà joués restent dans les sessions. */
+function removeFromSquad(squad,pid){
+  squad.roster=squad.roster.filter(function(e){return e.playerId!==pid});
+  detachFromTeam(squad,pid);
+  delete squad.stats[pid];
+  squad.selectorViews.forEach(function(v){
     v.playerIds=v.playerIds.filter(function(x){return x!==pid});delete v.data[pid];
   });
   state.expandedPlayerId=null;
   scheduleAutoSave();
 }
-function promoteSelectedToTeam(season){
-  var team=curTeam();if(!team){showToast("⚠️ Aucune équipe");return}
+function promoteSelectedToTeam(squad){
+  if(!squad){showToast("⚠️ Aucune équipe");return}
   var added=0;
-  season.roster.forEach(function(e){
+  squad.roster.forEach(function(e){
     if(!isInSquad(e))return;
-    if(team.playerIds.indexOf(e.playerId)===-1){team.playerIds.push(e.playerId);added++}
+    if(squad.playerIds.indexOf(e.playerId)===-1){squad.playerIds.push(e.playerId);added++}
   });
   saveNow();
-  showToast(added?("👕 "+plural(added,"joueuse")+" ajoutée(s) à "+team.name):"Équipe déjà à jour");
-  state.seasonPane="teams";render();
+  showToast(added?("👕 "+plural(added,"joueuse")+" ajoutée(s) à "+squad.name):"Équipe déjà à jour");
+  render();
 }
 
-/* ── Équipes de la saison ──────────────────────────────────── */
-function renderTeamsPane(season){
-  var wrap=h("div",null);
-  wrap.appendChild(h("div",{className:"hint"},"Les joueuses ",h("b",null,"retenues")," composent l'équipe de la saison. Une saison peut porter plusieurs équipes (ex. U15 et U18)."));
-  season.teams.forEach(function(t){
-    var card=h("div",{className:"card"});
-    card.appendChild(h("div",{className:"row-between"},
-      h("div",null,
-        h("div",{style:{fontSize:"16px",fontWeight:"700",color:"#F8FAFC"}},t.name+(t.id===season.activeTeamId?" ✓":"")),
-        h("div",{className:"muted",style:{marginTop:"3px"}},plural(t.playerIds.length,"joueuse")+" · "+plural(t.sessions.length,"session"))),
-      h("div",{className:"btn-row"},
-        t.id!==season.activeTeamId?h("button",{className:"btn btn-primary xs",onclick:function(){season.activeTeamId=t.id;clearUndo();saveNow();render()}},"Activer"):null,
-        h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("renameteam",t.id)}},"✏️"),
-        h("button",{className:"btn btn-danger-o xs",onclick:function(){
-          if(season.teams.length<=1){showToast("⚠️ Dernière équipe");return}
-          if(!confirmAct("Supprimer l'équipe « "+t.name+" » et ses "+plural(t.sessions.length,"session")+" ?"))return;
-          season.teams=season.teams.filter(function(x){return x.id!==t.id});
-          if(season.activeTeamId===t.id)season.activeTeamId=season.teams[0].id;
-          saveNow();render();
-        }},"🗑️"))));
-    var members=t.playerIds.map(function(pid){
-      var p=playerById(pid),e=rosterEntry(season,pid);
-      return h("span",{className:"badge",style:{background:"#0F172A",color:"#CBD5E1",borderColor:"#334155",padding:"5px 9px",fontSize:"11px"}},
-        (e&&e.number?"#"+e.number+" ":"")+shortName(p));
-    });
-    card.appendChild(h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"10px"}},
-      members.length?members:h("span",{className:"muted"},"Aucune joueuse — retenez des joueuses dans l'onglet Sélection.")));
-    card.appendChild(h("div",{className:"btn-row",style:{marginTop:"10px"}},
-      h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("teamroster",t.id)}},"👥 Composer")));
-    wrap.appendChild(card);
-  });
-  wrap.appendChild(h("button",{className:"btn btn-primary full",style:{marginTop:"6px"},onclick:function(){openModal("newteam")}},"+ Nouvelle équipe"));
-  return wrap;
-}
-
-/* ── Gestion des saisons ───────────────────────────────────── */
 /* ── Campagnes d'évaluation ────────────────────────────────── */
-function renderCampaignsPane(season){
+function renderCampaignsPane(squad){
   var wrap=h("div",null);
   wrap.appendChild(h("div",{className:"hint"},
     "Une ",h("b",null,"campagne")," est un moment d'évaluation daté : la sélection d'août, un point de mi-saison, le bilan de mai. ",
-    "Chaque vue sélectionneur appartient à une campagne, et les moyennes ne se mélangent jamais d'une campagne à l'autre — c'est ce qui rend la progression lisible."));
+    "Chaque vue appartient à une campagne, et les moyennes ne se mélangent jamais de l'une à l'autre — c'est ce qui rend la progression lisible."));
 
-  if(seasonClosed(season))wrap.appendChild(h("div",{className:"hint warn"},
-    "🔒 Saison clôturée le "+fmtDay(season.closedAt)+". Ses vues n'apparaissent plus côté sélectionneur et aucune nouvelle soumission n'est acceptée."));
+  if(seasonClosed(squad))wrap.appendChild(h("div",{className:"hint warn"},
+    "🔒 Saison clôturée. Les vues n'apparaissent plus côté sélectionneur et aucune nouvelle soumission n'est acceptée."));
 
-  season.campaigns.forEach(function(c){
-    var active=c.id===season.activeCampaignId;
-    var subs=campaignSubs(season,c.id).length;
-    var views=campaignViews(season,c.id).length;
-    var compiled=compileSubmissions(season,c.id);
-    var evaluated=Object.keys(compiled).length;
-    var open=campaignOpen(season,c);
+  squad.campaigns.forEach(function(c){
+    var active=c.id===squad.activeCampaignId;
+    var subs=campaignSubs(squad,c.id).length;
+    var views=campaignViews(squad,c.id).length;
+    var evaluated=Object.keys(compileSubmissions(squad,c.id)).length;
+    var open=campaignOpen(squad,c);
     var card=h("div",{className:"card"});
     card.appendChild(h("div",{className:"row-between"},
       h("div",{style:{minWidth:"0"}},
@@ -1770,19 +2153,19 @@ function renderCampaignsPane(season){
           "Ouverte le "+fmtDay(c.createdAt)+(c.closedAt?" · close le "+fmtDay(c.closedAt):""))),
       h("div",{className:"btn-row"},
         !active?h("button",{className:"btn btn-primary xs",onclick:function(){
-          season.activeCampaignId=c.id;state.evalCampaignId=c.id;saveNow();render();
+          squad.activeCampaignId=c.id;state.evalCampaignId=c.id;saveNow();render();
         }},"Activer"):null,
         h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("renamecampaign",c.id,c.name)}},"✏️"),
         h("button",{className:"btn btn-ghost xs",onclick:function(){
           c.closedAt=c.closedAt?null:nowISO();saveNow();
           showToast(c.closedAt?"🔒 Campagne close":"🔓 Campagne rouverte");render();
         }},c.closedAt?"🔓":"🔒"),
-        season.campaigns.length>1?h("button",{className:"btn btn-danger-o xs",onclick:function(){
+        squad.campaigns.length>1?h("button",{className:"btn btn-danger-o xs",onclick:function(){
           if(!confirmAct("Supprimer la campagne « "+c.name+" » ?\n"+plural(subs,"soumission")+" et "+plural(views,"vue")+" seront perdues."))return;
-          season.selectorViews=season.selectorViews.filter(function(v){return v.campaignId!==c.id});
-          season.submissions=season.submissions.filter(function(x){return x.campaignId!==c.id});
-          season.campaigns=season.campaigns.filter(function(x){return x.id!==c.id});
-          if(season.activeCampaignId===c.id)season.activeCampaignId=season.campaigns[0].id;
+          squad.selectorViews=squad.selectorViews.filter(function(v){return v.campaignId!==c.id});
+          squad.submissions=squad.submissions.filter(function(x){return x.campaignId!==c.id});
+          squad.campaigns=squad.campaigns.filter(function(x){return x.id!==c.id});
+          if(squad.activeCampaignId===c.id)squad.activeCampaignId=squad.campaigns[0].id;
           saveNow();render();
         }},"🗑️"):null)));
     if(!open&&!c.closedAt)card.appendChild(h("div",{className:"muted",style:{marginTop:"8px"}},"Saison clôturée — campagne en lecture seule."));
@@ -1790,67 +2173,237 @@ function renderCampaignsPane(season){
   });
 
   wrap.appendChild(h("button",{className:"btn btn-primary full",style:{marginTop:"6px"},
-    disabled:seasonClosed(season),onclick:function(){openModal("newcampaign")}},"+ Nouvelle campagne"));
+    disabled:seasonClosed(squad),onclick:function(){openModal("newcampaign")}},"+ Nouvelle campagne"));
   return wrap;
 }
 
-/* ── Gestion des saisons ───────────────────────────────────── */
+/* ── Saisons (vue entraîneur) : bascule et consultation.
+   La création, l'édition et la clôture appartiennent à l'administration. */
 function renderSeasonsPane(){
   var wrap=h("div",null);
-  wrap.appendChild(h("div",{className:"hint"},"Une saison regroupe sa convocation, ses équipes, ses campagnes d'évaluation et ses statistiques. Créez une nouvelle saison pour repartir d'une page blanche tout en conservant votre base de joueuses."));
-  DB.seasons.forEach(function(s){
-    var active=s.id===DB.activeSeasonId;
-    var sel=s.roster.filter(function(e){return e.status==="selected"}).length;
-    var sess=s.teams.reduce(function(n,t){return n+t.sessions.length},0);
-    var closed=seasonClosed(s);
+  wrap.appendChild(h("div",{className:"hint"},
+    "Basculez d'une saison à l'autre pour consulter l'historique de votre équipe. ",
+    isAdmin()?"En tant qu'administrateur, vous pouvez aussi les créer et les clore depuis 🛡️ Administration → Saisons."
+             :"La création et la clôture des saisons relèvent de l'administration du club."));
+  var tid=state.ctx&&state.ctx.teamId;
+  DB.seasons.forEach(function(x){
+    var active=x.id===DB.activeSeasonId;
+    var sq=tid?squadFor(tid,x.id):null;
+    var sel=sq?sq.roster.filter(function(e){return e.status==="selected"}).length:0;
     var card=h("div",{className:"card"});
-    var period=(s.startDate||s.endDate)?(fmtShortDay(s.startDate)+" → "+fmtShortDay(s.endDate)):"";
     card.appendChild(h("div",{className:"row-between"},
       h("div",{style:{minWidth:"0"}},
         h("div",{style:{fontSize:"16px",fontWeight:"700",color:active?"#60A5FA":"#F8FAFC"}},
-          (active?"● ":"")+s.name+(closed?" 🔒":"")),
-        h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",margin:"5px 0 3px"}},
-          s.category?h("span",{className:"badge",style:{background:"#6366F122",color:"#A5B4FC",borderColor:"#6366F155"}},s.category):null,
-          period?h("span",{className:"badge",style:{background:"#0F172A",color:"#94A3B8",borderColor:"#334155"}},period):null,
-          closed?h("span",{className:"badge",style:{background:"#33415530",color:"#94A3B8"}},"clôturée"):null),
-        h("div",{className:"muted"},
-          plural(s.roster.length,"convoquée")+" · "+sel+" retenue"+(sel>1?"s":"")+" · "+
-          plural(s.campaigns.length,"campagne")+" · "+plural(s.teams.length,"équipe")+" · "+plural(sess,"session"))),
-      h("div",{className:"btn-row"},
-        !active?h("button",{className:"btn btn-primary xs",onclick:function(){
-          DB.activeSeasonId=s.id;state.expandedPlayerId=null;state.svViewId=null;state.evalCampaignId=null;
-          clearUndo();saveNow();render();
-        }},"Activer"):null,
-        h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("editseason",s.id)}},"✏️"),
-        h("button",{className:"btn btn-ghost xs",onclick:function(){
-          if(!closed&&!confirmAct("Clôturer « "+s.name+" » ?\nSes vues disparaîtront du rôle sélectionneur et aucune nouvelle soumission ne sera acceptée. Réversible."))return;
-          s.closedAt=closed?null:nowISO();s.archived=!closed;
-          saveNow();showToast(closed?"🔓 Saison rouverte":"🔒 Saison clôturée");render();
-        }},closed?"🔓 Rouvrir":"🔒 Clôturer"),
-        h("button",{className:"btn btn-danger-o xs",onclick:function(){
-          if(DB.seasons.length<=1){showToast("⚠️ Dernière saison");return}
-          if(!confirmAct("Supprimer « "+s.name+" » ?\nToutes ses équipes, statistiques, vues et soumissions seront perdues.\n(Les joueuses restent dans la base.)"))return;
-          DB.seasons=DB.seasons.filter(function(x){return x.id!==s.id});
-          if(DB.activeSeasonId===s.id)DB.activeSeasonId=DB.seasons[0].id;
-          saveNow();render();
-        }},"🗑️"))));
-    if(s.notes)card.appendChild(h("div",{className:"muted",style:{marginTop:"8px",lineHeight:"1.5"}},s.notes));
+          (active?"● ":"")+x.name+(seasonClosed(x)?" 🔒":"")),
+        h("div",{className:"muted",style:{marginTop:"3px"}},
+          sq?(plural(sq.roster.length,"convoquée")+" · "+sel+" retenue"+(sel>1?"s":"")+" · "+
+              plural(sq.sessions.length,"session")):"aucune donnée pour cette équipe"),
+        (x.startDate||x.endDate)?h("div",{className:"muted",style:{marginTop:"2px"}},
+          fmtShortDay(x.startDate)+" → "+fmtShortDay(x.endDate)):null),
+      !active?h("button",{className:"btn btn-primary xs",onclick:function(){
+        DB.activeSeasonId=x.id;state.expandedPlayerId=null;state.evalCampaignId=null;
+        clearUndo();saveNow();render();
+      }},"Activer"):null));
     wrap.appendChild(card);
   });
-  wrap.appendChild(h("button",{className:"btn btn-primary full",style:{marginTop:"6px"},onclick:function(){openModal("newseason")}},"+ Nouvelle saison"));
-  wrap.appendChild(h("div",{className:"section-title"},"Données"));
+  wrap.appendChild(h("div",{className:"section-title"},"Données de mon équipe"));
   wrap.appendChild(h("div",{className:"data-actions",style:{marginTop:"0"}},
-    h("button",{className:"btn btn-export sm",onclick:exportBackup},"📤 Sauvegarde"),
-    h("button",{className:"btn btn-import sm",onclick:importBackup},"📥 Restaurer / fusionner")));
-  wrap.appendChild(h("div",{className:"muted",style:{textAlign:"center",marginTop:"14px"}},"WonderStats v"+APP_VERSION+" · "+plural(DB.players.length,"joueuse")+" en base"));
+    h("button",{className:"btn btn-export sm",onclick:exportMyTeam},"📤 Exporter mon équipe")));
+  wrap.appendChild(h("div",{className:"muted",style:{textAlign:"center",marginTop:"14px"}},
+    "WonderStats v"+APP_VERSION));
   return wrap;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ADMINISTRATION
+   Le club : ses personnes, ses équipes durables, ses affectations.
+   Les rôles décrits ici sont un cadrage ergonomique, pas une barrière :
+   sur un appareil, tout est modifiable. Voir ROLES.md § 4.
+   ══════════════════════════════════════════════════════════════ */
+function renderAdminPeople(){
+  var wrap=h("div",null);
+  wrap.appendChild(h("div",{className:"hint"},
+    "Chaque personne du club et ses affectations. Une affectation est un lien ",
+    h("b",null,"(personne · équipe · rôle)")," : une même personne peut entraîner une équipe et en évaluer une autre."));
+  wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
+    h("button",{className:"btn btn-primary sm",onclick:function(){openModal("newperson")}},"+ Nouvelle personne")));
+
+  if(!DB.people.length)wrap.appendChild(h("div",{className:"empty"},"Aucune personne"));
+  DB.people.forEach(function(p){
+    var mine=DB.assignments.filter(function(a){return a.personId===p.id});
+    var card=h("div",{className:"card"+(p.revoked?" tight":"")});
+    card.appendChild(h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontSize:"16px",fontWeight:"700",color:p.revoked?"#64748B":"#F8FAFC"}},
+          (p.id===state.meId?"● ":"")+(p.name||"Sans nom")),
+        h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"5px"}},
+          p.isAdmin?h("span",{className:"badge",style:{background:"#EF444422",color:"#FCA5A5",borderColor:"#EF444455"}},"🛡️ Administrateur"):null,
+          p.revoked?h("span",{className:"badge",style:{background:"#33415530",color:"#94A3B8"}},"révoquée"):null,
+          p.token?h("span",{className:"badge",style:{background:"#10B98122",color:"#34D399"}},"🔑 jeton émis"):null)),
+      h("div",{className:"btn-row"},
+        h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("editperson",p.id)}},"✏️"),
+        h("button",{className:"btn btn-danger-o xs",onclick:function(){
+          if(DB.people.filter(function(x){return x.isAdmin&&!x.revoked}).length<=1&&p.isAdmin){
+            showToast("⚠️ Gardez au moins un administrateur");return;
+          }
+          if(!confirmAct("Supprimer « "+p.name+" » ?\nSes affectations seront retirées."))return;
+          DB.assignments=DB.assignments.filter(function(a){return a.personId!==p.id});
+          DB.people=DB.people.filter(function(x){return x.id!==p.id});
+          if(state.meId===p.id)state.meId=null;
+          revokeToken(p);
+          saveNow();render();
+        }},"🗑️"))));
+
+    var rows=h("div",{style:{marginTop:"10px"}});
+    if(!mine.length)rows.appendChild(h("div",{className:"muted"},"Aucune affectation"));
+    mine.forEach(function(a){
+      var t=teamById(a.teamId),r=ROLES[a.role];
+      rows.appendChild(h("div",{className:"list-row",style:{marginBottom:"5px"}},
+        h("div",{className:"body"},
+          h("div",{className:"pname"},r.icon+" "+r.label),
+          h("div",{className:"psub"},t?t.name:"équipe supprimée")),
+        h("button",{className:"icon-btn",onclick:function(){
+          DB.assignments=DB.assignments.filter(function(x){return x.id!==a.id});
+          normalizeCtx();saveNow();render();
+        }},"✕")));
+    });
+    card.appendChild(rows);
+    card.appendChild(h("div",{className:"btn-row",style:{marginTop:"8px"}},
+      h("button",{className:"btn btn-ghost xs",disabled:!DB.teams.length,onclick:function(){
+        state.modalCtx=p.id;openModal("assign",p.id);
+      }},"+ Affecter à une équipe"),
+      h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("invite",p.id)}},"🔗 Inviter")));
+    wrap.appendChild(card);
+  });
+  return h("div",{className:"content pad","data-scroll-key":"adm-people"},wrap);
+}
+
+function renderAdminTeams(){
+  var wrap=h("div",null);
+  wrap.appendChild(h("div",{className:"hint"},
+    "Les équipes sont ",h("b",null,"durables")," : elles traversent les saisons, et l'affectation d'un entraîneur les suit. ",
+    "Le réglage ",h("b",null,"vue libre")," autorise les sélectionneurs à choisir eux-mêmes les athlètes qu'ils observent."));
+  wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
+    h("button",{className:"btn btn-primary sm",onclick:function(){openModal("newteam")}},"+ Nouvelle équipe")));
+
+  if(!DB.teams.length)wrap.appendChild(h("div",{className:"empty"},"Aucune équipe"));
+  DB.teams.forEach(function(t){
+    var coaches=DB.assignments.filter(function(a){return a.teamId===t.id&&a.role==="coach"});
+    var scouts=DB.assignments.filter(function(a){return a.teamId===t.id&&a.role==="selector"});
+    var sq=squadFor(t.id,DB.activeSeasonId);
+    var card=h("div",{className:"card"});
+    card.appendChild(h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontSize:"16px",fontWeight:"700",color:"#F8FAFC"}},t.name),
+        h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"5px"}},
+          t.category?h("span",{className:"badge",style:{background:"#6366F122",color:"#A5B4FC",borderColor:"#6366F155"}},t.category):null,
+          h("span",{className:"badge",style:t.freeView
+            ?{background:"#F59E0B22",color:"#FBBF24",borderColor:"#F59E0B55"}
+            :{background:"#33415530",color:"#94A3B8"}},t.freeView?"👁 Vue libre":"🔒 Vue imposée")),
+        h("div",{className:"muted",style:{marginTop:"5px"}},
+          plural(coaches.length,"entraîneur")+" · "+plural(scouts.length,"sélectionneur")+
+          (sq?" · "+plural(sq.roster.length,"convoquée")+" cette saison":""))),
+      h("div",{className:"btn-row"},
+        h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("editteam",t.id)}},"✏️"),
+        h("button",{className:"btn btn-danger-o xs",onclick:function(){
+          var n=DB.squads.filter(function(x){return x.teamId===t.id}).length;
+          if(!confirmAct("Supprimer l'équipe « "+t.name+" » ?\n"+plural(n,"saison")+" de données seront perdues.\n(Les joueuses restent dans la base du club.)"))return;
+          DB.squads=DB.squads.filter(function(x){return x.teamId!==t.id});
+          DB.assignments=DB.assignments.filter(function(a){return a.teamId!==t.id});
+          DB.teams=DB.teams.filter(function(x){return x.id!==t.id});
+          normalizeCtx();saveNow();render();
+        }},"🗑️"))));
+    var who=[].concat(coaches,scouts).map(function(a){
+      var p=personById(a.personId);
+      return h("span",{className:"badge",style:{background:"#0F172A",color:"#CBD5E1",borderColor:"#334155",padding:"5px 9px"}},
+        ROLES[a.role].icon+" "+(p?p.name:"—"));
+    });
+    card.appendChild(h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"10px"}},
+      who.length?who:h("span",{className:"muted"},"Personne n'est affecté à cette équipe.")));
+    wrap.appendChild(card);
+  });
+  return h("div",{className:"content pad","data-scroll-key":"adm-teams"},wrap);
+}
+
+function renderAdminSeasons(){
+  var wrap=h("div",null);
+  wrap.appendChild(h("div",{className:"hint"},
+    "Une saison est l'axe de temps du club. Chaque équipe y possède sa convocation, ses campagnes et ses statistiques."));
+  wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
+    h("button",{className:"btn btn-primary sm",onclick:function(){openModal("newseason")}},"+ Nouvelle saison")));
+  DB.seasons.forEach(function(x){
+    var active=x.id===DB.activeSeasonId,closed=seasonClosed(x);
+    var squads=DB.squads.filter(function(sq){return sq.seasonId===x.id});
+    var card=h("div",{className:"card"});
+    card.appendChild(h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontSize:"16px",fontWeight:"700",color:active?"#60A5FA":"#F8FAFC"}},
+          (active?"● ":"")+x.name+(closed?" 🔒":"")),
+        (x.startDate||x.endDate)?h("div",{className:"muted",style:{marginTop:"3px"}},
+          fmtShortDay(x.startDate)+" → "+fmtShortDay(x.endDate)):null,
+        h("div",{className:"muted",style:{marginTop:"2px"}},
+          plural(squads.length,"équipe")+" engagée(s)")),
+      h("div",{className:"btn-row"},
+        !active?h("button",{className:"btn btn-primary xs",onclick:function(){
+          DB.activeSeasonId=x.id;clearUndo();saveNow();render();
+        }},"Activer"):null,
+        h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("editseason",x.id)}},"✏️"),
+        h("button",{className:"btn btn-ghost xs",onclick:function(){
+          if(!closed&&!confirmAct("Clôturer « "+x.name+" » ?\nSes vues disparaîtront du rôle sélectionneur. Réversible."))return;
+          x.closedAt=closed?null:nowISO();x.archived=!closed;
+          saveNow();showToast(closed?"🔓 Rouverte":"🔒 Clôturée");render();
+        }},closed?"🔓":"🔒"),
+        h("button",{className:"btn btn-danger-o xs",onclick:function(){
+          if(DB.seasons.length<=1){showToast("⚠️ Dernière saison");return}
+          if(!confirmAct("Supprimer « "+x.name+" » et toutes les données des équipes pour cette saison ?"))return;
+          DB.squads=DB.squads.filter(function(sq){return sq.seasonId!==x.id});
+          DB.seasons=DB.seasons.filter(function(y){return y.id!==x.id});
+          if(DB.activeSeasonId===x.id)DB.activeSeasonId=DB.seasons[0].id;
+          saveNow();render();
+        }},"🗑️"))));
+    if(x.notes)card.appendChild(h("div",{className:"muted",style:{marginTop:"8px",lineHeight:"1.5"}},x.notes));
+    wrap.appendChild(card);
+  });
+  wrap.appendChild(h("div",{className:"section-title"},"Données du club"));
+  wrap.appendChild(h("div",{className:"data-actions",style:{marginTop:"0"}},
+    h("button",{className:"btn btn-export sm",onclick:exportBackup},"📤 Sauvegarde complète"),
+    h("button",{className:"btn btn-import sm",onclick:importBackup},"📥 Restaurer / fusionner")));
+  return h("div",{className:"content pad","data-scroll-key":"adm-seasons"},wrap);
+}
+
+function renderAdminPlayers(){
+  return h("div",{className:"content pad","data-scroll-key":"adm-players"},renderDbPane(curSquad()));
+}
+
+function renderAdminSync(){
+  var wrap=h("div",null);
+  wrap.appendChild(renderSyncPanel(curSquad()));
+  wrap.appendChild(h("div",{className:"hint"},
+    "Le relais permet à vos sélectionneurs de travailler sur leur propre appareil. ",
+    "Chaque invitation émet un ",h("b",null,"jeton personnel")," : le relais ne restitue à chacun que ce qui lui est destiné."));
+  if(syncReady()){
+    var granted=DB.people.filter(function(p){return p.token&&!p.revoked});
+    wrap.appendChild(h("div",{className:"section-title"},plural(granted.length,"jeton")+" en circulation"));
+    if(!granted.length)wrap.appendChild(h("div",{className:"muted"},"Aucun jeton émis. Invitez une personne depuis 👤 Personnes."));
+    granted.forEach(function(p){
+      wrap.appendChild(h("div",{className:"list-row"},
+        h("div",{className:"body"},
+          h("div",{className:"pname"},p.name),
+          h("div",{className:"psub"},"…"+String(p.token).slice(-6))),
+        h("button",{className:"btn btn-danger-o xs",onclick:function(){
+          if(!confirmAct("Révoquer le jeton de « "+p.name+" » ?\nSon appareil perdra l'accès au relais."))return;
+          revokeToken(p);saveNow();render();
+        }},"Révoquer")));
+    });
+  }
+  return h("div",{className:"content pad","data-scroll-key":"adm-sync"},wrap);
 }
 
 /* ══════════════════════════════════════════════════════════════
    ONGLET JOUEUSES — base de données · convocation
    ══════════════════════════════════════════════════════════════ */
 function renderPlayersTab(){
-  var season=curSeason();
+  var season=curSquad();
   var panes=[{k:"db",l:"🗂️ Base de données"},{k:"roster",l:"📋 Convoquées"}];
   var row=h("div",{className:"pill-row"},panes.map(function(p){
     var b=h("button",{className:"pill"+(state.playersPane===p.k?" active":""),onclick:function(){state.playersPane=p.k;render()}},p.l);
@@ -1862,7 +2415,7 @@ function renderPlayersTab(){
     h("div",{className:"content pad","data-scroll-key":"players-"+state.playersPane},body));
 }
 
-function renderDbPane(season){
+function renderDbPane(squad){
   var q=(state.search||"").trim().toLowerCase();
   var players=DB.players.slice().sort(function(a,b){return fullName(a).localeCompare(fullName(b),"fr")});
   var shown=players.filter(function(p){return !p.archived&&(!q||fullName(p).toLowerCase().indexOf(q)!==-1)});
@@ -1872,18 +2425,18 @@ function renderDbPane(season){
   searchInp.addEventListener("input",function(e){state.search=e.target.value;render()});
 
   function card(p){
-    var inSeason=season?!!rosterEntry(season,p.id):false;
-    var seasons=DB.seasons.filter(function(s){return rosterEntry(s,p.id)}).length;
+    var inSeason=squad?!!rosterEntry(squad,p.id):false;
+    var seasons=squadsOf(p.id).length;
     return h("div",{className:"list-row"},
       h("div",{className:"body",onclick:function(){openModal("editplayer",p.id)}},
         h("div",{className:"pname"},fullName(p)),
-        h("div",{className:"psub"},(p.birthYear?p.birthYear+" · ":"")+plural(seasons,"saison")+(p.archived?" · archivée":""))),
-      season?h("button",{className:"btn "+(inSeason?"btn-ghost":"btn-save")+" xs",onclick:function(){
+        h("div",{className:"psub"},(p.birthYear?p.birthYear+" · ":"")+plural(seasons,"équipe-saison")+(p.archived?" · archivée":""))),
+      squad?h("button",{className:"btn "+(inSeason?"btn-ghost":"btn-save")+" xs",onclick:function(){
         if(inSeason){
-          if(!confirmAct("Retirer "+fullName(p)+" de « "+season.name+" » ?"))return;
-          removeFromSeason(season,p.id);
+          if(!confirmAct("Retirer "+fullName(p)+" de « "+squad.name+" » ?"))return;
+          removeFromSquad(squad,p.id);
         } else {
-          season.roster.push(mkRosterEntry(p.id,"",""));
+          squad.roster.push(mkRosterEntry(p.id,"",""));
           scheduleAutoSave();showToast("✅ "+shortName(p)+" convoquée — numéro à saisir");
         }
         render();
@@ -1895,7 +2448,7 @@ function renderDbPane(season){
     h("div",{className:"btn-row",style:{marginBottom:"12px"}},
       h("button",{className:"btn btn-primary sm",onclick:function(){openModal("newplayer")}},"+ Nouvelle joueuse"),
       h("button",{className:"btn btn-ghost sm",onclick:function(){openModal("bulkplayers")}},"⚡ Ajout en lot"),
-      season?h("button",{className:"btn btn-ghost sm",onclick:function(){openModal("convoke")}},"📋 Convoquer en lot"):null),
+      squad?h("button",{className:"btn btn-ghost sm",onclick:function(){openModal("convoke")}},"📋 Convoquer en lot"):null),
     searchInp);
   if(!shown.length)wrap.appendChild(h("div",{className:"empty"},DB.players.length?"Aucun résultat":"Base vide — ajoutez vos joueuses."));
   shown.forEach(function(p){wrap.appendChild(card(p))});
@@ -1916,15 +2469,15 @@ function numberTaken(season,num,exceptPid){
 
 /* ── Convoquées : numéros, positions, ordre ────────────────── */
 var dragPid=null;
-function renderRosterPane(season){
-  if(!season)return h("div",{className:"empty"},"Aucune saison active");
-  if(!season.roster.length)return h("div",null,
-    h("div",{className:"hint"},"Aucune joueuse convoquée pour « "+season.name+" »."),
+function renderRosterPane(squad){
+  if(!squad)return h("div",{className:"empty"},"Aucune saison active");
+  if(!squad.roster.length)return h("div",null,
+    h("div",{className:"hint"},"Aucune joueuse convoquée pour « "+squad.name+" »."),
     h("button",{className:"btn btn-primary full",onclick:function(){state.playersPane="db";render()}},"Choisir dans la base de données"));
-  var dup=dupNumbers(season);
+  var dup=dupNumbers(squad);
   var wrap=h("div",null,h("div",{className:"hint"},
     "Le ",h("b",null,"numéro d'athlète")," est la seule information transmise aux sélectionneurs. Il doit être unique dans la saison. Glissez ☰ pour réordonner."));
-  season.roster.forEach(function(e,i){
+  squad.roster.forEach(function(e,i){
     var p=playerById(e.playerId);if(!p)return;
     var row=h("div",{className:"list-row","data-idx":String(i),draggable:"true"});
     var handle=h("span",{className:"drag-handle"},"☰");
@@ -1932,7 +2485,7 @@ function renderRosterPane(season){
     row.addEventListener("dragend",function(){dragPid=null;row.classList.remove("dragging");document.querySelectorAll(".list-row").forEach(function(r){r.classList.remove("drag-over")})});
     row.addEventListener("dragover",function(ev){ev.preventDefault();row.classList.add("drag-over")});
     row.addEventListener("dragleave",function(){row.classList.remove("drag-over")});
-    row.addEventListener("drop",function(ev){ev.preventDefault();row.classList.remove("drag-over");moveRoster(season,dragPid,e.playerId)});
+    row.addEventListener("drop",function(ev){ev.preventDefault();row.classList.remove("drag-over");moveRoster(squad,dragPid,e.playerId)});
     var touchPid=null;
     handle.addEventListener("touchstart",function(){touchPid=e.playerId;row.classList.add("dragging")},{passive:true});
     handle.addEventListener("touchmove",function(ev){
@@ -1950,7 +2503,7 @@ function renderRosterPane(season){
       var el=document.elementFromPoint(t.clientX,t.clientY);
       var pr=el&&el.closest?el.closest(".list-row"):null;
       if(pr){var ti=parseInt(pr.getAttribute("data-idx"),10);
-        if(!isNaN(ti)&&season.roster[ti])moveRoster(season,touchPid,season.roster[ti].playerId)}
+        if(!isNaN(ti)&&squad.roster[ti])moveRoster(squad,touchPid,squad.roster[ti].playerId)}
       touchPid=null;
     });
 
@@ -1970,19 +2523,19 @@ function renderRosterPane(season){
       statusBadge(e.status),
       h("button",{className:"icon-btn",onclick:function(){
         if(!confirmAct("Retirer "+fullName(p)+" de la saison ?"))return;
-        removeFromSeason(season,e.playerId);render();
+        removeFromSquad(squad,e.playerId);render();
       }},"✕")));
     wrap.appendChild(row);
   });
   return wrap;
 }
-function moveRoster(season,fromPid,toPid){
+function moveRoster(squad,fromPid,toPid){
   if(!fromPid||fromPid===toPid)return;
   var from=-1,to=-1;
-  season.roster.forEach(function(e,i){if(e.playerId===fromPid)from=i;if(e.playerId===toPid)to=i});
+  squad.roster.forEach(function(e,i){if(e.playerId===fromPid)from=i;if(e.playerId===toPid)to=i});
   if(from<0||to<0)return;
-  var moved=season.roster.splice(from,1)[0];
-  season.roster.splice(to,0,moved);
+  var moved=squad.roster.splice(from,1)[0];
+  squad.roster.splice(to,0,moved);
   scheduleAutoSave();render();
 }
 
@@ -1990,7 +2543,7 @@ function moveRoster(season,fromPid,toPid){
    ONGLET SAISIE — mode rapide / mode grille (vue entraîneur)
    ══════════════════════════════════════════════════════════════ */
 function renderInputTab(){
-  var season=curSeason(),team=curTeam();
+  var season=curSquad(),team=season;
   if(!season||!team)return emptyBlock("🏐","Aucune équipe","Créez une saison et une équipe pour saisir des statistiques.",null);
   if(!team.playerIds.length)return emptyBlock("👥","Équipe vide",
     "Retenez des joueuses dans l'onglet Sélection, ou composez l'équipe manuellement.",
@@ -1999,7 +2552,7 @@ function renderInputTab(){
 }
 
 function renderCourtBar(team){
-  var season=curSeason();
+  var season=team;
   var all=teamViewPlayers(team);
   var allOn=!team.lineup||!team.lineup.length;
   var count=allOn?all.length:team.lineup.length;
@@ -2188,7 +2741,7 @@ function renderGridInput(team){
 
 /* Enregistre la session courante puis remet les compteurs à zéro */
 function saveSession(team,name){
-  var season=curSeason();
+  var season=team;
   var entries=team.playerIds.map(function(pid){
     var p=playerById(pid),e=rosterEntry(season,pid);
     return {playerId:pid,name:p?fullName(p):"",number:e?e.number:"",position:e?e.position:"",stats:clone(statsOf(team,pid))};
@@ -2204,7 +2757,7 @@ function saveSession(team,name){
    ONGLET RÉCAP — session · global · évaluations · sessions
    ══════════════════════════════════════════════════════════════ */
 function renderSummaryTab(){
-  var season=curSeason(),team=curTeam();
+  var season=curSquad(),team=season;
   if(!season||!team)return emptyBlock("📊","Aucune équipe","Créez une saison et une équipe.",null);
   var modes=[
     {k:"session",l:"📋 Match",c:"#3B82F6"},
@@ -2309,15 +2862,15 @@ function renderStatsTable(team,modeRow){
 
 /* ── Évaluations compilées (vue entraîneur) ──────────────────
    Filtrées par campagne : c'est la correction du constat A1. */
-function renderEvalsPane(season){
-  if(!season.submissions.length)return h("div",null,
+function renderEvalsPane(squad){
+  if(!squad.submissions.length)return h("div",null,
     h("div",{className:"hint"},"Aucune évaluation reçue. Créez une vue sélectionneur dans l'onglet 🎯 Sélection, faites-la remplir, puis soumettez-la."),
     h("button",{className:"btn btn-primary full",onclick:function(){state.tab="selection";state.selectionPane="views";render()}},"🎯 Créer une vue sélectionneur"));
 
-  var withSubs=season.campaigns.filter(function(c){return campaignSubs(season,c.id).length});
-  if(state.evalCampaignId&&!campaignById(season,state.evalCampaignId))state.evalCampaignId=null;
-  if(state.evalCampaignId===null&&withSubs.length)state.evalCampaignId=(curCampaign(season)&&campaignSubs(season,curCampaign(season).id).length)
-    ?curCampaign(season).id:withSubs[withSubs.length-1].id;
+  var withSubs=squad.campaigns.filter(function(c){return campaignSubs(squad,c.id).length});
+  if(state.evalCampaignId&&!campaignById(squad,state.evalCampaignId))state.evalCampaignId=null;
+  if(state.evalCampaignId===null&&withSubs.length)state.evalCampaignId=(curCampaign(squad)&&campaignSubs(squad,curCampaign(squad).id).length)
+    ?curCampaign(squad).id:withSubs[withSubs.length-1].id;
 
   var wrap=h("div",null);
 
@@ -2326,7 +2879,7 @@ function renderEvalsPane(season){
     withSubs.map(function(c){
       var b=h("button",{className:"pill sm"+(state.evalCampaignId===c.id?" active":""),onclick:function(){
         state.evalCampaignId=c.id;state.expandedPlayerId=null;render();
-      }},campaignLabel(c)+" ("+campaignSubs(season,c.id).length+")");
+      }},campaignLabel(c)+" ("+campaignSubs(squad,c.id).length+")");
       if(state.evalCampaignId===c.id)b.style.background="#F59E0B";
       return b;
     }),
@@ -2345,28 +2898,28 @@ function renderEvalsPane(season){
     })));
   } else if(state.evalMode==="progress")state.evalMode="list";
 
-  if(state.evalMode==="progress"&&withSubs.length>1)return renderProgressPane(season,withSubs,wrap);
+  if(state.evalMode==="progress"&&withSubs.length>1)return renderProgressPane(squad,withSubs,wrap);
 
   var campId=state.evalCampaignId==="__all"?null:state.evalCampaignId;
-  var camp=campId?campaignById(season,campId):null;
-  var compiled=compileSubmissions(season,campId);
+  var camp=campId?campaignById(squad,campId):null;
+  var compiled=compileSubmissions(squad,campId);
   var rows=Object.keys(compiled).map(function(pid){return compiled[pid]}).sort(function(a,b){return b.score-a.score});
-  var subs=campaignSubs(season,campId);
+  var subs=campaignSubs(squad,campId);
 
   wrap.appendChild(h("div",{className:"hint"},
     camp?["Campagne ",h("b",null,camp.name)," — ",plural(subs.length,"soumission"),
-          " de ",plural(countSelectors(season,campId),"sélectionneur"),". Les autres campagnes n'entrent pas dans ces moyennes."]
+          " de ",plural(countSelectors(squad,campId),"sélectionneur"),". Les autres campagnes n'entrent pas dans ces moyennes."]
         :["Toutes campagnes confondues — ",plural(subs.length,"soumission"),
           ". ",h("b",null,"Attention")," : cette lecture mélange des moments différents ; préférez une campagne pour un bilan daté."]));
 
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
     (camp&&rows.length)?h("button",{className:"btn btn-warn sm",onclick:function(){openModal("applyreco")}},"⚡ Appliquer les avis au roster"):null,
-    rows.length?h("button",{className:"btn btn-export sm",onclick:function(){exportEvalsCSV(season,rows,camp)}},"📤 Exporter (CSV)"):null));
+    rows.length?h("button",{className:"btn btn-export sm",onclick:function(){exportEvalsCSV(squad,rows,camp)}},"📤 Exporter (CSV)"):null));
 
   if(!rows.length){wrap.appendChild(h("div",{className:"empty"},"Aucune joueuse évaluée dans cette campagne"));return wrap}
 
   rows.forEach(function(c){
-    var p=playerById(c.playerId),e=rosterEntry(season,c.playerId);
+    var p=playerById(c.playerId),e=rosterEntry(squad,c.playerId);
     var open=state.expandedPlayerId===c.playerId;
     wrap.appendChild(h("div",{className:"compile-row",onclick:function(){
       state.expandedPlayerId=open?null:c.playerId;render();
@@ -2389,7 +2942,7 @@ function renderEvalsPane(season){
       box.appendChild(h("div",{className:"section-title"},"Statut dans la saison"));
       box.appendChild(h("div",{className:"reco-row"},RECOS.map(function(r){
         var target=RECO_TO_STATUS[r.key],on=e.status===target;
-        var b=h("button",{className:"reco-btn"+(on?" on":""),onclick:function(){setRosterStatus(season,e,target);render()}},r.icon+" "+r.short);
+        var b=h("button",{className:"reco-btn"+(on?" on":""),onclick:function(){setRosterStatus(squad,e,target);render()}},r.icon+" "+r.short);
         if(on){b.style.background=r.color;b.style.borderColor=r.color}
         return b;
       })));
@@ -2402,7 +2955,7 @@ function renderEvalsPane(season){
     box.appendChild(renderStatMini(c.stats));
     box.appendChild(h("div",{className:"btn-row",style:{marginTop:"12px"}},
       h("button",{className:"btn btn-ghost xs",onclick:function(){
-        state.tab="season";state.seasonPane="selection";state.statusFilter="all";
+        state.tab="squad";state.seasonPane="selection";state.statusFilter="all";
         state.expandedPlayerId=c.playerId;render();
       }},"📄 Fiche de saison complète")));
     wrap.appendChild(box);
@@ -2411,10 +2964,10 @@ function renderEvalsPane(season){
 }
 
 /* ── Progression entre deux campagnes ───────────────────────── */
-function renderProgressPane(season,withSubs,wrap){
-  if(!campaignById(season,state.progressFrom)||!campaignSubs(season,state.progressFrom).length)
+function renderProgressPane(squad,withSubs,wrap){
+  if(!campaignById(squad,state.progressFrom)||!campaignSubs(squad,state.progressFrom).length)
     state.progressFrom=withSubs[0].id;
-  if(!campaignById(season,state.progressTo)||!campaignSubs(season,state.progressTo).length||state.progressTo===state.progressFrom)
+  if(!campaignById(squad,state.progressTo)||!campaignSubs(squad,state.progressTo).length||state.progressTo===state.progressFrom)
     state.progressTo=withSubs[withSubs.length-1].id;
 
   function picker(label,key){
@@ -2426,19 +2979,19 @@ function renderProgressPane(season,withSubs,wrap){
   wrap.appendChild(h("div",{className:"hint"},"Comparaison de deux campagnes, critère par critère. Une joueuse n'apparaît avec un écart que si elle a été évaluée dans les deux."));
   wrap.appendChild(h("div",{className:"grid2"},picker("De","progressFrom"),picker("À","progressTo")));
 
-  var from=campaignById(season,state.progressFrom),to=campaignById(season,state.progressTo);
+  var from=campaignById(squad,state.progressFrom),to=campaignById(squad,state.progressTo);
   if(state.progressFrom===state.progressTo){
     wrap.appendChild(h("div",{className:"empty"},"Choisissez deux campagnes différentes"));
     return wrap;
   }
-  var rows=compareCampaigns(season,state.progressFrom,state.progressTo);
+  var rows=compareCampaigns(squad,state.progressFrom,state.progressTo);
   if(!rows.length){wrap.appendChild(h("div",{className:"empty"},"Aucune donnée à comparer"));return wrap}
 
   wrap.appendChild(h("div",{className:"btn-row",style:{margin:"4px 0 12px"}},
-    h("button",{className:"btn btn-export sm",onclick:function(){exportProgressCSV(season,rows,from,to)}},"📤 Exporter (CSV)")));
+    h("button",{className:"btn btn-export sm",onclick:function(){exportProgressCSV(squad,rows,from,to)}},"📤 Exporter (CSV)")));
 
   rows.forEach(function(r){
-    var p=playerById(r.playerId),e=rosterEntry(season,r.playerId);
+    var p=playerById(r.playerId),e=rosterEntry(squad,r.playerId);
     var open=state.expandedPlayerId===r.playerId;
     wrap.appendChild(h("div",{className:"compile-row",onclick:function(){
       state.expandedPlayerId=open?null:r.playerId;render();
@@ -2464,22 +3017,22 @@ function renderProgressPane(season,withSubs,wrap){
   });
   return wrap;
 }
-function exportProgressCSV(season,rows,from,to){
+function exportProgressCSV(squad,rows,from,to){
   var head=["Numero","Joueuse",from.name+"_score",to.name+"_score","Delta"]
     .concat(CRITERIA.map(function(c){return "Delta_"+c.label}));
   var lines=[head.join(";")];
   rows.forEach(function(r){
-    var p=playerById(r.playerId),e=rosterEntry(season,r.playerId);
+    var p=playerById(r.playerId),e=rosterEntry(squad,r.playerId);
     lines.push([(e&&e.number)||"",fullName(p).replace(/;/g,","),
       r.from!=null?r.from.toFixed(2):"",r.to!=null?r.to.toFixed(2):"",
       r.delta!=null?r.delta.toFixed(2):""]
       .concat(CRITERIA.map(function(c){var d=r.criteria[c.key].delta;return d!=null?d.toFixed(2):""})).join(";"));
   });
-  downloadCSV(lines,"Progression_"+safeName(season.name)+"_"+stamp()+".csv");
+  downloadCSV(lines,"Progression_"+safeName(squad.name)+"_"+stamp()+".csv");
 }
-function countSelectors(season,campaignId){
+function countSelectors(squad,campaignId){
   var m={};
-  campaignSubs(season,campaignId).forEach(function(sub){m[(sub.selectorName||sub.viewName||"?").trim()]=1});
+  campaignSubs(squad,campaignId).forEach(function(sub){m[(sub.selectorName||sub.viewName||"?").trim()]=1});
   return Object.keys(m).length;
 }
 function downloadCSV(lines,filename){
@@ -2492,14 +3045,14 @@ function downloadCSV(lines,filename){
     showToast("📤 CSV exporté");
   }catch(e){showToast("⚠️ Export impossible")}
 }
-function exportEvalsCSV(season,rows,camp){
+function exportEvalsCSV(squad,rows,camp){
   var head=["Campagne","Numero","Joueuse","Position","Statut","Effectif","Evaluations","Score"]
     .concat(CRITERIA.map(function(c){return c.label}))
     .concat(["Retenir","Recaller","Non_retenue"])
     .concat(ALL_STATS.map(function(st){return st.key}));
   var lines=[head.join(";")];
   rows.forEach(function(c){
-    var p=playerById(c.playerId),e=rosterEntry(season,c.playerId);
+    var p=playerById(c.playerId),e=rosterEntry(squad,c.playerId);
     lines.push([camp?camp.name:"toutes",(e&&e.number)||"",fullName(p).replace(/;/g,","),
       (e&&e.position)||"",(e&&STATUSES[e.status].label)||"",
       (e&&e.status==="selected"&&MEMBERSHIPS[e.membership])?MEMBERSHIPS[e.membership].label:"",
@@ -2508,7 +3061,7 @@ function exportEvalsCSV(season,rows,camp){
       .concat([c.reco.select||0,c.reco.recall||0,c.reco.cut||0])
       .concat(ALL_STATS.map(function(st){return c.stats[st.key]||0})).join(";"));
   });
-  downloadCSV(lines,"Evaluations_"+safeName(season.name)+"_"+safeName(camp?camp.name:"toutes")+"_"+stamp()+".csv");
+  downloadCSV(lines,"Evaluations_"+safeName(squad.name)+"_"+safeName(camp?camp.name:"toutes")+"_"+stamp()+".csv");
 }
 
 /* ── Sessions enregistrées ─────────────────────────────────── */
@@ -2550,7 +3103,7 @@ function renderSessionsPane(team){
    ONGLET SÉLECTION (coach) — vues sélectionneur & soumissions
    ══════════════════════════════════════════════════════════════ */
 function renderSelectionTab(){
-  var season=curSeason();
+  var season=curSquad();
   if(!season)return emptyBlock("🎯","Aucune saison","Créez une saison avant de constituer des vues sélectionneur.",null);
   var panes=[{k:"views",l:"🎯 Vues ("+season.selectorViews.length+")"},{k:"submissions",l:"📥 Soumissions ("+season.submissions.length+")"}];
   var row=h("div",{className:"pill-row"},panes.map(function(p){
@@ -2563,51 +3116,51 @@ function renderSelectionTab(){
     h("div",{className:"content pad","data-scroll-key":"selection-"+state.selectionPane},body));
 }
 
-function renderViewsPane(season){
+function renderViewsPane(squad){
   var wrap=h("div",null);
-  var camp=curCampaign(season);
+  var camp=curCampaign(squad);
   wrap.appendChild(h("div",{className:"hint"},
     "Une ",h("b",null,"vue sélectionneur")," regroupe les joueuses qu'un évaluateur doit observer, ",
     "au sein d'une ",h("b",null,"campagne")," donnée. Une même joueuse peut figurer dans plusieurs vues."));
 
-  if(seasonClosed(season))wrap.appendChild(h("div",{className:"hint warn"},
+  if(seasonClosed(squad))wrap.appendChild(h("div",{className:"hint warn"},
     "🔒 Saison clôturée — les vues ne sont plus distribuées et les soumissions sont refusées."));
 
-  wrap.appendChild(renderSyncPanel(season));
+  wrap.appendChild(renderSyncPanel(squad));
 
-  var dup=dupNumbers(season),miss=missingNumbers(season).length;
+  var dup=dupNumbers(squad),miss=missingNumbers(squad).length;
   if(Object.keys(dup).length||miss)
     wrap.appendChild(h("div",{className:"hint warn"},"⚠️ Corrigez d'abord les numéros ("+
       (miss?plural(miss,"manquant"):"")+(miss&&Object.keys(dup).length?", ":"")+
       (Object.keys(dup).length?Object.keys(dup).length+" en double":"")+") — onglet 🗓️ Saison → Sélection."));
 
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
-    h("button",{className:"btn btn-primary sm",disabled:seasonClosed(season),onclick:function(){
-      if(!season.roster.length){showToast("⚠️ Convoquez d'abord des joueuses");return}
+    h("button",{className:"btn btn-primary sm",disabled:seasonClosed(squad),onclick:function(){
+      if(!squad.roster.length){showToast("⚠️ Convoquez d'abord des joueuses");return}
       state.editViewId=null;state.modalSel=[];openModal("editview");
     }},"+ Nouvelle vue"),
-    h("button",{className:"btn btn-import sm",onclick:function(){importSubmission(season)}},"📥 Importer une soumission")));
+    h("button",{className:"btn btn-import sm",onclick:function(){importSubmission(squad)}},"📥 Importer une soumission")));
 
   /* Groupées par campagne : on ne mélange plus les moments */
   var byCamp={};
-  season.selectorViews.forEach(function(v){(byCamp[v.campaignId]=byCamp[v.campaignId]||[]).push(v)});
-  if(!season.selectorViews.length)wrap.appendChild(h("div",{className:"empty"},"Aucune vue sélectionneur"));
+  squad.selectorViews.forEach(function(v){(byCamp[v.campaignId]=byCamp[v.campaignId]||[]).push(v)});
+  if(!squad.selectorViews.length)wrap.appendChild(h("div",{className:"empty"},"Aucune vue sélectionneur"));
 
-  season.campaigns.forEach(function(c){
+  squad.campaigns.forEach(function(c){
     var views=byCamp[c.id]||[];
     if(!views.length)return;
     wrap.appendChild(h("div",{className:"section-title"},
-      campaignLabel(c)+(c.id===season.activeCampaignId?" · active":"")+(c.closedAt?" · close":"")));
-    views.forEach(function(v){wrap.appendChild(renderViewCard(season,c,v))});
+      campaignLabel(c)+(c.id===squad.activeCampaignId?" · active":"")+(c.closedAt?" · close":"")));
+    views.forEach(function(v){wrap.appendChild(renderViewCard(squad,c,v))});
   });
   return wrap;
 }
 
-function renderViewCard(season,camp,v){
+function renderViewCard(squad,camp,v){
   var filled=v.playerIds.filter(function(pid){return entryFilled(v,pid)}).length;
   var pct=v.playerIds.length?Math.round(filled/v.playerIds.length*100):0;
-  var subs=season.submissions.filter(function(x){return x.viewId===v.id}).length;
-  var open=campaignOpen(season,camp);
+  var subs=squad.submissions.filter(function(x){return x.viewId===v.id}).length;
+  var open=campaignOpen(squad,camp);
   var card=h("div",{className:"view-card"+(subs?" submitted":"")});
   card.appendChild(h("div",{className:"row-between"},
     h("div",{style:{minWidth:"0"}},
@@ -2624,13 +3177,13 @@ function renderViewCard(season,camp,v){
       h("button",{className:"btn btn-ghost xs",onclick:function(){state.editViewId=v.id;state.modalSel=v.playerIds.slice();openModal("editview")}},"✏️"),
       h("button",{className:"btn btn-danger-o xs",onclick:function(){
         if(!confirmAct("Supprimer la vue « "+v.name+" » ?\nLes soumissions déjà reçues sont conservées."))return;
-        season.selectorViews=season.selectorViews.filter(function(x){return x.id!==v.id});
+        squad.selectorViews=squad.selectorViews.filter(function(x){return x.id!==v.id});
         if(state.svViewId===v.id)state.svViewId=null;
         saveNow();render();
       }},"🗑️"))));
   card.appendChild(h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"8px"}},
     v.playerIds.map(function(pid){
-      var n=numOf(season,pid);
+      var n=numOf(squad,pid);
       return h("span",{className:"badge",style:{background:"#0F172A",color:entryFilled(v,pid)?"#34D399":(n?"#94A3B8":"#FCA5A5"),borderColor:"#334155",fontSize:"12px",padding:"4px 9px"}},numLabel(n));
     })));
   card.appendChild(h("div",{className:"progress"},h("i",{style:{width:pct+"%"}})));
@@ -2640,12 +3193,13 @@ function renderViewCard(season,camp,v){
   var acts=h("div",{className:"btn-row",style:{marginTop:"10px"}});
   if(open){
     acts.appendChild(h("button",{className:"btn btn-warn sm",onclick:function(){
-      state.role="selector";state.tab="sv_eval";state.svViewId=v.id;state.svPlayerId=null;saveNow();render();
+      ensureSelectorCtx(squad.teamId);
+      state.tab="sv_eval";state.svViewId=v.id;state.svPlayerId=null;saveNow();render();
     }},"🎯 Ouvrir ici"));
     if(syncReady())acts.appendChild(h("button",{className:"btn btn-primary xs",disabled:syncBusy,onclick:function(){
-      publishView(season,v);
+      publishView(squad,v);
     }},syncBusy?"…":(v.published?"📡 Republier":"📡 Publier")));
-    acts.appendChild(h("button",{className:"btn btn-export xs",onclick:function(){exportPacket(season,v)}},"📤 Fichier"));
+    acts.appendChild(h("button",{className:"btn btn-export xs",onclick:function(){exportPacket(squad,v)}},"📤 Fichier"));
   }
   /* Correction du constat A2 : on ne resoumet jamais des notes périmées.
      Réévaluer, c'est dupliquer la vue dans une autre campagne, données vierges. */
@@ -2657,7 +3211,7 @@ function renderViewCard(season,camp,v){
 }
 
 /* ── Panneau de synchronisation (entraîneur) ────────────────── */
-function renderSyncPanel(season){
+function renderSyncPanel(squad){
   var box=h("div",{className:"card tight",style:{marginBottom:"12px"}});
   if(!syncReady()){
     box.appendChild(h("div",{className:"row-between"},
@@ -2674,24 +3228,29 @@ function renderSyncPanel(season){
       SYNC.lastSyncAt?h("div",{className:"muted",style:{marginTop:"2px"}},"Dernier échange : "+fmtDate(SYNC.lastSyncAt)):null),
     h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("syncconfig")}},"⚙️")));
   box.appendChild(h("div",{className:"btn-row",style:{marginTop:"10px"}},
-    h("button",{className:"btn btn-save sm",disabled:syncBusy,onclick:function(){pullSubmissions(season)}},
+    h("button",{className:"btn btn-save sm",disabled:syncBusy,onclick:function(){pullSubmissions(squad)}},
       syncBusy?"⏳ En cours…":"📥 Relever les soumissions"),
-    h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("sharelink")}},"🔗 Lien sélectionneur")));
+    squad&&squad.freeView?h("button",{className:"btn btn-primary xs",disabled:syncBusy,onclick:function(){
+      publishCatalog(squad);
+    }},"📡 Publier le catalogue"):null,
+    h("button",{className:"btn btn-ghost xs",onclick:function(){
+      state.ctx={role:"admin"};state.tab="adm_people";saveNow();render();
+    }},"🔗 Inviter")));
   return box;
 }
 
 function entryFilled(view,pid){return dataFilled(view.data[pid])}
 
-function renderSubmissionsPane(season){
+function renderSubmissionsPane(squad){
   var wrap=h("div",null);
   wrap.appendChild(h("div",{className:"hint"},"Chaque soumission est un instantané figé, rattaché à sa campagne. Plusieurs avis sur une même joueuse sont moyennés — mais uniquement à l'intérieur d'une même campagne."));
-  wrap.appendChild(renderSyncPanel(season));
+  wrap.appendChild(renderSyncPanel(squad));
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
-    h("button",{className:"btn btn-import sm",onclick:function(){importSubmission(season)}},"📥 Importer un fichier de soumission")));
-  if(!season.submissions.length)wrap.appendChild(h("div",{className:"empty"},"Aucune soumission reçue"));
+    h("button",{className:"btn btn-import sm",onclick:function(){importSubmission(squad)}},"📥 Importer un fichier de soumission")));
+  if(!squad.submissions.length)wrap.appendChild(h("div",{className:"empty"},"Aucune soumission reçue"));
 
-  season.campaigns.forEach(function(c){
-    var subs=campaignSubs(season,c.id).slice().sort(function(a,b){return (b.submittedAt||"").localeCompare(a.submittedAt||"")});
+  squad.campaigns.forEach(function(c){
+    var subs=campaignSubs(squad,c.id).slice().sort(function(a,b){return (b.submittedAt||"").localeCompare(a.submittedAt||"")});
     if(!subs.length)return;
     wrap.appendChild(h("div",{className:"section-title"},campaignLabel(c)+" · "+plural(subs.length,"soumission")));
     subs.forEach(function(sub){
@@ -2704,7 +3263,7 @@ function renderSubmissionsPane(season){
             h("div",{className:"muted",style:{marginTop:"2px"}},evaluated+"/"+sub.entries.length+" joueuses évaluées")),
           h("button",{className:"btn btn-danger-o xs",onclick:function(){
             if(!confirmAct("Supprimer cette soumission ?\nLes moyennes compilées seront recalculées."))return;
-            season.submissions=season.submissions.filter(function(x){return x.id!==sub.id});
+            squad.submissions=squad.submissions.filter(function(x){return x.id!==sub.id});
             saveNow();render();
           }},"🗑️")),
         h("div",{style:{display:"flex",gap:"4px",flexWrap:"wrap",marginTop:"8px"}},sub.entries.map(function(e){
@@ -2726,15 +3285,33 @@ function renderSubmissionsPane(season){
 /* Une « source » = une vue + le moyen d'obtenir le numéro de chaque joueuse */
 function svSources(){
   var out=[];
-  DB.seasons.forEach(function(s){
-    if(seasonClosed(s))return;                       // une saison clôturée ne distribue plus rien
-    s.selectorViews.forEach(function(v){
-      var c=campaignById(s,v.campaignId);
-      if(c&&c.closedAt)return;                       // ni une campagne close
-      out.push({view:v,kind:"local",season:s,seasonName:s.name,campaign:c});
+  /* Vues locales : seulement celles des équipes où je suis affecté comme
+     sélectionneur (constat R7 — un appareil partagé n'expose plus tout). */
+  DB.squads.forEach(function(sq){
+    if(seasonClosed(sq))return;
+    if(!canSelect(sq.teamId))return;
+    sq.selectorViews.forEach(function(v){
+      var c=campaignById(sq,v.campaignId);
+      if(c&&c.closedAt)return;
+      out.push({view:v,kind:"local",squad:sq,season:sq,seasonName:sq.name,campaign:c});
     });
   });
-  INBOX.views.forEach(function(v){out.push({view:v,kind:"inbox",season:null,seasonName:v.seasonName||"—",campaign:null})});
+  INBOX.views.forEach(function(v){
+    out.push({view:v,kind:"inbox",squad:null,season:null,seasonName:v.seasonName||v.teamName||"—",campaign:null});
+  });
+  return out;
+}
+/* Catalogues reçus : les équipes où je peux composer mes propres vues. */
+function svCatalogs(){
+  var out=(INBOX.catalogs||[]).slice();
+  /* Sur l'appareil de l'entraîneur, une équipe en vue libre est aussi
+     proposée sans passer par le relais. */
+  DB.squads.forEach(function(sq){
+    if(!sq.freeView||seasonClosed(sq)||!canSelect(sq.teamId))return;
+    if(out.some(function(c){return c.teamId===sq.teamId&&c.seasonId===sq.seasonId}))return;
+    var cat=buildCatalog(sq);
+    if(cat.players.length)out.push(cat);
+  });
   return out;
 }
 /* Libellé d'une athlète pour le sélectionneur. Par défaut : le numéro seul.
@@ -2756,7 +3333,7 @@ function svFind(id){
 }
 function svNumber(src,pid){
   if(!src)return "";
-  return src.kind==="local"?numOf(src.season,pid):((src.view.numbers||{})[pid]||"");
+  return src.kind==="local"?numOf(src.squad,pid):((src.view.numbers||{})[pid]||"");
 }
 function svEntry(view,pid){
   if(!view.data[pid])view.data[pid]=mkEntryData();
@@ -2798,7 +3375,7 @@ function renderSvViews(){
         SYNC.lastSyncAt?h("div",{className:"muted",style:{marginTop:"2px"}},"Dernier échange : "+fmtDate(SYNC.lastSyncAt)):null),
       h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("syncconfig")}},"⚙️")));
     syncBox.appendChild(h("div",{className:"btn-row",style:{marginTop:"10px"}},
-      h("button",{className:"btn btn-save sm",disabled:syncBusy,onclick:pullPackets},
+      h("button",{className:"btn btn-save sm",disabled:syncBusy,onclick:pullForSelector},
         syncBusy?"⏳ En cours…":"📥 Récupérer mes vues")));
   } else {
     syncBox.appendChild(h("div",{className:"row-between"},
@@ -2809,7 +3386,22 @@ function renderSvViews(){
   }
   wrap.appendChild(syncBox);
 
-  wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
+  /* Libre-service : choisir une équipe puis les athlètes à observer. */
+  var cats=svCatalogs();
+  if(cats.length){
+    wrap.appendChild(h("div",{className:"section-title"},"Composer moi-même une observation"));
+    cats.forEach(function(c){
+      wrap.appendChild(h("div",{className:"list-row"},
+        h("div",{className:"body"},
+          h("div",{className:"pname"},c.teamName+(c.category?" · "+c.category:"")),
+          h("div",{className:"psub"},plural(c.players.length,"athlète")+" · "+(c.campaignName||c.seasonName))),
+        h("button",{className:"btn btn-primary xs",onclick:function(){
+          state.modalSel=[];state.modalCtx=c.teamId+"|"+c.seasonId;openModal("pickathletes");
+        }},"+ Observer")));
+    });
+  }
+
+  wrap.appendChild(h("div",{className:"btn-row",style:{marginTop:"12px",marginBottom:"12px"}},
     h("button",{className:"btn btn-import sm",onclick:importPacket},"📥 Importer un paquet (fichier)")));
 
   if(!sources.length)wrap.appendChild(h("div",{className:"empty"},
@@ -3116,7 +3708,7 @@ function toggleSel(id){
 
 function renderModal(){
   if(!state.modalType)return null;
-  var season=curSeason(),T=state.modalType;
+  var season=curSquad(),T=state.modalType;
   var cancel=h("button",{className:"btn btn-ghost full",onclick:closeModal},"Annuler");
 
   /* ── Saison ── */
@@ -3153,7 +3745,7 @@ function renderModal(){
       cpy.value=d.copyFrom;
       cpy.addEventListener("change",function(e){d.copyFrom=e.target.value});
       body.appendChild(h("div",{className:"field"},h("label",null,"Effectif de départ"),cpy));
-      body.appendChild(h("div",{className:"muted"},"Votre base de joueuses reste commune à toutes les saisons. Les joueuses reprises arrivent au statut « Candidate », avec leur numéro — que vous pourrez modifier."));
+      body.appendChild(h("div",{className:"muted"},"Chaque équipe engagée dans la saison choisie retrouve ses convoquées, avec leur numéro et leur poste, au statut « Candidate ». La base de joueuses reste commune au club."));
     }
 
     return modalShell(s1?"Informations de la saison":"Nouvelle saison",body,
@@ -3166,13 +3758,256 @@ function renderModal(){
         } else {
           var ns=mkSeason(n);
           ns.category=d.category;ns.startDate=d.startDate;ns.endDate=d.endDate;ns.notes=d.notes;
-          var from=d.copyFrom?seasonById(d.copyFrom):null;
-          if(from)from.roster.forEach(function(e){ns.roster.push(mkRosterEntry(e.playerId,e.number,e.position))});
           DB.seasons.push(ns);DB.activeSeasonId=ns.id;
+          var from=d.copyFrom?seasonById(d.copyFrom):null;
+          if(from){
+            DB.squads.filter(function(sq){return sq.seasonId===from.id}).forEach(function(src){
+              var t=teamById(src.teamId);if(!t)return;
+              var nsq=ensureSquad(t.id,ns.id);if(!nsq)return;
+              /* Chaque joueuse revient avec son numéro et son poste, mais
+                 au statut Candidate : rien n'est acquis d'une année sur l'autre. */
+              src.roster.forEach(function(e){
+                if(rosterEntry(nsq,e.playerId))return;
+                nsq.roster.push(mkRosterEntry(e.playerId,e.number,e.position));
+              });
+            });
+          }
           state.seasonPane="selection";state.expandedPlayerId=null;state.evalCampaignId=null;clearUndo();
         }
         state.modalDraft=null;closeModal();saveNow();showToast(s1?"✅ Saison mise à jour":"✅ « "+n+" » créée");
       }},s1?"Enregistrer":"Créer")]);
+  }
+
+  /* ── Contexte et identité ── */
+  if(T==="ctxpicker"){
+    var all=myContexts();
+    return modalShell("J'agis en tant que",
+      h("div",null,
+        all.length?h("div",{className:"muted",style:{marginBottom:"10px"}},
+          "Un rôle vaut pour une équipe. Basculer change les écrans et le périmètre, pas votre identité."):null,
+        all.length?h("div",null,all.map(function(c){
+          var on=sameCtx(c,state.ctx);
+          var col=c.role==="admin"?ADMIN_CTX.color:ROLES[c.role].color;
+          var b=h("button",{className:"court-toggle"+(on?" on":""),
+            style:{width:"100%",textAlign:"left",padding:"12px 14px",marginBottom:"6px"},
+            onclick:function(){closeModal();switchCtx(c)}},ctxLabel(c));
+          if(on){b.style.borderColor=col;b.style.color=col}
+          return b;
+        })):h("div",{className:"empty"},"Aucune affectation. Demandez à votre administrateur de vous rattacher à une équipe.")),
+      [h("button",{className:"btn btn-ghost full",onclick:closeModal},"Fermer")],"420px");
+  }
+  if(T==="whoami"){
+    return modalShell("Qui utilise cet appareil ?",
+      h("div",null,
+        h("div",{className:"muted",style:{marginBottom:"10px"}},
+          "Ce choix détermine les équipes et les rôles disponibles. Il reste local à cet appareil."),
+        h("div",null,DB.people.filter(function(p){return !p.revoked}).map(function(p){
+          var on=p.id===state.meId;
+          return h("button",{className:"court-toggle"+(on?" on":""),
+            style:{width:"100%",textAlign:"left",padding:"12px 14px",marginBottom:"6px"},
+            onclick:function(){
+              state.meId=p.id;state.ctx=null;normalizeCtx();
+              state.tab=(tabsForCtx()[0]||{}).key;
+              closeModal();saveNow();render();
+            }},(p.isAdmin?"🛡️ ":"")+p.name+(on?"  ✓":""));
+        }))),
+      [h("button",{className:"btn btn-ghost full",onclick:closeModal},"Fermer")],"420px");
+  }
+
+  /* ── Personnes et affectations (administration) ── */
+  if(T==="newperson"||T==="editperson"){
+    var per=T==="editperson"?personById(state.modalCtx):null;
+    if(T==="editperson"&&!per)return null;
+    var pd=state.modalDraft||(state.modalDraft=per
+      ?{name:per.name,isAdmin:!!per.isAdmin,revoked:!!per.revoked}
+      :{name:"",isAdmin:false,revoked:false});
+    var nInp=h("input",{placeholder:"Prénom et nom",value:pd.name});
+    nInp.addEventListener("input",function(e){pd.name=e.target.value});
+    function toggleBtn(label,key){
+      var b=h("button",{className:"court-toggle"+(pd[key]?" on":""),
+        style:{width:"100%",textAlign:"center",padding:"10px"}},label);
+      b.onclick=function(){pd[key]=!pd[key];b.className="court-toggle"+(pd[key]?" on":"")};
+      return b;
+    }
+    return modalShell(per?"Modifier la personne":"Nouvelle personne",
+      h("div",null,
+        h("div",{className:"field"},h("label",null,"Nom"),nInp),
+        h("div",{className:"field"},h("label",null,"Administrateur du club"),toggleBtn("🛡️ Administrateur",'isAdmin')),
+        per?h("div",{className:"field"},h("label",null,"Compte"),toggleBtn("Révoquée",'revoked')):null,
+        h("div",{className:"muted"},"L'administrateur gère les équipes, les affectations et les saisons. Il ne saisit pas les matchs et n'évalue pas.")),
+      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+        var n=(pd.name||"").trim();
+        if(!n){showToast("⚠️ Entrez un nom");return}
+        if(per){
+          if(per.isAdmin&&!pd.isAdmin&&DB.people.filter(function(x){return x.isAdmin&&!x.revoked}).length<=1){
+            showToast("⚠️ Gardez au moins un administrateur");return;
+          }
+          per.name=n;per.isAdmin=!!pd.isAdmin;per.revoked=!!pd.revoked;
+          if(per.revoked)revokeToken(per);
+        } else DB.people.push(mkPerson({name:n,isAdmin:!!pd.isAdmin}));
+        state.modalDraft=null;normalizeCtx();closeModal();saveNow();
+        showToast(per?"✅ Mise à jour":"✅ « "+n+" » ajoutée");
+      }},per?"Enregistrer":"Ajouter")],"420px");
+  }
+  if(T==="assign"){
+    var ap=personById(state.modalCtx);
+    if(!ap)return null;
+    var ad=state.modalDraft||(state.modalDraft={teamId:(DB.teams[0]||{}).id||"",role:"coach"});
+    var tSel=h("select",null,DB.teams.map(function(t){return h("option",{value:t.id},t.name)}));
+    tSel.value=ad.teamId;
+    tSel.addEventListener("change",function(e){ad.teamId=e.target.value});
+    var rSel=h("select",null,ROLE_KEYS.map(function(k){return h("option",{value:k},ROLES[k].icon+" "+ROLES[k].label)}));
+    rSel.value=ad.role;
+    rSel.addEventListener("change",function(e){ad.role=e.target.value});
+    return modalShell("Affecter "+ap.name,
+      h("div",null,
+        h("div",{className:"field"},h("label",null,"Équipe"),tSel),
+        h("div",{className:"field"},h("label",null,"Rôle"),rSel),
+        h("div",{className:"muted"},"Une personne peut cumuler plusieurs affectations : entraîner une équipe et en évaluer une autre.")),
+      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+        if(!ad.teamId){showToast("⚠️ Choisissez une équipe");return}
+        var dup=DB.assignments.some(function(a){
+          return a.personId===ap.id&&a.teamId===ad.teamId&&a.role===ad.role;});
+        if(dup){showToast("⚠️ Affectation déjà présente");return}
+        DB.assignments.push(mkAssignment(ap.id,ad.teamId,ad.role));
+        if(ap.token&&syncReady())grantToken(ap,ad.teamId,ad.role).catch(function(){});
+        state.modalDraft=null;normalizeCtx();closeModal();saveNow();showToast("✅ Affectée");
+      }},"Affecter")],"420px");
+  }
+  if(T==="invite"){
+    var ip=personById(state.modalCtx);
+    if(!ip)return null;
+    var ia=DB.assignments.filter(function(a){return a.personId===ip.id});
+    var target=state.modalInput2||(ia.length?ia[0].id:"");
+    var aSel=h("select",null,ia.map(function(a){
+      var t=teamById(a.teamId);
+      return h("option",{value:a.id},ROLES[a.role].icon+" "+ROLES[a.role].label+" · "+(t?t.name:"—"));
+    }));
+    aSel.value=target;
+    aSel.addEventListener("change",function(e){state.modalInput2=e.target.value});
+    var linkBox=h("textarea",{className:"txt",rows:"3",readonly:"readonly"});
+    linkBox.value=inviteLink(ip)||"";
+    linkBox.addEventListener("focus",function(){linkBox.select()});
+    return modalShell("Inviter "+ip.name,
+      h("div",null,
+        !syncReady()?h("div",{className:"hint warn"},"Configurez d'abord le relais (🛡️ Administration → Relais)."):null,
+        ip.isAdmin?null:(ia.length?h("div",{className:"field"},h("label",null,"Au titre de"),aSel)
+          :h("div",{className:"hint warn"},"Affectez d'abord cette personne à une équipe.")),
+        h("div",{className:"field"},h("label",null,"Lien personnel"),linkBox),
+        h("div",{className:"btn-row"},
+          h("button",{className:"btn btn-primary sm",disabled:!syncReady(),onclick:function(){
+            var a=null;ia.forEach(function(x){if(x.id===(state.modalInput2||target))a=x});
+            if(!ip.isAdmin&&!a){showToast("⚠️ Choisissez une affectation");return}
+            showToast("⏳ Émission du jeton…");
+            grantToken(ip,a?a.teamId:"",a?a.role:"admin").then(function(){
+              linkBox.value=inviteLink(ip);
+              saveNow();showToast("🔑 Jeton émis — copiez le lien");render();
+            }).catch(function(err){showToast("⚠️ "+err.message)});
+          }},ip.token?"🔄 Réémettre":"🔑 Émettre le jeton"),
+          ip.token?h("button",{className:"btn btn-ghost sm",onclick:function(){
+            var l=inviteLink(ip);
+            if(navigator.clipboard&&navigator.clipboard.writeText)
+              navigator.clipboard.writeText(l).then(function(){showToast("🔗 Lien copié")},function(){linkBox.select()});
+            else linkBox.select();
+          }},"📋 Copier"):null),
+        h("div",{className:"hint warn",style:{marginTop:"12px"}},
+          "Ce lien vaut identité : ne le transmettez qu'à ",h("b",null,ip.name),". Il est révocable à tout moment depuis l'onglet Relais.")),
+      [h("button",{className:"btn btn-ghost full",onclick:closeModal},"Fermer")],"440px");
+  }
+
+  /* ── Équipes durables (administration) ── */
+  if(T==="newteam"||T==="editteam"){
+    var tRec=T==="editteam"?teamById(state.modalCtx):null;
+    if(T==="editteam"&&!tRec)return null;
+    var td=state.modalDraft||(state.modalDraft=tRec
+      ?{name:tRec.name,category:tRec.category||"",freeView:!!tRec.freeView}
+      :{name:"",category:"",freeView:false});
+    var tnInp=h("input",{placeholder:"Ex. U15 Wonders",value:td.name});
+    tnInp.addEventListener("input",function(e){td.name=e.target.value});
+    var tcSel=h("select",null,h("option",{value:""},"Non précisée"),
+      CATEGORIES.map(function(c){return h("option",{value:c},c)}));
+    tcSel.value=td.category;
+    tcSel.addEventListener("change",function(e){td.category=e.target.value});
+    var fvBtn=h("button",{className:"court-toggle"+(td.freeView?" on":""),
+      style:{width:"100%",textAlign:"center",padding:"10px"}},
+      td.freeView?"👁 Vue libre — le sélectionneur choisit":"🔒 Vue imposée — l'entraîneur compose");
+    fvBtn.onclick=function(){
+      td.freeView=!td.freeView;
+      fvBtn.className="court-toggle"+(td.freeView?" on":"");
+      fvBtn.textContent=td.freeView?"👁 Vue libre — le sélectionneur choisit":"🔒 Vue imposée — l'entraîneur compose";
+    };
+    return modalShell(tRec?"Modifier l'équipe":"Nouvelle équipe",
+      h("div",null,
+        h("div",{className:"field"},h("label",null,"Nom"),tnInp),
+        h("div",{className:"field"},h("label",null,"Catégorie"),tcSel),
+        h("div",{className:"field"},h("label",null,"Composition des vues"),fvBtn,
+          h("div",{className:"muted",style:{marginTop:"5px"}},
+            "En vue libre, l'entraîneur publie le catalogue de l'équipe et chaque sélectionneur choisit les athlètes qu'il observe."))),
+      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+        var n=(td.name||"").trim();
+        if(!n){showToast("⚠️ Entrez un nom");return}
+        if(tRec){
+          tRec.name=n;tRec.category=td.category;tRec.freeView=!!td.freeView;
+          /* Les copies portées par les squads suivent l'équipe. */
+          DB.squads.forEach(function(sq){
+            if(sq.teamId!==tRec.id)return;
+            sq.name=tRec.name;sq.category=tRec.category;sq.freeView=tRec.freeView;
+          });
+        } else {
+          var nt=mkTeamRecord({name:n,category:td.category,freeView:!!td.freeView});
+          DB.teams.push(nt);
+          var m=me();
+          if(m)DB.assignments.push(mkAssignment(m.id,nt.id,"coach"));
+        }
+        state.modalDraft=null;normalizeCtx();closeModal();saveNow();
+        showToast(tRec?"✅ Mise à jour":"✅ « "+n+" » créée");
+      }},tRec?"Enregistrer":"Créer")],"420px");
+  }
+
+  /* ── Sélectionneur : composer sa propre observation ── */
+  if(T==="pickathletes"){
+    var parts=String(state.modalCtx||"").split("|");
+    var cat=null;
+    svCatalogs().forEach(function(c){if(c.teamId===parts[0]&&c.seasonId===parts[1])cat=c});
+    if(!cat)return null;
+    var items=cat.players.slice().sort(function(a,b){
+      return (parseInt(a.number,10)||999)-(parseInt(b.number,10)||999);
+    }).map(function(pl){
+      return {id:pl.playerId,label:numLabel(pl.number)+(pl.position?" "+pl.position:"")};
+    });
+    return modalShell("Observer — "+cat.teamName,
+      h("div",null,
+        h("div",{className:"muted",style:{marginBottom:"10px"}},
+          "Cochez les athlètes que vous souhaitez évaluer. Vous les reconnaissez à leur numéro et à leur poste."),
+        selCount(),
+        toggleGrid(items,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){toggleSel(it.id)})),
+      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+        if(!state.modalSel.length){showToast("⚠️ Choisissez au moins une athlète");return}
+        var m=me();
+        var v=mkSelectorView({
+          name:cat.teamName+" · "+(cat.campaignName||"observation"),
+          selectorName:m?m.name:"",
+          criteria:(cat.criteria||[]).filter(function(c){return CRIT_BY_KEY[c]}),
+          groups:(cat.groups||[]).filter(function(g){return SG[g]}),
+          anonymous:true,origin:"self",
+          campaignId:cat.campaignId,campaignName:cat.campaignName||"",
+          seasonId:cat.seasonId,seasonName:cat.seasonName||""
+        });
+        if(!v.criteria.length)v.criteria=CRITERIA.map(function(c){return c.key});
+        if(!v.groups.length)v.groups=SG_KEYS.slice();
+        v.teamId=cat.teamId;v.teamName=cat.teamName;
+        v.numbers={};v.labels={};
+        var byId={};cat.players.forEach(function(pl){byId[pl.playerId]=pl});
+        state.modalSel.forEach(function(pid){
+          var pl=byId[pid];if(!pl)return;
+          v.playerIds.push(pid);
+          v.numbers[pid]=pl.number;
+          v.data[pid]=mkEntryData();
+        });
+        INBOX.views.push(v);
+        state.svViewId=v.id;state.svPlayerId=null;state.tab="sv_eval";
+        closeModal();saveNow();showToast("✅ "+plural(v.playerIds.length,"athlète")+" à évaluer");
+      }},"Créer mon observation")],"440px");
   }
 
   /* ── Campagnes ── */
@@ -3294,71 +4129,6 @@ function renderModal(){
         state.modalDraft=null;saveSync();closeModal();showToast("📡 Synchronisation activée");
       }},"Enregistrer")],"440px");
   }
-  if(T==="sharelink"){
-    var link=shareLink();
-    var ta2=h("textarea",{className:"txt",rows:"3",readonly:"readonly"});
-    ta2.value=link;
-    ta2.addEventListener("focus",function(){ta2.select()});
-    return modalShell("Lien pour vos sélectionneurs",
-      h("div",null,
-        h("div",{className:"muted",style:{marginBottom:"10px"}},
-          "Envoyez ce lien à chaque sélectionneur. En l'ouvrant sur son propre téléphone, l'application se configure seule et se place en mode sélectionneur — il n'a plus qu'à récupérer ses vues."),
-        ta2,
-        h("div",{className:"btn-row",style:{marginTop:"10px"}},
-          h("button",{className:"btn btn-primary sm",onclick:function(){
-            if(navigator.clipboard&&navigator.clipboard.writeText)
-              navigator.clipboard.writeText(link).then(function(){showToast("🔗 Lien copié")},function(){showToast("Sélectionnez le texte pour le copier")});
-            else{ta2.select();showToast("Sélectionnez le texte pour le copier")}
-          }},"📋 Copier"),
-          navigator.share?h("button",{className:"btn btn-ghost sm",onclick:function(){
-            navigator.share({title:"WonderStats — vue sélectionneur",url:link}).catch(function(){});
-          }},"↗ Partager"):null),
-        h("div",{className:"hint warn",style:{marginTop:"12px"}},"Ce lien contient le code de salon : toute personne qui l'obtient peut lire les vues publiées et déposer des soumissions.")),
-      [h("button",{className:"btn btn-ghost full",onclick:closeModal},"Fermer")],"440px");
-  }
-
-  /* ── Équipe ── */
-  if(T==="newteam"){
-    return modalShell("Nouvelle équipe",
-      textField("Ex. U15 · Équipe A",state.modalInput,function(v){state.modalInput=v},"Nom de l'équipe"),
-      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
-        var n=(state.modalInput||"").trim();if(!n||!season){showToast("⚠️ Entrez un nom");return}
-        var t=mkTeam(n);season.teams.push(t);season.activeTeamId=t.id;clearUndo();
-        closeModal();saveNow();showToast("✅ « "+n+" » créée");
-      }},"Créer")]);
-  }
-  if(T==="renameteam"){
-    var t0=null;if(season)season.teams.forEach(function(x){if(x.id===state.modalCtx)t0=x});
-    if(t0&&!state.modalInput)state.modalInput=t0.name;
-    return modalShell("Renommer l'équipe",
-      textField("Nom",state.modalInput,function(v){state.modalInput=v}),
-      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
-        var n=(state.modalInput||"").trim();if(!n||!t0){showToast("⚠️ Entrez un nom");return}
-        t0.name=n;closeModal();saveNow();showToast("✅ Renommée");
-      }},"Renommer")]);
-  }
-  if(T==="teamroster"){
-    var tr=null;if(season)season.teams.forEach(function(x){if(x.id===state.modalCtx)tr=x});
-    if(!tr)return null;
-    if(!state.modalSel.length&&tr.playerIds.length)state.modalSel=tr.playerIds.slice();
-    var items=season.roster.map(function(e){
-      var p=playerById(e.playerId);
-      return {id:e.playerId,label:(e.number?"#"+e.number+" ":"")+shortName(p)+" "+(STATUSES[e.status].icon)};
-    });
-    return modalShell("Composer « "+tr.name+" »",
-      h("div",null,selCount(),
-        toggleGrid(items,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){toggleSel(it.id)}),
-        h("div",{className:"muted",style:{marginTop:"10px"}},"Astuce : le bouton « Composer l'équipe » de l'onglet Sélection ajoute automatiquement toutes les joueuses retenues.")),
-      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
-        var keep=state.modalSel.slice();
-        tr.playerIds.forEach(function(pid){if(keep.indexOf(pid)===-1)detachFromTeam(tr,pid)});
-        keep.forEach(function(pid){if(tr.playerIds.indexOf(pid)===-1)tr.playerIds.push(pid)});
-        tr.lineup=tr.lineup.filter(function(pid){return tr.playerIds.indexOf(pid)!==-1});
-        closeModal();saveNow();showToast("✅ Équipe mise à jour");
-      }},"Enregistrer")],"460px");
-  }
-
-  /* ── Joueuses ── */
   if(T==="newplayer"||T==="editplayer"){
     var p0=T==="editplayer"?playerById(state.modalCtx):null;
     if(T==="editplayer"&&!p0)return null;
@@ -3397,9 +4167,9 @@ function renderModal(){
         showToast(p0.archived?"📦 Archivée":"↩ Réactivée");
       }},p0.archived?"Réactiver":"📦 Archiver"));
       btns.push(h("button",{className:"btn btn-danger-o full",onclick:function(){
-        var used=DB.seasons.filter(function(s){return rosterEntry(s,p0.id)}).length;
-        if(!confirmAct("Supprimer définitivement "+fullName(p0)+" ?\nElle sera retirée de "+plural(used,"saison")+" et tout son historique sera perdu."))return;
-        DB.seasons.forEach(function(s){removeFromSeason(s,p0.id)});
+        var used=squadsOf(p0.id).length;
+        if(!confirmAct("Supprimer définitivement "+fullName(p0)+" ?\nElle sera retirée de "+plural(used,"équipe-saison")+" et tout son historique sera perdu."))return;
+        squadsOf(p0.id).forEach(function(sq){removeFromSquad(sq,p0.id)});
         DB.players=DB.players.filter(function(x){return x.id!==p0.id});
         state.modalDraft=null;closeModal();saveNow();showToast("🗑️ Supprimée");
       }},"Supprimer"));
@@ -3411,7 +4181,7 @@ function renderModal(){
         (season&&(!p0||entry0))?h("div",{className:"muted",style:{margin:"-4px 0 10px"}},
           "Vous pouvez le laisser vide et le renseigner plus tard dans le tableau de sélection."):null,
         h("div",{className:"field"},h("label",null,"Notes"),notes),
-        p0?h("div",{className:"muted"},"Présente dans "+plural(DB.seasons.filter(function(s){return rosterEntry(s,p0.id)}).length,"saison")):null),
+        p0?h("div",{className:"muted"},"Présente dans "+plural(squadsOf(p0.id).length,"équipe-saison")):null),
       btns);
   }
   if(T==="bulkplayers"){
@@ -3645,52 +4415,63 @@ function restoreScrollPos(){
    ══════════════════════════════════════════════════════════════ */
 var TITLES={
   season:"Saison 🗓️",players:"Joueuses 👥",summary:"Récapitulatif",selection:"Vues sélectionneur",
-  sv_views:"Mes vues 🎯",sv_eval:"Évaluation",sv_submit:"Soumission"
+  sv_views:"Mes vues 🎯",sv_eval:"Évaluation",sv_submit:"Soumission",
+  adm_people:"Personnes 👤",adm_teams:"Équipes 👕",adm_seasons:"Saisons 🗓️",
+  adm_players:"Base de joueuses",adm_sync:"Relais 📡"
 };
 function render(){
   saveScrollPos();
   var app=document.getElementById("app");if(!app)return;
   app.innerHTML="";
-  var season=curSeason(),team=curTeam(),isCoach=state.role==="coach";
+  normalizeCtx();
+  if(!tabsForCtx().some(function(t){return t.key===state.tab}))state.tab=(tabsForCtx()[0]||{}).key;
+
+  var season=curSeason(),squad=isCoachCtx()?curSquad():null;
   var title=TITLES[state.tab]||"WonderStats";
   if(state.tab==="input")title=state.inputMode==="quick"?"Saisie rapide":"Saisie grille";
 
   /* Boutons d'en-tête */
   var leftEl=null,rightEl=null;
-  if(isCoach&&state.tab==="input"&&team){
+  if(isCoachCtx()&&state.tab==="input"&&squad){
     var undoBtn=h("button",{className:"btn btn-undo xs",disabled:!undoStack.length,onclick:doUndo},"↩");
     undoBtn.id="undoBtn";
     leftEl=h("div",{style:{display:"flex",gap:"4px"}},undoBtn,
       h("button",{className:"btn btn-danger-o xs",onclick:function(){
         if(!confirmAct("Réinitialiser toutes les statistiques de la saisie en cours ?"))return;
-        pushUndoStats("Réinitialisation");team.stats={};scheduleAutoSave();showToast("🔄 Réinitialisé");render();
+        pushUndoStats("Réinitialisation");squad.stats={};scheduleAutoSave();showToast("🔄 Réinitialisé");render();
       }},"Reset"));
     var isQuick=state.inputMode==="quick";
     rightEl=h("button",{className:"mode-toggle"+(isQuick?"":" active"),onclick:function(){
       state.inputMode=isQuick?"grid":"quick";state.quickPlayer=null;saveNow();render();
     }},isQuick?"Grille":"Rapide");
-  } else if(!isCoach&&state.tab==="sv_eval"){
+  } else if(isSelectorCtx()&&state.tab==="sv_eval"){
     var ub=h("button",{className:"btn btn-undo xs",disabled:!undoStack.length,onclick:doUndo},"↩");
     ub.id="undoBtn";leftEl=ub;
-    rightEl=roleBadge();
   }
-  if(!rightEl)rightEl=roleBadge();
-  if(!leftEl&&isCoach&&state.tab==="summary"&&team)
+  if(!rightEl)rightEl=ctxBadge();
+  if(!leftEl&&isCoachCtx()&&state.tab==="summary"&&squad)
     leftEl=h("button",{className:"btn btn-save xs",onclick:function(){openModal("savesession")}},"💾");
 
   app.appendChild(renderHeader(title,leftEl,rightEl));
-
-  /* Barres de contexte */
-  if(isCoach){
-    app.appendChild(renderSeasonBar());
-    if(season&&(state.tab==="input"||state.tab==="summary"||state.tab==="season"))app.appendChild(renderTeamBar());
-  }
+  app.appendChild(renderCtxBar());
+  if(isCoachCtx()&&season)app.appendChild(renderSeasonBar());
 
   /* Contenu */
   var content;
-  if(isCoach){
+  if(!state.ctx){
+    content=emptyBlock("🔑","Aucun contexte",
+      "Cet appareil n'est rattaché à aucune équipe. Demandez à votre administrateur une affectation, ou ouvrez le lien d'invitation qu'il vous a transmis.",
+      DB.people.length?h("button",{className:"btn btn-primary",onclick:function(){openModal("whoami")}},"Choisir qui je suis"):null);
+  } else if(isAdminCtx()){
+    if(state.tab==="adm_people")content=renderAdminPeople();
+    else if(state.tab==="adm_teams")content=renderAdminTeams();
+    else if(state.tab==="adm_seasons")content=renderAdminSeasons();
+    else if(state.tab==="adm_players")content=renderAdminPlayers();
+    else content=renderAdminSync();
+  } else if(isCoachCtx()){
     if(!season)content=emptyBlock("🏐","WonderStats","Créez votre première saison pour démarrer.",
-      h("button",{className:"btn btn-primary",onclick:function(){openModal("newseason")}},"+ Créer une saison"));
+      isAdmin()?h("button",{className:"btn btn-primary",onclick:function(){openModal("newseason")}},"+ Créer une saison"):null);
+    else if(!squad)content=emptyBlock("👕","Équipe introuvable","Le contexte pointe vers une équipe qui n'existe plus.",null);
     else if(state.tab==="season")content=renderSeasonTab();
     else if(state.tab==="players")content=renderPlayersTab();
     else if(state.tab==="input")content=renderInputTab();
@@ -3719,19 +4500,57 @@ function render(){
 loadAll();
 loadSync();
 
-/* Lien de partage ouvert par un sélectionneur : l'application se
-   configure seule et bascule dans le bon rôle. */
+/* Lien d'invitation ouvert sur l'appareil d'un sélectionneur : il porte
+   un jeton personnel. L'identité et le périmètre viennent du relais, pas
+   du lien — c'est ce qui rend le jeton révocable. */
 (function(){
   var cfg=readShareLink();
   if(!cfg)return;
-  var changed=(cfg.url!==SYNC.url||cfg.room!==SYNC.room);
-  SYNC.url=cfg.url;SYNC.room=cfg.room;
-  if(changed)SYNC.pulled={packet:"",submission:""};
+  SYNC.url=cfg.url;SYNC.room=cfg.room;SYNC.token=cfg.token;
+  SYNC.pulled={packet:"",catalog:"",submission:""};
+  SYNC.identity=null;
   saveSync();clearHash();
-  state.role="selector";state.tab="sv_views";
-  saveAll();
-  setTimeout(function(){showToast("📡 Connecté au salon "+cfg.room)},300);
+  syncWhoami().then(function(data){
+    var g=data&&data.grant;
+    if(!g)throw new Error("Jeton inconnu du relais");
+    SYNC.identity=g;saveSync();
+    adoptRemoteIdentity(g);
+    showToast("📡 Bonjour "+(g.name||"")+" — "+(g.teamName||"")); 
+    render();
+  }).catch(function(err){
+    showToast("⚠️ "+err.message);render();
+  });
 })();
+
+/* Reconstitue localement la personne, l'équipe et l'affectation décrites
+   par le relais, pour que l'appareil du sélectionneur ait un contexte. */
+function adoptRemoteIdentity(g){
+  if(!g||!g.token)return;
+  var person=null;
+  DB.people.forEach(function(p){if(p.token===g.token)person=p});
+  if(!person){person=mkPerson({name:g.name||"Sélectionneur",token:g.token});DB.people.push(person)}
+  else person.name=g.name||person.name;
+  person.revoked=false;
+  state.meId=person.id;
+
+  if(g.role==="admin"){person.isAdmin=true;normalizeCtx();saveAll();return}
+  if(!g.teamId){normalizeCtx();saveAll();return}
+
+  var team=teamById(g.teamId);
+  if(!team){
+    team=mkTeamRecord({id:g.teamId,name:g.teamName||"Équipe"});
+    DB.teams.push(team);
+  } else if(g.teamName)team.name=g.teamName;
+
+  var role=ROLES[g.role]?g.role:"selector";
+  var has=DB.assignments.some(function(a){
+    return a.personId===person.id&&a.teamId===team.id&&a.role===role;
+  });
+  if(!has)DB.assignments.push(mkAssignment(person.id,team.id,role));
+  state.ctx={role:role,teamId:team.id};
+  state.tab=(tabsForCtx()[0]||{}).key;
+  normalizeCtx();saveAll();
+}
 
 render();
 

@@ -11,7 +11,7 @@ demandent pas de carte bancaire — choisissez celle qui correspond à vos habit
 | | Cloudflare Worker | Google Apps Script |
 |---|---|---|
 | Compte requis | Cloudflare | Google |
-| Stockage | KV, purge automatique à 120 jours | Une feuille de calcul |
+| Stockage | KV, purge automatique à 120 jours | Deux feuilles : `items` et `grants` |
 | Mise en place | ligne de commande (`wrangler`) | tout dans le navigateur |
 | Recommandé si | vous êtes à l'aise avec un terminal | vous préférez rester dans Drive |
 
@@ -56,24 +56,47 @@ soumissions** côté entraîneur.
 
 ## Contrat HTTP
 
-Tout autre serveur respectant ce contrat fait l'affaire.
+Tout autre serveur respectant ce contrat fait l'affaire. **Toute requête porte un
+jeton** ; le premier jeton présenté sur un salon vierge en devient propriétaire.
 
 ```
 GET  {url}?action=ping&room=CODE
-     → {"ok":true,"room":"CODE","at":"2026-08-29T14:00:00.000Z"}
+GET  {url}?action=whoami&room=CODE&token=T
+     → {"ok":true,"grant":{"token":"…","name":"Marie T.","role":"selector",
+                            "teamId":"…","teamName":"U15 Wonders"},"isOwner":false}
 
-GET  {url}?action=list&room=CODE&kind=packet|submission&since=ISO
-     → {"ok":true,"items":[{"id":"…","kind":"packet","at":"ISO","payload":{…}}]}
+GET  {url}?action=list&room=CODE&token=T&kind=packet|catalog|submission&since=ISO
+     → {"ok":true,"items":[{"id":"…","kind":"packet","teamId":"…","at":"ISO",
+                             "to":"…","by":{…},"payload":{…}}]}
 
-POST {url}?action=publish        Content-Type: text/plain;charset=utf-8
-     corps {"room":"CODE","kind":"packet","id":"…","payload":{…}}
-     → {"ok":true,"id":"…","at":"ISO"}
+POST {url}?action=publish   Content-Type: text/plain;charset=utf-8
+     {"room":"CODE","token":"T","kind":"packet","id":"…","teamId":"…",
+      "to":"jeton du destinataire (facultatif)","payload":{…}}
+
+POST {url}?action=grant     {"room","token","grant":{token,name,role,teamId,teamName}}
+POST {url}?action=revoke    {"room","token","target":"jeton à révoquer"}
 ```
 
-Contraintes attendues côté serveur : `room` sur `[A-Za-z0-9_-]{4,64}`, `kind`
-limité à `packet` ou `submission`, un `id` déjà présent est **remplacé** (une vue
-republiée ne s'empile pas), réponse d'erreur `{"ok":false,"error":"…"}`, et les
-en-têtes CORS `Access-Control-Allow-Origin: *`.
+### Autorisations à faire respecter
+
+| Porteur | publish | list |
+|---|---|---|
+| propriétaire / `admin` | tout | tout |
+| `coach` de T | `packet`, `catalog` sur T | les `submission` de T, et ses propres dépôts |
+| `selector` de T | `submission` sur T | les `catalog` de T, et les `packet` non adressés ou qui lui sont adressés |
+
+Trois règles font la valeur du relais — les retirer viderait le dispositif :
+
+1. **un `selector` ne lit jamais un `submission`**, y compris le sien ;
+2. un dépôt portant `to` n'est lisible que par le jeton nommé ;
+3. le champ `by` est **écrit par le serveur** à partir du jeton présenté, jamais
+   repris du corps de la requête.
+
+Autres contraintes : `room` sur `[A-Za-z0-9_-]{4,64}`, `token` sur
+`[A-Za-z0-9]{16,64}`, un `id` déjà présent est **remplacé** (republier une vue ne
+l'empile pas), erreurs en `{"ok":false,"error":"…"}`, en-tête
+`Access-Control-Allow-Origin: *`. Un `coach` ne peut émettre un jeton que sur son
+équipe, et jamais un jeton `admin`.
 
 Les corps sont envoyés en `text/plain` à dessein : cela évite la requête
 préliminaire CORS qu'Apps Script ne sait pas traiter.
@@ -87,9 +110,12 @@ préliminaire CORS qu'Apps Script ne sait pas traiter.
   voit le relais.
 - Une **vue nominative**, que l'entraîneur active explicitement pour un bilan de
   fin de saison, contient un nom abrégé par athlète (« Léa T. »).
-- Le **code de salon fait office de mot de passe partagé** : il n'y a pas de
-  compte utilisateur. Toute personne qui obtient le lien peut lire les vues
-  publiées et déposer des soumissions. Changez-en entre deux saisons, et ne le
-  diffusez qu'à vos sélectionneurs.
+- Chaque personne reçoit un **jeton personnel**, émis à l'invitation et
+  révocable. Le relais ne restitue à chacun que ce qui lui revient : un
+  sélectionneur n'accède ni aux soumissions, ni aux vues adressées à ses
+  collègues.
+- **Un jeton identifie, il n'authentifie pas.** Quiconque obtient un lien
+  d'invitation en prend l'identité. Révoquez-le si un appareil est perdu, et
+  changez de salon entre deux saisons.
 - Les données restent chez **vous** : le relais est déployé sur votre propre
   compte Cloudflare ou Google.

@@ -161,7 +161,7 @@ jusque dans ce qui transite par le relais.
 
 ## 7. Vérification
 
-Cinq suites Playwright pilotent l'application réelle (`tests/run.sh`, **88 contrôles**, aucune erreur JS) :
+Six suites Playwright pilotent l'application réelle (`tests/run.sh`, **117 contrôles**, aucune erreur JS) :
 
 | Suite | Ce qui est vérifié |
 |---|---|
@@ -169,9 +169,48 @@ Cinq suites Playwright pilotent l'application réelle (`tests/run.sh`, **88 cont
 | `e2e.js` | Parcours complet saison → vues → évaluation → soumission → compilation → sélection → match. Anonymat contrôlé dans le DOM **et** dans le paquet exporté. Aucune référence orpheline après suppression. Aucun numéro attribué automatiquement. |
 | `modals.js` | Les 17 modales s'ouvrent, se rendent et se ferment sans fuite d'état ; le numéro saisi est conservé, un doublon est refusé. |
 | `campaigns.js` | A1 : 2,0 en sélection et 4,0 en fin de saison restent distincts, la progression vaut +2,0, l'écran est cloisonné. A2 : une copie de vue repart vierge. A3 : une campagne ou une saison close disparaît du rôle sélectionneur. A5, A6, A7, A10. |
-| `sync.js` | **Deux navigateurs isolés** : l'entraîneur publie, le lien configure l'appareil du sélectionneur, celui-ci récupère ses vues, évalue, téléverse ; l'entraîneur relève. Contrôles : aucun nom sur le relais, aucune donnée de l'entraîneur sur l'appareil du sélectionneur, pas de doublon au second relevé, relais injoignable signalé et non silencieux, repli par fichier disponible. |
+| `roles.js` | La matrice des accès : Sofia cumule entraîneuse des U15 et sélectionneuse des U18, chacun ne voit que son périmètre, un contexte forgé ne survit pas au rendu, le catalogue de vue libre ne contient ni nom ni donnée superflue, l'export d'équipe n'emporte pas les collègues, et supprimer une équipe ne laisse aucune affectation orpheline. |
+| `sync.js` | **Trois navigateurs isolés** contre un relais simulé conforme au contrat v2. Au-delà du parcours nominal, la suite vérifie ce que le relais **refuse** : Karl ne voit pas la vue adressée à Marie, aucun sélectionneur ne peut lister les soumissions, un sélectionneur ne peut pas publier une vue forgée, un jeton inconnu est rejeté, un jeton révoqué coupe l'accès. Plus : identité estampillée par le relais, catalogue sans nom, relais injoignable signalé. |
 
 L'application reste sans dépendance : Playwright ne sert qu'aux tests, `index.html` demeure autonome.
+
+## 8. Rôles, profils et accès (v4)
+
+Un troisième passage a porté sur le modèle d'autorisation : un parcours
+administrateur, des équipes durables, et un sélectionneur qui choisit lui-même
+ses athlètes. L'analyse complète et la matrice des accès sont dans
+[`ROLES.md`](ROLES.md) ; voici les dix constats et leur traitement.
+
+| Réf | Constat | Gravité | Correction |
+|---|---|---|---|
+| **R1** | Aucune identité en base : zéro occurrence de `userId`, `account`, `login`, `password` ou `auth`. `state.role` était une bascule d'interface à deux valeurs. | Critique | Modèle `people` / `teams` / `assignments`, contexte `(rôle, équipe)` et sélecteur de contexte. **Cadrage ergonomique, pas une barrière** — c'est dit explicitement partout. |
+| **R2** | Le salon du relais était un espace plat à secret partagé : `list` renvoyait tout, donc un sélectionneur pouvait lire les vues de ses collègues **et toutes les soumissions déposées**. | Critique | Contrat de relais v2 : jeton par personne, dépôts adressés, `list` filtré par jeton. Un sélectionneur ne lit plus aucune `submission`, la sienne comprise. |
+| **R3** | L'équipe n'avait ni existence durable ni propriétaire, et vivait dans une saison. | Majeur | `teams[]` durable, `squads[]` pour le croisement équipe × saison. Les campagnes descendent au squad : un entraîneur mène les siennes sans affecter ses collègues. |
+| **R4** | Le rôle était global là où le besoin est contextuel. | Majeur | Le rôle est une arête `(personne, équipe, rôle)`. « Entraîneur des U15 et sélectionneur des U18 » s'exprime enfin. |
+| **R5** | Le sélectionneur ne pouvait rien choisir. | Majeur | Nouveau type `catalog` (numéros et postes), réglage *vue libre* par équipe, et composition d'une vue par le sélectionneur lui-même. |
+| **R6** | La sauvegarde était tout-ou-rien. | Majeur | `📤 Exporter mon équipe` produit un club minuscule (une équipe, une saison, ses joueuses) ; la sauvegarde complète reste à l'administration. |
+| **R7** | Le rôle sélectionneur voyait toutes les saisons locales. | Modéré | `svSources()` est cloisonné par affectation : sur un appareil partagé, chacun ne voit que ses équipes. |
+| **R8** | `selectorName` était du texte libre, une soumission n'était pas attribuable. | Modéré | Le relais **estampille** l'identité du jeton (`by`), reprise à l'intégration avec le jeton d'origine. |
+| **R9** | La base de joueuses n'était pas cloisonnée. | Modéré | Partiellement traité : la base reste commune au club — la cloisonner casserait l'identité stable corrigée en A2 — mais l'écriture est périmétrée et la suppression réservée à l'administration. |
+| **R10** | Aucune trace des actions. | Mineur | **Non traité.** Reste ouvert. |
+
+### Ce qui change dans le modèle
+
+`season.teams[]` disparaît au profit de `squads[]`, indexé par `(teamId, seasonId)`.
+Le squad porte le roster, l'effectif, les statistiques, les sessions, les campagnes,
+les vues et les soumissions ; il embarque une copie du nom, de la catégorie et du
+réglage de vue de son équipe, recalculée à chaque chargement. La migration v3 → v4
+réunit les équipes homonymes de saisons différentes en une seule équipe durable,
+crée un administrateur et l'affecte à toutes les équipes trouvées.
+
+### Deux limites assumées
+
+- **Le cloisonnement côté client n'est pas une protection.** Sur un appareil, tout
+  reste modifiable depuis la console. Aucun texte d'interface ne prétend le
+  contraire ; la formulation retenue est « chacun voit ce qui le concerne ».
+- **Un jeton identifie, il n'authentifie pas.** Quiconque obtient un lien
+  d'invitation en prend l'identité. Il est révocable, ce qui suffit à l'usage
+  d'un club, et pas davantage.
 
 ## 8. Reste à considérer
 
