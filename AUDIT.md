@@ -161,7 +161,7 @@ jusque dans ce qui transite par le relais.
 
 ## 7. Vérification
 
-Six suites Playwright pilotent l'application réelle (`tests/run.sh`, **117 contrôles**, aucune erreur JS) :
+Six suites Playwright pilotent l'application réelle (`tests/run.sh`, **122 contrôles**, aucune erreur JS) :
 
 | Suite | Ce qui est vérifié |
 |---|---|
@@ -169,7 +169,7 @@ Six suites Playwright pilotent l'application réelle (`tests/run.sh`, **117 cont
 | `e2e.js` | Parcours complet saison → vues → évaluation → soumission → compilation → sélection → match. Anonymat contrôlé dans le DOM **et** dans le paquet exporté. Aucune référence orpheline après suppression. Aucun numéro attribué automatiquement. |
 | `modals.js` | Les 17 modales s'ouvrent, se rendent et se ferment sans fuite d'état ; le numéro saisi est conservé, un doublon est refusé. |
 | `campaigns.js` | A1 : 2,0 en sélection et 4,0 en fin de saison restent distincts, la progression vaut +2,0, l'écran est cloisonné. A2 : une copie de vue repart vierge. A3 : une campagne ou une saison close disparaît du rôle sélectionneur. A5, A6, A7, A10. |
-| `roles.js` | La matrice des accès : Sofia cumule entraîneuse des U15 et sélectionneuse des U18, chacun ne voit que son périmètre, un contexte forgé ne survit pas au rendu, le catalogue de vue libre ne contient ni nom ni donnée superflue, l'export d'équipe n'emporte pas les collègues, et supprimer une équipe ne laisse aucune affectation orpheline. |
+| `roles.js` | La matrice des accès : Sofia cumule entraîneuse des U15 et sélectionneuse des U18, chacun ne voit que son périmètre, un contexte forgé ne survit pas au rendu, le catalogue de vue libre ne contient ni nom ni donnée superflue, l'export d'équipe n'emporte pas les collègues, et supprimer une équipe ne laisse aucune affectation orpheline. Le journal signe ses entrées, fige le nom de l'auteur malgré un renommage, se cloisonne par équipe et reste borné. |
 | `sync.js` | **Trois navigateurs isolés** contre un relais simulé conforme au contrat v2. Au-delà du parcours nominal, la suite vérifie ce que le relais **refuse** : Karl ne voit pas la vue adressée à Marie, aucun sélectionneur ne peut lister les soumissions, un sélectionneur ne peut pas publier une vue forgée, un jeton inconnu est rejeté, un jeton révoqué coupe l'accès. Plus : identité estampillée par le relais, catalogue sans nom, relais injoignable signalé. |
 
 L'application reste sans dépendance : Playwright ne sert qu'aux tests, `index.html` demeure autonome.
@@ -192,7 +192,7 @@ ses athlètes. L'analyse complète et la matrice des accès sont dans
 | **R7** | Le rôle sélectionneur voyait toutes les saisons locales. | Modéré | `svSources()` est cloisonné par affectation : sur un appareil partagé, chacun ne voit que ses équipes. |
 | **R8** | `selectorName` était du texte libre, une soumission n'était pas attribuable. | Modéré | Le relais **estampille** l'identité du jeton (`by`), reprise à l'intégration avec le jeton d'origine. |
 | **R9** | La base de joueuses n'était pas cloisonnée. | Modéré | Partiellement traité : la base reste commune au club — la cloisonner casserait l'identité stable corrigée en A2 — mais l'écriture est périmétrée et la suppression réservée à l'administration. |
-| **R10** | Aucune trace des actions. | Mineur | **Non traité.** Reste ouvert. |
+| **R10** | Aucune trace des actions. | Mineur | Journal des décisions : statut de sélection, statut d'effectif, convocation et retrait, numéro, suppression d'une soumission, clôture, application des avis, affectations et jetons. Consultable par équipe (entraîneur) ou pour tout le club (administration). |
 
 ### Ce qui change dans le modèle
 
@@ -203,6 +203,19 @@ réglage de vue de son équipe, recalculée à chaque chargement. La migration v
 réunit les équipes homonymes de saisons différentes en une seule équipe durable,
 crée un administrateur et l'affecte à toutes les équipes trouvées.
 
+### Le journal (R10)
+
+Sont enregistrés les actes qui **engagent**, pas les frappes : un statut tranché,
+une soumission supprimée, une saison close. Chaque entrée fige le nom de son
+auteur au moment des faits — renommer une personne ne réécrit pas son historique —
+ainsi que le numéro que portait l'athlète alors. Les entrées ne sont ni
+modifiables ni supprimables, les 500 dernières sont conservées, et l'export
+d'équipe emporte le journal de cette équipe.
+
+Un entraîneur ne voit que le journal de son équipe ; l'administrateur voit tout le
+club. Comme le reste du cloisonnement côté client, c'est un cadrage : le journal
+documente, il ne prouve pas.
+
 ### Deux limites assumées
 
 - **Le cloisonnement côté client n'est pas une protection.** Sur un appareil, tout
@@ -211,6 +224,9 @@ crée un administrateur et l'affecte à toutes les équipes trouvées.
 - **Un jeton identifie, il n'authentifie pas.** Quiconque obtient un lien
   d'invitation en prend l'identité. Il est révocable, ce qui suffit à l'usage
   d'un club, et pas davantage.
+- **Le journal n'est pas une preuve.** Il est écrit par l'appareil qui agit, et
+  reste modifiable depuis la console au même titre que le reste. Il sert à se
+  souvenir, pas à établir.
 
 ## 8. Reste à considérer
 

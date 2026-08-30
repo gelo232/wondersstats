@@ -212,6 +212,68 @@ const ERRORS=[];let PASS=0;
     if(v.team!=="U15 Wonders")throw new Error("équipe="+v.team);
   });
 
+  say("\n── Journal des décisions (constat R10)");
+  await step("une décision de sélection laisse une trace signée",async()=>{
+    await beMe("Sofia");
+    await page.evaluate(()=>{
+      const u15=DB.teams.find(t=>t.name==="U15 Wonders");
+      switchCtx({role:"coach",teamId:u15.id});
+      const sq=curSquad(),e=sq.roster[0];
+      DB.log=[];
+      setRosterStatus(sq,e,"recalled");
+      setRosterStatus(sq,e,"selected");
+      saveNow();
+    });
+    const rows=await page.evaluate(()=>DB.log.map(l=>({k:l.kind,by:l.byName,role:l.byRole,t:l.text})));
+    if(rows.length!==2)throw new Error("entrées="+rows.length);
+    if(rows[0].by!=="Sofia")throw new Error("auteur="+rows[0].by);
+    if(rows[0].role!=="coach")throw new Error("rôle="+rows[0].role);
+    if(rows[0].t.indexOf("Retenue")===-1&&rows[0].t.indexOf("Recallée")===-1)
+      throw new Error("le texte ne décrit pas la transition : "+rows[0].t);
+    if(rows[0].t.indexOf("#7")===-1)throw new Error("le numéro au moment des faits est absent");
+  });
+  await step("renommer l'auteur ne réécrit pas l'histoire",async()=>{
+    await page.evaluate(()=>{
+      DB.people.find(p=>p.name==="Sofia").name="Sofia Nguyen";
+    });
+    const by=await page.evaluate(()=>DB.log[0].byName);
+    if(by!=="Sofia")throw new Error("le nom figé a été réécrit : "+by);
+    await page.evaluate(()=>{DB.people.find(p=>p.name==="Sofia Nguyen").name="Sofia"});
+  });
+  await step("l'entraîneur ne voit que le journal de son équipe",async()=>{
+    await page.evaluate(()=>{
+      const u18=DB.teams.find(t=>t.name==="U18 Wonders");
+      logAct("status","Décision sur une autre équipe",{teamId:u18.id});
+      state.tab="season";state.seasonPane="log";state.logFilter="all";render();
+    });
+    await page.waitForTimeout(300);
+    const t=await page.textContent("#app");
+    if(t.indexOf("Décision sur une autre équipe")!==-1)
+      throw new Error("une décision d'une autre équipe fuit dans le journal");
+    if(t.indexOf("Retenue")===-1&&t.indexOf("Recallée")===-1)
+      throw new Error("les décisions de l'équipe n'apparaissent pas");
+  });
+  await step("l'administrateur voit tout le club",async()=>{
+    await beMe("Administrateur");
+    await page.evaluate(()=>{switchCtx({role:"admin"});state.tab="adm_log";state.logFilter="all";render()});
+    await page.waitForTimeout(300);
+    const t=await page.textContent("#app");
+    if(t.indexOf("Décision sur une autre équipe")===-1)
+      throw new Error("l'administrateur devrait voir les deux équipes");
+  });
+  await step("le journal est borné et survit au rechargement",async()=>{
+    const n=await page.evaluate(()=>{
+      for(let i=0;i<LOG_MAX+40;i++)logAct("status","remplissage "+i,{teamId:""});
+      saveNow();
+      return DB.log.length;
+    });
+    if(n!==500)throw new Error("journal non borné : "+n);
+    await page.reload();await page.waitForTimeout(500);
+    const after=await page.evaluate(()=>DB.log.length);
+    if(after!==500)throw new Error("après rechargement : "+after);
+    await page.evaluate(()=>{DB.log=DB.log.filter(l=>l.text.indexOf("remplissage")===-1);saveNow()});
+  });
+
   say("\n── Cloisonnement des exports");
   await step("l'export d'équipe n'emporte que son équipe",async()=>{
     await beMe("Sofia");

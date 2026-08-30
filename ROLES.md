@@ -70,6 +70,8 @@ la redistribution est ensuite manuelle.
 | Lire les soumissions d'autrui | ● | ● | ○ | ○ |
 | Compilation, progression, application des avis | ● | ● | ○ | ○ |
 | Exporter les données de son équipe | ● | ● | ○ | ○ |
+| Consulter le journal de son équipe | ● | ● | ○ | ○ |
+| Consulter le journal du club | ● | ○ | ○ | ○ |
 | Sauvegarde complète du club, restauration | ● | ○ | ○ | ○ |
 | Configurer le relais et le salon | ● | ○ | ○ | ○ |
 | Inviter un sélectionneur (lien, jeton) | ● | ● | ○ | ○ |
@@ -146,7 +148,26 @@ Deux implémentations conformes sont fournies : `server/worker.js` (Cloudflare) 
 
 ---
 
-## 6. Ce qu'il ne faut pas écrire
+## 6. Journal des décisions
+
+Sont enregistrés les actes qui engagent — un statut tranché, une soumission
+supprimée, une clôture, une affectation, un jeton — et rien d'autre : un journal
+qui note chaque frappe ne se relit pas.
+
+Chaque entrée fige le **nom de son auteur** et le **numéro de l'athlète** tels
+qu'ils étaient au moment des faits ; un renommage ultérieur ne réécrit rien. Les
+entrées ne sont ni modifiables ni supprimables depuis l'interface, et les 500
+dernières sont conservées.
+
+Périmètre : un entraîneur consulte le journal de son équipe, l'administrateur
+celui du club. L'export d'équipe emporte le journal correspondant.
+
+> Le journal **documente, il ne prouve pas**. Il est écrit par l'appareil qui
+> agit et reste modifiable depuis la console, comme le reste des données locales.
+
+---
+
+## 7. Ce qu'il ne faut pas écrire
 
 Tant que le niveau 3 n'existe pas, aucun texte d'interface ni de documentation ne
 doit présenter les rôles comme une protection. Formulations à proscrire : « accès

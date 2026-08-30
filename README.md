@@ -35,12 +35,13 @@ les matchs et n'évalue pas — ce sont des actes de terrain qui engagent leur a
 | 🗓️ **Saisons** | Créer, dater, clôturer · sauvegarde complète du club |
 | 🗂️ **Joueuses** | Base commune au club |
 | 📡 **Relais** | Configuration, jetons en circulation, révocation |
+| 📜 **Journal** | Toutes les décisions du club, signées et datées |
 
 ### 👔 Entraîneur
 
 | Onglet | Rôle |
 |---|---|
-| 🗓️ **Saison** | Créer une saison (nom, catégorie, dates, objectifs) · tableau de sélection · **campagnes d'évaluation** · équipes |
+| 🗓️ **Saison** | Tableau de sélection · **campagnes d'évaluation** · **journal des décisions** · saisons |
 | 👥 **Joueuses** | Base de données partagée entre toutes les saisons · convocation |
 | ✏️ **Saisie** | Statistiques en direct — mode rapide ou mode grille |
 | 📊 **Récap** | Match en cours · cumul (filtrable par période) · **⭐ évaluations par campagne** et **📈 progression** · sessions |
