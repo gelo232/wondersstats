@@ -1,6 +1,6 @@
 # Suite de non-régression
 
-Six suites Playwright pilotent l'application réelle dans Chromium et vérifient
+Sept suites Playwright pilotent l'application réelle dans Chromium et vérifient
 qu'aucune erreur JS n'est levée.
 
 | Suite | Couverture |
@@ -10,6 +10,7 @@ qu'aucune erreur JS n'est levée.
 | `modals.js` | Ouverture, rendu et fermeture de chacune des 17 modales, absence de fuite d'état entre modales, saisie manuelle du numéro et refus d'un doublon |
 | `campaigns.js` | **Cloisonnement des campagnes** (2,0 en sélection et 4,0 en fin de saison ne se moyennent pas), mesure de la progression, copie de vue vierge, clôture de campagne et de saison, statut d'effectif préservant les matchs joués, fiche joueuse réunissant match et évaluations, anonymat réglable, filtre de période |
 | `roles.js` | **La matrice des accès** de `ROLES.md` : un rôle est une arête (personne · équipe · rôle), Sofia cumule entraîneuse des U15 et sélectionneuse des U18, chacun ne voit que son périmètre, un contexte forgé à la main ne survit pas au rendu, la vue libre expose un catalogue sans nom, l'export d'équipe n'emporte pas les collègues, et supprimer une équipe ne laisse aucune affectation orpheline |
+| `season.js` | **Une saison complète jouée dans l'application** : sélection d'août, amicaux, deux tournois, championnat, blessure, départ, arrivée en mars, bilan de mai, clôture — 19 rencontres. Vérifie ce qui doit tenir (le cumul survit à une blessure et à un départ, une vue de mi-saison repart vierge, la progression reste calculable malgré un effectif mouvant, la fiche joueuse réunit matchs et campagnes) **et relève ce qui manque** sans faire échouer la suite : les observations d'audit sont imprimées en fin de parcours |
 | `sync.js` | **Trois navigateurs isolés** contre un relais simulé conforme au contrat v2. Au-delà du parcours nominal, vérifie ce que le relais **refuse** : une vue adressée n'est lisible que par son destinataire, aucun sélectionneur ne peut lister les soumissions (pas même la sienne), une vue forgée par un sélectionneur est rejetée, un jeton inconnu ou révoqué est refusé. Plus : identité estampillée par le relais, catalogue sans nom, relais injoignable signalé |
 
 ## Exécution
@@ -25,6 +26,10 @@ Variables : `PORT` (défaut 8899), `BASE_URL`, `CHROMIUM_PATH`, `LOG_FILE`
 
 Le relais réseau de `sync.js` est **simulé en mémoire** : la suite vérifie le contrat
 HTTP, elle ne contacte aucun service externe.
+
+`season.js` se distingue des autres : elle ne se contente pas d'assertions, elle
+**instrumente un parcours** et signale les manques (⚑) sans les compter comme des
+régressions. Un manque documenté n'est pas un test rouge.
 
 Les tests n'ajoutent **aucune dépendance à l'application** : `index.html` reste
 un fichier autonome, sans build ni bibliothèque.

@@ -161,7 +161,7 @@ jusque dans ce qui transite par le relais.
 
 ## 7. Vérification
 
-Six suites Playwright pilotent l'application réelle (`tests/run.sh`, **122 contrôles**, aucune erreur JS) :
+Sept suites Playwright pilotent l'application réelle (`tests/run.sh`, **154 contrôles**, aucune erreur JS) :
 
 | Suite | Ce qui est vérifié |
 |---|---|
@@ -170,11 +170,69 @@ Six suites Playwright pilotent l'application réelle (`tests/run.sh`, **122 cont
 | `modals.js` | Les 17 modales s'ouvrent, se rendent et se ferment sans fuite d'état ; le numéro saisi est conservé, un doublon est refusé. |
 | `campaigns.js` | A1 : 2,0 en sélection et 4,0 en fin de saison restent distincts, la progression vaut +2,0, l'écran est cloisonné. A2 : une copie de vue repart vierge. A3 : une campagne ou une saison close disparaît du rôle sélectionneur. A5, A6, A7, A10. |
 | `roles.js` | La matrice des accès : Sofia cumule entraîneuse des U15 et sélectionneuse des U18, chacun ne voit que son périmètre, un contexte forgé ne survit pas au rendu, le catalogue de vue libre ne contient ni nom ni donnée superflue, l'export d'équipe n'emporte pas les collègues, et supprimer une équipe ne laisse aucune affectation orpheline. Le journal signe ses entrées, fige le nom de l'auteur malgré un renommage, se cloisonne par équipe et reste borné. |
+| `season.js` | Une **saison entière jouée** : 19 rencontres, blessure, départ, arrivée en cours de route, trois campagnes, clôture. Vérifie ce qui doit tenir et relève ce qui manque — voir § 8. |
 | `sync.js` | **Trois navigateurs isolés** contre un relais simulé conforme au contrat v2. Au-delà du parcours nominal, la suite vérifie ce que le relais **refuse** : Karl ne voit pas la vue adressée à Marie, aucun sélectionneur ne peut lister les soumissions, un sélectionneur ne peut pas publier une vue forgée, un jeton inconnu est rejeté, un jeton révoqué coupe l'accès. Plus : identité estampillée par le relais, catalogue sans nom, relais injoignable signalé. |
 
 L'application reste sans dépendance : Playwright ne sert qu'aux tests, `index.html` demeure autonome.
 
-## 8. Rôles, profils et accès (v4)
+## 8. Une saison complète, jouée (v4)
+
+Quatrième passage : le parcours a été **joué** dans l'application, pas décrit.
+`tests/season.js` déroule neuf mois sur une équipe U15 — sélection d'août, deux
+amicaux, trois tournois, sept matchs de championnat, une blessure, un départ, une
+arrivée en mars, bilan de mai, clôture. **19 rencontres, 32 étapes, aucune erreur
+JS.**
+
+### Ce qui tient
+
+| Épreuve | Résultat |
+|---|---|
+| Le cumul survit à une blessure | Léa passe *Blessée* en novembre : son total reste intact, elle sort du terrain, elle garde son statut *Retenue*. |
+| Le cumul survit à un départ | Zoé quitte le club en janvier : ses 8 matchs restent au cumul et son statut de sélection n'est pas réécrit. |
+| Une vue de mi-saison repart vierge | La copie de la vue d'août ne reporte aucune note (constat A2). |
+| La progression tient malgré l'effectif mouvant | 3 campagnes, une recallée intégrée en janvier, une arrivante en mars : les écarts restent calculables pour celles qui ont deux points. |
+| La fiche joueuse réunit les deux moitiés | 8 matchs et 3 campagnes sur un même écran (constat A5). |
+| Le journal raconte la saison | 18 entrées signées : 14 décisions de sélection, 2 changements d'effectif, 1 convocation, 1 clôture. |
+
+### Ce qui manque — un seul concept absent
+
+Six des onze observations tiennent à la même lacune : **la rencontre n'est pas une
+entité**. Une session vaut `{id, name, date, teamName, entries}` — le reste est du
+texte libre dans `name`.
+
+| Réf | Observation | Gravité |
+|---|---|---|
+| **S1** | Une session n'a pas de **nature** : amical, championnat et tournoi ne se distinguent que par la façon dont l'entraîneur a nommé la session. | Majeur |
+| **S2** | L'**adversaire** n'est pas une donnée. « Tous nos matchs contre les Lions » n'est pas une question qu'on peut poser. | Majeur |
+| **S3** | Un **tournoi n'existe pas comme unité**. Ses trois ou quatre matchs sont des sessions indépendantes ; aucun écran ne donne le tournoi en un bloc ni son cumul propre. | Majeur |
+| **S4** | La **date n'est pas saisissable** : `saveSession()` écrit `nowISO()`. Un tournoi joué samedi et saisi dimanche est daté de dimanche. Les 19 sessions du parcours portent le même horodatage. | Majeur |
+| **S5** | **Comparer deux tournois** demande de les reconstituer à la main, en cherchant une chaîne dans les noms. | Majeur |
+| **S6** | Le **bilan de fin de saison ignore la nature des rencontres** : les 19 sessions se cumulent en un total unique. « Comment se comporte-t-elle en tournoi ? » reste sans réponse. | Majeur |
+| **S7** | Le filtre de période ne connaît que le **rang** : « 3 derniers » isole le tournoi juste après l'avoir joué, puis la fenêtre glisse et il n'est plus isolable. | Modéré |
+| **S8** | Aucune fenêtre entre **10 matchs et toute la saison**. « Depuis janvier », « le championnat seul », « hors tournois » ne sont pas exprimables. | Modéré |
+| **S9** | Le cumul mélange des **temps de présence** très différents : Inès a joué 1 match, Léa 8, et les totaux bruts se lisent côte à côte. | Modéré |
+| **S10** | **Aucun résultat** n'est enregistré — ni score, ni sets, ni victoire. L'application compte des gestes, pas des issues. | Modéré |
+| **S11** | Une **arrivante n'a aucun point de comparaison** ; sa ligne de progression est vide sans que l'écran en dise la raison. | Mineur |
+
+### La correction que cela appelle
+
+S1 à S6 se referment d'un coup en donnant une existence à la rencontre :
+
+```
+events[]     {id, squadId, kind, name, opponent, date, location}
+                 kind ∈ friendly | league | tournament
+session      {…, eventId, date saisissable, opponent, result?}
+```
+
+Un tournoi devient un `event` portant plusieurs sessions ; un amical, un event à
+une seule session. Le filtre de période se double alors d'un filtre par nature et
+par événement, et le bilan de fin de saison peut répondre « en tournoi » comme il
+répond déjà « sur les trois derniers matchs ».
+
+S10 (le résultat) est une décision de périmètre distincte : suivre des issues, et
+non plus seulement des gestes, change ce qu'est l'application.
+
+## 9. Rôles, profils et accès (v4)
 
 Un troisième passage a porté sur le modèle d'autorisation : un parcours
 administrateur, des équipes durables, et un sélectionneur qui choisit lui-même
@@ -228,7 +286,7 @@ documente, il ne prouve pas.
   reste modifiable depuis la console au même titre que le reste. Il sert à se
   souvenir, pas à établir.
 
-## 8. Reste à considérer
+## 10. Reste à considérer
 
 - **Le code de salon n'est pas une authentification.** Quiconque obtient le lien
   peut lire les vues publiées et déposer des soumissions. Suffisant pour un club,
