@@ -43,9 +43,11 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
     });
     await page.waitForTimeout(120);
   };
-  /* Joue un match : chaque joueuse sur le terrain produit des gestes,
-     puis la session est enregistrée sous le nom donné. */
-  const jouer=async(nom)=>page.evaluate((nom)=>{
+  /* Joue un match : chaque joueuse sur le terrain produit des gestes, puis
+     le match est enregistré au sein d'une rencontre — nature, adversaire,
+     date réelle et résultat compris.
+     opts : {kind, eventName, opponent, day, location, name, sets, eventId} */
+  const jouer=async(opts)=>page.evaluate((opts)=>{
     const sq=curSquad();
     const surTerrain=lineupPlayers(sq);
     surTerrain.forEach((p,i)=>{
@@ -53,9 +55,27 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
       s.srv_ace+=1+(i%3); s.srv_in+=6; s.rec_in+=5+(i%4);
       s.atk_kill+=3+(i%5); s.atk_err+=1; s.def_ok+=2+(i%3);
     });
-    const ok=saveSession(sq,nom);
-    return {ok:ok,joueuses:surTerrain.length,sessions:sq.sessions.length};
-  },nom);
+    const ok=saveSession(sq,{
+      eventId:opts.eventId||"",kind:opts.kind||"league",
+      eventName:opts.eventName||opts.name,opponent:opts.opponent||"",
+      day:opts.day,location:opts.location||"",name:opts.name,
+      result:{sets:(opts.sets||[]).map(x=>({us:x[0],them:x[1]}))}
+    });
+    const se=sq.sessions[0];
+    return {ok:ok,joueuses:surTerrain.length,sessions:sq.sessions.length,
+      eventId:se?se.eventId:null,evenements:sq.events.length};
+  },opts);
+  /* Un tournoi : une rencontre, plusieurs matchs rattachés. */
+  const tournoi=async(nom,jour,lieu,matchs)=>{
+    let evId="";
+    for(let i=0;i<matchs.length;i++){
+      const r=await jouer({eventId:evId,kind:"tournament",eventName:nom,
+        day:jour,location:lieu,name:nom+" · match "+(i+1),
+        opponent:matchs[i].adv,sets:matchs[i].sets});
+      evId=r.eventId;
+    }
+    return evId;
+  };
 
   await page.goto(BASE+"/index.html");
   await page.evaluate(()=>localStorage.clear());
@@ -156,93 +176,119 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
   /* ════════════════════════════════════════════════════════════ */
   phase("SEPTEMBRE","Deux matchs amicaux");
 
-  await step("les deux amicaux sont enregistrés",async()=>{
-    const a=await jouer("Amical vs Titans");
-    const c=await jouer("Amical vs Lions");
-    if(!a.ok||!c.ok)throw new Error("session refusée");
-    if(c.sessions!==2)throw new Error("sessions="+c.sessions);
+  await step("les deux amicaux sont enregistrés, avec adversaire et date",async()=>{
+    await jouer({kind:"friendly",name:"Amical vs Titans",opponent:"Titans",
+      day:"2026-09-12",sets:[[25,20],[25,22]]});
+    const c=await jouer({kind:"friendly",name:"Amical vs Lions",opponent:"Lions",
+      day:"2026-09-19",sets:[[23,25],[25,19],[15,12]]});
+    if(c.sessions!==2)throw new Error("matchs="+c.sessions);
+    if(c.evenements!==2)throw new Error("rencontres="+c.evenements);
+  });
+
+  await step("S1 · la nature de la rencontre est une donnée",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=curSquad();
+      return sq.sessions.map(se=>{const ev=eventOf(sq,se);return ev?ev.kind:null});
+    });
+    if(r.some(k=>k!=="friendly"))throw new Error("natures="+JSON.stringify(r));
+  });
+
+  await step("S2 · l'adversaire est une donnée, pas du texte de session",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=curSquad();
+      return sq.events.map(ev=>ev.opponent).filter(Boolean).sort();
+    });
+    if(r.join(",")!=="Lions,Titans")throw new Error("adversaires="+r.join(","));
+  });
+
+  await step("S10 · le résultat est enregistré et l'issue déduite",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=curSquad();
+      return sq.sessions.map(se=>({l:resultLabel(se.result),o:resultOutcome(se.result)}));
+    });
+    if(r[0].l!=="2–1"||r[0].o!=="win")throw new Error("Lions="+JSON.stringify(r[0]));
+    if(r[1].l!=="2–0"||r[1].o!=="win")throw new Error("Titans="+JSON.stringify(r[1]));
   });
 
   await step("le cumul additionne les deux matchs",async()=>{
     const r=await page.evaluate(()=>{
-      state.cumulScope="all";
+      state.cumulScope="all";state.cumulKind="all";state.cumulEventId=null;
       const g=computeGlobalPlayers(curSquad());
       return {n:g.length,sess:g[0].sessCount};
     });
     if(r.n!==9)throw new Error("joueuses au cumul="+r.n);
-    if(r.sess!==2)throw new Error("sessions comptées="+r.sess);
-  });
-
-  /* Première observation de fond : rien ne distingue un amical d'un match
-     de championnat, et rien ne nomme l'adversaire autrement qu'en clair. */
-  await step("relevé : nature de la rencontre",async()=>{
-    const champs=await page.evaluate(()=>Object.keys(curSquad().sessions[0]));
-    if(champs.indexOf("type")===-1&&champs.indexOf("kind")===-1)
-      flag("Majeur","Une session n'a pas de nature",
-        "Champs disponibles : "+champs.join(", ")+". Amical, championnat et tournoi ne se distinguent que par le texte libre du nom.");
-    if(champs.indexOf("opponent")===-1)
-      flag("Majeur","L'adversaire n'est pas une donnée",
-        "Il n'existe que le nom de la session. Impossible de retrouver « tous nos matchs contre les Lions ».");
+    if(r.sess!==2)throw new Error("matchs comptés="+r.sess);
   });
 
   /* ════════════════════════════════════════════════════════════ */
   phase("OCTOBRE","Tournoi de Sherbrooke — trois matchs le même jour");
 
-  await step("les trois matchs du tournoi sont enregistrés",async()=>{
-    for(const n of ["Tournoi Sherbrooke · match 1","Tournoi Sherbrooke · match 2","Tournoi Sherbrooke · match 3"])
-      await jouer(n);
-    const n=await page.evaluate(()=>curSquad().sessions.length);
-    if(n!==5)throw new Error("sessions="+n);
+  let evSherbrooke="";
+  await step("S3 · le tournoi est une rencontre unique portant trois matchs",async()=>{
+    evSherbrooke=await tournoi("Tournoi de Sherbrooke","2026-10-17","Sherbrooke",[
+      {adv:"Estrie",sets:[[25,18],[25,21]]},
+      {adv:"Granby",sets:[[22,25],[25,23],[13,15]]},
+      {adv:"Magog",sets:[[25,15],[25,17]]}]);
+    const r=await page.evaluate((id)=>{
+      const sq=curSquad();
+      return {matchs:sessionsOfEvent(sq,id).length,evenements:sq.events.length,
+        total:sq.sessions.length,kind:eventById(sq,id).kind};
+    },evSherbrooke);
+    if(r.matchs!==3)throw new Error("matchs du tournoi="+r.matchs);
+    if(r.evenements!==3)throw new Error("rencontres="+r.evenements+" (attendu 2 amicaux + 1 tournoi)");
+    if(r.total!==5)throw new Error("matchs au total="+r.total);
+    if(r.kind!=="tournament")throw new Error("nature="+r.kind);
   });
 
-  await step("relevé : le tournoi comme unité",async()=>{
+  await step("S4 · la date est celle du match, pas celle de la saisie",async()=>{
     const r=await page.evaluate(()=>{
       const sq=curSquad();
-      const s=sq.sessions[0];
-      return {champs:Object.keys(s),dates:sq.sessions.map(x=>x.date.slice(0,10))};
+      return {jours:sq.sessions.map(se=>se.day).sort(),
+        saisies:new Set(sq.sessions.map(se=>se.date.slice(0,10))).size};
     });
-    if(r.champs.indexOf("eventId")===-1&&r.champs.indexOf("event")===-1)
-      flag("Majeur","Un tournoi n'existe pas comme unité",
-        "Ses trois matchs sont trois sessions indépendantes. Aucun écran ne donne « le tournoi de Sherbrooke » en un bloc, ni son cumul propre.");
-    const distinctes=new Set(r.dates);
-    if(distinctes.size===1)
-      flag("Majeur","La date d'une session n'est pas saisissable",
-        "saveSession() écrit nowISO(). Les cinq sessions portent la même date : celle de la saisie, pas celle du match. Un tournoi joué samedi et saisi dimanche est daté de dimanche.");
+    const distinctes=new Set(r.jours);
+    if(distinctes.size!==3)throw new Error("jours distincts="+distinctes.size+" ("+r.jours.join(", ")+")");
+    if(r.jours.indexOf("2026-09-12")===-1||r.jours.indexOf("2026-10-17")===-1)
+      throw new Error("dates réelles absentes : "+r.jours.join(", "));
   });
 
-  await step("le cumul « 3 derniers » isole le tournoi, par accident",async()=>{
-    const r=await page.evaluate(()=>{
-      state.cumulScope="last3";
-      const g=computeGlobalPlayers(curSquad());
-      state.cumulScope="all";
-      return g[0].sessCount;
-    });
-    if(r!==3)throw new Error("sessions dans la portée="+r);
-    flag("Modéré","Le filtre de période ne connaît que le rang",
-      "« 3 derniers » retombe ici sur le tournoi parce qu'il vient d'être joué. Dès le match suivant, la fenêtre glisse et le tournoi n'est plus isolable.");
+  await step("le tournoi donne son propre cumul et son bilan",async()=>{
+    const r=await page.evaluate((id)=>{
+      const sq=curSquad();
+      const g=eventsWithSessions(sq).filter(x=>x.event.id===id)[0];
+      state.cumulEventId=id;
+      const cumul=computeGlobalPlayers(sq);
+      state.cumulEventId=null;
+      return {bilan:g.bilan,kills:g.stats.atk_kill,matchsAuCumul:cumul[0].sessCount};
+    },evSherbrooke);
+    if(r.bilan.win!==2||r.bilan.loss!==1)throw new Error("bilan="+JSON.stringify(r.bilan));
+    if(r.matchsAuCumul!==3)throw new Error("le cumul ne se restreint pas au tournoi : "+r.matchsAuCumul);
   });
 
   /* ════════════════════════════════════════════════════════════ */
   phase("NOVEMBRE","Championnat, et une blessure");
 
-  await step("trois matchs de championnat",async()=>{
-    for(const n of ["Championnat J1 vs Titans","Championnat J2 vs Aigles","Championnat J3 vs Lions"])
-      await jouer(n);
+  await step("quatre journées de championnat",async()=>{
+    const j=[["Titans","2026-11-07",[[25,22],[25,20]]],["Aigles","2026-11-14",[[20,25],[22,25]]],
+             ["Lions","2026-11-21",[[25,23],[19,25],[15,11]]],["Faucons","2026-11-28",[[25,18],[25,16]]]];
+    for(let i=0;i<j.length;i++)
+      await jouer({kind:"league",name:"Journée "+(i+1)+" vs "+j[i][0],opponent:j[i][0],
+        day:j[i][1],sets:j[i][2]});
     const n=await page.evaluate(()=>curSquad().sessions.length);
-    if(n!==8)throw new Error("sessions="+n);
+    if(n!==9)throw new Error("matchs="+n);
   });
 
   await step("Léa se blesse : elle sort du terrain, garde ses matchs",async()=>{
     const r=await page.evaluate(()=>{
       const sq=curSquad(),e=sq.roster.find(x=>x.number==="7");
+      state.cumulEventId=null;state.cumulKind="all";state.cumulScope="all";
       const avant=computeGlobalPlayers(sq).find(p=>p.id===e.playerId).stats.atk_kill;
       e.membership="injured";
       logAct("membership",logWho(sq,e.playerId)+" : effectif Active → Blessée",
         {teamId:sq.teamId,playerId:e.playerId});
       saveNow();
       const apres=computeGlobalPlayers(sq).find(p=>p.id===e.playerId).stats.atk_kill;
-      return {avant:avant,apres:apres,
-        statut:e.status,
+      return {avant:avant,apres:apres,statut:e.status,
         surTerrain:lineupPlayers(sq).some(p=>p.id===e.playerId),
         dansEquipe:sq.playerIds.indexOf(e.playerId)!==-1};
     });
@@ -250,11 +296,6 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
     if(r.statut!=="selected")throw new Error("statut de sélection réécrit");
     if(r.surTerrain)throw new Error("toujours proposée à la saisie");
     if(!r.dansEquipe)throw new Error("retirée de l'équipe");
-  });
-
-  await step("les matchs suivants se jouent à 8",async()=>{
-    const r=await jouer("Championnat J4 vs Faucons");
-    if(r.joueuses!==8)throw new Error("joueuses sur le terrain="+r.joueuses);
   });
 
   /* ════════════════════════════════════════════════════════════ */
@@ -310,49 +351,52 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
   await step("Zoé quitte le club en janvier",async()=>{
     const r=await page.evaluate(()=>{
       const sq=curSquad(),e=sq.roster.find(x=>x.number==="14");
-      const cumulAvant=computeGlobalPlayers(sq).find(p=>p.id===e.playerId);
       e.membership="left";
       logAct("membership",logWho(sq,e.playerId)+" : effectif Active → Partie",
         {teamId:sq.teamId,playerId:e.playerId});
       saveNow();
-      const cumulApres=computeGlobalPlayers(sq).find(p=>p.id===e.playerId);
-      return {avant:!!cumulAvant,apres:!!cumulApres,
-        matchs:cumulApres?cumulApres.sessCount:0,statut:e.status};
+      const c=computeGlobalPlayers(sq).find(p=>p.id===e.playerId);
+      return {present:!!c,matchs:c?c.sessCount:0,statut:e.status};
     });
-    if(!r.apres)throw new Error("ses matchs disparaissent du cumul");
+    if(!r.present)throw new Error("ses matchs disparaissent du cumul");
     if(r.statut!=="selected")throw new Error("son statut de sélection a été réécrit");
     if(r.matchs<1)throw new Error("matchs joués perdus");
-  });
-
-  await step("relevé : la progression face à l'effectif qui bouge",async()=>{
-    const r=await page.evaluate(()=>{
-      const sq=curSquad();
-      const rows=compareCampaigns(sq,sq.campaigns[0].id,sq.campaigns[1].id);
-      return {total:rows.length,
-        avecEcart:rows.filter(x=>x.delta!==null).length,
-        sansEcart:rows.filter(x=>x.delta===null).length};
-    });
-    if(r.total<10)throw new Error("lignes="+r.total);
-    if(r.sansEcart<1)
-      flag("Mineur","Rien ne signale pourquoi un écart manque",
-        "Une joueuse écartée en août n'a pas d'évaluation de mi-saison : elle apparaît « évaluée dans une seule campagne », sans dire laquelle ni pourquoi.");
   });
 
   /* ════════════════════════════════════════════════════════════ */
   phase("FÉVRIER","Tournoi de Laval — quatre matchs");
 
-  await step("les quatre matchs du tournoi",async()=>{
-    for(let i=1;i<=4;i++)await jouer("Tournoi Laval · match "+i);
-    const n=await page.evaluate(()=>curSquad().sessions.length);
-    if(n!==13)throw new Error("sessions="+n);
+  let evLaval="";
+  await step("S5 · deux tournois se comparent sans reconstitution",async()=>{
+    evLaval=await tournoi("Tournoi de Laval","2027-02-13","Laval",[
+      {adv:"Laval",sets:[[25,19],[25,23]]},
+      {adv:"Blainville",sets:[[18,25],[21,25]]},
+      {adv:"Terrebonne",sets:[[25,20],[24,26],[15,9]]},
+      {adv:"Rosemère",sets:[[25,14],[25,18]]}]);
+    const r=await page.evaluate(([a,b])=>{
+      const sq=curSquad();
+      const tournois=eventsWithSessions(sq).filter(x=>x.event.kind==="tournament");
+      const g=id=>tournois.filter(x=>x.event.id===id)[0];
+      return {n:tournois.length,
+        sherbrooke:{m:g(a).sessions.length,bilan:g(a).bilan,kills:g(a).stats.atk_kill},
+        laval:{m:g(b).sessions.length,bilan:g(b).bilan,kills:g(b).stats.atk_kill}};
+    },[evSherbrooke,evLaval]);
+    if(r.n!==2)throw new Error("tournois="+r.n);
+    if(r.sherbrooke.m!==3||r.laval.m!==4)throw new Error("matchs="+r.sherbrooke.m+"/"+r.laval.m);
+    if(r.laval.bilan.win!==3||r.laval.bilan.loss!==1)throw new Error("bilan Laval="+JSON.stringify(r.laval.bilan));
+    if(!r.sherbrooke.kills||!r.laval.kills)throw new Error("cumul par tournoi vide");
   });
 
-  await step("relevé : deux tournois dans la même saison",async()=>{
-    const noms=await page.evaluate(()=>curSquad().sessions.map(s=>s.name));
-    const tournois=noms.filter(n=>/Tournoi/.test(n));
-    if(tournois.length!==7)throw new Error("matchs de tournoi="+tournois.length);
-    flag("Majeur","Comparer deux tournois demande de les reconstituer à la main",
-      "Sherbrooke (3 matchs) et Laval (4 matchs) ne sont retrouvables que par la chaîne « Tournoi » dans le nom. Aucun cumul par événement, aucun classement d'une joueuse sur un tournoi donné.");
+  await step("S7 · un tournoi reste isolable après coup",async()=>{
+    const r=await page.evaluate((id)=>{
+      const sq=curSquad();
+      state.cumulEventId=id;
+      const n=scopedSessions(sq).length;
+      state.cumulEventId=null;
+      return {isole:n,total:sq.sessions.length};
+    },evSherbrooke);
+    if(r.isole!==3)throw new Error("le tournoi d'octobre n'est plus isolable : "+r.isole);
+    if(r.total<13)throw new Error("total="+r.total);
   });
 
   /* ════════════════════════════════════════════════════════════ */
@@ -369,61 +413,100 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
       promoteSelectedToTeam(sq);
       saveNow();
     });
-    const r=await page.evaluate(()=>({roster:curSquad().roster.length,equipe:curSquad().playerIds.length}));
-    if(r.roster!==13)throw new Error("roster="+r.roster);
-  });
-
-  await step("elle joue, et son cumul démarre à zéro match",async()=>{
-    await jouer("Championnat J5 vs Titans");
+    await jouer({kind:"league",name:"Journée 5 vs Titans",opponent:"Titans",
+      day:"2027-03-13",sets:[[25,21],[25,19]]});
     const r=await page.evaluate(()=>{
       const sq=curSquad();
       const ines=sq.roster.find(e=>e.number==="15");
-      const g=computeGlobalPlayers(sq).find(p=>p.id===ines.playerId);
-      const lea=computeGlobalPlayers(sq).find(p=>p.number==="7");
-      return {ines:g?g.sessCount:0,lea:lea?lea.sessCount:0};
+      state.cumulScope="all";state.cumulKind="all";state.cumulEventId=null;
+      const g=computeGlobalPlayers(sq);
+      return {ines:(g.find(p=>p.id===ines.playerId)||{}).sessCount,
+        lea:(g.find(p=>p.number==="7")||{}).sessCount};
     });
-    if(r.ines!==1)throw new Error("sessions d'Inès="+r.ines);
-    if(r.lea<=r.ines)throw new Error("le cumul ne distingue pas les temps de présence");
-    flag("Modéré","Le cumul mélange des temps de présence très différents",
-      "Inès a joué 1 match, Léa 8. Les totaux bruts se lisent côte à côte sans indication de ratio ; seul le nombre de sessions, en petit, permet de rétablir l'échelle.");
+    if(r.ines!==1)throw new Error("matchs d'Inès="+r.ines);
+    if(r.lea<=r.ines)throw new Error("temps de présence non distingués");
   });
 
-  await step("relevé : une arrivante n'a pas de point de départ",async()=>{
+  await step("S9 · la lecture par match remet tout le monde à la même échelle",async()=>{
     const r=await page.evaluate(()=>{
       const sq=curSquad();
       const ines=sq.roster.find(e=>e.number==="15");
-      const camps=sq.campaigns.map(c=>!!compileSubmissions(sq,c.id)[ines.playerId]);
-      return camps;
+      const g=computeGlobalPlayers(sq);
+      const i=g.find(p=>p.id===ines.playerId),l=g.find(p=>p.number==="7");
+      return {inesTotal:i.stats.atk_kill,inesMatchs:i.sessCount,
+              leaTotal:l.stats.atk_kill,leaMatchs:l.sessCount,
+              inesParMatch:i.stats.atk_kill/i.sessCount,
+              leaParMatch:l.stats.atk_kill/l.sessCount};
     });
-    if(r.some(Boolean))throw new Error("Inès ne devrait avoir aucune évaluation");
-    flag("Mineur","Une arrivante n'a aucun point de comparaison",
-      "Convoquée en mars, Inès n'a ni évaluation de sélection ni de mi-saison. Sa progression de fin de saison sera vide, sans que l'écran le dise autrement que par un tiret.");
+    if(r.leaTotal<=r.inesTotal)throw new Error("les totaux devraient différer fortement");
+    /* À l'échelle du match, les deux redeviennent comparables. */
+    const ecart=Math.abs(r.inesParMatch-r.leaParMatch);
+    if(!(ecart<r.leaTotal))throw new Error("la moyenne par match ne réduit pas l'écart");
+    const mode=await page.evaluate(()=>{
+      state.cumulMode="avg";state.summaryMode="global";state.tab="summary";render();
+      const t=document.querySelector("#app").textContent;
+      state.cumulMode="total";render();
+      return t.indexOf("Moyenne par match")!==-1;
+    });
+    if(!mode)throw new Error("le mode « par match » n'est pas annoncé à l'écran");
   });
 
   /* ════════════════════════════════════════════════════════════ */
   phase("AVRIL","Fin de championnat et tournoi provincial");
 
-  await step("deux matchs puis trois matchs de tournoi",async()=>{
-    for(const n of ["Championnat J6 vs Aigles","Championnat J7 vs Faucons"])await jouer(n);
-    for(let i=1;i<=3;i++)await jouer("Tournoi provincial · match "+i);
+  await step("deux journées puis le tournoi provincial",async()=>{
+    await jouer({kind:"league",name:"Journée 6 vs Aigles",opponent:"Aigles",
+      day:"2027-04-03",sets:[[25,22],[23,25],[15,13]]});
+    await jouer({kind:"league",name:"Journée 7 vs Faucons",opponent:"Faucons",
+      day:"2027-04-10",sets:[[19,25],[25,21],[11,15]]});
+    await tournoi("Tournoi provincial","2027-04-24","Québec",[
+      {adv:"Capitale",sets:[[25,20],[25,22]]},
+      {adv:"Lévis",sets:[[23,25],[25,20],[15,12]]},
+      {adv:"Charlesbourg",sets:[[20,25],[18,25]]}]);
     const n=await page.evaluate(()=>curSquad().sessions.length);
-    if(n!==19)throw new Error("sessions="+n);
+    if(n!==19)throw new Error("matchs="+n);
   });
 
-  await step("le filtre de période plafonne à dix matchs",async()=>{
+  await step("S8 · le cumul se lit par nature de rencontre",async()=>{
     const r=await page.evaluate(()=>{
-      const out={};
-      ["all","last3","last5","last10"].forEach(k=>{
-        state.cumulScope=k;
-        out[k]=scopedSessions(curSquad()).length;
+      const sq=curSquad();const out={};
+      state.cumulEventId=null;state.cumulScope="all";
+      ["all","friendly","league","tournament"].forEach(k=>{
+        state.cumulKind=k;
+        out[k]=scopedSessions(sq).length;
       });
-      state.cumulScope="all";
+      state.cumulKind="all";
       return out;
     });
-    if(r.all!==19)throw new Error("total="+r.all);
-    if(r.last10!==10)throw new Error("last10="+r.last10);
-    flag("Modéré","Aucune fenêtre entre 10 matchs et toute la saison",
-      "Sur 19 rencontres, les portées offertes sont 3, 5, 10 ou tout. « Depuis janvier », « le championnat seul », « hors tournois » ne sont pas exprimables.");
+    if(r.all!==19)throw new Error("tout="+r.all);
+    if(r.friendly!==2)throw new Error("amicaux="+r.friendly);
+    if(r.league!==7)throw new Error("championnat="+r.league);
+    if(r.tournament!==10)throw new Error("tournois="+r.tournament);
+  });
+
+  await step("S8 · nature et fenêtre se composent",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=curSquad();
+      state.cumulEventId=null;state.cumulKind="league";state.cumulScope="last3";
+      const n=scopedSessions(sq).length;
+      const tous=scopedSessions(sq).every(se=>eventOf(sq,se).kind==="league");
+      state.cumulKind="all";state.cumulScope="all";
+      return {n:n,tous:tous};
+    });
+    if(r.n!==3)throw new Error("3 derniers de championnat="+r.n);
+    if(!r.tous)throw new Error("la fenêtre déborde sur d'autres natures");
+  });
+
+  await step("le bilan victoires/défaites se ventile par nature",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=curSquad();
+      return {tout:squadRecord(sq),champ:squadRecord(sq,"league"),
+        tournoi:squadRecord(sq,"tournament"),amical:squadRecord(sq,"friendly")};
+    });
+    if(r.tout.win+r.tout.loss!==19)throw new Error("bilan total="+JSON.stringify(r.tout));
+    if(r.amical.win!==2)throw new Error("amicaux="+JSON.stringify(r.amical));
+    if(r.champ.win+r.champ.loss!==7)throw new Error("championnat="+JSON.stringify(r.champ));
+    if(r.tournoi.win+r.tournoi.loss!==10)throw new Error("tournois="+JSON.stringify(r.tournoi));
   });
 
   /* ════════════════════════════════════════════════════════════ */
@@ -447,8 +530,7 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
     });
     const r=await page.evaluate(()=>{
       const sq=curSquad();
-      return {camps:sq.campaigns.length,subs:sq.submissions.length,
-        compiled:Object.keys(compileSubmissions(sq,sq.activeCampaignId)).length};
+      return {camps:sq.campaigns.length,compiled:Object.keys(compileSubmissions(sq,sq.activeCampaignId)).length};
     });
     if(r.camps!==3)throw new Error("campagnes="+r.camps);
     if(r.compiled<9)throw new Error("joueuses évaluées="+r.compiled);
@@ -458,36 +540,51 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
     const r=await page.evaluate(()=>{
       const sq=curSquad();
       const rows=compareCampaigns(sq,sq.campaigns[0].id,sq.campaigns[2].id);
-      return {n:rows.length,avecEcart:rows.filter(x=>x.delta!==null).length,
-        exemple:rows.filter(x=>x.delta!==null)[0]};
+      return {n:rows.length,avecEcart:rows.filter(x=>x.delta!==null).length};
     });
     if(r.avecEcart<8)throw new Error("écarts calculables="+r.avecEcart);
-    if(r.exemple.from===null||r.exemple.to===null)throw new Error("écart incomplet");
   });
 
-  await step("la fiche joueuse réunit les matchs et les trois campagnes",async()=>{
+  await step("S11 · un écart manquant est expliqué, pas laissé en tiret",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=curSquad();
+      const rows=compareCampaigns(sq,sq.campaigns[0].id,sq.campaigns[2].id);
+      const from=sq.campaigns[0],to=sq.campaigns[2];
+      return rows.filter(x=>x.delta===null).map(x=>missingWhy(sq,x,from,to));
+    });
+    if(!r.length)throw new Error("aucun cas d'écart manquant à expliquer");
+    if(r.some(t=>!t||t.indexOf("pas d'évaluation")===-1))
+      throw new Error("explication absente : "+JSON.stringify(r));
+    if(!r.some(t=>/arrivée après|écartée avant|partie en cours/.test(t)))
+      throw new Error("aucune raison circonstanciée : "+JSON.stringify(r));
+  });
+
+  await step("S6 · la fiche joueuse ventile ses matchs par nature",async()=>{
     const r=await page.evaluate(()=>{
       const sq=curSquad();
       const lea=sq.roster.find(e=>e.number==="7");
       const ms=playerSeasonStats(sq,lea.playerId);
-      const camps=sq.campaigns.filter(c=>compileSubmissions(sq,c.id)[lea.playerId]).length;
-      return {sessions:ms.sessions,kills:ms.stats.atk_kill,campagnes:camps};
+      return {total:ms.sessions,kinds:Object.keys(ms.byKind).sort(),
+        tournoi:ms.byKind.tournament?ms.byKind.tournament.sessions:0,
+        champ:ms.byKind.league?ms.byKind.league.sessions:0,
+        record:ms.record};
     });
-    if(r.sessions<8)throw new Error("matchs sur la fiche="+r.sessions);
-    if(r.campagnes<2)throw new Error("campagnes sur la fiche="+r.campagnes);
+    if(r.kinds.length<3)throw new Error("natures sur la fiche="+r.kinds.join(","));
+    if(!r.tournoi||!r.champ)throw new Error("ventilation vide : "+JSON.stringify(r));
+    if(!(r.record.win+r.record.loss))throw new Error("aucun résultat rattaché à la joueuse");
   });
 
-  await step("relevé : le bilan ignore la nature des rencontres",async()=>{
-    flag("Majeur","Le bilan ne distingue pas amical, championnat et tournoi",
-      "Les 19 sessions se cumulent en un seul total. « Comment se comporte-t-elle en tournoi ? » — la question la plus fréquente d'un bilan de fin de saison — reste sans réponse.");
+  await step("« comment se comporte-t-elle en tournoi ? » a une réponse",async()=>{
     const r=await page.evaluate(()=>{
       const sq=curSquad();
-      const s=sq.sessions[0];
-      return {resultat:("result" in s)||("score" in s)||("sets" in s)};
+      const lea=sq.roster.find(e=>e.number==="7");
+      const ms=playerSeasonStats(sq,lea.playerId);
+      const t=ms.byKind.tournament,l=ms.byKind.league;
+      return {tournoi:t.stats.atk_kill/t.sessions,champ:l.stats.atk_kill/l.sessions};
     });
-    if(!r.resultat)
-      flag("Modéré","Aucun résultat n'est enregistré",
-        "Ni score, ni sets, ni victoire. L'application compte des gestes, pas des issues : impossible de mettre en regard la performance d'une joueuse et le résultat de l'équipe.");
+    if(!(r.tournoi>0)||!(r.champ>0))throw new Error("moyennes par nature vides");
+    say("       Léa : "+(Math.round(r.tournoi*10)/10)+" kill/match en tournoi contre "+
+        (Math.round(r.champ*10)/10)+" en championnat");
   });
 
   await step("la saison se clôture et cesse de distribuer",async()=>{
@@ -503,29 +600,72 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
     if(r.vues!==0)throw new Error("vues encore distribuées : "+r.vues);
   });
 
-  await step("le journal raconte la saison",async()=>{
+  await step("le journal raconte la saison, rencontres comprises",async()=>{
     const r=await page.evaluate(()=>{
       const par={};DB.log.forEach(l=>{par[l.kind]=(par[l.kind]||0)+1});
       return {total:DB.log.length,par:par};
     });
-    if(r.total<15)throw new Error("entrées au journal="+r.total);
+    if(!r.par.match||r.par.match<19)throw new Error("matchs au journal="+r.par.match);
     if(!r.par.status||!r.par.membership||!r.par.season)
       throw new Error("types manquants : "+JSON.stringify(r.par));
     say("       journal : "+r.total+" entrées — "+
       Object.keys(r.par).map(k=>k+" "+r.par[k]).join(", "));
   });
 
+  await step("tout survit au rechargement",async()=>{
+    await page.evaluate(()=>saveNow());
+    await page.reload();await page.waitForTimeout(600);
+    const r=await page.evaluate(()=>{
+      const sq=DB.squads[0];
+      return {v:DB.version,sessions:sq.sessions.length,events:sq.events.length,
+        orphelines:sq.sessions.filter(se=>!se.eventId).length,
+        resultats:sq.sessions.filter(se=>hasResult(se.result)).length,
+        jours:new Set(sq.sessions.map(se=>se.day)).size};
+    });
+    if(r.v!==5)throw new Error("version="+r.v);
+    if(r.sessions!==19)throw new Error("matchs="+r.sessions);
+    if(r.orphelines)throw new Error("sessions sans rencontre="+r.orphelines);
+    if(r.resultats!==19)throw new Error("résultats conservés="+r.resultats);
+    if(r.jours<10)throw new Error("dates réelles perdues : "+r.jours+" jours distincts");
+    say("       "+r.sessions+" matchs · "+r.events+" rencontres · "+r.jours+" dates distinctes · "+
+        r.resultats+" résultats");
+  });
+
   await step("bilan chiffré de la saison",async()=>{
     const r=await page.evaluate(()=>{
       const sq=DB.squads[0];
-      return {sessions:sq.sessions.length,roster:sq.roster.length,
-        effectif:sq.roster.filter(isInSquad).length,
-        campagnes:sq.campaigns.length,soumissions:sq.submissions.length,
-        joueusesAuCumul:computeGlobalPlayers(sq).length};
+      const b=squadRecord(sq);
+      return {sessions:sq.sessions.length,events:sq.events.length,
+        roster:sq.roster.length,effectif:sq.roster.filter(isInSquad).length,
+        campagnes:sq.campaigns.length,bilan:b.win+"V–"+b.loss+"D"};
     });
-    say("       "+r.sessions+" rencontres · "+r.roster+" convoquées · "+r.effectif+" dans l'effectif final · "+
-        r.campagnes+" campagnes · "+r.soumissions+" soumissions · "+r.joueusesAuCumul+" joueuses au cumul");
-    if(r.sessions!==19)throw new Error("sessions="+r.sessions);
+    say("       "+r.sessions+" matchs répartis en "+r.events+" rencontres · bilan "+r.bilan+
+        " · "+r.roster+" convoquées · "+r.effectif+" dans l'effectif final · "+r.campagnes+" campagnes");
+    /* 2 amicaux + 3 tournois + 7 journées de championnat = 12 rencontres
+       pour 19 matchs : les tournois en portent plusieurs. */
+    if(r.events!==12)throw new Error("rencontres="+r.events);
+    if(r.sessions!==19)throw new Error("matchs="+r.sessions);
+  });
+
+  say("\n── Adversaires : chaque match de tournoi garde le sien");
+  await step("un tournoi retient un adversaire par match",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=DB.squads[0];
+      return sq.events.filter(ev=>ev.kind==="tournament").map(ev=>({
+        nom:ev.name,
+        advs:sessionsOfEvent(sq,ev.id).map(se=>se.opponent||"").filter(Boolean)
+      }));
+    });
+    if(r.length!==3)throw new Error("tournois="+r.length);
+    r.forEach(t=>{
+      if(t.advs.length<3)throw new Error(t.nom+" : adversaires notés="+t.advs.length);
+      /* Un tournoi se joue contre plusieurs équipes : si l'app n'en retenait
+         qu'un, la liste serait uniforme. */
+      const uniques=[...new Set(t.advs)];
+      if(uniques.length!==t.advs.length)
+        throw new Error(t.nom+" : adversaires confondus ["+t.advs.join(", ")+"]");
+    });
+    say("       "+r.map(t=>t.nom+" : "+t.advs.join(", ")).join(" | "));
   });
 
   await ctx.close();await b.close();

@@ -244,16 +244,28 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     const sel=await page.evaluate(()=>curSquad().roster.filter(e=>e.status==="selected").length);
     if(n!==sel||n===0)throw new Error("équipe="+n+" retenues="+sel);
   });
-  await step("saisir des statistiques puis enregistrer la session",async()=>{
+  await step("saisir des statistiques puis enregistrer le match",async()=>{
     await tab("Saisie");
     await page.locator(".player-chip").first().click();await page.waitForTimeout(150);
     for(let i=0;i<3;i++){await page.locator(".qp-stat-btn").first().click();await page.waitForTimeout(40)}
-    await page.locator(".btn-save").filter({hasText:"Enregistrer la session"}).click();await page.waitForTimeout(150);
-    await page.locator(".modal input").fill("Match test");
-    await page.locator(".modal button").filter({hasText:"Enregistrer"}).last().click();await page.waitForTimeout(250);
-    const s=await page.evaluate(()=>({sess:curTeam().sessions.length,live:sumStats(Object.values(curTeam().stats)[0]||emptyS())}));
-    if(s.sess!==1)throw new Error("sessions="+s.sess);
+    await page.locator(".btn-save").filter({hasText:"Enregistrer le match"}).click();await page.waitForTimeout(200);
+    /* La modale décrit la rencontre : nature, nom, adversaire, date, résultat. */
+    await page.locator(".modal input").nth(0).fill("Journée 1");      // nom de la rencontre
+    await page.locator(".modal input").nth(1).fill("Les Lions");      // adversaire
+    await page.locator(".modal button").filter({hasText:"Enregistrer"}).last().click();
+    await page.waitForTimeout(300);
+    const s=await page.evaluate(()=>{
+      const sq=curSquad();
+      const ev=sq.sessions.length?eventOf(sq,sq.sessions[0]):null;
+      return {sess:sq.sessions.length,events:sq.events.length,
+        live:sumStats(Object.values(sq.stats)[0]||emptyS()),
+        kind:ev?ev.kind:null,adv:ev?ev.opponent:null};
+    });
+    if(s.sess!==1)throw new Error("matchs="+s.sess);
+    if(s.events!==1)throw new Error("rencontres="+s.events);
     if(s.live!==0)throw new Error("compteurs non remis à zéro");
+    if(s.kind!=="league")throw new Error("nature="+s.kind);
+    if(s.adv!=="Les Lions")throw new Error("adversaire="+s.adv);
   });
   await step("annuler (undo) restaure les compteurs",async()=>{
     await page.locator(".player-chip").first().click();await page.waitForTimeout(120);

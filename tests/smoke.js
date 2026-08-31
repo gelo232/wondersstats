@@ -149,6 +149,57 @@ const ERRORS=[];
     await page.evaluate(()=>{DB.squads[0].roster[0].number="7";});
   });
 
+  say("\n── Migration v4 → v5 : les sessions retrouvent leur rencontre");
+  await step("une base v4 sans rencontres se rattache toute seule",async()=>{
+    /* On fabrique un état v4 crédible : des sessions nommées à la main,
+       sans eventId, comme celles qu'un club a déjà enregistrées. */
+    await page.evaluate(()=>{
+      const sq=DB.squads[0];
+      sq.events=[];
+      sq.sessions=[
+        {id:uid(),name:"Tournoi de Laval · match 3",date:"2027-02-13T20:00:00.000Z",entries:[]},
+        {id:uid(),name:"Tournoi de Laval · match 2",date:"2027-02-13T18:00:00.000Z",entries:[]},
+        {id:uid(),name:"Tournoi de Laval · match 1",date:"2027-02-13T16:00:00.000Z",entries:[]},
+        {id:uid(),name:"Amical vs Titans",date:"2026-09-12T20:00:00.000Z",entries:[]},
+        {id:uid(),name:"Journée 3 vs Lions",date:"2026-11-21T20:00:00.000Z",entries:[]}
+      ];
+      DB.version=4;
+      localStorage.setItem("wonderstats_v3",JSON.stringify(DB));
+    });
+    await page.reload();await page.waitForTimeout(500);
+    const r=await page.evaluate(()=>{
+      const sq=DB.squads[0];
+      const parNature={};
+      sq.events.forEach(ev=>{parNature[ev.kind]=(parNature[ev.kind]||0)+1});
+      const laval=sq.events.filter(ev=>ev.name==="Tournoi de Laval")[0];
+      return {version:DB.version,sessions:sq.sessions.length,events:sq.events.length,
+        orphelines:sq.sessions.filter(se=>!se.eventId).length,
+        parNature:parNature,
+        lavalMatchs:laval?sessionsOfEvent(sq,laval.id).length:0,
+        lavalDate:laval?laval.date:null,
+        adversaires:sq.events.map(ev=>ev.opponent).filter(Boolean).sort()};
+    });
+    if(r.version!==5)throw new Error("version="+r.version);
+    if(r.orphelines)throw new Error("sessions sans rencontre="+r.orphelines);
+    /* Les trois matchs de Laval sont reconnus comme un seul tournoi. */
+    if(r.lavalMatchs!==3)throw new Error("matchs regroupés sous Laval="+r.lavalMatchs);
+    if(r.events!==3)throw new Error("rencontres reconstituées="+r.events+" (attendu tournoi + amical + journée)");
+    if(r.parNature.tournament!==1)throw new Error("tournois="+r.parNature.tournament);
+    if(r.parNature.friendly!==1)throw new Error("amicaux="+r.parNature.friendly);
+    if(r.parNature.league!==1)throw new Error("championnat="+r.parNature.league);
+    /* L'adversaire est extrait du nom quand la convention le permet. */
+    if(r.adversaires.join(",")!=="Lions,Titans")throw new Error("adversaires="+r.adversaires.join(","));
+    /* La date de la rencontre reprend celle du plus ancien match du groupe. */
+    if(r.lavalDate!=="2027-02-13")throw new Error("date du tournoi="+r.lavalDate);
+  });
+  await step("une seconde migration ne recrée rien",async()=>{
+    const avant=await page.evaluate(()=>DB.squads[0].events.length);
+    await page.evaluate(()=>{saveNow()});
+    await page.reload();await page.waitForTimeout(500);
+    const apres=await page.evaluate(()=>DB.squads[0].events.length);
+    if(apres!==avant)throw new Error("rencontres dupliquées : "+avant+" → "+apres);
+  });
+
   await ctx.close(); await b.close();
   say("\n"+PASS+" contrôles réussis.");
   say(ERRORS.length?("❌ "+ERRORS.length+" problème(s):\n"+ERRORS.join("\n")):"✅ Aucun problème");

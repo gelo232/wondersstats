@@ -175,13 +175,16 @@ Sept suites Playwright pilotent l'application réelle (`tests/run.sh`, **154 con
 
 L'application reste sans dépendance : Playwright ne sert qu'aux tests, `index.html` demeure autonome.
 
-## 8. Une saison complète, jouée (v4)
+## 8. Une saison complète, jouée (v4) — corrigée en v5
 
 Quatrième passage : le parcours a été **joué** dans l'application, pas décrit.
 `tests/season.js` déroule neuf mois sur une équipe U15 — sélection d'août, deux
 amicaux, trois tournois, sept matchs de championnat, une blessure, un départ, une
-arrivée en mars, bilan de mai, clôture. **19 rencontres, 32 étapes, aucune erreur
-JS.**
+arrivée en mars, bilan de mai, clôture.
+
+Le passage a relevé onze observations, dont six tenaient à une seule lacune. Elles
+sont **toutes corrigées** ; le tableau ci-dessous garde l'énoncé du constat, et la
+section « La correction apportée » dit ce qui a été fait.
 
 ### Ce qui tient
 
@@ -194,11 +197,11 @@ JS.**
 | La fiche joueuse réunit les deux moitiés | 8 matchs et 3 campagnes sur un même écran (constat A5). |
 | Le journal raconte la saison | 18 entrées signées : 14 décisions de sélection, 2 changements d'effectif, 1 convocation, 1 clôture. |
 
-### Ce qui manque — un seul concept absent
+### Ce qui manquait — un seul concept absent
 
-Six des onze observations tiennent à la même lacune : **la rencontre n'est pas une
-entité**. Une session vaut `{id, name, date, teamName, entries}` — le reste est du
-texte libre dans `name`.
+Six des onze observations tenaient à la même lacune : **la rencontre n'était pas
+une entité**. Une session valait `{id, name, date, teamName, entries}` — le reste
+était du texte libre dans `name`.
 
 | Réf | Observation | Gravité |
 |---|---|---|
@@ -214,23 +217,51 @@ texte libre dans `name`.
 | **S10** | **Aucun résultat** n'est enregistré — ni score, ni sets, ni victoire. L'application compte des gestes, pas des issues. | Modéré |
 | **S11** | Une **arrivante n'a aucun point de comparaison** ; sa ligne de progression est vide sans que l'écran en dise la raison. | Mineur |
 
-### La correction que cela appelle
+### La correction apportée (v5)
 
-S1 à S6 se referment d'un coup en donnant une existence à la rencontre :
+Les onze observations sont corrigées. S1 à S6 se referment d'un coup en donnant
+une existence à la rencontre :
 
 ```
-events[]     {id, squadId, kind, name, opponent, date, location}
-                 kind ∈ friendly | league | tournament
-session      {…, eventId, date saisissable, opponent, result?}
+events[]   {id, kind, name, opponent, date, location, note}
+               kind ∈ league | tournament | friendly | training
+session    {…, eventId, day (date réelle), opponent, result:{sets[]}}
 ```
 
-Un tournoi devient un `event` portant plusieurs sessions ; un amical, un event à
-une seule session. Le filtre de période se double alors d'un filtre par nature et
-par événement, et le bilan de fin de saison peut répondre « en tournoi » comme il
-répond déjà « sur les trois derniers matchs ».
+Un tournoi est un `event` portant plusieurs sessions ; un amical, un event à une
+seule session. Chaque match garde **son propre adversaire** — dans un tournoi il
+change à chaque tour, et la rencontre affiche la liste.
 
-S10 (le résultat) est une décision de périmètre distincte : suivre des issues, et
-non plus seulement des gestes, change ce qu'est l'application.
+| Réf | Ce qui a été fait |
+|---|---|
+| **S1** | Quatre natures — championnat, tournoi, amical, entraînement — choisies à l'enregistrement, avec icône et couleur propres. |
+| **S2** | L'adversaire est un champ, porté par le match. L'écran Rencontres et le journal le citent. |
+| **S3** | Le tournoi est une unité : une carte, ses matchs, son bilan, son cumul propre en un geste (bouton 📊). |
+| **S4** | La date de la rencontre est saisissable et distincte de l'horodatage de saisie. Un tournoi joué samedi et saisi dimanche reste daté de samedi. |
+| **S5** | Deux tournois se comparent en basculant le filtre de rencontre ; plus rien à reconstituer à la main. |
+| **S6** | Le bilan de fin de saison se décline par nature : « Champ. 5V–2D · Tournoi 7V–3D · Amical 2V–0D ». |
+| **S7** | Le filtre de nature et le filtre d'événement se composent avec la fenêtre de rang : un tournoi reste isolable après coup. |
+| **S8** | « Le championnat seul », « ce tournoi », « hors tournois » sont exprimables — nature et événement sont des axes de lecture. |
+| **S9** | Le cumul affiche le nombre de sessions par joueuse et propose la moyenne par match, qui met sur un pied d'égalité 1 match et 8. |
+| **S10** | Le score par set est saisi, l'issue en est déduite (V/D/N) et remonte au match, à la rencontre, à la nature et à la saison. |
+| **S11** | Une progression vide dit sa raison : « pas d'évaluation en « X » (arrivée après / écartée avant / partie en cours de saison) ». |
+
+La migration v4 → v5 rattache les sessions existantes : les matchs nommés
+« Tournoi de Laval · match 1..3 » se regroupent sous une rencontre unique, la
+nature est devinée du nom, l'adversaire extrait de « vs X », la date reprise du
+plus ancien match du groupe. L'opération est idempotente. `tests/smoke.js` la
+vérifie sur une base v4 fabriquée pour l'occasion.
+
+S10 était présenté comme une décision de périmètre distincte : elle a été prise.
+L'application suit désormais des issues autant que des gestes — sans quoi « bonne
+en tournoi » restait une intuition invérifiable.
+
+### Rejoué après correction
+
+`tests/season.js` déroule la même saison avec de vraies rencontres : **19 matchs
+en 12 rencontres sur 12 dates distinctes, bilan 14V–5D, 36 étapes, 0 observation
+d'audit, aucune erreur JS.** Les onze ⚑ du quatrième passage sont devenus des
+assertions : la suite échouerait si l'un des défauts revenait.
 
 ## 9. Rôles, profils et accès (v4)
 

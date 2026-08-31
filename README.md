@@ -44,7 +44,7 @@ les matchs et n'évalue pas — ce sont des actes de terrain qui engagent leur a
 | 🗓️ **Saison** | Tableau de sélection · **campagnes d'évaluation** · **journal des décisions** · saisons |
 | 👥 **Joueuses** | Base de données partagée entre toutes les saisons · convocation |
 | ✏️ **Saisie** | Statistiques en direct — mode rapide ou mode grille |
-| 📊 **Récap** | Match en cours · cumul (filtrable par période) · **⭐ évaluations par campagne** et **📈 progression** · sessions |
+| 📊 **Récap** | Match en cours · cumul (filtrable par **nature** et par **rencontre**) · **⭐ évaluations par campagne** et **📈 progression** · **🏐 rencontres** |
 | 🎯 **Sélection** | Vues sélectionneur · publication · soumissions reçues |
 
 Il ne voit que **son** équipe : roster, statistiques, campagnes et soumissions.
@@ -67,6 +67,40 @@ Il ne voit que les équipes où il est affecté, et **jamais** l'avis d'un coll�
 
 > Le détail des profils, la matrice complète des accès et ce que l'application
 > peut réellement garantir : [`ROLES.md`](ROLES.md).
+
+---
+
+## Rencontres
+
+Un match s'enregistre dans une **rencontre**, qui porte sa nature, son adversaire,
+sa date réelle et son lieu.
+
+| Nature | Usage |
+|---|---|
+| 🏆 **Championnat** | Une journée de calendrier |
+| 🎪 **Tournoi** | Une journée à plusieurs matchs — un seul bloc, plusieurs matchs |
+| 🤝 **Amical** | Hors concours, préparation |
+| 🎽 **Entraînement** | Séance chiffrée |
+
+Un tournoi se saisit une fois puis se complète : le second match propose
+« Rattacher à » la rencontre du jour. Chaque match garde **son propre adversaire**
+— il change à chaque tour — et son score par set, dont l'issue (V/D/N) est déduite.
+
+L'écran **🏐 Rencontres** regroupe les matchs sous leur rencontre, affiche le bilan
+de la saison décliné par nature, et le bouton 📊 d'une rencontre bascule le cumul
+sur elle seule.
+
+La date de la rencontre est distincte de l'horodatage de saisie : un tournoi joué
+samedi et saisi dimanche reste daté de samedi.
+
+### Lire le cumul
+
+Trois axes se composent : la **nature** (toutes, championnat, tournoi, amical), la
+**rencontre** (un tournoi précis) et la **fenêtre** (toute la saison, 3, 5 ou 10
+derniers matchs). Le bandeau rappelle en clair ce qui est cumulé.
+
+`÷ Par match` divise par le nombre de sessions jouées par chaque joueuse : une
+titulaire à 8 matchs et une arrivante à 1 se lisent alors sur la même échelle.
 
 ---
 
@@ -207,6 +241,9 @@ vous publiez explicitement sur votre propre relais.
 - `📥 Restaurer / fusionner` réimporte en dédoublonnant les joueuses. Les exports de
   l'ancienne version (v7 et antérieurs) sont acceptés.
 - Au premier lancement, les données de l'ancienne version sont migrées automatiquement.
+- Les saisons enregistrées avant les rencontres sont reprises : les matchs d'un même
+  tournoi se regroupent d'eux-mêmes, la nature est devinée du nom, l'adversaire lu
+  dans « vs X ».
 
 ---
 

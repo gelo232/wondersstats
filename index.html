@@ -72,6 +72,11 @@ button,input,select,textarea{font-family:inherit}
 
 /* ── PILLS / FILTERS ──────────────────────────────── */
 .pill-row{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;background:#0F172A;border-bottom:1px solid #1E293B;flex-shrink:0}
+/* Rangée d'onglets principale : quatre entrées doivent tenir sans défilement,
+   sinon la dernière passe inaperçue. */
+.pill-row.tight{gap:4px;padding-left:8px;padding-right:8px}
+.pill-row.tight .pill{padding:9px 10px;font-size:12px}
+@media(min-width:430px){.pill-row.tight .pill{padding:10px 14px;font-size:13px}}
 @media(min-width:600px){.pill-row{padding:12px 16px;justify-content:center}}
 .pill{padding:7px 14px;border-radius:20px;border:none;white-space:nowrap;font-weight:600;font-size:12px;cursor:pointer;transition:all .15s;background:#1E293B;color:#94A3B8}
 .pill.sm{padding:5px 10px;font-size:11px}
@@ -257,6 +262,22 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .autosave-indicator.saving .dot{background:#F59E0B;animation:pulse .6s ease infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 .data-actions{display:flex;gap:8px;margin-top:16px;justify-content:center;flex-wrap:wrap}
+.sets-row{display:flex;gap:8px;flex-wrap:wrap}
+.set-cell{display:flex;flex-direction:column;align-items:center;gap:4px}
+.set-lbl{font-size:10px;color:#64748B;font-weight:700;letter-spacing:.3px}
+.set-pair{display:flex;align-items:center;gap:4px}
+.set-in{width:42px;height:40px;border-radius:8px;background:#0F172A;border:1.5px solid #334155;
+  color:#F8FAFC;font-size:16px;font-weight:700;text-align:center;outline:none;margin:0}
+.set-in:focus{border-color:#60A5FA}
+.set-sep{color:#475569;font-weight:700}
+.ev-card{background:#1E293B;border-radius:12px;border:1px solid #334155;margin-bottom:10px;overflow:hidden}
+.ev-head{padding:12px 14px;display:flex;align-items:center;gap:10px;border-left:4px solid #334155}
+.ev-head .grow{flex:1;min-width:0}
+.ev-title{font-size:15px;font-weight:700;color:#F8FAFC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-sub{font-size:11px;color:#64748B;margin-top:3px}
+.ev-match{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid #0F172A}
+.ev-match .grow{flex:1;min-width:0}
+.score{font-family:inherit;font-size:14px;font-weight:800;padding:3px 9px;border-radius:7px;white-space:nowrap}
 .update-bar{position:absolute;bottom:0;left:0;right:0;background:#1E3A5F;border-top:1px solid #3B82F6;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:90;font-size:12px;color:#DBEAFE}
 </style>
 </head>
@@ -270,7 +291,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "4.0";
+var APP_VERSION = "5.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -347,6 +368,21 @@ var KIND_BY_KEY={};CAMPAIGN_KINDS.forEach(function(k){KIND_BY_KEY[k.key]=k});
 
 var CATEGORIES=["U11","U13","U15","U16","U18","U21","Senior"];
 
+/* ─── Rencontres ─────────────────────────────────────────────────────
+   Une saison n'est pas une suite de matchs indistincts : elle a des
+   amicaux, du championnat et des tournois, et un tournoi est un
+   événement qui porte plusieurs matchs. Sans cette entité, tout le
+   contexte se réfugiait dans le nom de la session. Voir AUDIT.md § 8. */
+var EVENT_KINDS={
+  friendly:{key:"friendly",label:"Amical",short:"Amical",icon:"🤝",color:"#60A5FA"},
+  league:{key:"league",label:"Championnat",short:"Champ.",icon:"🏆",color:"#34D399"},
+  tournament:{key:"tournament",label:"Tournoi",short:"Tournoi",icon:"🎪",color:"#F59E0B"},
+  training:{key:"training",label:"Entraînement",short:"Entr.",icon:"🎽",color:"#94A3B8"}
+};
+var EVENT_KEYS=["league","tournament","friendly","training"];
+/* Un tournoi porte plusieurs matchs ; les autres natures, un seul en général. */
+function kindIsMulti(k){return k==="tournament"}
+
 /* ─── Journal des décisions ──────────────────────────────────────────
    On enregistre ce qui engage — un statut tranché, une soumission
    supprimée, une saison close — et rien d'autre. Un journal qui note
@@ -358,6 +394,7 @@ var LOG_KINDS={
   number:{icon:"🔢",label:"Numéros",color:"#A5B4FC"},
   submission:{icon:"📥",label:"Soumissions",color:"#F87171"},
   campaign:{icon:"📅",label:"Campagnes",color:"#C084FC"},
+  match:{icon:"🏐",label:"Rencontres",color:"#38BDF8"},
   season:{icon:"🗓️",label:"Saisons",color:"#94A3B8"},
   access:{icon:"🔑",label:"Accès",color:"#FBBF24"}
 };
@@ -384,6 +421,12 @@ function hasStats(s){return sumStats(s)>0}
 function addStats(dst,src){for(var i=0;i<ALL_STATS.length;i++){var k=ALL_STATS[i].key;dst[k]+=(src&&src[k])||0}return dst}
 function cleanNum(v){return String(v==null?"":v).replace(/\D/g,"").slice(0,3)}
 function nowISO(){return new Date().toISOString()}
+function pad2(n){return (n<10?"0":"")+n}
+function todayISO(){
+  var d=new Date();
+  return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
+}
+function dayOf(iso){return String(iso||"").slice(0,10)}
 function fmtDate(iso){try{return new Date(iso).toLocaleDateString("fr-CA",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}catch(e){return iso||""}}
 function fmtDay(iso){try{return new Date(iso).toLocaleDateString("fr-CA",{year:"numeric",month:"long",day:"numeric"})}catch(e){return iso||""}}
 function fmtShortDay(d){if(!d)return "?";try{return new Date(d+(d.length===10?"T12:00:00":"")).toLocaleDateString("fr-CA",{month:"short",day:"numeric",year:"numeric"})}catch(e){return d}}
@@ -412,6 +455,37 @@ function mkRosterEntry(playerId,number,position){
   return {playerId:playerId,number:cleanNum(number),position:position||"",
           status:"candidate",membership:"active",note:""};
 }
+function mkEvent(o){
+  return Object.assign({id:uid(),kind:"league",name:"",opponent:"",
+    date:todayISO(),location:"",note:"",createdAt:nowISO()},o||{});
+}
+/* Un résultat est une suite de sets. L'issue s'en déduit — on ne stocke
+   pas une victoire qu'on pourrait contredire en corrigeant un score. */
+function mkResult(){return {sets:[]}}
+function setsOf(r){
+  var w=0,l=0;
+  ((r&&r.sets)||[]).forEach(function(x){
+    if(x.us>x.them)w++;else if(x.them>x.us)l++;
+  });
+  return {won:w,lost:l};
+}
+function hasResult(r){return !!(r&&r.sets&&r.sets.length)}
+function resultLabel(r){
+  if(!hasResult(r))return "";
+  var s=setsOf(r);
+  return s.won+"–"+s.lost;
+}
+function resultOutcome(r){
+  if(!hasResult(r))return null;
+  var s=setsOf(r);
+  if(s.won>s.lost)return "win";
+  if(s.lost>s.won)return "loss";
+  return "draw";
+}
+var OUTCOMES={win:{label:"Victoire",short:"V",color:"#34D399"},
+  loss:{label:"Défaite",short:"D",color:"#F87171"},
+  draw:{label:"Nul",short:"N",color:"#94A3B8"}};
+
 function mkCampaign(o){
   var kind=(o&&o.kind)||"custom";
   return Object.assign({id:uid(),kind:kind,name:(KIND_BY_KEY[kind]||{}).label||"Campagne",
@@ -425,7 +499,8 @@ function mkSquad(teamId,seasonId,name){
   var c=mkCampaign({kind:"tryout"});
   return {id:uid(),teamId:teamId||null,seasonId:seasonId||null,
           name:name||"Équipe",category:"",freeView:false,
-          roster:[],playerIds:[],lineup:[],subteams:[],stats:{},sessions:[],
+          roster:[],playerIds:[],lineup:[],subteams:[],stats:{},
+          events:[],sessions:[],
           campaigns:[c],activeCampaignId:c.id,
           selectorViews:[],submissions:[]};
 }
@@ -444,7 +519,7 @@ function mkSelectorView(o){
 function mkEntryData(){return {stats:emptyS(),ratings:{},reco:"",note:""}}
 
 /* ─── Base de données ───────────────────────────────────────── */
-function emptyDB(){return {version:4,people:[],teams:[],assignments:[],
+function emptyDB(){return {version:5,people:[],teams:[],assignments:[],
   players:[],seasons:[],squads:[],log:[],activeSeasonId:null}}
 var DB=emptyDB();
 
@@ -461,6 +536,10 @@ var state={
   evalMode:"list",              // list | progress
   progressFrom:null, progressTo:null,
   cumulScope:"all",             // all | last3 | last5 | last10
+  cumulKind:"all",              // all | league | tournament | friendly | training
+  cumulEventId:null,            // un événement précis, prioritaire sur la nature
+  cumulMode:"total",            // total | avg — par match, pour comparer à échelle égale
+  sessionsPane:"events",        // events | list
   playersPane:"db",             // db | roster
   summaryMode:"session",        // session | global | evals | sessions
   selectionPane:"views",        // views | submissions
@@ -688,6 +767,46 @@ function scheduleAutoSave(){
 function saveNow(){if(autoSaveTimer){clearTimeout(autoSaveTimer);autoSaveTimer=null}saveAll();updateIndicators(false)}
 
 /* ── Normalisation défensive (import & rechargement) ───────── */
+/* Migration v4 → v5 : les sessions antérieures n'ont pas d'événement.
+   On les rattache en devinant la nature depuis leur nom, et on reconstitue
+   les tournois d'après la convention « Tournoi X · match N ». Un rattachement
+   deviné reste corrigeable : l'événement est éditable. */
+function guessKind(name){
+  var n=(name||"").toLowerCase();
+  if(/tournoi|tourn\.|invitation/.test(n))return "tournament";
+  if(/amical|hors.?concours|pr[ée]paration/.test(n))return "friendly";
+  if(/entra[îi]nement|pratique/.test(n))return "training";
+  return "league";
+}
+function guessOpponent(name){
+  var m=(name||"").match(/\b(?:vs|contre|c\.?)\s+(.+)$/i);
+  return m?m[1].trim():"";
+}
+/* « Tournoi Sherbrooke · match 2 » → « Tournoi Sherbrooke » */
+function eventKeyOf(name){
+  var m=(name||"").match(/^(.*?)\s*[·:•\-–]\s*match\s*\d+\s*$/i);
+  return m?m[1].trim():null;
+}
+function attachOrphanSessions(sq){
+  var byKey={};
+  sq.events.forEach(function(ev){if(ev.migratedKey)byKey[ev.migratedKey]=ev});
+  var known={};sq.events.forEach(function(ev){known[ev.id]=true});
+  /* Les sessions sont empilées récentes en tête : on remonte le temps
+     pour que les matchs d'un même tournoi se retrouvent dans l'ordre. */
+  sq.sessions.slice().reverse().forEach(function(se){
+    if(se.eventId&&known[se.eventId])return;
+    var groupe=eventKeyOf(se.name);
+    var cle=groupe||("§"+se.id);
+    if(byKey[cle]){se.eventId=byKey[cle].id;return}
+    var ev=mkEvent({kind:guessKind(se.name),
+      name:groupe||se.name,opponent:guessOpponent(se.name),
+      date:se.day||dayOf(se.date)});
+    ev.migratedKey=cle;
+    sq.events.push(ev);known[ev.id]=true;byKey[cle]=ev;
+    se.eventId=ev.id;
+  });
+}
+
 function normalizeSquad(sq,knownPlayers){
   sq=Object.assign(mkSquad(),sq);
   sq.roster=(sq.roster||[]).filter(function(e){return e&&knownPlayers[e.playerId]}).map(function(e){
@@ -714,11 +833,21 @@ function normalizeSquad(sq,knownPlayers){
   });
   var st={};Object.keys(sq.stats||{}).forEach(function(pid){if(inRoster[pid])st[pid]=normStats(sq.stats[pid])});
   sq.stats=st;
+  sq.events=(sq.events||[]).map(function(ev){
+    return Object.assign(mkEvent(),ev,{kind:EVENT_KINDS[ev.kind]?ev.kind:"league",date:dayOf(ev.date)||todayISO()});
+  });
   sq.sessions=(sq.sessions||[]).map(function(se){
-    return {id:se.id||uid(),name:se.name||"Session",date:se.date||nowISO(),teamName:se.teamName||sq.name,
+    return {id:se.id||uid(),name:se.name||"Session",date:se.date||nowISO(),
+      day:dayOf(se.day||se.date)||todayISO(),
+      opponent:se.opponent||guessOpponent(se.name||""),
+      eventId:se.eventId||"",teamName:se.teamName||sq.name,
+      result:(se.result&&se.result.sets)?{sets:se.result.sets.filter(function(x){
+        return x&&isFinite(x.us)&&isFinite(x.them)}).map(function(x){
+        return {us:Math.max(0,Math.round(x.us)),them:Math.max(0,Math.round(x.them))}})}:mkResult(),
       entries:(se.entries||[]).map(function(en){return {playerId:en.playerId,name:en.name||"",
         number:cleanNum(en.number),position:en.position||"",stats:normStats(en.stats)}})};
   });
+  attachOrphanSessions(sq);
   sq.selectorViews=(sq.selectorViews||[]).map(function(v){
     v=Object.assign(mkSelectorView(),v);
     v.playerIds=(v.playerIds||[]).filter(function(pid){return inRoster[pid]});
@@ -752,7 +881,7 @@ function normalizeSquad(sq,knownPlayers){
 
 function normalizeDB(db){
   db=Object.assign(emptyDB(),db);
-  db.version=4;
+  db.version=5;
 
   db.log=(db.log||[]).filter(function(l){return l&&l.at&&l.text}).map(function(l){
     return {id:l.id||uid(),at:l.at,kind:LOG_KINDS[l.kind]?l.kind:"status",
@@ -920,8 +1049,10 @@ function loadAll(){
     if(raw){
       var parsed=JSON.parse(raw);
       /* Chaîne de migration : v1 → v2 → v3 → v4, sans perte à chaque étape. */
+      /* v4 → v5 se fait dans normalizeDB : les sessions orphelines y sont
+         rattachées à une rencontre déduite de leur nom. */
       DB=normalizeDB((parsed.version>=4)?parsed:migrateV3(parsed));
-      if(parsed.version<4)setTimeout(function(){showToast("✅ Données migrées vers la v4")},400);
+      if(parsed.version<5)setTimeout(function(){showToast("✅ Données migrées vers la v5")},400);
     } else {
       var legacy=null;
       for(var i=0;i<LEGACY_KEYS.length&&!legacy;i++){
@@ -930,7 +1061,7 @@ function loadAll(){
       }
       if(!legacy)legacy=readLegacyV1();
       DB=legacy?normalizeDB(migrateV3(migrateV2(legacy))):emptyDB();
-      if(legacy)setTimeout(function(){showToast("✅ Données migrées vers la v4")},400);
+      if(legacy)setTimeout(function(){showToast("✅ Données migrées vers la v5")},400);
     }
   }catch(e){DB=emptyDB()}
 
@@ -1012,10 +1143,27 @@ function findViewAnywhere(id){
 /* ══ CUMULS & COMPILATION ══════════════════════════════════════ */
 /* Cumul des sessions d'une équipe, agrégé par playerId (identité stable) */
 var CUMUL_SCOPES=[{k:"all",l:"Toute la saison"},{k:"last3",l:"3 derniers"},{k:"last5",l:"5 derniers"},{k:"last10",l:"10 derniers"}];
-/* Les sessions sont empilées les plus récentes en tête (unshift à l'enregistrement) */
+/* Trois filtres qui se composent : combien de matchs, de quelle nature,
+   et éventuellement un événement précis. Les sessions sont empilées les
+   plus récentes en tête (unshift à l'enregistrement). */
 function scopedSessions(team){
+  if(!team)return [];
+  var list=team.sessions;
+  if(state.cumulEventId)list=list.filter(function(se){return se.eventId===state.cumulEventId});
+  else if(state.cumulKind!=="all")list=list.filter(function(se){
+    var ev=eventOf(team,se);return ev&&ev.kind===state.cumulKind;
+  });
   var n={all:0,last3:3,last5:5,last10:10}[state.cumulScope]||0;
-  return n?team.sessions.slice(0,n):team.sessions;
+  return n?list.slice(0,n):list;
+}
+function cumulScopeLabel(team){
+  if(state.cumulEventId){
+    var ev=eventById(team,state.cumulEventId);
+    return ev?eventLabel(ev):"Événement";
+  }
+  var k=state.cumulKind!=="all"?(EVENT_KINDS[state.cumulKind]||{}).label:"Toutes natures";
+  var sc=CUMUL_SCOPES.filter(function(x){return x.k===state.cumulScope})[0];
+  return k+" · "+(sc?sc.l.toLowerCase():"");
 }
 function computeGlobalPlayers(team){
   var season=team;if(!team||!team.sessions.length)return [];
@@ -1071,6 +1219,48 @@ function campaignViews(squad,campaignId){
 }
 /* Une joueuse compte dans l'effectif courant si elle est retenue et pas partie */
 function isInSquad(entry){return entry&&entry.status==="selected"&&entry.membership!=="left"}
+
+/* ── Rencontres ────────────────────────────────────────────── */
+function eventById(squad,id){
+  if(!squad)return null;
+  for(var i=0;i<squad.events.length;i++)if(squad.events[i].id===id)return squad.events[i];
+  return null;
+}
+function eventOf(squad,session){return eventById(squad,session&&session.eventId)}
+function sessionsOfEvent(squad,eventId){
+  return squad.sessions.filter(function(se){return se.eventId===eventId});
+}
+/* Les événements du plus récent au plus ancien, chacun avec ses matchs. */
+function eventsWithSessions(squad){
+  if(!squad)return [];
+  return squad.events.map(function(ev){
+    var ss=sessionsOfEvent(squad,ev.id);
+    return {event:ev,sessions:ss,
+      stats:ss.reduce(function(acc,se){
+        se.entries.forEach(function(en){addStats(acc,en.stats)});return acc;},emptyS()),
+      bilan:ss.reduce(function(acc,se){
+        var o=resultOutcome(se.result);
+        if(o)acc[o]=(acc[o]||0)+1;
+        return acc;},{})};
+  }).filter(function(x){return x.sessions.length})
+    .sort(function(a,b){return String(b.event.date).localeCompare(String(a.event.date))});
+}
+function eventLabel(ev){
+  if(!ev)return "Rencontre";
+  var k=EVENT_KINDS[ev.kind]||EVENT_KINDS.league;
+  return k.icon+" "+(ev.name||k.label);
+}
+/* Bilan victoires/défaites, éventuellement restreint à une nature. */
+function squadRecord(squad,kind){
+  var out={win:0,loss:0,draw:0,sans:0};
+  (squad?squad.sessions:[]).forEach(function(se){
+    var ev=eventOf(squad,se);
+    if(kind&&(!ev||ev.kind!==kind))return;
+    var o=resultOutcome(se.result);
+    if(o)out[o]++;else out.sans++;
+  });
+  return out;
+}
 /* Les squads où une joueuse est convoquée — la mesure de sa présence au club. */
 function squadsOf(pid){return DB.squads.filter(function(sq){return !!rosterEntry(sq,pid)})}
 
@@ -1167,7 +1357,7 @@ function fmtDelta(d){
 /* Cumul de match d'une joueuse sur toute la saison, toutes équipes confondues.
    Sert la fiche joueuse : le quantitatif que la compilation d'évaluations ignore. */
 function playerSeasonStats(squad,pid){
-  var out={stats:emptyS(),sessions:0,teams:[]};
+  var out={stats:emptyS(),sessions:0,teams:[],byKind:{},record:{win:0,loss:0,draw:0}};
   if(!squad)return out;
   /* Une athlète peut jouer dans plusieurs équipes d'une même saison
      (surclassement, dépannage) : on additionne tous les squads de la saison. */
@@ -1175,10 +1365,19 @@ function playerSeasonStats(squad,pid){
     if(sq.seasonId!==squad.seasonId)return;
     var n=0;
     sq.sessions.forEach(function(se){
+      var joue=false;
       se.entries.forEach(function(en){
         if(en.playerId!==pid||!hasStats(en.stats))return;
+        joue=true;
         addStats(out.stats,en.stats);n++;
+        var ev=eventOf(sq,se),k=(ev&&ev.kind)||"league";
+        if(!out.byKind[k])out.byKind[k]={stats:emptyS(),sessions:0,record:{win:0,loss:0,draw:0}};
+        addStats(out.byKind[k].stats,en.stats);
+        out.byKind[k].sessions++;
+        var o=resultOutcome(se.result);
+        if(o){out.byKind[k].record[o]++;out.record[o]++}
       });
+      if(joue)return;
     });
     if(n){out.sessions+=n;out.teams.push({name:sq.name,sessions:n})}
   });
@@ -1227,7 +1426,7 @@ function exportMyTeam(){
   var squad=curSquad(),team=curTeamRecord();
   if(!squad||!team){showToast("⚠️ Aucune équipe");return}
   var pids={};squad.roster.forEach(function(e){pids[e.playerId]=1});
-  var payload={type:"wonderstats-team",version:4,exportDate:nowISO(),
+  var payload={type:"wonderstats-team",version:5,exportDate:nowISO(),
     team:clone(team),
     seasons:DB.seasons.filter(function(x){return x.id===squad.seasonId}).map(clone),
     squads:[clone(squad)],
@@ -1239,7 +1438,7 @@ function exportMyTeam(){
 
 /* Sauvegarde complète du club — réservée à l'administration */
 function exportBackup(){
-  if(downloadJSON({type:"wonderstats-backup",version:3,exportDate:nowISO(),db:DB},
+  if(downloadJSON({type:"wonderstats-backup",version:5,exportDate:nowISO(),db:DB},
     "WonderStats_"+stamp()+".json")) showToast("📤 Sauvegarde exportée");
 }
 function importBackup(){
@@ -1334,6 +1533,8 @@ function mergeDB(inc){
     sq.subteams.forEach(function(st){st.playerIds=st.playerIds.map(rp)});
     var ns={};Object.keys(sq.stats).forEach(function(pid){ns[rp(pid)]=sq.stats[pid]});sq.stats=ns;
     sq.sessions.forEach(function(se){se.entries.forEach(function(en){en.playerId=rp(en.playerId)})});
+    /* Les identifiants d'événement sont locaux au squad importé : ils
+       voyagent avec lui, rien à remapper. */
     sq.selectorViews.forEach(function(v){
       v.playerIds=v.playerIds.map(rp);
       var nd={};Object.keys(v.data).forEach(function(pid){nd[rp(pid)]=v.data[pid]});v.data=nd;
@@ -2087,7 +2288,22 @@ function renderPlayerSheet(squad,entry,p){
   box.appendChild(h("div",{className:"section-title"},"Matchs de la saison"));
   if(ms.sessions){
     box.appendChild(h("div",{className:"muted",style:{marginBottom:"6px"}},
-      plural(ms.sessions,"session")+" jouée(s) · "+ms.teams.map(function(t){return t.name+" ("+t.sessions+")"}).join(", ")));
+      plural(ms.sessions,"match")+" joué(s)"+
+      ((ms.record.win||ms.record.loss)?" · "+ms.record.win+"V–"+ms.record.loss+"D":"")+
+      " · "+ms.teams.map(function(t){return t.name+" ("+t.sessions+")"}).join(", ")));
+    /* Ventilation par nature : « comment se comporte-t-elle en tournoi ? »
+       est la question la plus fréquente d'un bilan de fin de saison. */
+    var kinds=EVENT_KEYS.filter(function(k){return ms.byKind[k]});
+    if(kinds.length>1){
+      box.appendChild(h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"8px"}},
+        kinds.map(function(k){
+          var kk=EVENT_KINDS[k],d=ms.byKind[k];
+          var kills=d.stats.atk_kill||0;
+          return h("span",{className:"badge",style:{background:kk.color+"1E",color:kk.color,borderColor:kk.color+"55",padding:"5px 9px"}},
+            kk.icon+" "+kk.short+" · "+plural(d.sessions,"match")+
+            (d.sessions?" · "+(Math.round(kills/d.sessions*10)/10)+" kill/match":""));
+        })));
+    }
     box.appendChild(renderStatMini(ms.stats));
   } else box.appendChild(h("div",{className:"muted"},"Aucun match enregistré."));
 
@@ -2751,7 +2967,9 @@ function renderCourtBar(team){
 function saveBar(team){
   return h("div",{className:"save-bar"},h("div",{className:"inner"},
     h("div",{style:{display:"flex",gap:"8px",alignItems:"center"}},
-      h("button",{className:"btn btn-save",style:{flex:"1"},onclick:function(){openModal("savesession")}},"💾 Enregistrer la session"),
+      h("button",{className:"btn btn-save",style:{flex:"1"},onclick:function(){
+        state.modalDraft=null;openModal("savesession");
+      }},"💾 Enregistrer le match"),
       renderAutoSave())));
 }
 
@@ -2887,16 +3105,45 @@ function renderGridInput(team){
     h("div",{className:"content","data-scroll-key":"grid-content"},main),saveBar(team));
 }
 
-/* Enregistre la session courante puis remet les compteurs à zéro */
-function saveSession(team,name){
-  var season=team;
+/* Enregistre le match courant puis remet les compteurs à zéro.
+   opts : {eventId, name, day, result}. Le second argument peut rester
+   une simple chaîne — c'est alors le nom du match, rattaché à une
+   rencontre créée à la volée. */
+function saveSession(team,opts){
+  if(typeof opts==="string")opts={name:opts};
+  opts=opts||{};
+  var squad=team;
   var entries=team.playerIds.map(function(pid){
-    var p=playerById(pid),e=rosterEntry(season,pid);
+    var p=playerById(pid),e=rosterEntry(squad,pid);
     return {playerId:pid,name:p?fullName(p):"",number:e?e.number:"",position:e?e.position:"",stats:clone(statsOf(team,pid))};
   }).filter(function(en){return hasStats(en.stats)});
   if(!entries.length){showToast("⚠️ Aucune statistique à enregistrer");return false}
-  team.sessions.unshift({id:uid(),name:name,date:nowISO(),teamName:team.name,entries:entries});
+
+  var ev=opts.eventId?eventById(squad,opts.eventId):null;
+  if(!ev){
+    ev=mkEvent({kind:opts.kind||"league",
+      name:opts.eventName||opts.name||"Rencontre",
+      opponent:opts.opponent||guessOpponent(opts.name||""),
+      date:opts.day||todayISO(),location:opts.location||""});
+    squad.events.push(ev);
+  }
+  var day=opts.day||ev.date||todayISO();
+  var nom=opts.name||ev.name||"Match";
+  var adv=opts.opponent||(opts.eventId?"":ev.opponent)||"";
+  team.sessions.unshift({id:uid(),name:nom,
+    date:nowISO(),          // horodatage de la saisie, conservé pour l'ordre
+    day:day,                // date réelle de la rencontre, saisissable
+    opponent:adv,           // propre au match : un tournoi en change à chaque tour
+    eventId:ev.id,teamName:team.name,
+    result:opts.result&&opts.result.sets?opts.result:mkResult(),
+    entries:entries});
   team.stats={};
+  var k=EVENT_KINDS[ev.kind]||EVENT_KINDS.league;
+  logAct("match",k.label+" « "+nom+" »"+
+    (adv?" contre "+adv:"")+
+    (hasResult(opts.result)?" — "+resultLabel(opts.result):"")+
+    " · "+plural(entries.length,"joueuse"),
+    {teamId:squad.teamId,seasonId:squad.seasonId});
   clearUndo();saveNow();
   return true;
 }
@@ -2911,9 +3158,9 @@ function renderSummaryTab(){
     {k:"session",l:"📋 Match",c:"#3B82F6"},
     {k:"global",l:"🌐 Cumul",c:"#8B5CF6"},
     {k:"evals",l:"⭐ Évaluations",c:"#F59E0B"},
-    {k:"sessions",l:"💾 Sessions",c:"#10B981"}
+    {k:"sessions",l:"🏐 Rencontres",c:"#10B981"}
   ];
-  var modeRow=h("div",{className:"pill-row"},modes.map(function(m){
+  var modeRow=h("div",{className:"pill-row tight"},modes.map(function(m){
     var b=h("button",{className:"pill"+(state.summaryMode===m.k?" active":""),onclick:function(){
       if(m.k==="global"&&!team.sessions.length){showToast("Aucune session enregistrée");return}
       state.summaryMode=m.k;state.sortBy=null;render();
@@ -2936,11 +3183,23 @@ function renderStatsTable(team,modeRow){
   var view=VIEWS[state.viewIdx],gKeys=view.groups,gk=gKeys[state.groupIdx]||gKeys[0],g=SG[gk];
   var filtered=filterPos(players);
 
-  function getT(p){return g.stats.reduce(function(s,st){return s+(p.stats[st.key]||0)},0)}
-  function getPct(p,k){var t=getT(p);return t>0?Math.round((p.stats[k]/t)*100):0}
+  /* En mode « par match », on divise par le nombre de matchs de la joueuse :
+     comparer 1 match et 8 matchs sur des totaux bruts n'a pas de sens. */
+  function val(p,k){
+    var raw=p.stats[k]||0;
+    if(state.cumulMode!=="avg"||!isG)return raw;
+    var n=p.sessCount||1;
+    return raw/n;
+  }
+  function fmtVal(v){
+    if(state.cumulMode!=="avg"||!isG)return String(Math.round(v));
+    return (Math.round(v*10)/10).toFixed(1);
+  }
+  function getT(p){return g.stats.reduce(function(s,st){return s+val(p,st.key)},0)}
+  function getPct(p,k){var t=getT(p);return t>0?Math.round((val(p,k)/t)*100):0}
   var sorted=filtered.slice();
   if(state.sortBy)sorted.sort(function(a,b){
-    var d=(b.stats[state.sortBy]||0)-(a.stats[state.sortBy]||0);
+    var d=val(b,state.sortBy)-val(a,state.sortBy);
     return state.sortDir==="desc"?d:-d;
   });
 
@@ -2976,29 +3235,55 @@ function renderStatsTable(team,modeRow){
         h("div",{style:{fontSize:"10px",color:"#64748B",fontWeight:"400"}},
           (p.position||"—")+(isG&&p.sessCount?" · "+plural(p.sessCount,"session"):""))),
       g.stats.map(function(s){
-        return h("td",null,h("div",{className:"sum-val"},String(p.stats[s.key]||0)),h("div",{className:"sum-pct"},getPct(p,s.key)+"%"));
+        return h("td",null,h("div",{className:"sum-val"},fmtVal(val(p,s.key))),h("div",{className:"sum-pct"},getPct(p,s.key)+"%"));
       }),
-      h("td",null,h("div",{className:"sum-val",style:{color:"#F59E0B"}},String(getT(p)))));
+      h("td",null,h("div",{className:"sum-val",style:{color:"#F59E0B"}},fmtVal(getT(p)))));
   }):[h("tr",null,h("td",{colspan:String(g.stats.length+2),style:{padding:"30px",textAlign:"center",color:"#64748B"}},
     isG?"Aucune donnée cumulée":"Aucune statistique saisie"))];
 
   var totals=h("div",{className:"totals-bar"},g.stats.map(function(s){
-    var t=filtered.reduce(function(sum,p){return sum+(p.stats[s.key]||0)},0);
-    return h("div",{style:{textAlign:"center"}},h("div",{className:"t-lbl"},s.label),h("div",{className:"t-val",style:{color:g.color}},String(t)));
+    var t=filtered.reduce(function(sum,p){return sum+val(p,s.key)},0);
+    return h("div",{style:{textAlign:"center"}},h("div",{className:"t-lbl"},s.label),
+      h("div",{className:"t-val",style:{color:g.color}},fmtVal(t)));
   }));
   var info=null;
   if(isG){
     var used=scopedSessions(team).length;
+    var natures=[{k:"all",l:"Toutes"}].concat(EVENT_KEYS.filter(function(k){
+      return team.sessions.some(function(se){var ev=eventOf(team,se);return ev&&ev.kind===k});
+    }).map(function(k){return {k:k,l:EVENT_KINDS[k].icon+" "+EVENT_KINDS[k].short}}));
+
     info=h("div",null,
-      h("div",{className:"sub-pills",style:{padding:"0 12px 6px"}},CUMUL_SCOPES.map(function(sc){
-        var b=h("button",{className:"pill sm"+(state.cumulScope===sc.k?" active":""),onclick:function(){
-          state.cumulScope=sc.k;state.sortBy=null;render();
-        }},sc.l);
-        if(state.cumulScope===sc.k)b.style.background="#8B5CF6";
+      /* Nature de rencontre — la lecture que le bilan de fin de saison réclamait */
+      natures.length>1?h("div",{className:"sub-pills",style:{padding:"0 12px 4px"}},natures.map(function(f){
+        var on=!state.cumulEventId&&state.cumulKind===f.k;
+        var b=h("button",{className:"pill sm"+(on?" active":""),onclick:function(){
+          state.cumulKind=f.k;state.cumulEventId=null;state.sortBy=null;render();
+        }},f.l);
+        if(on)b.style.background=f.k==="all"?"#8B5CF6":EVENT_KINDS[f.k].color;
         return b;
-      })),
-      h("div",{className:"sess-count"},"Cumulé sur "+plural(used,"session")+
-        (used<team.sessions.length?(" (sur "+team.sessions.length+")"):"")+" · "+team.name));
+      })):null,
+      /* Combien de matchs, et sous quelle échelle */
+      h("div",{className:"sub-pills",style:{padding:"0 12px 4px"}},
+        CUMUL_SCOPES.map(function(sc){
+          var b=h("button",{className:"pill sm"+(state.cumulScope===sc.k?" active":""),onclick:function(){
+            state.cumulScope=sc.k;state.sortBy=null;render();
+          }},sc.l);
+          if(state.cumulScope===sc.k)b.style.background="#64748B";
+          return b;
+        }).concat([
+          h("button",{className:"pill sm"+(state.cumulMode==="avg"?" active":""),
+            style:state.cumulMode==="avg"?{background:"#0EA5E9"}:{},onclick:function(){
+              state.cumulMode=state.cumulMode==="avg"?"total":"avg";state.sortBy=null;render();
+            }},state.cumulMode==="avg"?"÷ Par match":"Σ Totaux")
+        ])),
+      state.cumulEventId?h("div",{style:{padding:"0 12px 4px"}},
+        h("button",{className:"pill sm active",style:{background:"#F59E0B"},onclick:function(){
+          state.cumulEventId=null;state.sortBy=null;render();
+        }},"✕ "+cumulScopeLabel(team))):null,
+      h("div",{className:"sess-count"},
+        (state.cumulMode==="avg"?"Moyenne par match sur ":"Cumulé sur ")+plural(used,"match")+
+        (used<team.sessions.length?(" sur "+team.sessions.length):"")+" · "+cumulScopeLabel(team)));
   }
 
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
@@ -3149,7 +3434,7 @@ function renderProgressPane(squad,withSubs,wrap){
         h("div",{className:"pname"},(e&&e.number?"#"+e.number+" ":"")+fullName(p)),
         h("div",{className:"psub"},
           (r.from!=null?r.from.toFixed(1):"—")+" → "+(r.to!=null?r.to.toFixed(1):"—")+
-          (r.delta==null?" · évaluée dans une seule campagne":""))),
+          (r.delta==null?" · "+missingWhy(season,r,from,to):""))),
       h("span",{style:{color:"#475569"}},open?"▲":"▼")));
     if(!open)return;
     var box=h("div",{className:"card"});
@@ -3164,6 +3449,18 @@ function renderProgressPane(squad,withSubs,wrap){
     wrap.appendChild(box);
   });
   return wrap;
+}
+/* Un tiret n'explique rien. On dit laquelle des deux campagnes manque, et
+   si la joueuse était simplement absente du club à ce moment-là. */
+function missingWhy(squad,row,from,to){
+  var e=rosterEntry(squad,row.playerId);
+  var manque=(row.from==null)?from:to;
+  var base="pas d'évaluation en « "+(manque?manque.name:"?")+" »";
+  if(!e)return base;
+  if(row.from==null&&e.status==="candidate")return base+" (arrivée après)";
+  if(row.to==null&&e.status==="cut")return base+" (écartée avant)";
+  if(row.to==null&&e.membership==="left")return base+" (partie en cours de saison)";
+  return base;
 }
 function exportProgressCSV(squad,rows,from,to){
   var head=["Numero","Joueuse",from.name+"_score",to.name+"_score","Delta"]
@@ -3212,38 +3509,126 @@ function exportEvalsCSV(squad,rows,camp){
   downloadCSV(lines,"Evaluations_"+safeName(squad.name)+"_"+safeName(camp?camp.name:"toutes")+"_"+stamp()+".csv");
 }
 
-/* ── Sessions enregistrées ─────────────────────────────────── */
-function renderSessionsPane(team){
+/* ── Rencontres ────────────────────────────────────────────── */
+/* Adversaires d'une rencontre : un seul match → « contre X » ; un tournoi →
+   la liste, tronquée au-delà de trois, car n'en montrer qu'un serait faux. */
+/* Nom d'un match tel qu'il s'affiche sous sa rencontre : on retire le nom de
+   la rencontre quand la ligne le répète mot pour mot. */
+function matchLabel(ev,se){
+  var nom=se.name||"Match",pre=(ev.name||"")+" · ";
+  if(ev.name&&nom.indexOf(pre)===0){
+    var reste=nom.slice(pre.length).trim();
+    if(reste)return reste.charAt(0).toUpperCase()+reste.slice(1);
+  }
+  return nom;
+}
+
+function advLabel(g){
+  var vus=[],ev=g.event;
+  g.sessions.forEach(function(se){
+    var a=se.opponent||"";
+    if(a&&vus.indexOf(a)===-1)vus.push(a);
+  });
+  if(!vus.length&&ev.opponent)vus=[ev.opponent];
+  if(!vus.length)return null;
+  if(vus.length===1)return "contre "+vus[0];
+  if(vus.length<=3)return "contre "+vus.join(", ");
+  return "contre "+vus.slice(0,3).join(", ")+" +"+(vus.length-3);
+}
+
+function renderSessionsPane(squad){
   var wrap=h("div",null);
+  var groupes=eventsWithSessions(squad);
+  var bilan=squadRecord(squad);
+
   wrap.appendChild(h("div",{className:"row-between",style:{marginBottom:"10px"}},
-    h("div",null,h("div",{style:{color:"#F8FAFC",fontWeight:"700",fontSize:"16px"}},team.name),
-      h("div",{className:"muted"},plural(team.sessions.length,"session")+" enregistrée(s)")),
+    h("div",null,
+      h("div",{style:{color:"#F8FAFC",fontWeight:"700",fontSize:"16px"}},squad.name),
+      h("div",{className:"muted",style:{marginTop:"3px"}},
+        plural(squad.sessions.length,"match")+" · "+plural(groupes.length,"rencontre"))),
     renderAutoSave()));
-  if(!team.sessions.length)wrap.appendChild(h("div",{className:"empty"},"Aucune session. Saisissez un match puis « 💾 Enregistrer la session »."));
-  wrap.appendChild(h("div",{className:"sess-grid"},team.sessions.map(function(s){
-    return h("div",{className:"sess-card"},
-      h("div",{style:{minWidth:"0"}},
-        h("div",{style:{color:"#F8FAFC",fontWeight:"600",fontSize:"14px"}},s.name),
-        h("div",{style:{color:"#64748B",fontSize:"12px",marginTop:"2px"}},fmtDate(s.date)),
-        h("div",{style:{color:"#94A3B8",fontSize:"11px",marginTop:"2px"}},plural(s.entries.length,"joueuse")+" · "+plural(s.entries.reduce(function(n,e){return n+sumStats(e.stats)},0),"action"))),
+
+  if(bilan.win+bilan.loss+bilan.draw){
+    wrap.appendChild(h("div",{className:"card tight",style:{marginBottom:"12px"}},
+      h("div",{className:"muted",style:{marginBottom:"8px"}},"Bilan de la saison"),
+      h("div",{style:{display:"flex",gap:"6px",flexWrap:"wrap"}},
+        EVENT_KEYS.map(function(k){
+          var r=squadRecord(squad,k);
+          if(!(r.win+r.loss+r.draw))return null;
+          var kk=EVENT_KINDS[k];
+          return h("span",{className:"badge",style:{background:kk.color+"1E",color:kk.color,borderColor:kk.color+"55",padding:"5px 10px"}},
+            kk.icon+" "+kk.short+" "+r.win+"V–"+r.loss+"D"+(r.draw?"–"+r.draw+"N":""));
+        }).filter(Boolean),
+        h("span",{className:"badge",style:{background:"#0F172A",color:"#CBD5E1",borderColor:"#334155",padding:"5px 10px"}},
+          "Total "+bilan.win+"V–"+bilan.loss+"D"))));
+  }
+
+  if(!groupes.length)wrap.appendChild(h("div",{className:"empty"},
+    "Aucun match. Saisissez une rencontre puis « 💾 Enregistrer le match »."));
+
+  groupes.forEach(function(g){
+    var ev=g.event,k=EVENT_KINDS[ev.kind]||EVENT_KINDS.league;
+    var card=h("div",{className:"ev-card"});
+    var head=h("div",{className:"ev-head"},
+      h("span",{style:{fontSize:"18px"}},k.icon),
+      h("div",{className:"grow"},
+        h("div",{className:"ev-title"},ev.name||k.label),
+        h("div",{className:"ev-sub"},
+          [k.label,advLabel(g),fmtShortDay(ev.date),ev.location||null]
+            .filter(Boolean).join(" · "))),
       h("div",{className:"btn-row"},
-        h("button",{className:"btn btn-primary sm",onclick:function(){
-          var cur=Object.keys(team.stats).some(function(pid){return hasStats(team.stats[pid])});
-          if(cur&&!confirmAct("La saisie en cours sera remplacée par « "+s.name+" ».\nContinuer ?"))return;
-          pushUndoStats("Chargement de « "+s.name+" »");
-          team.stats={};
-          s.entries.forEach(function(en){if(team.playerIds.indexOf(en.playerId)!==-1)team.stats[en.playerId]=clone(en.stats)});
-          state.tab="input";saveNow();showToast("📂 « "+s.name+" » chargée");render();
+        h("button",{className:"btn btn-ghost xs",onclick:function(){
+          state.modalDraft=null;openModal("editevent",ev.id);
+        }},"✏️"),
+        h("button",{className:"btn btn-ghost xs",title:"Ne cumuler que cette rencontre",onclick:function(){
+          state.cumulEventId=ev.id;state.summaryMode="global";state.sortBy=null;render();
+        }},"📊")));
+    head.style.borderLeftColor=k.color;
+    card.appendChild(head);
+
+    if(g.sessions.length>1){
+      var b=g.bilan;
+      card.appendChild(h("div",{className:"ev-sub",style:{padding:"0 14px 8px"}},
+        plural(g.sessions.length,"match")+
+        ((b.win||b.loss)?" · "+(b.win||0)+"V–"+(b.loss||0)+"D":"")));
+    }
+
+    g.sessions.forEach(function(se){
+      var o=resultOutcome(se.result),jourDeMatch=se.day||dayOf(se.date);
+      var actions=h("div",{className:"btn-row"},
+        h("button",{className:"btn btn-primary xs",onclick:function(){
+          var enCours=Object.keys(squad.stats).some(function(pid){return hasStats(squad.stats[pid])});
+          if(enCours&&!confirmAct("La saisie en cours sera remplacée par « "+se.name+" ».\nContinuer ?"))return;
+          pushUndoStats("Chargement de « "+se.name+" »");
+          squad.stats={};
+          se.entries.forEach(function(en){if(squad.playerIds.indexOf(en.playerId)!==-1)squad.stats[en.playerId]=clone(en.stats)});
+          state.tab="input";saveNow();showToast("📂 « "+se.name+" » chargée");render();
         }},"Charger"),
-        h("button",{className:"btn btn-danger-o sm",onclick:function(){
-          if(!confirmAct("Supprimer « "+s.name+" » ?"))return;
-          team.sessions=team.sessions.filter(function(x){return x.id!==s.id});
-          saveNow();showToast("🗑️ Supprimée");render();
-        }},"✕")));
-  })));
+        h("button",{className:"btn btn-danger-o xs",onclick:function(){
+          if(!confirmAct("Supprimer « "+se.name+" » ?"))return;
+          logAct("match","Match « "+se.name+" » supprimé",{teamId:squad.teamId,seasonId:squad.seasonId});
+          squad.sessions=squad.sessions.filter(function(x){return x.id!==se.id});
+          saveNow();showToast("🗑️ Supprimé");render();
+        }},"✕"));
+      card.appendChild(h("div",{className:"ev-match"},
+        h("button",{className:"score",style:o?{background:OUTCOMES[o].color+"22",color:OUTCOMES[o].color}
+                                          :{background:"#0F172A",color:"#64748B",border:"1px dashed #334155"},
+          onclick:function(){state.modalDraft=null;openModal("editresult",se.id)}},
+          hasResult(se.result)?resultLabel(se.result):"—"),
+        h("div",{className:"grow"},
+          h("div",{style:{fontSize:"13px",fontWeight:"600",color:"#E2E8F0"}},matchLabel(ev,se)),
+          h("div",{className:"ev-sub"},[se.opponent?"contre "+se.opponent:null,
+            jourDeMatch===ev.date?null:fmtShortDay(jourDeMatch),
+            plural(se.entries.length,"joueuse"),
+            plural(se.entries.reduce(function(n,e){return n+sumStats(e.stats)},0),"action")]
+            .filter(Boolean).join(" · "))),
+        actions));
+    });
+    wrap.appendChild(card);
+  });
+
   wrap.appendChild(h("div",{className:"data-actions"},
-    h("button",{className:"btn btn-export sm",onclick:exportBackup},"📤 Sauvegarde"),
-    h("button",{className:"btn btn-import sm",onclick:importBackup},"📥 Restaurer")));
+    h("button",{className:"btn btn-export sm",onclick:exportMyTeam},"📤 Exporter mon équipe")));
   return wrap;
 }
 
@@ -4381,17 +4766,189 @@ function renderModal(){
 
   /* ── Session / sous-équipe ── */
   if(T==="savesession"){
-    var team0=curTeam();
-    return modalShell("Enregistrer la session",
-      h("div",null,
-        textField("Ex. Match vs Lions",state.modalInput,function(v){state.modalInput=v},"Nom de la session"),
-        h("div",{className:"muted"},"Les compteurs seront remis à zéro pour la prochaine saisie. La session reste consultable dans Récap → 💾 Sessions.")),
+    var sqS=curSquad();
+    if(!sqS)return null;
+    /* Rencontres encore ouvertes : un tournoi accueille plusieurs matchs
+       le même jour, on ne veut pas en recréer un par match. */
+    var recentes=eventsWithSessions(sqS).slice(0,6).map(function(x){return x.event})
+      .filter(function(ev){return kindIsMulti(ev.kind)&&ev.date===todayISO()});
+    var sd=state.modalDraft||(state.modalDraft={
+      eventId:recentes.length?recentes[0].id:"",
+      kind:"league",eventName:"",opponent:"",day:todayISO(),location:"",
+      name:"",sets:[{us:"",them:""},{us:"",them:""},{us:"",them:""}]
+    });
+
+    var body=h("div",null);
+
+    if(recentes.length){
+      var evSel=h("select",null,
+        h("option",{value:""},"➕ Nouvelle rencontre"),
+        recentes.map(function(ev){
+          return h("option",{value:ev.id},eventLabel(ev)+" · "+plural(sessionsOfEvent(sqS,ev.id).length,"match"));
+        }));
+      evSel.value=sd.eventId;
+      evSel.addEventListener("change",function(e){state.modalDraft.eventId=e.target.value;render()});
+      body.appendChild(h("div",{className:"field"},h("label",null,"Rattacher à"),evSel));
+    }
+
+    if(!sd.eventId){
+      var kSel=h("select",null,EVENT_KEYS.map(function(k){
+        return h("option",{value:k},EVENT_KINDS[k].icon+" "+EVENT_KINDS[k].label);
+      }));
+      kSel.value=sd.kind;
+      kSel.addEventListener("change",function(e){sd.kind=e.target.value;render()});
+      function f(key,label,ph,attrs){
+        var inp=h("input",Object.assign({placeholder:ph,value:sd[key]||""},attrs||{}));
+        inp.addEventListener("input",function(e){sd[key]=e.target.value});
+        return h("div",{className:"field"},h("label",null,label),inp);
+      }
+      body.appendChild(h("div",{className:"field"},h("label",null,"Nature"),kSel));
+      body.appendChild(f("eventName",kindIsMulti(sd.kind)?"Nom du tournoi":"Nom de la rencontre",
+        kindIsMulti(sd.kind)?"Ex. Tournoi de Sherbrooke":"Ex. Journée 3"));
+      body.appendChild(f("opponent",kindIsMulti(sd.kind)?"Adversaire de ce match":"Adversaire",
+        "Ex. Les Lions"));
+      body.appendChild(h("div",{className:"grid2"},
+        f("day","Date",null,{type:"date"}),
+        f("location","Lieu","Ex. Sherbrooke")));
+    } else {
+      var evCur=eventById(sqS,sd.eventId);
+      body.appendChild(h("div",{className:"note"},"Match rattaché à ",h("b",null,eventLabel(evCur)),
+        " — ",plural(sessionsOfEvent(sqS,evCur.id).length,"match")," déjà enregistré(s)."));
+      /* Dans un tournoi on change d'adversaire à chaque tour : la question
+         se repose même quand la rencontre est déjà ouverte. */
+      var advInp=h("input",{placeholder:"Ex. Les Lions",value:sd.opponent||""});
+      advInp.addEventListener("input",function(e){sd.opponent=e.target.value});
+      body.appendChild(h("div",{className:"field"},h("label",null,"Adversaire de ce match"),advInp));
+    }
+
+    var nomInp=h("input",{placeholder:sd.eventId?"Ex. contre les Aigles":"Laisser vide pour reprendre le nom",value:sd.name});
+    nomInp.addEventListener("input",function(e){sd.name=e.target.value});
+    body.appendChild(h("div",{className:"field"},h("label",null,"Ce match"),nomInp));
+
+    /* Résultat : les sets, dont l'issue se déduit. */
+    var setsWrap=h("div",{className:"sets-row"});
+    function refreshBilan(){
+      var r={sets:sd.sets.filter(function(x){return x.us!==""&&x.them!==""})
+        .map(function(x){return {us:parseInt(x.us,10)||0,them:parseInt(x.them,10)||0}})};
+      var el=document.getElementById("setBilan");
+      if(!el)return;
+      var o=resultOutcome(r);
+      el.textContent=hasResult(r)?(resultLabel(r)+" · "+(o?OUTCOMES[o].label:"")):"Facultatif";
+      el.style.color=o?OUTCOMES[o].color:"#64748B";
+    }
+    sd.sets.forEach(function(set,i){
+      var a=h("input",{className:"set-in",inputmode:"numeric",maxlength:"2",placeholder:"—",value:set.us});
+      var b2=h("input",{className:"set-in",inputmode:"numeric",maxlength:"2",placeholder:"—",value:set.them});
+      a.addEventListener("input",function(e){set.us=cleanNum(e.target.value).slice(0,2);e.target.value=set.us;refreshBilan()});
+      b2.addEventListener("input",function(e){set.them=cleanNum(e.target.value).slice(0,2);e.target.value=set.them;refreshBilan()});
+      setsWrap.appendChild(h("div",{className:"set-cell"},
+        h("div",{className:"set-lbl"},"Set "+(i+1)),
+        h("div",{className:"set-pair"},a,h("span",{className:"set-sep"},"–"),b2)));
+    });
+    body.appendChild(h("div",{className:"field"},
+      h("label",null,"Résultat"),setsWrap,
+      h("div",{id:"setBilan",className:"muted",style:{marginTop:"6px",fontWeight:"700"}},"Facultatif"),
+      h("div",{className:"btn-row",style:{marginTop:"8px"}},
+        h("button",{className:"btn btn-ghost xs",onclick:function(){
+          sd.sets.push({us:"",them:""});render();
+        }},"+ Set"),
+        sd.sets.length>1?h("button",{className:"btn btn-ghost xs",onclick:function(){
+          sd.sets.pop();render();
+        }},"− Set"):null)));
+
+    body.appendChild(h("div",{className:"muted"},
+      "Les compteurs seront remis à zéro pour le match suivant. Le match reste consultable dans Récap → 🏐 Rencontres."));
+
+    return modalShell("Enregistrer le match",body,
       [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
-        if(!team0)return;
-        var n=(state.modalInput||"").trim()||("Match "+(team0.sessions.length+1));
-        if(saveSession(team0,n)){closeModal();showToast("✅ Session enregistrée")}
-      }},"Enregistrer")]);
+        var ev=sd.eventId?eventById(sqS,sd.eventId):null;
+        var nomEv=(sd.eventName||"").trim();
+        if(!ev&&!nomEv&&!(sd.name||"").trim()){showToast("⚠️ Nommez la rencontre");return}
+        var sets=sd.sets.filter(function(x){return x.us!==""&&x.them!==""})
+          .map(function(x){return {us:parseInt(x.us,10)||0,them:parseInt(x.them,10)||0}});
+        var nom=(sd.name||"").trim()||nomEv||(ev?ev.name+" · match "+(sessionsOfEvent(sqS,ev.id).length+1):"Match");
+        var ok=saveSession(sqS,{
+          eventId:sd.eventId||"",kind:sd.kind,eventName:nomEv||nom,
+          opponent:(sd.opponent||"").trim(),day:sd.day||todayISO(),
+          location:(sd.location||"").trim(),name:nom,result:{sets:sets}});
+        if(ok){state.modalDraft=null;closeModal();showToast("✅ Match enregistré")}
+      }},"Enregistrer")],"440px");
   }
+
+  if(T==="editevent"){
+    var sqE=curSquad();
+    var evE=sqE?eventById(sqE,state.modalCtx):null;
+    if(!evE)return null;
+    var ed=state.modalDraft||(state.modalDraft={
+      kind:evE.kind,name:evE.name,opponent:evE.opponent,day:evE.date,location:evE.location});
+    var kSel2=h("select",null,EVENT_KEYS.map(function(k){
+      return h("option",{value:k},EVENT_KINDS[k].icon+" "+EVENT_KINDS[k].label)}));
+    kSel2.value=ed.kind;
+    kSel2.addEventListener("change",function(e){ed.kind=e.target.value});
+    function fe(key,label,ph,attrs){
+      var inp=h("input",Object.assign({placeholder:ph,value:ed[key]||""},attrs||{}));
+      inp.addEventListener("input",function(e){ed[key]=e.target.value});
+      return h("div",{className:"field"},h("label",null,label),inp);
+    }
+    return modalShell("Modifier la rencontre",
+      h("div",null,
+        h("div",{className:"field"},h("label",null,"Nature"),kSel2),
+        fe("name","Nom","Ex. Tournoi de Sherbrooke"),
+        fe("opponent","Adversaire","Ex. Les Lions"),
+        h("div",{className:"grid2"},fe("day","Date",null,{type:"date"}),fe("location","Lieu","Ex. Laval")),
+        h("div",{className:"muted"},plural(sessionsOfEvent(sqE,evE.id).length,"match")+" rattaché(s) à cette rencontre.")),
+      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+        var n=(ed.name||"").trim();
+        if(!n){showToast("⚠️ Entrez un nom");return}
+        evE.kind=ed.kind;evE.name=n;evE.opponent=(ed.opponent||"").trim();
+        evE.date=ed.day||evE.date;evE.location=(ed.location||"").trim();
+        state.modalDraft=null;closeModal();saveNow();showToast("✅ Rencontre mise à jour");
+      }},"Enregistrer")],"420px");
+  }
+
+  if(T==="editresult"){
+    var sqR=curSquad();
+    var seR=sqR?sqR.sessions.filter(function(x){return x.id===state.modalCtx})[0]:null;
+    if(!seR)return null;
+    var rd=state.modalDraft||(state.modalDraft={
+      sets:(seR.result&&seR.result.sets.length?seR.result.sets:[{us:0,them:0},{us:0,them:0},{us:0,them:0}])
+        .map(function(x){return {us:String(x.us),them:String(x.them)}})});
+    var wrap2=h("div",{className:"sets-row"});
+    function refresh2(){
+      var r={sets:rd.sets.filter(function(x){return x.us!==""&&x.them!==""})
+        .map(function(x){return {us:parseInt(x.us,10)||0,them:parseInt(x.them,10)||0}})};
+      var el=document.getElementById("setBilan2");
+      if(!el)return;
+      var o=resultOutcome(r);
+      el.textContent=hasResult(r)?(resultLabel(r)+" · "+(o?OUTCOMES[o].label:"")):"Aucun résultat";
+      el.style.color=o?OUTCOMES[o].color:"#64748B";
+    }
+    rd.sets.forEach(function(set,i){
+      var a=h("input",{className:"set-in",inputmode:"numeric",maxlength:"2",value:set.us});
+      var b2=h("input",{className:"set-in",inputmode:"numeric",maxlength:"2",value:set.them});
+      a.addEventListener("input",function(e){set.us=cleanNum(e.target.value).slice(0,2);e.target.value=set.us;refresh2()});
+      b2.addEventListener("input",function(e){set.them=cleanNum(e.target.value).slice(0,2);e.target.value=set.them;refresh2()});
+      wrap2.appendChild(h("div",{className:"set-cell"},
+        h("div",{className:"set-lbl"},"Set "+(i+1)),
+        h("div",{className:"set-pair"},a,h("span",{className:"set-sep"},"–"),b2)));
+    });
+    return modalShell("Résultat — "+seR.name,
+      h("div",null,wrap2,
+        h("div",{id:"setBilan2",className:"muted",style:{marginTop:"8px",fontWeight:"700"}},
+          hasResult(seR.result)?resultLabel(seR.result):"Aucun résultat"),
+        h("div",{className:"btn-row",style:{marginTop:"10px"}},
+          h("button",{className:"btn btn-ghost xs",onclick:function(){rd.sets.push({us:"",them:""});render()}},"+ Set"),
+          rd.sets.length>1?h("button",{className:"btn btn-ghost xs",onclick:function(){rd.sets.pop();render()}},"− Set"):null)),
+      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+        seR.result={sets:rd.sets.filter(function(x){return x.us!==""&&x.them!==""})
+          .map(function(x){return {us:parseInt(x.us,10)||0,them:parseInt(x.them,10)||0}})};
+        var sq=curSquad();
+        logAct("match","Résultat de « "+seR.name+" » : "+(hasResult(seR.result)?resultLabel(seR.result):"effacé"),
+          {teamId:sq.teamId,seasonId:sq.seasonId});
+        state.modalDraft=null;closeModal();saveNow();showToast("✅ Résultat enregistré");
+      }},"Enregistrer")],"400px");
+  }
+
   if(T==="subteam"){
     var team1=curTeam();if(!team1)return null;
     var editing=null;
@@ -4607,7 +5164,9 @@ function render(){
   }
   if(!rightEl)rightEl=ctxBadge();
   if(!leftEl&&isCoachCtx()&&state.tab==="summary"&&squad)
-    leftEl=h("button",{className:"btn btn-save xs",onclick:function(){openModal("savesession")}},"💾");
+    leftEl=h("button",{className:"btn btn-save xs",onclick:function(){
+      state.modalDraft=null;openModal("savesession");
+    }},"💾");
 
   app.appendChild(renderHeader(title,leftEl,rightEl));
   app.appendChild(renderCtxBar());
