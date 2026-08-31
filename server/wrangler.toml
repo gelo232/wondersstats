@@ -1,0 +1,9 @@
+name = "wonderstats-relais"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Créez l'espace de stockage puis reportez son identifiant ci-dessous :
+#   wrangler kv namespace create WONDERSTATS
+[[kv_namespaces]]
+binding = "WONDERSTATS"
+id = "REMPLACER_PAR_VOTRE_ID"

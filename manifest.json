@@ -1,13 +1,14 @@
 {
-  "name": "VolleyStats - Les Wonders",
-  "short_name": "VolleyStats",
-  "description": "Statistiques de volleyball en direct",
+  "name": "WonderStats - Les Wonders",
+  "short_name": "WonderStats",
+  "description": "Statistiques, sélection et évaluation de volleyball",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0F172A",
   "theme_color": "#1E3A5F",
+  "lang": "fr",
   "categories": ["sports", "utilities"],
   "icons": [
     {
