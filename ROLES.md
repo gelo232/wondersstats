@@ -167,9 +167,49 @@ celui du club. L'export d'équipe emporte le journal correspondant.
 
 ---
 
+## 6 bis. Ce que le verrou change — et ce qu'il ne change pas
+
+Depuis la v5.1, l'application s'ouvre sur un écran de garde et chiffre les données
+du club au repos (AES-GCM 256, clé dérivée par PBKDF2-SHA256).
+
+**Ce que cela corrige.** Ouvrir l'adresse publique donnait l'administration :
+`loadAll` désignait d'office le premier administrateur trouvé, en fabriquait un si
+la base n'en avait pas, et la migration en créait un nommé « Administrateur ».
+Plus rien de tout cela. L'identité se réclame, elle ne s'hérite pas.
+
+**Ce que cela protège vraiment.** Le vol de l'appareil, et la lecture de
+`localStorage` par un tiers. Sans la phrase, le contenu est du bruit. Le jeton
+GitHub est protégé de la même façon.
+
+**Ce que cela ne protège toujours pas, et qu'il ne faut pas prétendre.** La matrice
+d'accès du §4 reste appliquée côté client. Qui connaît la phrase ouvre le coffre, et
+qui ouvre le coffre peut modifier le code de la page qu'il exécute. La phrase de
+passe contrôle **l'entrée dans l'application**, pas ce qu'un utilisateur légitime
+peut faire une fois entré. Le §7 reste donc valable mot pour mot.
+
+Seul le relais autorise réellement, parce qu'il s'exécute ailleurs que dans le
+navigateur de celui qu'il contrôle. C'est aussi pourquoi les sélectionneurs ne
+passent pas par GitHub : un droit d'écriture sur le dépôt emporterait la lecture de
+toutes les soumissions.
+
 ## 7. Ce qu'il ne faut pas écrire
 
 Tant que le niveau 3 n'existe pas, aucun texte d'interface ni de documentation ne
-doit présenter les rôles comme une protection. Formulations à proscrire : « accès
-sécurisé », « données protégées », « seul l'entraîneur peut voir ». Formulation
-juste : « chacun voit ce qui le concerne ».
+doit présenter **les rôles** comme une protection. Formulations à proscrire :
+« accès sécurisé », « données protégées », « seul l'entraîneur peut voir ».
+Formulation juste : « chacun voit ce qui le concerne ».
+
+Le chiffrement au repos, lui, est réel et peut être décrit comme tel : « les données
+de cet appareil sont chiffrées », « sans la phrase, elles sont illisibles ». La
+frontière est nette, et il faut s'y tenir :
+
+| On peut écrire | On ne peut pas écrire |
+|---|---|
+| Les données de cet appareil sont chiffrées | Les données sont protégées |
+| Sans la phrase, elles sont illisibles | L'accès est sécurisé |
+| Chacun voit ce qui le concerne | Seul l'entraîneur peut voir les évaluations |
+| Le relais ne restitue à chacun que ce qui lui est destiné | Les rôles empêchent la consultation |
+
+La phrase de passe contrôle **l'entrée**. Elle ne dit rien de ce qu'un utilisateur
+légitime peut faire une fois entré, et le prétendre serait mentir à un club qui
+manipule des données d'enfants.

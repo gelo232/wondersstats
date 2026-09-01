@@ -30,11 +30,45 @@ Wrangler affiche une URL du type `https://wonderstats-relais.<votre-compte>.work
 
 ## Option B — Google Apps Script
 
-1. Google Drive → **Nouveau → Google Sheets**, créez un classeur vide.
-2. **Extensions → Apps Script**, collez le contenu de `apps-script.gs`.
-3. **Déployer → Nouveau déploiement → Application web**
-   · *Exécuter en tant que* : moi · *Qui a accès* : tout le monde
-4. Copiez l'URL `…/exec`.
+Tout se passe dans le navigateur, avec un compte Google ordinaire. Comptez dix
+minutes, une seule fois. L'application contient le même guide : `Relais →
+Configurer → M'expliquer pas à pas`.
+
+1. **Google Drive → Nouveau → Google Sheets.** Un classeur vide suffit ; ne le
+   remplissez pas, le script créera lui-même les deux feuilles dont il a besoin.
+2. Dans ce classeur : **Extensions → Apps Script**. Un éditeur s'ouvre dans un
+   nouvel onglet.
+3. Effacez tout ce qu'il contient (le `function myFunction() {}` par défaut), puis
+   collez le contenu de [`apps-script.gs`](apps-script.gs).
+4. **Déployer → Nouveau déploiement**, type **Application Web**.
+5. *Exécuter en tant que* : **moi**. *Qui a accès* : **tout le monde**.
+   → C'est le réglage sur lequel presque tout le monde se trompe. Laissé sur
+   « Moi uniquement », le relais répondra une page de connexion Google au lieu de
+   données, et l'application vous le dira en toutes lettres.
+6. Google demande d'autoriser le script et affiche *« Google n'a pas validé cette
+   application »*. C'est normal : le script est le vôtre, personne ne l'a soumis à
+   validation. **Paramètres avancés → Accéder à … (non sécurisé)**.
+7. Copiez l'adresse affichée. Elle se termine par **`/exec`**.
+
+### Les deux pièges
+
+- L'adresse doit finir par **`/exec`**, pas par `/dev`. `/dev` n'est accessible
+  qu'à vous et échouera chez vos sélectionneurs.
+- **À chaque modification du script**, refaites *Déployer → Gérer les déploiements
+  → Modifier (crayon) → Version : Nouvelle version → Déployer*. Sans cela, l'ancien
+  code continue de tourner et vos changements restent invisibles.
+
+### Diagnostic
+
+L'application teste la connexion et nomme la cause plutôt que d'afficher un code
+d'erreur :
+
+| Ce que vous lisez | Ce qu'il faut faire |
+|---|---|
+| Google demande une connexion | Redéployer avec *Qui a accès : tout le monde* |
+| Le relais a renvoyé une page web | L'adresse est incomplète — elle doit finir par `/exec` |
+| L'adresse redirige ailleurs | Même cause : vérifier la fin de l'adresse |
+| Adresse injoignable | Adresse mal copiée, ou pas de connexion |
 
 ---
 

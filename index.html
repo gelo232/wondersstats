@@ -115,9 +115,24 @@ button,input,select,textarea{font-family:inherit}
   border-radius:8px;padding:11px 13px;font-size:12px;color:#CBD5E1;line-height:1.55}
 .gate .note b{color:#F1F5F9}
 .gate .full{width:100%;padding:14px;font-size:15px}
-.gate .linky{background:none;border:none;color:#60A5FA;font-size:12.5px;
+.linky{background:none;border:none;color:#60A5FA;font-size:12.5px;
   cursor:pointer;padding:6px;text-decoration:underline}
 .strength{height:4px;border-radius:2px;background:#334155;overflow:hidden;margin-top:7px}
+/* Assistant de mise en place du relais */
+.steps{counter-reset:st;margin:0;padding:0;list-style:none}
+.steps li{counter-increment:st;position:relative;padding:0 0 13px 30px;font-size:12.5px;
+  color:#CBD5E1;line-height:1.55}
+.steps li::before{content:counter(st);position:absolute;left:0;top:0;width:20px;height:20px;
+  border-radius:50%;background:#3B82F6;color:#fff;font-size:11px;font-weight:700;
+  display:flex;align-items:center;justify-content:center}
+.steps li b{color:#F1F5F9}
+.steps code{background:#0F172A;border:1px solid #334155;border-radius:4px;padding:1px 5px;
+  font-size:11px;word-break:break-all}
+.warnbox{background:#3B1D0E;border:1px solid #7C3D12;border-radius:8px;padding:10px 12px;
+  font-size:12px;color:#FCD9B6;line-height:1.5;margin-top:10px}
+.warnbox b{color:#FDBA74}
+.okbox{background:#0C2A20;border:1px solid #15503C;border-radius:8px;padding:10px 12px;
+  font-size:12px;color:#A7F3D0;line-height:1.5}
 .strength i{display:block;height:100%;transition:width .2s,background .2s}
 .hint{background:rgba(59,130,246,.08);border:1px solid rgba(96,165,250,.25);border-radius:10px;padding:10px 12px;font-size:12px;color:#93C5FD;line-height:1.5;margin-bottom:12px}
 .hint.warn{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.3);color:#FCD34D}
@@ -768,6 +783,10 @@ function filterP(list){return filterPos(list||lineupPlayers(curTeam()))}
    connaît la phrase voit tout ce que voit son propriétaire.
    ══════════════════════════════════════════════════════════════ */
 var SK_VAULT="wonderstats_vault_v1";
+
+/* Jetons d'accès et adresses privées. Rangés à part de DB pour qu'une
+   sauvegarde exportée ne les emporte pas, et chiffrés avec le reste. */
+var SECRETS={github:null};
 var VAULT={key:null,meta:null,unlocked:false,plain:null,noCrypto:false};
 
 function subtle(){
@@ -887,8 +906,134 @@ function vaultChangePass(oldPass,newPass,hint){
 }
 function vaultLock(){
   VAULT.key=null;VAULT.unlocked=false;VAULT.plain=null;
-  DB=emptyDB();INBOX={views:[]};
+  DB=emptyDB();INBOX={views:[]};SECRETS={github:null};
   state.meId=null;state.ctx=null;
+}
+
+/* ══ SAUVEGARDE GITHUB ═════════════════════════════════════════
+   Un dépôt privé sert de coffre distant : sauvegarde, historique, et
+   passage d'un appareil à l'autre. Ce qui y est déposé est le même bloc
+   chiffré que sur le disque — GitHub n'en voit que du bruit, et la même
+   phrase de passe l'ouvre sur l'autre appareil.
+
+   Le jeton appartient à son porteur et n'est jamais dans le code : il est
+   saisi à la main, rangé avec les secrets, donc chiffré au repos. Un
+   sélectionneur n'en reçoit pas : lui donner le droit d'écrire dans le
+   dépôt lui donnerait la lecture de toutes les soumissions, ce que le
+   relais à jetons refuse précisément de faire.
+   ══════════════════════════════════════════════════════════════ */
+var GH_API="https://api.github.com";
+var ghBusy=false;
+
+function ghCfg(){return SECRETS.github}
+function ghReady(){var g=ghCfg();return !!(g&&g.repo&&g.token)}
+function ghPath(){var g=ghCfg();return (g&&g.path)||"wonderstats.vault.json"}
+
+function ghFetch(path,opts){
+  var g=ghCfg();
+  var o=Object.assign({},opts||{});
+  o.headers=Object.assign({
+    "Accept":"application/vnd.github+json",
+    "Authorization":"Bearer "+g.token,
+    "X-GitHub-Api-Version":"2022-11-28"
+  },o.headers||{});
+  var ctrl=(typeof AbortController!=="undefined")?new AbortController():null;
+  var timer=setTimeout(function(){if(ctrl)ctrl.abort()},25000);
+  if(ctrl)o.signal=ctrl.signal;
+  return fetch(GH_API+path,o).then(function(r){
+    clearTimeout(timer);
+    return r.text().then(function(txt){
+      var data=null;
+      try{data=JSON.parse(txt)}catch(e){}
+      if(r.status===404)return {missing:true};
+      if(r.status===401)throw new Error("Jeton refusé par GitHub. Il a peut-être expiré, ou il a été révoqué.");
+      if(r.status===403)throw new Error("GitHub refuse l'accès. Vérifiez que le jeton porte bien la permission « Contents » en lecture et écriture sur ce dépôt.");
+      if(r.status===409)throw new Error("conflit");
+      if(!r.ok)throw new Error("GitHub a répondu "+r.status+((data&&data.message)?" — "+data.message:""));
+      return data;
+    });
+  }).catch(function(err){
+    clearTimeout(timer);
+    if(err&&err.name==="AbortError")throw new Error("GitHub injoignable (délai dépassé)");
+    if(err&&/Failed to fetch|NetworkError|Load failed/i.test(err.message||""))
+      throw new Error("GitHub injoignable. Vérifiez votre connexion.");
+    throw err;
+  });
+}
+
+/* Vérifie que le dépôt existe et que le jeton y donne bien accès. */
+function ghCheck(){
+  var g=ghCfg();
+  return ghFetch("/repos/"+g.repo).then(function(r){
+    if(r&&r.missing)throw new Error("Dépôt introuvable. Vérifiez « propriétaire/dépôt », et que le jeton y a accès.");
+    if(!r.permissions||!r.permissions.push)
+      throw new Error("Le jeton peut lire ce dépôt mais pas y écrire.");
+    return {repo:r.full_name,priv:!!r.private};
+  });
+}
+
+function ghRead(){
+  return ghFetch("/repos/"+ghCfg().repo+"/contents/"+encodeURIComponent(ghPath()))
+    .then(function(r){
+      if(r&&r.missing)return {empty:true};
+      var txt=atob((r.content||"").replace(/\n/g,""));
+      var box=null;
+      try{box=JSON.parse(txt)}catch(e){throw new Error("Le fichier du dépôt n'est pas lisible.")}
+      return {box:box,sha:r.sha};
+    });
+}
+
+/* On dépose le bloc chiffré tel quel : GitHub ne voit jamais les noms. */
+function ghWrite(box,sha,msg){
+  var body={message:msg||("WonderStats — "+nowISO()),
+    content:btoa(unescape(encodeURIComponent(JSON.stringify(box,null,1))))};
+  if(sha)body.sha=sha;
+  return ghFetch("/repos/"+ghCfg().repo+"/contents/"+encodeURIComponent(ghPath()),
+    {method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+}
+
+/* Envoi : on relit d'abord le sha distant pour ne pas écraser à l'aveugle
+   ce qu'un autre appareil aurait déposé entre-temps. */
+function ghPush(force){
+  if(!ghReady())return Promise.reject(new Error("Sauvegarde GitHub non configurée"));
+  if(!VAULT.unlocked)return Promise.reject(new Error("Le coffre doit être ouvert"));
+  return ghRead().then(function(cur){
+    var g=ghCfg();
+    if(!force&&cur.box&&cur.sha&&g.lastSha&&cur.sha!==g.lastSha)
+      throw new Error("conflit-distant");
+    return vaultEncrypt({db:DB,inbox:INBOX,secrets:{github:null}}).then(function(box){
+      /* Le jeton ne part pas dans le dépôt : chaque appareil a le sien. */
+      return ghWrite(box,cur.sha||null,"Sauvegarde du "+fmtDate(nowISO()));
+    }).then(function(res){
+      var g2=ghCfg();
+      g2.lastSha=(res&&res.content&&res.content.sha)||null;
+      g2.lastSyncAt=nowISO();
+      saveNow();
+      return g2.lastSyncAt;
+    });
+  });
+}
+
+/* Récupération : le bloc distant est chiffré avec la phrase de passe de
+   celui qui l'a déposé — c'est elle qu'on redemande, pas un mot de passe
+   GitHub. */
+function ghPull(pass){
+  if(!ghReady())return Promise.reject(new Error("Sauvegarde GitHub non configurée"));
+  return ghRead().then(function(cur){
+    if(cur.empty||!cur.box)throw new Error("Le dépôt ne contient encore aucune sauvegarde.");
+    return vaultDecrypt(cur.box,pass).catch(function(){
+      throw new Error("Phrase de passe incorrecte pour cette sauvegarde.");
+    }).then(function(r){
+      var data=r.data||{};
+      if(!data.db)throw new Error("Sauvegarde illisible.");
+      DB=normalizeDB(data.db);
+      INBOX=data.inbox||{views:[]};
+      var g=ghCfg();g.lastSha=cur.sha;g.lastSyncAt=nowISO();
+      state.meId=(DB.enrolledId&&personById(DB.enrolledId))?DB.enrolledId:state.meId;
+      normalizeCtx();saveNow();
+      return true;
+    });
+  });
 }
 
 /* ══ PERSISTANCE ═══════════════════════════════════════════════ */
@@ -925,7 +1070,7 @@ var vaultWriting=false,vaultPending=false;
 function queueVaultWrite(){
   if(vaultWriting){vaultPending=true;return}
   vaultWriting=true;
-  vaultEncrypt({db:DB,inbox:INBOX}).then(function(box){
+  vaultEncrypt({db:DB,inbox:INBOX,secrets:SECRETS}).then(function(box){
     localStorage.setItem(SK_VAULT,JSON.stringify(box));
     saveFailed=false;
   }).catch(function(){
@@ -1241,6 +1386,7 @@ function loadAll(fromVault){
     if(raw){
       var parsed=fromVault?fromVault.db:JSON.parse(raw);
       if(fromVault&&fromVault.inbox)INBOX=fromVault.inbox;
+      if(fromVault&&fromVault.secrets)SECRETS=Object.assign({github:null},fromVault.secrets);
       /* Chaîne de migration : v1 → v2 → v3 → v4, sans perte à chaque étape. */
       /* v4 → v5 se fait dans normalizeDB : les sessions orphelines y sont
          rattachées à une rencontre déduite de leur nom. */
@@ -1952,15 +2098,32 @@ function syncFetch(url,opts){
     return r.text();
   }).then(function(txt){
     var data;
-    try{data=JSON.parse(txt)}catch(e){throw new Error("Réponse illisible du relais")}
+    try{data=JSON.parse(txt)}catch(e){throw new Error(diagnose(txt))}
     if(data&&data.ok===false)throw new Error(data.error||"Relais en erreur");
     return data;
   }).catch(function(err){
     clearTimeout(timer);
     if(err&&err.name==="AbortError")throw new Error("Relais injoignable (délai dépassé)");
+    if(err&&/Failed to fetch|NetworkError|Load failed/i.test(err.message||""))
+      throw new Error("Adresse injoignable. Vérifiez l'adresse copiée, et que le déploiement est accessible à « tout le monde ».");
     throw err;
   });
 }
+/* Le relais a répondu autre chose que du JSON. Les causes sont peu
+   nombreuses et toujours les mêmes : autant les nommer. */
+function diagnose(txt){
+  var t=(txt||"").slice(0,600);
+  if(/^\s*</.test(t)){
+    if(/accounts\.google\.com|Sign in|Connexion|ServiceLogin/i.test(t))
+      return "Google demande une connexion : votre déploiement n'est pas accessible à « tout le monde ». Redéployez en choisissant « Qui a accès : tout le monde ».";
+    if(/Moved Temporarily|has moved|redirect/i.test(t))
+      return "L'adresse redirige ailleurs. Vérifiez qu'elle se termine bien par /exec.";
+    return "Le relais a renvoyé une page web au lieu de données. L'adresse est probablement incomplète — elle doit se terminer par /exec (Apps Script) ou par le nom du Worker.";
+  }
+  if(!t)return "Le relais a répondu, mais sans rien dire. Vérifiez que le script déployé est bien celui du dossier server/.";
+  return "Réponse illisible du relais : "+t.slice(0,120);
+}
+
 function syncPost(action,body){
   return syncFetch(syncEndpoint({action:action}),{
     method:"POST",
@@ -2204,6 +2367,7 @@ function showToast(msg){
   toastTimer=setTimeout(function(){state.toast=null;var t=app.querySelector(".toast");if(t)t.remove();toastTimer=null},2600);
 }
 function confirmAct(msg){return window.confirm(msg)}
+function promptAct(msg){return window.prompt(msg)}
 
 /* ══ COMPOSANTS PARTAGÉS ═══════════════════════════════════════ */
 function renderHeader(title,leftEl,rightEl){
@@ -2942,8 +3106,61 @@ function renderAdminPlayers(){
   return h("div",{className:"content pad","data-scroll-key":"adm-players"},renderDbPane(curSquad()));
 }
 
+/* Carte « Sauvegarde GitHub » — le coffre distant de l'entraîneur. */
+function renderGithubPanel(){
+  var box=h("div",{className:"card tight",style:{marginBottom:"12px"}});
+  if(!ghReady()){
+    box.appendChild(h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontWeight:"700",color:"#F8FAFC",fontSize:"14px"}},"🗄️ Sauvegarde GitHub"),
+        h("div",{className:"muted",style:{marginTop:"3px"}},
+          "Déposez vos données chiffrées dans un dépôt privé : sauvegarde, historique, et passage d'un appareil à l'autre.")),
+      h("button",{className:"btn btn-primary xs",onclick:function(){
+        state.modalDraft=null;openModal("githubconfig");
+      }},"Configurer")));
+    return box;
+  }
+  var g=ghCfg();
+  box.appendChild(h("div",{className:"row-between"},
+    h("div",{style:{minWidth:"0"}},
+      h("div",{style:{fontWeight:"700",color:"#34D399",fontSize:"14px"}},"🗄️ Sauvegarde GitHub"),
+      h("div",{className:"muted",style:{marginTop:"3px",wordBreak:"break-all"}},g.repo+" · "+ghPath()),
+      g.lastSyncAt?h("div",{className:"muted",style:{marginTop:"2px"}},"Dernier envoi : "+fmtDate(g.lastSyncAt))
+                  :h("div",{className:"muted",style:{marginTop:"2px"}},"Jamais envoyé")),
+    h("button",{className:"btn btn-ghost xs",onclick:function(){
+      state.modalDraft=null;openModal("githubconfig");
+    }},"⚙️")));
+  box.appendChild(h("div",{className:"btn-row",style:{marginTop:"10px"}},
+    h("button",{className:"btn btn-save sm",disabled:ghBusy,onclick:function(){
+      ghBusy=true;render();
+      ghPush(false).then(function(){
+        showToast("🗄️ Sauvegarde envoyée");
+      }).catch(function(err){
+        if(err.message==="conflit-distant"){
+          if(confirmAct("Le dépôt contient une sauvegarde plus récente, déposée depuis un autre appareil.\n\nÉcraser cette sauvegarde par celle de cet appareil ?\n\nPour récupérer l'autre à la place, annulez puis utilisez « Récupérer »."))
+            return ghPush(true).then(function(){showToast("🗄️ Sauvegarde écrasée")});
+          return;
+        }
+        showToast("⚠️ "+err.message);
+      }).then(function(){ghBusy=false;render()});
+    }},ghBusy?"⏳ En cours…":"⬆️ Envoyer"),
+    h("button",{className:"btn btn-ghost sm",disabled:ghBusy,onclick:function(){
+      var pass=promptAct("Phrase de passe de la sauvegarde à récupérer :");
+      if(!pass)return;
+      if(!confirmAct("Récupérer la sauvegarde du dépôt ?\n\nLes données de cet appareil seront remplacées."))return;
+      ghBusy=true;render();
+      ghPull(pass).then(function(){
+        showToast("🗄️ Sauvegarde récupérée");
+      }).catch(function(err){
+        showToast("⚠️ "+err.message);
+      }).then(function(){ghBusy=false;render()});
+    }},"⬇️ Récupérer")));
+  return box;
+}
+
 function renderAdminSync(){
   var wrap=h("div",null);
+  wrap.appendChild(renderGithubPanel());
   wrap.appendChild(renderSyncPanel(curSquad()));
   wrap.appendChild(h("div",{className:"hint"},
     "Le relais permet à vos sélectionneurs de travailler sur leur propre appareil. ",
@@ -4830,46 +5047,210 @@ function renderModal(){
   }
 
   /* ── Synchronisation ── */
-  if(T==="syncconfig"){
-    var sd=state.modalDraft||(state.modalDraft={url:SYNC.url,room:SYNC.room});
-    var uInp=h("input",{placeholder:"https://mon-relais.exemple.workers.dev",value:sd.url});
-    uInp.addEventListener("input",function(e){sd.url=e.target.value});
-    var rInp=h("input",{placeholder:"WNDR-ABC-123",value:sd.room});
-    rInp.addEventListener("input",function(e){sd.room=e.target.value.toUpperCase()});
-    return modalShell("Synchronisation",
+  if(T==="githubconfig"){
+    var gd=state.modalDraft||(state.modalDraft=Object.assign(
+      {repo:"",token:"",path:"wonderstats.vault.json",test:null,busy:false},
+      ghCfg()||{}));
+    function gf(key,label,ph,type){
+      var inp=h("input",{placeholder:ph,value:gd[key]||"",type:type||"text",
+        autocapitalize:"off",autocorrect:"off",spellcheck:"false"});
+      inp.addEventListener("input",function(e){gd[key]=e.target.value.trim()});
+      return h("div",{className:"field"},h("label",null,label),inp);
+    }
+    var gTest=null;
+    if(gd.test&&gd.test.ok)gTest=h("div",{className:"okbox"},
+      "✅ Dépôt "+gd.test.repo+" accessible en écriture."+
+      (gd.test.priv?"":" ⚠️ Attention : ce dépôt est public."));
+    else if(gd.test)gTest=h("div",{className:"warnbox"},h("b",null,"⚠️ "),gd.test.err);
+
+    return modalShell("Sauvegarde GitHub",
       h("div",null,
-        h("div",{className:"muted",style:{marginBottom:"10px"}},syncReady()?"Connecté au salon "+SYNC.room:"Non configuré"),
-        h("div",{className:"field"},h("label",null,"Adresse du relais"),uInp),
-        h("div",{className:"field"},h("label",null,"Code de salon"),rInp),
-        h("div",{className:"btn-row",style:{marginBottom:"12px"}},
+        h("div",{className:"hint"},
+          "Ce qui est déposé est le ",h("b",null,"même bloc chiffré")," que sur cet appareil : ",
+          "GitHub n'en voit que du bruit, et c'est votre phrase de passe qui l'ouvre ailleurs."),
+        h("ol",{className:"steps",style:{marginTop:"10px"}},
+          h("li",null,"Sur GitHub, créez un dépôt ",h("b",null,"privé"),
+            " — par exemple ",h("code",null,"wonderstats-donnees"),". Laissez-le vide."),
+          h("li",null,"Allez dans ",h("b",null,"Settings → Developer settings → "),
+            h("b",null,"Personal access tokens → Fine-grained tokens"),", puis ",
+            h("b",null,"Generate new token"),"."),
+          h("li",null,"Sous ",h("b",null,"Repository access"),", choisissez ",
+            h("i",null,"Only select repositories")," et cochez ce seul dépôt."),
+          h("li",null,"Sous ",h("b",null,"Permissions → Repository permissions"),", réglez ",
+            h("b",null,"Contents")," sur ",h("b",null,"Read and write"),
+            ". C'est la seule permission nécessaire."),
+          h("li",null,"Copiez le jeton affiché — GitHub ne le remontrera pas.")),
+        gf("repo","Dépôt","propriétaire/nom-du-depot"),
+        gf("token","Jeton d'accès","github_pat_…","password"),
+        gf("path","Fichier","wonderstats.vault.json"),
+        h("div",{className:"btn-row",style:{marginBottom:"10px"}},
+          h("button",{className:"btn btn-primary xs",disabled:gd.busy,onclick:function(){
+            if(!gd.repo||!gd.token){gd.test={err:"Renseignez le dépôt et le jeton."};render();return}
+            var prev=SECRETS.github;
+            SECRETS.github={repo:gd.repo,token:gd.token,path:gd.path};
+            gd.busy=true;gd.test=null;render();
+            ghCheck().then(function(r){gd.test={ok:true,repo:r.repo,priv:r.priv}})
+              .catch(function(err){gd.test={err:err.message}})
+              .then(function(){SECRETS.github=prev;gd.busy=false;render()});
+          }},gd.busy?"⏳ Vérification…":"🔌 Vérifier l'accès")),
+        gTest,
+        h("div",{className:"warnbox",style:{marginTop:"10px"}},
+          h("b",null,"Le jeton reste sur cet appareil. "),
+          "Il est rangé avec vos données chiffrées, n'apparaît dans aucune sauvegarde exportée, ",
+          "et n'est jamais déposé dans le dépôt. Chaque appareil a le sien.")),
+      [cancel,
+       ghReady()?h("button",{className:"btn btn-danger-o full",onclick:function(){
+         SECRETS.github=null;state.modalDraft=null;saveNow();closeModal();
+         showToast("Sauvegarde GitHub désactivée");
+       }},"Oublier ce jeton"):null,
+       h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+         if(!gd.repo||!gd.token){showToast("⚠️ Renseignez le dépôt et le jeton");return}
+         if(!/^[\w.-]+\/[\w.-]+$/.test(gd.repo)){showToast("⚠️ Format attendu : propriétaire/dépôt");return}
+         SECRETS.github={repo:gd.repo,token:gd.token,
+           path:gd.path||"wonderstats.vault.json",lastSha:null,lastSyncAt:null};
+         state.modalDraft=null;saveNow();closeModal();showToast("🗄️ Sauvegarde GitHub configurée");
+       }},"Enregistrer")],"460px");
+  }
+
+  if(T==="syncconfig"){
+    /* Assistant plutôt que formulaire : le relais est la seule pièce que
+       l'utilisateur doit installer lui-même, et c'est là qu'il bloque. */
+    var sd=state.modalDraft||(state.modalDraft={
+      url:SYNC.url,room:SYNC.room||mkRoomCode(),
+      step:SYNC.url?"config":"intro",test:null,busy:false});
+
+    function goto(st){sd.step=st;sd.test=null;render()}
+    function champ(key,label,ph,onIn){
+      var inp=h("input",{placeholder:ph,value:sd[key]||"",
+        autocapitalize:"off",autocorrect:"off",spellcheck:"false"});
+      inp.addEventListener("input",function(e){
+        sd[key]=onIn?onIn(e.target.value):e.target.value;
+      });
+      return h("div",{className:"field"},h("label",null,label),inp);
+    }
+
+    if(sd.step==="intro"){
+      return modalShell("Travailler à plusieurs appareils",
+        h("div",null,
+          h("div",{className:"hint"},
+            "Sans relais, tout fonctionne déjà : vous envoyez une vue par lien ou par fichier, ",
+            "le sélectionneur vous renvoie sa soumission de la même façon. ",
+            h("b",null,"Le relais sert seulement à automatiser cet aller-retour"),
+            " pour que chacun travaille sur son propre appareil."),
+          h("div",{className:"card tight",style:{marginBottom:"10px"}},
+            h("div",{style:{fontWeight:"700",color:"#F8FAFC",fontSize:"14px",marginBottom:"4px"}},
+              "📄 Google Apps Script"),
+            h("div",{className:"muted",style:{marginBottom:"10px"}},
+              "Gratuit, tout se fait dans le navigateur avec votre compte Google. Environ dix minutes, une seule fois."),
+            h("button",{className:"btn btn-primary full",onclick:function(){goto("google")}},
+              "M'expliquer pas à pas")),
+          h("div",{className:"card tight",style:{marginBottom:"10px"}},
+            h("div",{style:{fontWeight:"700",color:"#F8FAFC",fontSize:"14px",marginBottom:"4px"}},
+              "⚡ Cloudflare Worker"),
+            h("div",{className:"muted",style:{marginBottom:"10px"}},
+              "Gratuit également, un peu plus rapide, mais demande un terminal."),
+            h("button",{className:"btn btn-ghost full",onclick:function(){goto("cloudflare")}},
+              "Voir les commandes")),
+          h("button",{className:"linky",style:{width:"100%"},onclick:function(){goto("config")}},
+            "J'ai déjà une adresse de relais")),
+        [cancel],"460px");
+    }
+
+    if(sd.step==="google"){
+      return modalShell("Apps Script — pas à pas",
+        h("div",null,
+          h("ol",{className:"steps"},
+            h("li",null,"Ouvrez ",h("b",null,"Google Drive"),", puis ",
+              h("b",null,"Nouveau → Google Sheets"),". Un classeur vide suffit ; ne le remplissez pas."),
+            h("li",null,"Dans ce classeur : ",h("b",null,"Extensions → Apps Script"),
+              ". Un éditeur de code s'ouvre dans un nouvel onglet."),
+            h("li",null,"Effacez tout ce qu'il contient, puis collez le contenu du fichier ",
+              h("code",null,"server/apps-script.gs")," du dépôt WonderStats."),
+            h("li",null,"Cliquez sur ",h("b",null,"Déployer → Nouveau déploiement"),
+              ", choisissez le type ",h("b",null,"Application Web"),"."),
+            h("li",null,"Réglez ",h("b",null,"Exécuter en tant que")," sur ",h("i",null,"moi"),
+              ", et ",h("b",null,"Qui a accès")," sur ",h("b",null,"tout le monde"),
+              ". C'est le réglage sur lequel presque tout le monde se trompe."),
+            h("li",null,"Google demande d'autoriser le script. Il affiche un avertissement ",
+              h("i",null,"« Google n'a pas validé cette application »"),
+              " : c'est normal, le script est le vôtre. Cliquez sur ",
+              h("b",null,"Paramètres avancés"),", puis sur ",
+              h("b",null,"Accéder à … (non sécurisé)"),"."),
+            h("li",null,"Copiez l'adresse affichée à la fin. Elle se termine par ",
+              h("code",null,"/exec"),".")),
+          h("div",{className:"warnbox"},
+            h("b",null,"Deux pièges. "),
+            "L'adresse doit finir par ",h("code",null,"/exec")," et non par ",h("code",null,"/dev"),
+            ". Et à chaque fois que vous modifierez le script, il faudra refaire ",
+            h("b",null,"Déployer → Gérer les déploiements → Modifier → Nouvelle version"),
+            ", sinon vos changements ne sortiront pas.")),
+        [h("button",{className:"btn btn-ghost full",onclick:function(){goto("intro")}},"← Retour"),
+         h("button",{className:"btn btn-primary full",onclick:function(){goto("config")}},
+           "J'ai mon adresse →")],"460px");
+    }
+
+    if(sd.step==="cloudflare"){
+      return modalShell("Cloudflare Worker",
+        h("div",null,
+          h("ol",{className:"steps"},
+            h("li",null,"Créez un compte sur ",h("b",null,"cloudflare.com"),
+              " — gratuit, sans carte bancaire."),
+            h("li",null,"Dans un terminal, depuis le dossier ",h("code",null,"server/")," du dépôt :"),
+            h("li",null,h("code",null,"npm install -g wrangler"),h("br",null),
+              h("code",null,"wrangler login"),h("br",null),
+              h("code",null,"wrangler kv namespace create WONDERSTATS")),
+            h("li",null,"Reportez l'identifiant affiché dans ",h("code",null,"wrangler.toml"),
+              ", puis lancez ",h("code",null,"wrangler deploy"),"."),
+            h("li",null,"Wrangler affiche l'adresse du relais, en ",
+              h("code",null,".workers.dev"),".")),
+          h("div",{className:"hint"},"Le Worker purge automatiquement ce qui dépasse 120 jours.")),
+        [h("button",{className:"btn btn-ghost full",onclick:function(){goto("intro")}},"← Retour"),
+         h("button",{className:"btn btn-primary full",onclick:function(){goto("config")}},
+           "J'ai mon adresse →")],"460px");
+    }
+
+    /* ── Configuration et test ─────────────────────────────── */
+    var testBox=null;
+    if(sd.test==="ok")testBox=h("div",{className:"okbox"},
+      "✅ Le relais répond correctement. Vous pouvez enregistrer.");
+    else if(sd.test)testBox=h("div",{className:"warnbox"},h("b",null,"⚠️ "),sd.test);
+
+    return modalShell("Adresse du relais",
+      h("div",null,
+        champ("url","Adresse du relais","https://script.google.com/…/exec"),
+        champ("room","Code de salon","WNDR-ABC-123",function(v){return v.toUpperCase()}),
+        h("div",{className:"btn-row",style:{marginBottom:"10px"}},
           h("button",{className:"btn btn-ghost xs",onclick:function(){
-            sd.room=mkRoomCode();rInp.value=sd.room;
-          }},"🎲 Générer un code"),
-          h("button",{className:"btn btn-ghost xs",onclick:function(){
+            sd.room=mkRoomCode();sd.test=null;render();
+          }},"🎲 Autre code"),
+          h("button",{className:"btn btn-primary xs",disabled:sd.busy,onclick:function(){
+            var u=normUrl(sd.url),r=(sd.room||"").trim();
+            if(!u||!r){sd.test="Renseignez l'adresse et le code de salon.";render();return}
             var prev={url:SYNC.url,room:SYNC.room};
-            SYNC.url=normUrl(sd.url);SYNC.room=(sd.room||"").trim();
-            if(!syncReady()){Object.assign(SYNC,prev);showToast("⚠️ Renseignez adresse et salon");return}
-            showToast("⏳ Test en cours…");
-            syncPing().then(function(){showToast("✅ Relais joignable")})
-                      .catch(function(err){showToast("⚠️ "+err.message)})
-                      .then(function(){Object.assign(SYNC,prev)});
-          }},"🔌 Tester")),
-        h("div",{className:"hint"},"Le relais est un petit service que vous déployez gratuitement — voir le dossier ",
-          h("b",null,"server/")," du dépôt (Cloudflare Worker ou Google Apps Script). ",
-          "Le ",h("b",null,"code de salon")," fait office de mot de passe partagé : ne le diffusez qu'à vos sélectionneurs."),
-        h("div",{className:"muted"},"Sans synchronisation, tout continue de fonctionner par échange de fichiers.")),
+            SYNC.url=u;SYNC.room=r;sd.busy=true;sd.test=null;render();
+            syncPing().then(function(){sd.test="ok"})
+              .catch(function(err){sd.test=err.message})
+              .then(function(){Object.assign(SYNC,prev);sd.busy=false;render()});
+          }},sd.busy?"⏳ Test…":"🔌 Tester la connexion")),
+        testBox,
+        h("div",{className:"hint",style:{marginTop:"10px"}},
+          "Le ",h("b",null,"code de salon")," sépare votre club des autres sur le même relais. ",
+          "Il n'est pas un mot de passe : ce sont les jetons personnels, émis depuis ",
+          h("b",null,"Administration → Personnes"),", qui décident de ce que chacun peut lire."),
+        h("button",{className:"linky",style:{width:"100%"},onclick:function(){goto("intro")}},
+          "Je n'ai pas encore de relais")),
       [cancel,
        syncReady()?h("button",{className:"btn btn-danger-o full",onclick:function(){
-         SYNC.url="";SYNC.room="";SYNC.pulled={packet:"",submission:""};
+         SYNC.url="";SYNC.room="";SYNC.pulled={packet:"",catalog:"",submission:""};
          state.modalDraft=null;saveSync();closeModal();showToast("Synchronisation désactivée");
        }},"Déconnecter"):null,
        h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
         var u=normUrl(sd.url),r=(sd.room||"").trim();
         if(!u||!r){showToast("⚠️ Renseignez l'adresse et le code de salon");return}
-        if(u!==SYNC.url||r!==SYNC.room)SYNC.pulled={packet:"",submission:""};
+        if(u!==SYNC.url||r!==SYNC.room)SYNC.pulled={packet:"",catalog:"",submission:""};
         SYNC.url=u;SYNC.room=r;
         state.modalDraft=null;saveSync();closeModal();showToast("📡 Synchronisation activée");
-      }},"Enregistrer")],"440px");
+      }},"Enregistrer")],"460px");
   }
   if(T==="newplayer"||T==="editplayer"){
     var p0=T==="editplayer"?playerById(state.modalCtx):null;
@@ -5614,10 +5995,10 @@ function gateSubmit(){
     }
     applyOwner(nom);
     var qui=nom||(me()?me().name:"");
-    vaultCreate(gate.pass,(gate.hint||"").trim(),qui,{db:DB,inbox:INBOX}).then(function(){
+    vaultCreate(gate.pass,(gate.hint||"").trim(),qui,{db:DB,inbox:INBOX,secrets:SECRETS}).then(function(){
       gate.pass="";gate.pass2="";gate.busy=false;
       showToast("🔐 Données chiffrées sur cet appareil");
-      gateFinishOpen({db:DB,inbox:INBOX},true);
+      gateFinishOpen({db:DB,inbox:INBOX,secrets:SECRETS},true);
     }).catch(function(err){
       gate.busy=false;gate.err=err.message;renderGate();
     });
