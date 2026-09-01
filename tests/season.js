@@ -7,6 +7,7 @@
    « ✓ ») et elle relève ce qui manque ou ce qui frotte (les « ⚑ »),
    sans faire échouer la suite : un manque n'est pas une régression. */
 const {chromium}=require("playwright");
+const {franchirGarde}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -78,8 +79,9 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
   };
 
   await page.goto(BASE+"/index.html");
+  await franchirGarde(page);
   await page.evaluate(()=>localStorage.clear());
-  await page.reload();await page.waitForTimeout(400);
+  await page.reload(); await franchirGarde(page);await page.waitForTimeout(400);
 
   /* ════════════════════════════════════════════════════════════ */
   phase("AOÛT","Le club s'organise");
@@ -614,7 +616,7 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
 
   await step("tout survit au rechargement",async()=>{
     await page.evaluate(()=>saveNow());
-    await page.reload();await page.waitForTimeout(600);
+    await page.reload(); await franchirGarde(page);await page.waitForTimeout(600);
     const r=await page.evaluate(()=>{
       const sq=DB.squads[0];
       return {v:DB.version,sessions:sq.sessions.length,events:sq.events.length,

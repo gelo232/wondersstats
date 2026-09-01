@@ -1,4 +1,5 @@
 const {chromium}=require("playwright");
+const {franchirGarde}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -46,8 +47,9 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   const dom=async()=>await page.innerHTML("#app");
 
   await page.goto(BASE+"/index.html");
+  await franchirGarde(page);
   await page.evaluate(()=>localStorage.clear());
-  await page.reload();await page.waitForTimeout(300);
+  await page.reload(); await franchirGarde(page);await page.waitForTimeout(300);
 
   say("\n── 1. Création d'une saison et d'un effectif");
   await step("l'administrateur crée la saison 2026-2027",async()=>{
@@ -318,7 +320,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   say("\n── 9. Persistance");
   await step("les données survivent au rechargement",async()=>{
     await page.evaluate(()=>saveNow());
-    await page.reload();await page.waitForTimeout(400);
+    await page.reload(); await franchirGarde(page);await page.waitForTimeout(400);
     const r=await page.evaluate(()=>{
       const sid=DB.seasons.find(x=>x.name==="Saison 2026-2027").id;
       const sq=DB.squads.filter(x=>x.seasonId===sid)[0];

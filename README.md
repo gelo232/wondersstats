@@ -15,6 +15,62 @@ tests/          suite de non-régression Playwright
 
 ---
 
+## Ouvrir l'application
+
+Au premier lancement, l'application ne donne aucun droit : elle demande qui vous
+êtes.
+
+- **Créer un club** — vous mettez le club en place, vous en êtes l'administrateur.
+- **Rejoindre comme sélectionneur** — vous avez reçu un lien d'invitation.
+
+Puis elle vous demande une **phrase de passe**. Les données du club sont ensuite
+chiffrées dans le navigateur — AES-GCM 256, clé dérivée par PBKDF2-SHA256, dont le
+coût est calibré sur votre appareil. La clé ne quitte jamais la mémoire, la phrase
+n'est stockée nulle part, et rien de lisible ne reste sur le disque.
+
+> **Personne ne peut retrouver cette phrase.** Si vous l'oubliez, les données de
+> cet appareil sont perdues. Exportez une sauvegarde régulièrement, ou configurez
+> la sauvegarde GitHub ci-dessous.
+
+**Ce que le chiffrement protège** : quelqu'un qui récupère l'appareil, ou qui lit
+`localStorage`, ne voit que du bruit.
+
+**Ce qu'il ne protège pas** : la séparation des rôles reste côté client. Un site
+statique ne peut rien imposer à qui ouvre la console de son navigateur. Seul le
+relais autorise réellement — voir [`ROLES.md`](ROLES.md).
+
+Ouverte depuis un fichier local (`file://`) plutôt que par une adresse `https`,
+l'application le signale et propose de continuer sans chiffrement, plutôt que de
+faire semblant.
+
+---
+
+## Sauvegarde GitHub
+
+`Administration → 📡 Relais → 🗄️ Sauvegarde GitHub` dépose vos données dans un
+dépôt **privé** : sauvegarde, historique, et passage d'un appareil à l'autre.
+
+Ce qui est déposé est le **même bloc chiffré** que sur l'appareil. GitHub n'en voit
+que du bruit, et c'est votre phrase de passe qui l'ouvre ailleurs — pas votre mot de
+passe GitHub.
+
+Le jeton d'accès est saisi à la main, jamais présent dans le code. Il est rangé avec
+les secrets, donc chiffré au repos ; il n'apparaît dans aucune sauvegarde exportée
+et n'est jamais déposé dans le dépôt. Chaque appareil a le sien.
+
+Un jeton **fine-grained** limité à ce seul dépôt, avec la permission `Contents` en
+lecture et écriture, suffit — l'assistant détaille les cinq étapes.
+
+Si le dépôt a été modifié depuis un autre appareil, l'envoi s'arrête et vous
+demande quoi faire, plutôt que d'écraser en silence.
+
+**Pourquoi les sélectionneurs ne passent pas par GitHub** : leur donner le droit
+d'écrire dans le dépôt leur donnerait aussi la lecture de toutes les soumissions,
+y compris celles de leurs collègues. C'est exactement ce que le relais à jetons
+refuse. Ils passent donc par le relais, ou par lien et fichier.
+
+---
+
 ## Trois profils, des rôles par équipe
 
 Un rôle n'appartient pas à une personne : il la relie à **une équipe**. Sofia est
