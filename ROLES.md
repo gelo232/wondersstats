@@ -9,6 +9,64 @@ l'accompagnent sont dans l'artifact « Rôles et accès WonderStats ».
 
 ---
 
+## 0. Le propriétaire
+
+Il y a **un seul propriétaire dans tout le système**, et ce n'est pas une case
+à cocher : c'est une paire de clés engendrée une fois, à la fondation.
+
+```
+clé privée    dans le coffre chiffré du propriétaire, nulle part ailleurs
+clé publique  dans superadmin.json, publié à côté de l'application
+```
+
+Toutes les installations lisent `superadmin.json` au démarrage. Ce que le
+propriétaire fait — créer un club, nommer un administrateur — produit une pièce
+**signée**. Un appareil qui ne détient pas la clé ne peut en fabriquer aucune qui
+soit acceptée ailleurs.
+
+Être propriétaire demande **les deux** : que l'appareil détienne la clé, et que la
+personne qui l'utilise soit celle de la fondation. Changer d'identité sur
+l'appareil du propriétaire ne transmet donc rien à personne.
+
+| Ce que lui seul peut faire | Pourquoi |
+|---|---|
+| Créer un club | Le club n'existe que charté par sa signature |
+| Nommer un administrateur | La nomination est signée, nominative, et vaut pour un club |
+| Retirer une administration | Elle est une arête qu'il a posée |
+
+**Portée honnête.** La vérification se fait dans le navigateur : qui modifie sa
+propre copie de la page peut la contourner sur son propre appareil. Ce qu'elle
+empêche vraiment, c'est qu'une pièce forgée soit acceptée **ailleurs** — par un
+autre appareil, ou par le relais, qui applique la même vérification hors de portée
+de celui qu'il contrôle. C'est la même frontière qu'au §4 : la signature déplace
+la question du « je le prétends » au « je peux le prouver ».
+
+### Perdre la clé
+
+Elle n'est ni dans les sauvegardes, ni dans le dépôt GitHub — c'est délibéré, et
+cela veut dire qu'elle se perd si elle n'est pas exportée. `👑 Propriétaire →
+🗝️ Ma clé → Exporter` produit un fichier scellé par une phrase choisie pour lui.
+Sans ce fichier et sans l'appareil d'origine, il faudrait refonder le système et
+resigner chaque club.
+
+---
+
+## 0 bis. Les clubs
+
+Un club regroupe des équipes et **plusieurs administrateurs**. Un administrateur
+n'est rien dans un club dont il n'a pas la nomination.
+
+```
+club        {id, name, city, charter}   charte signée par le propriétaire
+team        {…, clubId}                 une équipe appartient à un club
+clubAssignment  (personId, clubId, "admin", grant)   nomination signée
+```
+
+Un entraîneur peut être administrateur de son club : les deux rôles se cumulent
+sans se confondre. Une personne qui n'entraîne rien le peut tout autant.
+
+---
+
 ## 1. Principes
 
 1. **Le rôle est une arête, pas un attribut.** Une personne n'« est » pas entraîneur :

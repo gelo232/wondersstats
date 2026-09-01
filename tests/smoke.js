@@ -83,12 +83,20 @@ const ERRORS=[];
     if(r.name!=="U15 Wonders")throw new Error("nom d'équipe="+r.name);
     if(r.roster!==3)throw new Error("roster="+r.roster);
   });
-  await step("un administrateur est créé et affecté",async()=>{
+  await step("un propriétaire est établi et affecté à l'équipe",async()=>{
+    /* En v6 l'administration n'est plus un drapeau sur la personne mais
+       une affectation à un club : la base migrée en porte une. */
     const r=await page.evaluate(()=>({
-      admins:DB.people.filter(p=>p.isAdmin).length,
+      gens:DB.people.length,
+      admins:DB.people.filter(p=>adminClubsOf(p).length).length,
+      clubs:DB.clubs.length,
       assigns:DB.assignments.length,
-      role:(DB.assignments[0]||{}).role}));
-    if(r.admins!==1)throw new Error("administrateurs="+r.admins);
+      role:(DB.assignments[0]||{}).role,
+      drapeau:DB.people.some(p=>"isAdmin" in p)}));
+    if(r.drapeau)throw new Error("le drapeau isAdmin subsiste sur une personne");
+    if(r.gens!==1)throw new Error("personnes="+r.gens);
+    if(r.clubs!==1)throw new Error("clubs="+r.clubs);
+    if(r.admins!==1)throw new Error("administrateurs de club="+r.admins);
     if(r.assigns!==1||r.role!=="coach")throw new Error("affectations="+JSON.stringify(r));
   });
   await step("lineup et sous-équipes convertis en playerIds",async()=>{
@@ -181,7 +189,7 @@ const ERRORS=[];
         lavalDate:laval?laval.date:null,
         adversaires:sq.events.map(ev=>ev.opponent).filter(Boolean).sort()};
     });
-    if(r.version!==5)throw new Error("version="+r.version);
+    if(r.version!==6)throw new Error("version="+r.version);
     if(r.orphelines)throw new Error("sessions sans rencontre="+r.orphelines);
     /* Les trois matchs de Laval sont reconnus comme un seul tournoi. */
     if(r.lavalMatchs!==3)throw new Error("matchs regroupés sous Laval="+r.lavalMatchs);

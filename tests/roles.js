@@ -36,7 +36,9 @@ const ERRORS=[];let PASS=0;
       /* Le nom mis en cache par les squads se rafraîchit depuis l'équipe
          durable : on repasse par la normalisation plutôt que de le muter. */
       DB.squads.forEach(sq=>{if(sq.teamId===u15.id){sq.name=u15.name;sq.category=u15.category}});
-      const u18=mkTeamRecord({name:"U18 Wonders",category:"U18"});
+      /* Les deux équipes appartiennent au même club : sans club, une
+         équipe n'est visible que par ses affectations. */
+      const u18=mkTeamRecord({name:"U18 Wonders",category:"U18",clubId:u15.clubId});
       DB.teams.push(u18);
       const sofia=mkPerson({name:"Sofia"}),karl=mkPerson({name:"Karl"});
       DB.people.push(sofia,karl);
@@ -88,7 +90,8 @@ const ERRORS=[];let PASS=0;
       coachTeams:teamsForRole("coach").length,selTeams:teamsForRole("selector").length}));
     if(!r.admin)throw new Error("isAdmin faux");
     if(r.coachTeams!==2||r.selTeams!==2)throw new Error("équipes visibles="+JSON.stringify(r));
-    if(r.n!==5)throw new Error("contextes attendus 1 admin + 2 + 2, obtenu "+r.n);
+    /* v6 : propriétaire + administration du club + 2 équipes × 2 rôles. */
+    if(r.n!==6)throw new Error("contextes attendus 1 propriétaire + 1 admin + 2 + 2, obtenu "+r.n);
   });
 
   say("\n── Périmètre d'un entraîneur");
@@ -260,7 +263,7 @@ const ERRORS=[];let PASS=0;
   });
   await step("l'administrateur voit tout le club",async()=>{
     await beMe("Administrateur");
-    await page.evaluate(()=>{switchCtx({role:"admin"});state.tab="adm_log";state.logFilter="all";render()});
+    await page.evaluate(()=>{switchCtx({role:"admin",clubId:(DB.clubs[0]||{}).id});state.tab="adm_log";state.logFilter="all";render()});
     await page.waitForTimeout(300);
     const t=await page.textContent("#app");
     if(t.indexOf("Décision sur une autre équipe")===-1)
@@ -301,7 +304,7 @@ const ERRORS=[];let PASS=0;
     if(r.hasAdmin)throw new Error("onglets d'administration visibles en contexte entraîneur");
     await beMe("Administrateur");
     const admTabs=await page.evaluate(()=>{
-      switchCtx({role:"admin"});
+      switchCtx({role:"admin",clubId:(DB.clubs[0]||{}).id});
       return tabsForCtx().map(t=>t.key);
     });
     if(admTabs.indexOf("adm_seasons")===-1)throw new Error("onglet Saisons absent de l'administration");
@@ -342,7 +345,7 @@ const ERRORS=[];let PASS=0;
     await page.reload(); await franchirGarde(page);await page.waitForTimeout(500);
     const r=await page.evaluate(()=>({v:DB.version,people:DB.people.length,
       teams:DB.teams.length,squads:DB.squads.length,me:(me()||{}).name}));
-    if(r.v!==5)throw new Error("version="+r.v);
+    if(r.v!==6)throw new Error("version="+r.v);
     if(r.people!==3||r.teams!==1||r.squads!==1)throw new Error(JSON.stringify(r));
   });
 

@@ -17,26 +17,27 @@ const step=async(n,f)=>{try{await f();ok++;console.log("  ✓ "+n)}catch(e){bad.
 
   await step("l'app s'ouvre sur l'écran de garde, pas sur l'administration",async()=>{
     const t=await page.textContent("#app");
-    if(!/Créer un club/.test(t))throw new Error("pas d'écran d'accueil : "+t.slice(0,120));
+    if(!/Fonder le système/.test(t))throw new Error("pas d'écran d'accueil : "+t.slice(0,120));
+    if(/Créer un club/.test(t))throw new Error("création de club offerte sans propriétaire");
     if(/Administration|Récapitulatif|Saisie/.test(t))throw new Error("interface admin visible d'emblée");
     const st=await page.evaluate(()=>({me:state.meId,ctx:state.ctx,people:DB.people.length}));
     if(st.me)throw new Error("une identité a été attribuée : "+st.me);
     if(st.people)throw new Error("des personnes existent déjà : "+st.people);
   });
 
-  console.log("\n── Création du club et pose du verrou");
-  await step("créer un club mène à la phrase de passe",async()=>{
-    await page.click('button:has-text("Créer un club")');
+  console.log("\n── Fondation et pose du verrou");
+  await step("se déclarer propriétaire mène à la phrase de passe",async()=>{
+    await page.click('button:has-text("Je suis le propriétaire")');
     await page.waitForTimeout(300);
     const t=await page.textContent("#app");
-    if(!/Protéger le club/.test(t))throw new Error("écran attendu : Protéger le club");
+    if(!/Fonder le système/.test(t))throw new Error("écran attendu : Fonder le système");
   });
 
   await step("une phrase trop courte est refusée",async()=>{
     await page.fill('input[type="text"]',"Sofia Nguyen");
     const p=await page.$$('input[type="password"]');
     await p[0].fill("court");await p[1].fill("court");
-    await page.click('button:has-text("Protéger et continuer")');
+    await page.click('button:has-text("Fonder")');
     await page.waitForTimeout(200);
     const t=await page.textContent(".err");
     if(!/8 caractères/.test(t))throw new Error("erreur attendue, obtenu : "+t);
@@ -45,21 +46,23 @@ const step=async(n,f)=>{try{await f();ok++;console.log("  ✓ "+n)}catch(e){bad.
   await step("deux phrases différentes sont refusées",async()=>{
     const p=await page.$$('input[type="password"]');
     await p[0].fill("volley-wonders-2027");await p[1].fill("volley-wonders-2028");
-    await page.click('button:has-text("Protéger et continuer")');
+    await page.click('button:has-text("Fonder")');
     await page.waitForTimeout(200);
     const t=await page.textContent(".err");
     if(!/diffèrent/.test(t))throw new Error("erreur attendue, obtenu : "+t);
   });
 
-  await step("la bonne phrase ouvre l'application en administration",async()=>{
+  await step("la bonne phrase fonde le système et ouvre le coffre",async()=>{
     const p=await page.$$('input[type="password"]');
     await p[0].fill("volley-wonders-2027");await p[1].fill("volley-wonders-2027");
-    await page.click('button:has-text("Protéger et continuer")');
-    await page.waitForTimeout(1800);
+    await page.click('button:has-text("Fonder")');
+    await page.waitForFunction(()=>window.gate&&gate.mode==="publish",null,{timeout:25000});
+    await page.click('button:has-text("J\'ai publié")');
+    await page.waitForTimeout(900);
     const st=await page.evaluate(()=>({me:state.meId,ctx:state.ctx,
-      admin:isAdmin(),unlocked:VAULT.unlocked,nom:me()?me().name:null}));
+      super:isSuper(),unlocked:VAULT.unlocked,nom:me()?me().name:null}));
     if(!st.unlocked)throw new Error("coffre non ouvert");
-    if(!st.admin)throw new Error("le créateur n'est pas administrateur");
+    if(!st.super)throw new Error("le fondateur ne prouve pas sa clé");
     if(st.nom!=="Sofia Nguyen")throw new Error("nom="+st.nom);
   });
 
@@ -105,27 +108,28 @@ const step=async(n,f)=>{try{await f();ok++;console.log("  ✓ "+n)}catch(e){bad.
   await step("la bonne phrase restitue les données",async()=>{
     await page.fill('input[type="password"]',"volley-wonders-2027");
     await page.click('button:has-text("Déverrouiller")');
-    await page.waitForTimeout(1800);
+    await page.waitForTimeout(2200);
     const st=await page.evaluate(()=>({unlocked:VAULT.unlocked,
-      nom:me()?me().name:null,admin:isAdmin(),saisons:DB.seasons.length}));
+      nom:me()?me().name:null,super:isSuper(),saisons:DB.seasons.length}));
     if(!st.unlocked)throw new Error("toujours verrouillé");
     if(st.nom!=="Sofia Nguyen")throw new Error("nom="+st.nom);
     if(!st.saisons)throw new Error("saison perdue");
+    /* La racine publiée n'est pas joignable ici : la copie locale doit
+       rendre sa clé au propriétaire, sinon il la perdrait hors ligne. */
+    if(!st.super)throw new Error("le propriétaire perd sa clé au rechargement");
   });
 
   await step("les données modifiées survivent au cycle verrouiller/ouvrir",async()=>{
     await page.evaluate(()=>{
       const p=mkDbPlayer({firstName:"Léa",lastName:"Tremblay"});
       DB.players.push(p);
-      const sq=curSquad();
-      if(sq){sq.roster.push(mkRosterEntry(p.id,"7","OH"));sq.playerIds.push(p.id)}
       saveNow();
     });
     await page.waitForTimeout(600);
     await page.reload();await page.waitForTimeout(600);
     await page.fill('input[type="password"]',"volley-wonders-2027");
     await page.click('button:has-text("Déverrouiller")');
-    await page.waitForTimeout(1800);
+    await page.waitForTimeout(2200);
     const n=await page.evaluate(()=>DB.players.length);
     if(n!==1)throw new Error("joueuses après rechargement="+n);
   });
@@ -185,11 +189,14 @@ const step=async(n,f)=>{try{await f();ok++;console.log("  ✓ "+n)}catch(e){bad.
   await step("un appareil neuf n'hérite d'aucune donnée ni d'aucun droit",async()=>{
     await p2.goto(B+"/index.html");await p2.waitForTimeout(600);
     const st=await p2.evaluate(()=>({me:state.meId,people:DB.people.length,
-      equipes:DB.teams.length,admin:typeof isAdmin==="function"?isAdmin():null}));
-    if(st.me||st.people||st.equipes)throw new Error("données visibles : "+JSON.stringify(st));
-    if(st.admin)throw new Error("administration accordée d'office");
+      equipes:DB.teams.length,clubs:DB.clubs.length,
+      admin:typeof isAdmin==="function"?isAdmin():null,
+      sup:typeof isSuper==="function"?isSuper():null}));
+    if(st.me||st.people||st.equipes||st.clubs)throw new Error("données visibles : "+JSON.stringify(st));
+    if(st.admin||st.sup)throw new Error("droits accordés d'office");
     const t=await p2.textContent("#app");
-    if(!/Créer un club/.test(t))throw new Error("écran inattendu");
+    if(!/Fonder le système|J'ai une invitation|Ouvrir mon invitation/.test(t))
+      throw new Error("écran inattendu : "+t.slice(0,120));
   });
   await ctx2.close();
 

@@ -1,6 +1,6 @@
 # Suite de non-régression
 
-Neuf suites Playwright pilotent l'application réelle dans Chromium et vérifient
+Dix suites Playwright pilotent l'application réelle dans Chromium et vérifient
 qu'aucune erreur JS n'est levée.
 
 Depuis le verrou, l'application s'ouvre sur un écran de garde. Les suites le
@@ -17,6 +17,7 @@ n'est ajoutée à l'application pour les tests**.
 | `season.js` | **Une saison complète jouée dans l'application** : sélection d'août, deux amicaux, trois tournois, sept journées de championnat, blessure, départ, arrivée en mars, bilan de mai, clôture — **19 matchs en 12 rencontres, bilan 14V–5D**. Vérifie ce qui doit tenir (le cumul survit à une blessure et à un départ, une vue de mi-saison repart vierge, la progression reste calculable malgré un effectif mouvant, la fiche joueuse réunit matchs et campagnes) **et que les onze défauts du quatrième audit ne reviennent pas** : nature, adversaire par match, tournoi comme unité, date réelle, cumul par nature, résultats, moyenne par match, progression expliquée |
 | `gate.js` | **Le verrou** : au premier lancement l'application ne donne aucune identité ni aucun droit ; une phrase trop courte ou mal répétée est refusée ; le coffre posé, plus rien de lisible ne reste sur le disque (ni le nom du propriétaire) ; recharger reverrouille ; une phrase fausse est rejetée ; les données survivent au cycle. Vérifie enfin qu'un appareil neuf n'hérite d'aucune donnée ni d'aucun droit — le défaut d'origine — et qu'une base v5.0 déjà installée est reprise sans dupliquer son administrateur |
 | `github.js` | **La sauvegarde GitHub**, contre une API simulée : jeton invalide signalé clairement, dépôt ne contenant que du chiffré, jeton jamais déposé (ni en clair, ni dans le bloc chiffré), phrase fausse ne restituant rien, dépôt modifié ailleurs non écrasé en silence, écrasement délibéré possible, et export local sans jeton |
+| `owner.js` | **Le propriétaire unique** : avant la fondation aucune installation ne propose de créer un club ; fonder engendre la clé et prouve sa possession ; la clé privée ne fuit ni dans le coffre en clair ni dans `DB` ; club charté et nomination signée sont vérifiés ; plusieurs administrateurs par club, dont un entraîneur. Puis, sur un **second appareil sans la clé** : il ne peut pas signer, une charte forgée est rejetée, une charte authentique altérée est rejetée, une charte intacte est acceptée, et **se déclarer propriétaire dans les données ne suffit pas**. Enfin le transport scellé de la clé, et le périmètre d'une administratrice limitée à son club |
 | `sync.js` | **Trois navigateurs isolés** contre un relais simulé conforme au contrat v2. Au-delà du parcours nominal, vérifie ce que le relais **refuse** : une vue adressée n'est lisible que par son destinataire, aucun sélectionneur ne peut lister les soumissions (pas même la sienne), une vue forgée par un sélectionneur est rejetée, un jeton inconnu ou révoqué est refusé. Plus : identité estampillée par le relais, catalogue sans nom, relais injoignable signalé |
 
 ## Exécution
