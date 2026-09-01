@@ -71,6 +71,27 @@ refuse. Ils passent donc par le relais, ou par lien et fichier.
 
 ---
 
+## Mettre l'application en service
+
+Une seule fois, sur l'appareil qui sera le vôtre.
+
+1. Ouvrez l'application. Elle indique qu'**aucun propriétaire n'est déclaré** —
+   si vous l'utilisiez déjà, un bandeau 👑 le dit en haut de l'écran, et vos
+   données restent en place.
+2. **Je suis le propriétaire** → votre nom, une phrase de passe (sur une
+   installation déjà en service, la phrase existante est conservée).
+3. L'écran affiche le contenu de `superadmin.json`. Copiez-le, créez ce fichier
+   **à la racine du dépôt**, à côté de `index.html`, et publiez.
+4. **J'ai publié — continuer.**
+5. Aussitôt : `👑 Propriétaire → 🗝️ Ma clé → Exporter`. Gardez ce fichier
+   ailleurs que sur l'appareil. Sans lui, une clé perdue oblige à refonder.
+
+Ensuite seulement : `🏛️ Clubs` pour créer et charter, `🛡️ Administrateurs` pour
+nommer. Un club déjà présent avant la fondation attend votre signature — le
+bouton **Signer** est sur sa carte.
+
+---
+
 ## Le propriétaire, et un seul
 
 Le système a **un propriétaire**, établi une fois pour toutes à la fondation. Lui
