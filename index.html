@@ -5684,7 +5684,18 @@ function renderModal(){
     function gf(key,label,ph,type){
       var inp=h("input",{placeholder:ph,value:gd[key]||"",type:type||"text",
         autocapitalize:"off",autocorrect:"off",spellcheck:"false"});
-      inp.addEventListener("input",function(e){gd[key]=e.target.value.trim()});
+      inp.addEventListener("input",function(e){
+        /* Un jeton se colle souvent avec une espace parasite : on la
+           retire, mais on le montre, sinon le champ affiche autre chose
+           que ce qui sera enregistré. */
+        var brut=e.target.value,net=brut.trim();
+        gd[key]=net;
+        if(net!==brut){
+          var pos=Math.max(0,e.target.selectionStart-(brut.length-net.length));
+          e.target.value=net;
+          try{e.target.setSelectionRange(pos,pos)}catch(x){}
+        }
+      });
       return h("div",{className:"field"},h("label",null,label),inp);
     }
     var gTest=null;
@@ -5754,7 +5765,17 @@ function renderModal(){
       var inp=h("input",{placeholder:ph,value:sd[key]||"",
         autocapitalize:"off",autocorrect:"off",spellcheck:"false"});
       inp.addEventListener("input",function(e){
-        sd[key]=onIn?onIn(e.target.value):e.target.value;
+        var brut=e.target.value,net=onIn?onIn(brut):brut;
+        sd[key]=net;
+        /* Le champ doit montrer ce qui sera enregistré : sans cette
+           réécriture, on tape en minuscules, l'état retient des
+           majuscules, et l'affichage bascule au premier rendu venu.
+           Le curseur est replacé, sinon il saute en fin de ligne. */
+        if(net!==brut){
+          var pos=e.target.selectionStart;
+          e.target.value=net;
+          try{e.target.setSelectionRange(pos,pos)}catch(x){}
+        }
       });
       return h("div",{className:"field"},h("label",null,label),inp);
     }

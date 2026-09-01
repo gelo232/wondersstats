@@ -486,6 +486,59 @@ const ERRORS=[];
     if(r.local!==r.duRelais)throw new Error("identité locale divergente : "+r.local);
   });
 
+  /* ═══ CE QUE L'ÉCRAN MONTRE PENDANT LA SAISIE ═════════════
+     Un champ qui normalise ce qu'on tape doit le montrer. Sans quoi il
+     affiche une chose et en retient une autre, et bascule sans prévenir
+     au premier rendu venu — c'est ce qui arrivait au code de salon et
+     aux champs GitHub. */
+  say("\n══ Cohérence des champs pendant la saisie ══");
+
+  await etape("le code de salon montre la majuscule qu'il retient",async()=>{
+    await P.page.evaluate(()=>{state.modalDraft=null;openModal("syncconfig")});
+    await P.page.waitForTimeout(300);
+    await P.page.evaluate(()=>{
+      const el=document.querySelector('input[placeholder="WNDR-ABC-123"]');
+      el.value="wndr-abc-123";
+      el.dispatchEvent(new Event("input",{bubbles:true}));
+    });
+    await P.page.waitForTimeout(120);
+    const a=await P.page.evaluate(()=>({
+      affiche:document.querySelector('input[placeholder="WNDR-ABC-123"]').value,
+      retenu:state.modalDraft.room}));
+    if(a.affiche!==a.retenu)
+      throw new Error("affiché « "+a.affiche+" » mais retenu « "+a.retenu+" »");
+    /* Et rien ne doit changer sous les doigts au rendu suivant. */
+    await P.page.evaluate(()=>render());
+    await P.page.waitForTimeout(150);
+    const apres=await P.page.evaluate(()=>
+      document.querySelector('input[placeholder="WNDR-ABC-123"]').value);
+    if(apres!==a.affiche)
+      throw new Error("le champ bascule au rendu : « "+a.affiche+" » → « "+apres+" »");
+    await P.page.evaluate(()=>closeModal());
+  });
+
+  await etape("les champs GitHub montrent l'espace qu'ils retirent",async()=>{
+    await P.page.evaluate(()=>{state.modalDraft=null;openModal("githubconfig")});
+    await P.page.waitForTimeout(300);
+    const sel='input[placeholder="propriétaire/nom-du-depot"]';
+    await P.page.evaluate((sel)=>{
+      const el=document.querySelector(sel);
+      el.value="  willy/depot  ";
+      el.dispatchEvent(new Event("input",{bubbles:true}));
+    },sel);
+    await P.page.waitForTimeout(120);
+    const a=await P.page.evaluate((sel)=>({
+      affiche:document.querySelector(sel).value,retenu:state.modalDraft.repo}),sel);
+    if(a.affiche!==a.retenu)
+      throw new Error("affiché « "+a.affiche+" » mais retenu « "+a.retenu+" »");
+    await P.page.evaluate(()=>render());
+    await P.page.waitForTimeout(150);
+    const apres=await P.page.evaluate((sel)=>document.querySelector(sel).value,sel);
+    if(apres!==a.affiche)
+      throw new Error("le champ bascule au rendu : « "+a.affiche+" » → « "+apres+" »");
+    await P.page.evaluate(()=>closeModal());
+  });
+
   say("\n"+N+" étapes de configuration vérifiées · "+relais.appels+" appels au relais.");
   if(ERRORS.length){say("❌ "+ERRORS.length+" problème(s) :");ERRORS.forEach(e=>say("   - "+e))}
   else say("✅ Aucun problème");
