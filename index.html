@@ -2797,6 +2797,21 @@ function renderSeasonBar(){
       style:{flexShrink:"0"}},h("span",{className:"muted"},campaignLabel(c))):null);
 }
 /* Barre de contexte : qui je suis, et à quel titre j'agis. */
+/* Tant qu'aucun propriétaire n'est déclaré, l'application le dit et
+   propose de fonder — sans quoi une installation déjà en service ne
+   pourrait jamais le devenir. */
+function renderFoundBanner(){
+  if(rootExists()||!cryptoAvailable()||!ROOT.loaded)return null;
+  return h("div",{className:"card tight",style:{margin:"10px 12px 0",
+    borderColor:"#A78BFA55",background:"#A78BFA14"}},
+    h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontWeight:"700",color:"#DDD6FE",fontSize:"14px"}},"👑 Système non fondé"),
+        h("div",{className:"muted",style:{marginTop:"3px"}},
+          "Aucun propriétaire n'est déclaré. Tant que c'est le cas, aucun club ne peut être charté.")),
+      h("button",{className:"btn btn-primary xs",onclick:startFounding},"Fonder")));
+}
+
 function renderCtxBar(){
   var p=me(),c=state.ctx;
   var others=myContexts().filter(function(x){return !sameCtx(x,c)});
@@ -5864,7 +5879,19 @@ function renderModal(){
         if(!u||!r){showToast("⚠️ Renseignez l'adresse et le code de salon");return}
         if(u!==SYNC.url||r!==SYNC.room)SYNC.pulled={packet:"",catalog:"",submission:""};
         SYNC.url=u;SYNC.room=r;
-        state.modalDraft=null;saveSync();closeModal();showToast("📡 Synchronisation activée");
+        /* Celui qui installe le relais a besoin d'un jeton pour lui-même :
+           sans lui, il ne pourrait ni publier de vue ni relever de
+           soumission. Le premier jeton présenté sur un salon vierge en
+           devient le porteur de référence — c'est l'amorçage prévu par le
+           relais, il n'y a personne d'autre pour l'autoriser. */
+        if(!SYNC.token){
+          SYNC.token=mkToken();
+          var moi=me();
+          if(moi&&!moi.token)moi.token=SYNC.token;
+          logAct("access","Relais raccordé — jeton de cet appareil émis",{});
+        }
+        state.modalDraft=null;saveSync();saveNow();closeModal();
+        showToast("📡 Synchronisation activée");
       }},"Enregistrer")],"460px");
   }
   if(T==="newplayer"||T==="editplayer"){
@@ -6374,6 +6401,8 @@ function render(){
 
   app.appendChild(renderHeader(title,leftEl,rightEl));
   app.appendChild(renderCtxBar());
+  var fb=renderFoundBanner();
+  if(fb)app.appendChild(fb);
   if(isCoachCtx()&&season)app.appendChild(renderSeasonBar());
 
   /* Contenu */
@@ -6381,7 +6410,10 @@ function render(){
   if(!state.ctx){
     content=emptyBlock("🔑","Aucun contexte",
       "Cet appareil n'est rattaché à aucune équipe. Demandez à votre administrateur une affectation, ou ouvrez le lien d'invitation qu'il vous a transmis.",
-      DB.people.length?h("button",{className:"btn btn-primary",onclick:function(){openModal("whoami")}},"Choisir qui je suis"):null);
+      h("div",{className:"btn-row",style:{justifyContent:"center",flexWrap:"wrap"}},
+        DB.people.length?h("button",{className:"btn btn-primary",onclick:function(){openModal("whoami")}},"Choisir qui je suis"):null,
+        (!rootExists()&&cryptoAvailable())
+          ?h("button",{className:"btn btn-ghost",onclick:startFounding},"👑 Fonder le système"):null));
   } else if(isSuperCtx()){
     if(state.tab==="sup_clubs")content=renderSuperClubs();
     else if(state.tab==="sup_admins")content=renderSuperAdmins();
@@ -6428,7 +6460,17 @@ function render(){
    encore en clair. Aucun ne donne l'administration sans qu'on la demande.
    ══════════════════════════════════════════════════════════════ */
 var gate={mode:null,busy:false,err:"",pass:"",pass2:"",hint:"",who:"",
-  step:null,loaded:false,needsName:false,rootFile:null,keyFile:null};
+  step:null,loaded:false,needsName:false,rootFile:null,keyFile:null,fromApp:false};
+
+/* La fondation depuis l'application : un appareil déjà installé n'a
+   jamais vu l'écran d'accueil, et sans cela il ne pourrait jamais
+   devenir celui du propriétaire. Le coffre est déjà ouvert, donc la
+   phrase n'est pas redemandée, et la base en place est conservée. */
+function startFounding(){
+  gate.fromApp=true;gate.err="";gate.busy=false;
+  gate.who=(me()&&me().name)||"";
+  gate.mode="found";renderGate();
+}
 
 function passScore(p){
   p=p||"";
@@ -6537,21 +6579,27 @@ function renderGate(){
     wrap.appendChild(h("p",{className:"sub"},"Une seule fois, et pour de bon."));
     var fb=h("div",{className:"card"},
       gateField("Votre nom","who","Ex. Sofia Nguyen","text"),
-      gateField("Phrase de passe","pass","Au moins 8 caractères"),
-      h("div",{className:"strength"},h("i",{id:"strengthBar",style:{width:"0%",background:"#F87171"}})),
-      h("div",{id:"strengthLbl",style:{fontSize:"11px",marginTop:"4px",marginBottom:"12px",minHeight:"14px"}},""),
-      gateField("Répétez-la","pass2","Pour éviter une faute de frappe"),
-      gateField("Indice (facultatif)","hint","Visible avant déverrouillage","text"),
+      /* Depuis l'application, le coffre est déjà ouvert : sa phrase ne
+         change pas et il n'y a pas lieu de la redemander. */
+      gate.fromApp?null:gateField("Phrase de passe","pass","Au moins 8 caractères"),
+      gate.fromApp?null:h("div",{className:"strength"},h("i",{id:"strengthBar",style:{width:"0%",background:"#F87171"}})),
+      gate.fromApp?null:h("div",{id:"strengthLbl",style:{fontSize:"11px",marginTop:"4px",marginBottom:"12px",minHeight:"14px"}},""),
+      gate.fromApp?null:gateField("Répétez-la","pass2","Pour éviter une faute de frappe"),
+      gate.fromApp?null:gateField("Indice (facultatif)","hint","Visible avant déverrouillage","text"),
       gateErr(),
       h("button",{className:"btn btn-primary full",disabled:gate.busy,onclick:gateSubmit},
         gate.busy?"Génération de la clé…":"Fonder"));
     wrap.appendChild(fb);
+    if(gate.fromApp)wrap.appendChild(h("div",{className:"hint"},
+      "Vos données actuelles sont conservées. Les clubs déjà présents attendront votre signature, ",
+      "que vous poserez depuis 👑 Propriétaire → Clubs."));
     wrap.appendChild(h("div",{className:"note"},
       h("b",null,"Ce que la fondation produit. "),
       "Une clé privée, qui restera chiffrée sur cet appareil et nulle part ailleurs, ",
       "et une clé publique à publier à côté de l'application. Les autres installations liront ",
       "cette clé publique : sans elle, aucune ne peut créer de club ni nommer d'administrateur."));
     wrap.appendChild(h("button",{className:"linky",onclick:function(){
+      if(gate.fromApp){gate.fromApp=false;gate.mode=null;render();return}
       gate.mode="welcome";gate.err="";renderGate();
     }},"← Retour"));
     app.appendChild(wrap);return;
@@ -6587,7 +6635,9 @@ function renderGate(){
       "Il est fait pour être public : c'est la clé publique qui permet de vérifier vos signatures. ",
       "Votre clé privée, elle, ne quitte pas cet appareil — sauvegardez-la, elle est irremplaçable."));
     wrap.appendChild(h("button",{className:"btn btn-save full",onclick:function(){
-      gate.rootFile=null;gateFinishOpen({db:DB,inbox:INBOX,secrets:SECRETS},true);
+      gate.rootFile=null;
+      if(gate.fromApp){gate.fromApp=false;gate.mode=null;saveNow();render();return}
+      gateFinishOpen({db:DB,inbox:INBOX,secrets:SECRETS},true);
     }},"J'ai publié — continuer"));
     app.appendChild(wrap);return;
   }
@@ -6715,11 +6765,26 @@ function gateSubmit(){
 
   if(gate.mode==="found"){
     if(!(gate.who||"").trim()){gate.err="Indiquez votre nom";renderGate();return}
-    if((gate.pass||"").length<8){gate.err="Au moins 8 caractères";renderGate();return}
-    if(gate.pass!==gate.pass2){gate.err="Les deux phrases diffèrent";renderGate();return}
+    if(!gate.fromApp){
+      if((gate.pass||"").length<8){gate.err="Au moins 8 caractères";renderGate();return}
+      if(gate.pass!==gate.pass2){gate.err="Les deux phrases diffèrent";renderGate();return}
+    }
     gate.busy=true;renderGate();
     var fondateur=(gate.who||"").trim();
     foundSystem(fondateur).then(function(fichier){
+      if(gate.fromApp){
+        /* La base en place est conservée : on ne fonde pas sur des
+           ruines. La personne qui fonde est celle qui tient l'appareil. */
+        var moi0=me();
+        if(!moi0){moi0=mkPerson({name:fondateur});DB.people.unshift(moi0);state.meId=moi0.id}
+        moi0.name=fondateur;
+        DB.enrolledId=moi0.id;DB.superId=moi0.id;DB.rootFile=fichier;
+        return proveSuper().then(function(){
+          state.ctx={role:"super"};
+          logAct("season","Système fondé par "+fondateur+" depuis une installation existante",{});
+          normalizeCtx();saveNow();return fichier;
+        });
+      }
       DB=emptyDB();
       var moi=mkPerson({name:fondateur});
       DB.people.push(moi);
