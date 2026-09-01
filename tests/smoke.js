@@ -1,4 +1,5 @@
 const {chromium}=require("playwright");
+const {franchirGarde}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -66,6 +67,7 @@ const ERRORS=[];
       currentTeamId:"t1"}));
   });
   await page.goto(BASE+"/index.html");
+  await franchirGarde(page);
   await page.waitForTimeout(400);
 
   say("\n── Migration v1/v2 → v4");
@@ -166,7 +168,7 @@ const ERRORS=[];
       DB.version=4;
       localStorage.setItem("wonderstats_v3",JSON.stringify(DB));
     });
-    await page.reload();await page.waitForTimeout(500);
+    await page.reload(); await franchirGarde(page);await page.waitForTimeout(500);
     const r=await page.evaluate(()=>{
       const sq=DB.squads[0];
       const parNature={};
@@ -195,7 +197,7 @@ const ERRORS=[];
   await step("une seconde migration ne recrée rien",async()=>{
     const avant=await page.evaluate(()=>DB.squads[0].events.length);
     await page.evaluate(()=>{saveNow()});
-    await page.reload();await page.waitForTimeout(500);
+    await page.reload(); await franchirGarde(page);await page.waitForTimeout(500);
     const apres=await page.evaluate(()=>DB.squads[0].events.length);
     if(apres!==avant)throw new Error("rencontres dupliquées : "+avant+" → "+apres);
   });

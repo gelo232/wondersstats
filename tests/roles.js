@@ -5,6 +5,7 @@
    cloisonnement est ergonomique, pas une barrière — la seule frontière
    réellement tenue est celle du relais, vérifiée par tests/sync.js. */
 const {chromium}=require("playwright");
+const {franchirGarde}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -23,14 +24,18 @@ const ERRORS=[];let PASS=0;
   const step=async(n,f)=>{try{await f();PASS++;say("  ✓ "+n)}catch(e){say("  ✗ "+n+" → "+e.message);ERRORS.push(n+": "+e.message)}};
 
   await page.goto(BASE+"/index.html");
+  await franchirGarde(page);
   await page.evaluate(()=>localStorage.clear());
-  await page.reload();await page.waitForTimeout(400);
+  await page.reload(); await franchirGarde(page);await page.waitForTimeout(400);
 
   /* Un club à deux équipes : Sofia entraîne les U15 et évalue les U18,
      Karl n'évalue que les U15. C'est le cas d'école de l'analyse. */
   await step("mettre en place un club à deux équipes",async()=>{
     await page.evaluate(()=>{
       const u15=DB.teams[0];u15.name="U15 Wonders";u15.category="U15";
+      /* Le nom mis en cache par les squads se rafraîchit depuis l'équipe
+         durable : on repasse par la normalisation plutôt que de le muter. */
+      DB.squads.forEach(sq=>{if(sq.teamId===u15.id){sq.name=u15.name;sq.category=u15.category}});
       const u18=mkTeamRecord({name:"U18 Wonders",category:"U18"});
       DB.teams.push(u18);
       const sofia=mkPerson({name:"Sofia"}),karl=mkPerson({name:"Karl"});
@@ -268,7 +273,7 @@ const ERRORS=[];let PASS=0;
       return DB.log.length;
     });
     if(n!==500)throw new Error("journal non borné : "+n);
-    await page.reload();await page.waitForTimeout(500);
+    await page.reload(); await franchirGarde(page);await page.waitForTimeout(500);
     const after=await page.evaluate(()=>DB.log.length);
     if(after!==500)throw new Error("après rechargement : "+after);
     await page.evaluate(()=>{DB.log=DB.log.filter(l=>l.text.indexOf("remplissage")===-1);saveNow()});
@@ -334,7 +339,7 @@ const ERRORS=[];let PASS=0;
   });
   await step("les données survivent au rechargement",async()=>{
     await page.evaluate(()=>saveNow());
-    await page.reload();await page.waitForTimeout(500);
+    await page.reload(); await franchirGarde(page);await page.waitForTimeout(500);
     const r=await page.evaluate(()=>({v:DB.version,people:DB.people.length,
       teams:DB.teams.length,squads:DB.squads.length,me:(me()||{}).name}));
     if(r.v!==5)throw new Error("version="+r.v);

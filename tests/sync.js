@@ -4,6 +4,7 @@
    jamais lire les soumissions d'autrui, ni une vue adressée à quelqu'un
    d'autre. Le relais simulé reproduit fidèlement server/worker.js. */
 const {chromium}=require("playwright");
+const {franchirGarde}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -136,13 +137,15 @@ async function serveRelay(route,request){
   say("\n── Appareil de l'entraîneur");
   await coach.page.goto(BASE+"/index.html");
   await coach.page.evaluate(()=>localStorage.clear());
-  await coach.page.reload();await coach.page.waitForTimeout(400);
+  await coach.page.reload();
+  await franchirGarde(coach.page);
+  await coach.page.waitForTimeout(400);
 
   await step("club, équipe et deux sélectionneurs",async()=>{
     teamId=await coach.page.evaluate(()=>{
       const admin=me();
       const t=DB.teams[0];t.name="U15 Wonders";t.category="U15";
-      DB.squads.forEach(sq=>{if(sq.teamId===t.id)sq.name=t.name});
+      DB.squads.forEach(sq=>{if(sq.teamId===t.id){sq.name=t.name;sq.category=t.category}});
       ["Marie T.","Karl B."].forEach(n=>{
         const p=mkPerson({name:n});DB.people.push(p);
         DB.assignments.push(mkAssignment(p.id,t.id,"selector"));
@@ -215,6 +218,7 @@ async function serveRelay(route,request){
   say("\n── Appareil de Marie (navigateur distinct)");
   await step("le lien la configure et lui donne son identité",async()=>{
     await scout.page.goto(linkMarie);
+    await franchirGarde(scout.page,"Marie T.");
     await scout.page.waitForTimeout(900);
     const st=await scout.page.evaluate(()=>({
       role:state.ctx&&state.ctx.role,name:(me()||{}).name,
@@ -261,6 +265,7 @@ async function serveRelay(route,request){
   say("\n── Ce que le relais REFUSE (constat R2)");
   await step("Karl ne voit pas la vue adressée à Marie",async()=>{
     await scout2.page.goto(linkKarl);
+    await franchirGarde(scout2.page,"Karl B.");
     await scout2.page.waitForTimeout(900);
     const n=await scout2.page.evaluate(()=>syncList("packet","").then(d=>d.items.length).catch(()=>-1));
     if(n!==0)throw new Error("paquets visibles par Karl : "+n);

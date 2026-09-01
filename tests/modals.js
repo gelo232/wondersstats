@@ -1,4 +1,5 @@
 const {chromium}=require("playwright");
+const {franchirGarde}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -41,8 +42,9 @@ const ERRORS=[];let PASS=0;
   const step=async(n,f)=>{try{await f();PASS++;say("  ✓ "+n)}catch(e){say("  ✗ "+n+" → "+e.message);ERRORS.push(n+": "+e.message)}};
 
   await page.goto(BASE+"/index.html");
+  await franchirGarde(page);
   await page.evaluate(()=>localStorage.clear());
-  await page.reload();await page.waitForTimeout(300);
+  await page.reload(); await franchirGarde(page);await page.waitForTimeout(300);
   await asCoach();
   await page.evaluate(()=>{
     const s=curSquad();

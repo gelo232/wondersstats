@@ -99,6 +99,26 @@ button,input,select,textarea{font-family:inherit}
 .section-title:first-child{margin-top:0}
 .muted{color:#64748B;font-size:12px}
 .empty{padding:40px 20px;text-align:center;color:#64748B;font-size:13px}
+/* Écran de garde : verrouillage et inscription */
+.gate{display:flex;flex-direction:column;justify-content:center;min-height:100%;padding:28px 22px;gap:14px;overflow-y:auto}
+.gate-logo{font-size:44px;text-align:center;line-height:1}
+.gate h1{font-size:21px;font-weight:700;color:#F1F5F9;text-align:center;margin:0}
+.gate .sub{font-size:13px;color:#94A3B8;text-align:center;line-height:1.5;margin:0}
+.gate .card{background:#1E293B;border:1px solid #334155;border-radius:12px;padding:16px}
+.gate .card h2{font-size:15px;font-weight:700;color:#E2E8F0;margin:0 0 4px}
+.gate .card p{font-size:12.5px;color:#94A3B8;margin:0 0 12px;line-height:1.5}
+.gate input{width:100%;padding:13px 12px;font-size:16px;border-radius:9px;
+  border:1px solid #334155;background:#0F172A;color:#F1F5F9;box-sizing:border-box}
+.gate input:focus{outline:none;border-color:#3B82F6}
+.gate .err{color:#F87171;font-size:12.5px;text-align:center;min-height:16px}
+.gate .note{background:#0F172A;border:1px solid #334155;border-left:3px solid #F59E0B;
+  border-radius:8px;padding:11px 13px;font-size:12px;color:#CBD5E1;line-height:1.55}
+.gate .note b{color:#F1F5F9}
+.gate .full{width:100%;padding:14px;font-size:15px}
+.gate .linky{background:none;border:none;color:#60A5FA;font-size:12.5px;
+  cursor:pointer;padding:6px;text-decoration:underline}
+.strength{height:4px;border-radius:2px;background:#334155;overflow:hidden;margin-top:7px}
+.strength i{display:block;height:100%;transition:width .2s,background .2s}
 .hint{background:rgba(59,130,246,.08);border:1px solid rgba(96,165,250,.25);border-radius:10px;padding:10px 12px;font-size:12px;color:#93C5FD;line-height:1.5;margin-bottom:12px}
 .hint.warn{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.3);color:#FCD34D}
 .row-between{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -520,7 +540,8 @@ function mkEntryData(){return {stats:emptyS(),ratings:{},reco:"",note:""}}
 
 /* ─── Base de données ───────────────────────────────────────── */
 function emptyDB(){return {version:5,people:[],teams:[],assignments:[],
-  players:[],seasons:[],squads:[],log:[],activeSeasonId:null}}
+  players:[],seasons:[],squads:[],log:[],activeSeasonId:null,
+  enrolledId:null}}   /* qui s'est inscrit sur cet appareil */
 var DB=emptyDB();
 
 /* Vues sélectionneur importées d'un autre appareil (rôle sélectionneur autonome) */
@@ -736,20 +757,183 @@ function filterPos(list){
 }
 function filterP(list){return filterPos(list||lineupPlayers(curTeam()))}
 
+/* ══ COFFRE ════════════════════════════════════════════════════
+   Les données du club sont chiffrées dans le navigateur : AES-GCM 256,
+   clé dérivée de la phrase de passe par PBKDF2-SHA256. La clé ne quitte
+   jamais la mémoire — rien de déchiffrable ne touche le disque.
+
+   Ce que cela protège réellement : quelqu'un qui récupère l'appareil ou
+   lit localStorage ne voit que du bruit. Ce que cela ne protège pas : la
+   séparation des rôles reste côté client (voir ROLES.md §7), et qui
+   connaît la phrase voit tout ce que voit son propriétaire.
+   ══════════════════════════════════════════════════════════════ */
+var SK_VAULT="wonderstats_vault_v1";
+var VAULT={key:null,meta:null,unlocked:false,plain:null,noCrypto:false};
+
+function subtle(){
+  var c=(typeof crypto!=="undefined")?crypto:null;
+  if(!c)return null;
+  return c.subtle||c.webkitSubtle||null;   /* vieux Safari : webkitSubtle */
+}
+/* crypto.subtle exige un contexte sécurisé. En https ou sur localhost il
+   est là ; ouvert en file:// il ne l'est pas, et il faut le dire au lieu
+   de faire semblant de chiffrer. */
+function cryptoAvailable(){return !!subtle()&&typeof TextEncoder!=="undefined"}
+
+function b64(buf){
+  var b=new Uint8Array(buf),s="";
+  for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);
+  return btoa(s);
+}
+function unb64(str){
+  var s=atob(str),b=new Uint8Array(s.length);
+  for(var i=0;i<s.length;i++)b[i]=s.charCodeAt(i);
+  return b;
+}
+function randBytes(n){
+  var b=new Uint8Array(n);
+  (crypto.getRandomValues||crypto.webkitGetRandomValues).call(crypto,b);
+  return b;
+}
+function utf8(str){return new TextEncoder().encode(str)}
+
+function deriveKey(pass,salt,iter){
+  var sub=subtle();
+  return Promise.resolve(sub.importKey("raw",utf8(pass),{name:"PBKDF2"},false,["deriveKey"]))
+    .then(function(base){
+      return sub.deriveKey(
+        {name:"PBKDF2",salt:salt,iterations:iter,hash:"SHA-256"},
+        base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+    });
+}
+
+/* Le coût du PBKDF2 est calibré sur l'appareil qui crée le coffre : on
+   vise une demi-seconde. Un vieil iPad n'est pas puni, un portable récent
+   n'est pas sous-protégé. Le nombre retenu est écrit dans le coffre. */
+function calibrateIter(){
+  if(!cryptoAvailable())return Promise.resolve(200000);
+  var probe=100000,salt=randBytes(16),t0=(new Date()).getTime();
+  return deriveKey("calibrage",salt,probe).then(function(){
+    var ms=(new Date()).getTime()-t0;
+    if(ms<1)ms=1;
+    var n=Math.round(probe*(500/ms)/10000)*10000;
+    return Math.max(100000,Math.min(600000,n));
+  }).catch(function(){return 200000});
+}
+
+function vaultEncrypt(obj){
+  if(!VAULT.key||!VAULT.meta)return Promise.reject(new Error("Coffre verrouillé"));
+  var iv=randBytes(12);
+  return Promise.resolve(subtle().encrypt({name:"AES-GCM",iv:iv},VAULT.key,utf8(JSON.stringify(obj))))
+    .then(function(ct){
+      /* Rien d'identifiant hors du chiffré : l'indice est le seul texte
+         en clair, et c'est l'utilisateur qui décide de ce qu'il y met. */
+      return {v:1,kdf:{salt:VAULT.meta.kdf.salt,iter:VAULT.meta.kdf.iter,hash:"SHA-256"},
+        cipher:"AES-GCM",iv:b64(iv),ct:b64(ct),
+        hint:VAULT.meta.hint||"",at:nowISO()};
+    });
+}
+/* Une phrase fausse fait échouer l'authentification GCM : le déchiffrement
+   lève, il n'y a pas de comparaison à écrire ni à contourner. */
+function vaultDecrypt(box,pass){
+  var salt=unb64(box.kdf.salt),iter=box.kdf.iter||200000;
+  return deriveKey(pass,salt,iter).then(function(key){
+    return Promise.resolve(subtle().decrypt({name:"AES-GCM",iv:unb64(box.iv)},key,unb64(box.ct)))
+      .then(function(plain){
+        return {key:key,data:JSON.parse(new TextDecoder().decode(plain))};
+      });
+  });
+}
+
+function readVaultBox(){
+  try{var d=localStorage.getItem(SK_VAULT);return d?JSON.parse(d):null}catch(e){return null}
+}
+function vaultExists(){return !!readVaultBox()}
+
+/* Poser le verrou sur des données déjà présentes, ou sur un club neuf. */
+function vaultCreate(pass,hint,who,payload){
+  if(!cryptoAvailable())return Promise.reject(new Error("Chiffrement indisponible sur cet appareil"));
+  return calibrateIter().then(function(iter){
+    var salt=randBytes(16);
+    return deriveKey(pass,salt,iter).then(function(key){
+      VAULT.key=key;
+      VAULT.meta={kdf:{salt:b64(salt),iter:iter,hash:"SHA-256"},hint:hint||"",who:who||""};
+      VAULT.unlocked=true;VAULT.noCrypto=false;
+      return vaultEncrypt(payload).then(function(box){
+        localStorage.setItem(SK_VAULT,JSON.stringify(box));
+        /* La copie en clair n'a plus lieu d'être. */
+        localStorage.removeItem(SK);
+        LEGACY_KEYS.forEach(function(k){localStorage.removeItem(k)});
+        return true;
+      });
+    });
+  });
+}
+function vaultUnlock(pass){
+  var box=readVaultBox();
+  if(!box)return Promise.reject(new Error("Aucun coffre"));
+  if(!cryptoAvailable())return Promise.reject(new Error("Chiffrement indisponible sur cet appareil"));
+  return vaultDecrypt(box,pass).then(function(r){
+    VAULT.key=r.key;
+    VAULT.meta={kdf:box.kdf,hint:box.hint||"",who:VAULT.meta&&VAULT.meta.who||""};
+    VAULT.unlocked=true;VAULT.plain=r.data;
+    return r.data;
+  }).catch(function(){throw new Error("Phrase de passe incorrecte")});
+}
+function vaultChangePass(oldPass,newPass,hint){
+  return vaultUnlock(oldPass).then(function(data){
+    return vaultCreate(newPass,hint,VAULT.meta.who,data);
+  });
+}
+function vaultLock(){
+  VAULT.key=null;VAULT.unlocked=false;VAULT.plain=null;
+  DB=emptyDB();INBOX={views:[]};
+  state.meId=null;state.ctx=null;
+}
+
 /* ══ PERSISTANCE ═══════════════════════════════════════════════ */
 var SK="wonderstats_v3", SK_UI="wonderstats_ui_v3", SK_INBOX="wonderstats_inbox_v3";
 var LEGACY_KEYS=["vball_mt_v2","vball_mt_v1"];
 var autoSaveTimer=null, saveFailed=false;
 
+function uiSnapshot(){
+  return {meId:state.meId,ctx:state.ctx,tab:state.tab,viewIdx:state.viewIdx,
+    posFilter:state.posFilter,inputMode:state.inputMode,svViewId:state.svViewId};
+}
 function saveAll(){
+  /* Coffre ouvert : rien ne part en clair sur le disque. L'écriture est
+     asynchrone, mais l'ordre est garanti par la file ci-dessous. */
+  if(VAULT.unlocked){
+    queueVaultWrite();
+    try{localStorage.setItem(SK_UI,JSON.stringify(uiSnapshot()))}catch(e){}
+    return;
+  }
   try{
     localStorage.setItem(SK,JSON.stringify(DB));
     localStorage.setItem(SK_INBOX,JSON.stringify(INBOX));
-    localStorage.setItem(SK_UI,JSON.stringify({meId:state.meId,ctx:state.ctx,tab:state.tab,viewIdx:state.viewIdx,posFilter:state.posFilter,inputMode:state.inputMode,svViewId:state.svViewId}));
+    localStorage.setItem(SK_UI,JSON.stringify(uiSnapshot()));
     saveFailed=false;
   }catch(e){
     if(!saveFailed){saveFailed=true;showToast("⚠️ Sauvegarde impossible (stockage plein)")}
   }
+}
+
+/* Chiffrer prend quelques millisecondes : on sérialise les écritures pour
+   qu'une sauvegarde rapide n'en double pas une autre, et on garde une
+   demande en attente plutôt que d'en empiler dix. */
+var vaultWriting=false,vaultPending=false;
+function queueVaultWrite(){
+  if(vaultWriting){vaultPending=true;return}
+  vaultWriting=true;
+  vaultEncrypt({db:DB,inbox:INBOX}).then(function(box){
+    localStorage.setItem(SK_VAULT,JSON.stringify(box));
+    saveFailed=false;
+  }).catch(function(){
+    if(!saveFailed){saveFailed=true;showToast("⚠️ Sauvegarde impossible")}
+  }).then(function(){
+    vaultWriting=false;
+    if(vaultPending){vaultPending=false;queueVaultWrite()}
+  });
 }
 function updateIndicators(saving){
   var els=document.querySelectorAll(".autosave-indicator");
@@ -882,13 +1066,18 @@ function normalizeSquad(sq,knownPlayers){
 function normalizeDB(db){
   db=Object.assign(emptyDB(),db);
   db.version=5;
+  db.enrolledId=db.enrolledId||null;
 
   db.log=(db.log||[]).filter(function(l){return l&&l.at&&l.text}).map(function(l){
     return {id:l.id||uid(),at:l.at,kind:LOG_KINDS[l.kind]?l.kind:"status",
       byId:l.byId||null,byName:l.byName||"—",byRole:l.byRole||"",
       teamId:l.teamId||"",seasonId:l.seasonId||"",playerId:l.playerId||"",text:String(l.text)};
   }).slice(-LOG_MAX);
-  db.people=(db.people||[]).map(function(p){return Object.assign(mkPerson(),p,{isAdmin:!!p.isAdmin,revoked:!!p.revoked})});
+  db.people=(db.people||[]).map(function(p){
+    var q=Object.assign(mkPerson(),p,{isAdmin:!!p.isAdmin,revoked:!!p.revoked});
+    if(p.unclaimed)q.unclaimed=true;   /* compte hérité, en attente d'un nom */
+    return q;
+  });
   db.players=(db.players||[]).map(function(p){return Object.assign(mkDbPlayer(),p,{archived:!!p.archived})});
   db.teams=(db.teams||[]).map(function(t){return Object.assign(mkTeamRecord(),t,{freeView:!!t.freeView,archived:!!t.archived})});
   db.seasons=(db.seasons||[]).map(function(s){
@@ -934,7 +1123,10 @@ function normalizeDB(db){
 function migrateV3(old){
   var db=emptyDB();
   db.players=(old.players||[]).slice();
-  var admin=mkPerson({name:"Administrateur",isAdmin:true});
+  /* Les versions d'avant les rôles n'avaient pas de personnes. On crée le
+     propriétaire sans le nommer : l'écran de garde demandera qui c'est. */
+  var admin=mkPerson({name:"",isAdmin:true});
+  admin.unclaimed=true;
   db.people.push(admin);
 
   (old.seasons||[]).forEach(function(os){
@@ -1043,11 +1235,12 @@ function readLegacyV1(){
   }catch(e){return null}
 }
 
-function loadAll(){
+function loadAll(fromVault){
   try{
-    var raw=localStorage.getItem(SK);
+    var raw=fromVault?"vault":localStorage.getItem(SK);
     if(raw){
-      var parsed=JSON.parse(raw);
+      var parsed=fromVault?fromVault.db:JSON.parse(raw);
+      if(fromVault&&fromVault.inbox)INBOX=fromVault.inbox;
       /* Chaîne de migration : v1 → v2 → v3 → v4, sans perte à chaque étape. */
       /* v4 → v5 se fait dans normalizeDB : les sessions orphelines y sont
          rattachées à une rencontre déduite de leur nom. */
@@ -1069,16 +1262,14 @@ function loadAll(){
      sans quoi l'application n'offrirait aucun point d'entrée. */
   if(!DB.seasons.length)DB.seasons.push(mkSeason());
   if(!DB.seasons.some(function(x){return x.id===DB.activeSeasonId}))DB.activeSeasonId=DB.seasons[0].id;
-  if(!DB.people.some(function(p){return p.isAdmin&&!p.revoked}))
-    DB.people.unshift(mkPerson({name:"Administrateur",isAdmin:true}));
-  if(!DB.teams.length){
-    var t0=mkTeamRecord({name:"Équipe A"});
-    DB.teams.push(t0);
-    var adm=null;DB.people.forEach(function(p){if(p.isAdmin&&!adm)adm=p});
-    if(adm)DB.assignments.push(mkAssignment(adm.id,t0.id,"coach"));
-  }
+  /* Ni administrateur ni équipe fabriqués d'office : les inventer ici
+     revenait à donner l'administration à quiconque ouvrait la page, et
+     l'appareil d'un sélectionneur n'a aucune raison d'en recevoir un. */
 
-  try{var ib=localStorage.getItem(SK_INBOX);if(ib){INBOX=JSON.parse(ib);INBOX.views=(INBOX.views||[]).map(function(v){return Object.assign(mkSelectorView(),v)})}}catch(e){INBOX={views:[]}}
+  try{
+    if(!fromVault){var ib=localStorage.getItem(SK_INBOX);if(ib)INBOX=JSON.parse(ib)}
+    INBOX.views=(INBOX.views||[]).map(function(v){return Object.assign(mkSelectorView(),v)});
+  }catch(e){INBOX={views:[]}}
   try{
     var ui=localStorage.getItem(SK_UI);
     if(ui){var o=JSON.parse(ui);
@@ -1092,11 +1283,12 @@ function loadAll(){
     }
   }catch(e){}
 
-  /* Par défaut, cet appareil est celui de l'administrateur : c'est le seul
-     choix qui ne verrouille personne dehors au premier lancement. */
+  /* Aucune identité n'est attribuée d'office : ouvrir l'application ne
+     donne pas l'administration. Celle-ci se réclame à l'inscription, et
+     le coffre en tient la clé. Une base déjà installée garde la sienne :
+     on ne met personne dehors de ses propres données. */
   if(!state.meId||!personById(state.meId)){
-    var first=null;DB.people.forEach(function(p){if(p.isAdmin&&!p.revoked&&!first)first=p});
-    state.meId=first?first.id:(DB.people.length?DB.people[0].id:null);
+    state.meId=DB.enrolledId&&personById(DB.enrolledId)?DB.enrolledId:null;
   }
   normalizeCtx();
   if(!tabsForCtx().some(function(t){return t.key===state.tab}))state.tab=(tabsForCtx()[0]||{}).key||"season";
@@ -1827,6 +2019,19 @@ function inviteLink(person){
 }
 function readShareLink(){
   var m=(location.hash||"").match(/[#&]s=([A-Za-z0-9_-]+)/);
+  if(!m)return null;
+  try{
+    var o=JSON.parse(b64urlDecode(m[1]));
+    if(o&&o.u&&o.r&&o.t)return {url:normUrl(o.u),room:String(o.r),token:String(o.t)};
+  }catch(e){}
+  return null;
+}
+/* Un sélectionneur colle ce qu'il a reçu : l'URL entière, ou juste le
+   fragment. On accepte les deux plutôt que d'exiger le bon découpage. */
+function parseShareText(txt){
+  txt=(txt||"").trim();
+  if(!txt)return null;
+  var m=txt.match(/[#&]s=([A-Za-z0-9_-]+)/)||txt.match(/^([A-Za-z0-9_-]{20,})$/);
   if(!m)return null;
   try{
     var o=JSON.parse(b64urlDecode(m[1]));
@@ -5134,6 +5339,9 @@ var TITLES={
   adm_players:"Base de joueuses",adm_sync:"Relais 📡",adm_log:"Journal 📜"
 };
 function render(){
+  /* Tant que l'écran de garde a la main, rien d'autre ne s'affiche : un
+     redimensionnement ou un minuteur ne doit pas ouvrir l'application. */
+  if(gate.mode)return renderGate();
   saveScrollPos();
   var app=document.getElementById("app");if(!app)return;
   app.innerHTML="";
@@ -5212,15 +5420,320 @@ function render(){
 }
 
 /* ══════════════════════════════════════════════════════════════
+   ÉCRAN DE GARDE — verrouillage, inscription, pose du verrou
+
+   Trois états seulement : « unlock » quand un coffre existe, « welcome »
+   quand l'appareil est vierge, « protect » quand des données sont là mais
+   encore en clair. Aucun ne donne l'administration sans qu'on la demande.
+   ══════════════════════════════════════════════════════════════ */
+var gate={mode:null,busy:false,err:"",pass:"",pass2:"",hint:"",who:"",
+  step:null,loaded:false,needsName:false};
+
+function passScore(p){
+  p=p||"";
+  var n=0;
+  if(p.length>=8)n++;
+  if(p.length>=12)n++;
+  if(p.length>=16)n++;
+  if(/[^a-zA-Z0-9]/.test(p)&&/[0-9]/.test(p))n++;
+  return Math.min(4,n);
+}
+function passLabel(n){return ["Trop courte","Faible","Correcte","Bonne","Solide"][n]||""}
+function passColor(n){return ["#F87171","#F87171","#F59E0B","#34D399","#34D399"][n]||"#F87171"}
+
+function gateField(label,key,ph,type){
+  var inp=h("input",{type:type||"password",placeholder:ph||"",value:gate[key]||"",
+    autocapitalize:"off",autocorrect:"off",spellcheck:"false"});
+  inp.addEventListener("input",function(e){
+    gate[key]=e.target.value;
+    if(key==="pass"){
+      var b=document.getElementById("strengthBar");
+      if(b){var n=passScore(gate.pass);b.style.width=(n*25)+"%";b.style.background=passColor(n);
+        var lb=document.getElementById("strengthLbl");if(lb){lb.textContent=gate.pass?passLabel(n):"";lb.style.color=passColor(n)}}
+    }
+  });
+  inp.addEventListener("keydown",function(e){if(e.key==="Enter")gateSubmit()});
+  return h("div",{className:"field"},h("label",null,label),inp);
+}
+function gateErr(){return h("div",{className:"err"},gate.err||"")}
+
+function renderGate(){
+  var app=document.getElementById("app");if(!app)return;
+  app.innerHTML="";
+  var wrap=h("div",{className:"gate"});
+
+  if(!cryptoAvailable()&&gate.mode!=="nocrypto"){
+    /* Ouvert en file:// ou navigateur trop ancien : le chiffrement du
+       navigateur n'est pas disponible. Le dire, plutôt que simuler. */
+    wrap.appendChild(h("div",{className:"gate-logo"},"🏐"));
+    wrap.appendChild(h("h1",null,"WonderStats"));
+    wrap.appendChild(h("div",{className:"note"},
+      h("b",null,"Chiffrement indisponible sur cet appareil. "),
+      "Le navigateur ne fournit pas les fonctions nécessaires — le plus souvent parce que la page est ouverte depuis un fichier local plutôt que par une adresse https. ",
+      "Ouvrez l'application depuis son adresse web pour que vos données soient chiffrées."));
+    wrap.appendChild(h("button",{className:"btn btn-primary full",onclick:function(){
+      VAULT.noCrypto=true;gateFinishOpen(null);
+    }},"Continuer sans chiffrement"));
+    app.appendChild(wrap);return;
+  }
+
+  if(gate.mode==="unlock"){
+    wrap.appendChild(h("div",{className:"gate-logo"},"🔒"));
+    wrap.appendChild(h("h1",null,"WonderStats"));
+    wrap.appendChild(h("p",{className:"sub"},"Cet appareil contient des données chiffrées."));
+    var card=h("div",{className:"card"},
+      gateField("Phrase de passe","pass","Votre phrase"),
+      VAULT.meta&&VAULT.meta.hint?h("p",{style:{margin:"6px 0 0",fontSize:"12px",color:"#64748B"}},
+        "Indice : "+VAULT.meta.hint):null,
+      gateErr(),
+      h("button",{className:"btn btn-primary full",disabled:gate.busy,onclick:gateSubmit},
+        gate.busy?"Déverrouillage…":"Déverrouiller"));
+    wrap.appendChild(card);
+    wrap.appendChild(h("button",{className:"linky",onclick:function(){
+      if(!confirmAct("Effacer définitivement les données chiffrées de cet appareil ?\n\nSans la phrase de passe, elles sont irrécupérables. Ne faites ceci que si vous repartez de zéro ou si vous avez une sauvegarde."))return;
+      localStorage.removeItem(SK_VAULT);localStorage.removeItem(SK_UI);
+      location.reload();
+    }},"Phrase oubliée — repartir de zéro"));
+    app.appendChild(wrap);return;
+  }
+
+  if(gate.mode==="welcome"){
+    wrap.appendChild(h("div",{className:"gate-logo"},"🏐"));
+    wrap.appendChild(h("h1",null,"WonderStats"));
+    wrap.appendChild(h("p",{className:"sub"},"Statistiques, sélection et évaluation de volleyball."));
+    wrap.appendChild(h("div",{className:"card"},
+      h("h2",null,"🛡️ Créer un club"),
+      h("p",null,"Vous mettez en place le club : vous créez les équipes, y nommez les entraîneurs et invitez les sélectionneurs. Cet appareil devient celui de l'administration."),
+      h("button",{className:"btn btn-primary full",onclick:function(){
+        gate.mode="create";gate.err="";renderGate();
+      }},"Créer un club")));
+    wrap.appendChild(h("div",{className:"card"},
+      h("h2",null,"🎯 Rejoindre comme sélectionneur"),
+      h("p",null,"Vous avez reçu un lien ou un code d'invitation. Vous n'évaluerez que les athlètes qu'on vous confie, par leur numéro."),
+      h("button",{className:"btn btn-ghost full",onclick:function(){
+        gate.mode="join";gate.err="";renderGate();
+      }},"J'ai une invitation")));
+    app.appendChild(wrap);return;
+  }
+
+  if(gate.mode==="create"||gate.mode==="protect"){
+    var neuf=gate.mode==="create",nommer=neuf||gate.needsName;
+    wrap.appendChild(h("div",{className:"gate-logo"},"🔐"));
+    wrap.appendChild(h("h1",null,neuf?"Protéger le club":"Protéger vos données"));
+    wrap.appendChild(h("p",{className:"sub"},
+      neuf?"Cette phrase ouvrira l'application sur cet appareil."
+          :(gate.needsName?"Vos données ont été reprises. Dites qui vous êtes pour en rester propriétaire."
+                          :"Vos données sont déjà là, mais encore en clair sur cet appareil.")));
+    var body=h("div",{className:"card"});
+    if(nommer)body.appendChild(gateField("Votre nom","who","Ex. Sofia Nguyen","text"));
+    body.appendChild(gateField("Phrase de passe","pass","Au moins 8 caractères"));
+    body.appendChild(h("div",{className:"strength"},
+      h("i",{id:"strengthBar",style:{width:"0%",background:"#F87171"}})));
+    body.appendChild(h("div",{id:"strengthLbl",style:{fontSize:"11px",marginTop:"4px",
+      marginBottom:"12px",minHeight:"14px"}},""));
+    body.appendChild(gateField("Répétez-la","pass2","Pour éviter une faute de frappe"));
+    body.appendChild(gateField("Indice (facultatif)","hint","Visible avant déverrouillage","text"));
+    body.appendChild(gateErr());
+    body.appendChild(h("button",{className:"btn btn-primary full",disabled:gate.busy,onclick:gateSubmit},
+      gate.busy?"Chiffrement…":"Protéger et continuer"));
+    wrap.appendChild(body);
+    wrap.appendChild(h("div",{className:"note"},
+      h("b",null,"Personne ne peut retrouver cette phrase. "),
+      "Elle n'est envoyée nulle part et n'est stockée nulle part : elle sert à dériver la clé, c'est tout. ",
+      "Si vous l'oubliez, les données de cet appareil sont perdues — pensez à exporter une sauvegarde régulièrement."));
+    if(!neuf)wrap.appendChild(h("button",{className:"linky",onclick:function(){
+      var nom=(gate.who||"").trim();
+      if(gate.needsName&&!nom){gate.err="Indiquez votre nom";renderGate();return}
+      applyOwner(nom);
+      gateFinishOpen(null);
+    }},"Plus tard — continuer sans chiffrement"));
+    app.appendChild(wrap);return;
+  }
+
+  if(gate.mode==="joining"){
+    wrap.appendChild(h("div",{className:"gate-logo"},"📡"));
+    wrap.appendChild(h("h1",null,"Connexion"));
+    wrap.appendChild(h("p",{className:"sub"},"Votre invitation est en cours de vérification auprès du relais…"));
+    app.appendChild(wrap);return;
+  }
+
+  if(gate.mode==="join"){
+    wrap.appendChild(h("div",{className:"gate-logo"},"🎯"));
+    wrap.appendChild(h("h1",null,"Rejoindre"));
+    wrap.appendChild(h("p",{className:"sub"},"Collez le lien d'invitation reçu de votre entraîneur, ou saisissez ses trois éléments."));
+    wrap.appendChild(h("div",{className:"card"},
+      gateField("Lien d'invitation","who","https://…","text"),
+      gateErr(),
+      h("button",{className:"btn btn-primary full",disabled:gate.busy,onclick:gateSubmit},
+        gate.busy?"Connexion…":"Rejoindre")));
+    wrap.appendChild(h("button",{className:"linky",onclick:function(){
+      gate.mode="welcome";gate.err="";renderGate();
+    }},"← Retour"));
+    app.appendChild(wrap);return;
+  }
+  app.appendChild(wrap);
+}
+
+function gateSubmit(){
+  if(gate.busy)return;
+  gate.err="";
+
+  if(gate.mode==="unlock"){
+    if(!gate.pass){gate.err="Saisissez votre phrase de passe";renderGate();return}
+    gate.busy=true;renderGate();
+    vaultUnlock(gate.pass).then(function(data){
+      gate.pass="";gate.busy=false;
+      gateFinishOpen(data);
+    }).catch(function(err){
+      gate.busy=false;gate.err=err.message;gate.pass="";renderGate();
+    });
+    return;
+  }
+
+  if(gate.mode==="create"||gate.mode==="protect"){
+    if((gate.mode==="create"||gate.needsName)&&!(gate.who||"").trim()){
+      gate.err="Indiquez votre nom";renderGate();return}
+    if((gate.pass||"").length<8){gate.err="Au moins 8 caractères";renderGate();return}
+    if(gate.pass!==gate.pass2){gate.err="Les deux phrases diffèrent";renderGate();return}
+    gate.busy=true;renderGate();
+    var nom=(gate.who||"").trim();
+    if(gate.mode==="create"){
+      /* Le club naît ici, et l'administration avec lui — délibérément. */
+      DB=emptyDB();
+      var admin=mkPerson({name:nom,isAdmin:true});
+      DB.people.push(admin);
+      DB.enrolledId=admin.id;
+      DB.seasons.push(mkSeason());
+      DB.activeSeasonId=DB.seasons[0].id;
+      var t0=mkTeamRecord({name:"Équipe A"});
+      DB.teams.push(t0);
+      DB.assignments.push(mkAssignment(admin.id,t0.id,"coach"));
+      DB=normalizeDB(DB);
+      state.meId=admin.id;state.ctx={role:"coach",teamId:t0.id};
+      logAct("season","Club créé sur cet appareil",{});
+    }
+    applyOwner(nom);
+    var qui=nom||(me()?me().name:"");
+    vaultCreate(gate.pass,(gate.hint||"").trim(),qui,{db:DB,inbox:INBOX}).then(function(){
+      gate.pass="";gate.pass2="";gate.busy=false;
+      showToast("🔐 Données chiffrées sur cet appareil");
+      gateFinishOpen({db:DB,inbox:INBOX},true);
+    }).catch(function(err){
+      gate.busy=false;gate.err=err.message;renderGate();
+    });
+    return;
+  }
+  gateSubmitJoin();
+}
+
+function applyOwner(nom){
+    if(gate.needsName){
+      var owner=null;
+      DB.people.forEach(function(p){if(!owner&&p.unclaimed&&p.isAdmin&&!p.revoked)owner=p});
+      if(owner){owner.name=nom;delete owner.unclaimed}
+      else{owner=mkPerson({name:nom,isAdmin:true});DB.people.unshift(owner)}
+      DB.enrolledId=owner.id;
+      /* Un club sans équipe est une impasse : on en installe une, comme
+         à la création. Les équipes déjà là restent les siennes. */
+      if(!DB.teams.length)DB.teams.push(mkTeamRecord({name:"Équipe A"}));
+      DB.teams.forEach(function(t){
+        if(!DB.assignments.some(function(a){return a.personId===owner.id&&a.teamId===t.id&&a.role==="coach"}))
+          DB.assignments.push(mkAssignment(owner.id,t.id,"coach"));
+      });
+      DB=normalizeDB(DB);
+      state.meId=owner.id;
+      if(!state.ctx)state.ctx=DB.teams.length?{role:"coach",teamId:DB.teams[0].id}:{role:"admin"};
+      normalizeCtx();
+      gate.needsName=false;
+      saveAll();
+    }
+}
+
+function gateSubmitJoin(){
+  if(gate.mode!=="join")return;
+  var cfg=parseShareText(gate.who||"");
+  if(!cfg){gate.err="Lien d'invitation non reconnu";renderGate();return}
+  gate.busy=true;renderGate();
+  joinWithConfig(cfg);
+}
+
+/* Le relais est seul juge : c'est lui qui dit qui est le porteur du jeton
+   et sur quelle équipe il travaille. Le lien ne fait que transporter. */
+function joinWithConfig(cfg){
+  clearHash();
+  SYNC.url=cfg.url;SYNC.room=cfg.room;SYNC.token=cfg.token;
+  SYNC.pulled={packet:"",catalog:"",submission:""};SYNC.identity=null;
+  saveSync();
+  syncWhoami().then(function(data){
+    var g=data&&data.grant;
+    if(!g)throw new Error("Jeton inconnu du relais");
+    SYNC.identity=g;saveSync();
+    DB=normalizeDB(emptyDB());
+    adoptRemoteIdentity(g);
+    DB.enrolledId=state.meId;
+    gate.loaded=true;gate.needsName=false;gate.busy=false;
+    gate.mode="protect";gate.who=g.name||"";gate.err="";
+    renderGate();
+  }).catch(function(err){
+    gate.busy=false;gate.mode="join";
+    gate.err=err.message;gate.who=gate.who||"";
+    renderGate();
+  });
+}
+
+/* Sortie de l'écran de garde : on charge, on branche le reste, on rend. */
+function gateFinishOpen(data,already){
+  if(!already&&!(gate.loaded&&!data))loadAll(data||null);
+  gate.loaded=true;
+  gate.mode=null;
+  bootRest();
+  render();
+}
+/* ══════════════════════════════════════════════════════════════
    DÉMARRAGE
    ══════════════════════════════════════════════════════════════ */
-loadAll();
 loadSync();
 
-/* Lien d'invitation ouvert sur l'appareil d'un sélectionneur : il porte
-   un jeton personnel. L'identité et le périmètre viennent du relais, pas
-   du lien — c'est ce qui rend le jeton révocable. */
-(function(){
+/* L'application ne s'ouvre qu'après l'écran de garde. Trois cas :
+   un coffre est là et il faut la phrase ; des données sont là en clair
+   et il faut proposer de les protéger ; rien n'est là et il faut
+   savoir qui s'inscrit. Aucun ne donne l'administration d'office. */
+(function boot(){
+  var box=readVaultBox();
+  if(box){
+    VAULT.meta={kdf:box.kdf,hint:box.hint||"",who:""};
+    gate.mode="unlock";renderGate();return;
+  }
+  var enClair=localStorage.getItem(SK)||readAnyLegacy();
+  if(enClair){
+    loadAll();
+    gate.loaded=true;
+    /* Une base d'avant les rôles ne contient aucune personne : celui qui
+       la migre est son propriétaire, mais il doit se nommer — on ne le
+       devine pas, et on ne fabrique plus d'« Administrateur » anonyme. */
+    gate.needsName=!(DB.enrolledId&&personById(DB.enrolledId));
+    gate.who=me()?me().name:"";
+    if(cryptoAvailable()||gate.needsName){gate.mode="protect";renderGate();return}
+    gateFinishOpen(null);return;
+  }
+  /* Un lien d'invitation porte déjà le jeton : on se connecte tout de
+     suite, puis on demande au sélectionneur sa propre phrase de passe. */
+  var inv=readShareLink();
+  if(inv){gate.mode="joining";renderGate();joinWithConfig(inv);return}
+  gate.mode="welcome";renderGate();
+})();
+
+function readAnyLegacy(){
+  for(var i=0;i<LEGACY_KEYS.length;i++){
+    var d=localStorage.getItem(LEGACY_KEYS[i]);
+    if(d)return d;
+  }
+  return null;
+}
+
+/* Ce qui suit le déverrouillage : lien d'invitation, service worker,
+   tout ce qui suppose une base chargée. */
+function bootRest(){
   var cfg=readShareLink();
   if(!cfg)return;
   SYNC.url=cfg.url;SYNC.room=cfg.room;SYNC.token=cfg.token;
@@ -5232,12 +5745,12 @@ loadSync();
     if(!g)throw new Error("Jeton inconnu du relais");
     SYNC.identity=g;saveSync();
     adoptRemoteIdentity(g);
-    showToast("📡 Bonjour "+(g.name||"")+" — "+(g.teamName||"")); 
+    showToast("📡 Bonjour "+(g.name||"")+" — "+(g.teamName||""));
     render();
   }).catch(function(err){
     showToast("⚠️ "+err.message);render();
   });
-})();
+}
 
 /* Reconstitue localement la personne, l'équipe et l'affectation décrites
    par le relais, pour que l'appareil du sélectionneur ait un contexte. */
@@ -5269,7 +5782,8 @@ function adoptRemoteIdentity(g){
   normalizeCtx();saveAll();
 }
 
-render();
+/* Pas de rendu ici : l'écran de garde a la main tant que le coffre est
+   fermé, et c'est lui qui appellera render() une fois ouvert. */
 
 /* Re-rendu au redimensionnement uniquement si aucun champ n'a le focus
    (le clavier virtuel déclenche « resize » et détruirait la saisie). */
