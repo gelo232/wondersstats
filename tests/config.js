@@ -539,6 +539,98 @@ const ERRORS=[];
     await P.page.evaluate(()=>closeModal());
   });
 
+  /* ═══ LES CATÉGORIES ══════════════════════════════════════
+     Elles varient d'une fédération à l'autre et changent avec les
+     années : ce sont des données du club, pas une constante du code. */
+  say("\n══ Catégories du club ══");
+
+  await etape("la liste par défaut est celle des fédérations, U14 comprise",async()=>{
+    const cats=await A.page.evaluate(()=>CATEGORIES_DEFAUT);
+    ["U12","U13","U14","U15","U16","U18","U21","Senior"].forEach(c=>{
+      if(cats.indexOf(c)===-1)throw new Error("« "+c+" » absente : "+cats.join(", "));
+    });
+    if(cats.indexOf("U11")!==-1)throw new Error("« U11 » ne devrait pas exister");
+  });
+
+  await etape("l'administratrice remanie celles de son club",async()=>{
+    await A.page.evaluate(()=>{
+      state.ctx={role:"admin",clubId:myClubs()[0].id};
+      state.tab="adm_teams";normalizeCtx();render();
+    });
+    await A.page.waitForTimeout(300);
+    const t=await texte(A.page);
+    if(!/Catégories/.test(t))throw new Error("l'entrée n'est pas visible dans Équipes");
+    await A.page.click('button:has-text("Modifier")');
+    await A.page.waitForTimeout(300);
+    await A.page.fill('input[placeholder="Ex. U14"]',"U9");
+    await A.page.click('button:has-text("+ Ajouter")');
+    await A.page.waitForTimeout(250);
+    await A.page.click('button:has-text("Enregistrer")');
+    await A.page.waitForTimeout(400);
+    const cats=await A.page.evaluate(()=>categoriesOf(myClubs()[0]));
+    if(cats.indexOf("U9")===-1)throw new Error("« U9 » non ajoutée : "+cats.join(", "));
+    await shot(A.page,"c18-categories");
+  });
+
+  await etape("le menu d'une équipe propose la liste du club",async()=>{
+    await A.page.evaluate(()=>{state.modalDraft=null;openModal("newteam")});
+    await A.page.waitForTimeout(300);
+    const opts=await A.page.$$eval(".modal select option",e=>e.map(x=>x.value));
+    if(opts.indexOf("U9")===-1)throw new Error("la catégorie ajoutée n'est pas proposée");
+    if(opts.indexOf("U14")===-1)throw new Error("U14 n'est pas proposée");
+    if(opts.indexOf("U11")!==-1)throw new Error("U11 est encore proposée");
+    await A.page.evaluate(()=>closeModal());
+  });
+
+  await etape("une catégorie portée par une équipe ne peut pas être retirée",async()=>{
+    /* L'équipe existante est en U15 : la retirer la reclasserait sans
+       rien dire, ce que l'éditeur doit refuser. */
+    await A.page.evaluate(()=>{
+      const t=DB.teams[0];t.category="U15";saveNow();
+      state.modalDraft=null;openModal("clubcats",myClubs()[0].id);
+    });
+    await A.page.waitForTimeout(300);
+    const avant=await A.page.evaluate(()=>state.modalDraft.cats.length);
+    /* La puce d'une catégorie utilisée porte son décompte : on clique sa croix. */
+    await A.page.click('.modal span:has-text("U15 · 1") button');
+    await A.page.waitForTimeout(300);
+    const apres=await A.page.evaluate(()=>state.modalDraft.cats.length);
+    if(apres!==avant)throw new Error("la catégorie utilisée a été retirée");
+    /* Une catégorie libre, elle, se retire. */
+    await A.page.click('.modal span:has-text("U9") button');
+    await A.page.waitForTimeout(300);
+    const cats=await A.page.evaluate(()=>state.modalDraft.cats);
+    if(cats.indexOf("U9")!==-1)throw new Error("« U9 » aurait dû partir");
+    await A.page.evaluate(()=>closeModal());
+  });
+
+  await etape("une catégorie héritée reste proposée même hors de la liste",async()=>{
+    /* Une base d'avant ce changement porte des équipes en « U11 ». Le
+       menu doit continuer de l'offrir, sinon la première modification
+       de l'équipe la reclasserait en silence. */
+    const r=await A.page.evaluate(()=>{
+      const club=myClubs()[0];
+      club.categories=["U12","U13","U15"];
+      const t=mkTeamRecord({name:"Vieille équipe",category:"U11",clubId:club.id});
+      DB.teams.push(t);DB=normalizeDB(DB);saveNow();
+      return {liste:categoriesOf(club),equipe:t.id};
+    });
+    if(r.liste.indexOf("U11")===-1)
+      throw new Error("« U11 » disparaît alors qu'une équipe la porte : "+r.liste.join(", "));
+    await A.page.evaluate((id)=>{state.modalDraft=null;openModal("editteam",id)},r.equipe);
+    await A.page.waitForTimeout(300);
+    const sel=await A.page.$$eval(".modal select option",e=>e.map(x=>x.value));
+    if(sel.indexOf("U11")===-1)throw new Error("le menu ne propose plus « U11 »");
+    const choisi=await A.page.$eval(".modal select",e=>e.value);
+    if(choisi!=="U11")throw new Error("le menu a déjà changé la catégorie : "+choisi);
+    await A.page.evaluate(()=>closeModal());
+    /* On remet le club en état pour la suite. */
+    await A.page.evaluate(()=>{
+      DB.teams=DB.teams.filter(t=>t.name!=="Vieille équipe");
+      myClubs()[0].categories=CATEGORIES_DEFAUT.slice();saveNow();
+    });
+  });
+
   say("\n"+N+" étapes de configuration vérifiées · "+relais.appels+" appels au relais.");
   if(ERRORS.length){say("❌ "+ERRORS.length+" problème(s) :");ERRORS.forEach(e=>say("   - "+e))}
   else say("✅ Aucun problème");

@@ -326,7 +326,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "6.0.1";
+var APP_VERSION = "6.1";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -401,7 +401,42 @@ var CAMPAIGN_KINDS=[
 ];
 var KIND_BY_KEY={};CAMPAIGN_KINDS.forEach(function(k){KIND_BY_KEY[k.key]=k});
 
-var CATEGORIES=["U11","U13","U15","U16","U18","U21","Senior"];
+/* Catégories : une donnée du club, pas une constante. Chaque fédération
+   a les siennes, et elles changent. Cette liste n'est que le point de
+   départ d'un club neuf — l'administrateur la remanie ensuite. */
+var CATEGORIES_DEFAUT=["U12","U13","U14","U15","U16","U18","U21","Senior"];
+
+/* Les catégories d'un club, complétées de celles réellement portées par
+   ses équipes : retirer une catégorie de la liste ne doit jamais
+   reclasser en silence une équipe qui l'utilise encore. */
+function categoriesOf(club){
+  var base=(club&&club.categories&&club.categories.length)
+    ? club.categories.slice() : CATEGORIES_DEFAUT.slice();
+  if(club)DB.teams.forEach(function(t){
+    if(t.clubId===club.id&&t.category&&base.indexOf(t.category)===-1)base.push(t.category);
+  });
+  return base;
+}
+/* Catégories du contexte courant, pour les écrans qui n'ont pas de club
+   sous la main. */
+function curCategories(){
+  var c=ctxClub();
+  if(c)return categoriesOf(c);
+  if(DB.clubs.length===1)return categoriesOf(DB.clubs[0]);
+  var tous=[];
+  DB.clubs.forEach(function(cl){
+    categoriesOf(cl).forEach(function(x){if(tous.indexOf(x)===-1)tous.push(x)});
+  });
+  return tous.length?tous:CATEGORIES_DEFAUT.slice();
+}
+function cleanCategories(list){
+  var out=[];
+  (list||[]).forEach(function(x){
+    x=String(x||"").trim();
+    if(x&&out.indexOf(x)===-1)out.push(x);
+  });
+  return out;
+}
 
 /* ─── Rencontres ─────────────────────────────────────────────────────
    Une saison n'est pas une suite de matchs indistincts : elle a des
@@ -485,7 +520,7 @@ function mkPerson(o){
    c'est elle, et non un drapeau local, qui fait foi. */
 function mkClub(o){
   return Object.assign({id:uid(),name:"",city:"",createdAt:nowISO(),
-    charter:null,archived:false},o||{});
+    charter:null,archived:false,categories:CATEGORIES_DEFAUT.slice()},o||{});
 }
 /* Affectation à un club — aujourd'hui « admin » seulement, mais la forme
    est la même que pour les équipes, pour qu'un rôle s'ajoute sans refonte. */
@@ -1518,7 +1553,10 @@ function normalizeDB(db){
     return q;
   });
   db.clubs=(db.clubs||[]).map(function(c){
-    return Object.assign(mkClub(),c,{archived:!!c.archived});
+    var q=Object.assign(mkClub(),c,{archived:!!c.archived});
+    q.categories=cleanCategories(q.categories);
+    if(!q.categories.length)q.categories=CATEGORIES_DEFAUT.slice();
+    return q;
   });
   db.players=(db.players||[]).map(function(p){return Object.assign(mkDbPlayer(),p,{archived:!!p.archived})});
   db.teams=(db.teams||[]).map(function(t){return Object.assign(mkTeamRecord(),t,{freeView:!!t.freeView,archived:!!t.archived})});
@@ -3391,6 +3429,23 @@ function renderAdminTeams(){
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
     h("button",{className:"btn btn-primary sm",onclick:function(){openModal("newteam")}},"+ Nouvelle équipe")));
 
+  /* Les catégories du club se remanient ici : c'est le seul écran où
+     l'administrateur en a besoin, juste à côté des équipes qu'elles
+     servent à classer. */
+  var clubCour=ctxClub();
+  if(clubCour){
+    var cats=categoriesOf(clubCour);
+    wrap.appendChild(h("div",{className:"card tight",style:{marginBottom:"12px"}},
+      h("div",{className:"row-between"},
+        h("div",{style:{minWidth:"0"}},
+          h("div",{style:{fontWeight:"700",color:"#F8FAFC",fontSize:"14px"}},"🏷️ Catégories"),
+          h("div",{className:"muted",style:{marginTop:"3px"}},
+            cats.length?cats.join(" · "):"Aucune — le menu ne proposera que « Non précisée »")),
+        h("button",{className:"btn btn-ghost xs",onclick:function(){
+          state.modalDraft=null;openModal("clubcats",clubCour.id);
+        }},"Modifier"))));
+  }
+
   if(!DB.teams.length)wrap.appendChild(h("div",{className:"empty"},"Aucune équipe"));
   DB.teams.forEach(function(t){
     var coaches=DB.assignments.filter(function(a){return a.teamId===t.id&&a.role==="coach"});
@@ -3567,6 +3622,9 @@ function renderSuperClubs(){
         !ok?h("button",{className:"btn btn-primary xs",onclick:function(){
           signClub(c);
         }},"Signer"):null,
+        h("button",{className:"btn btn-ghost xs",title:"Catégories",onclick:function(){
+          state.modalDraft=null;openModal("clubcats",c.id);
+        }},"🏷️"),
         h("button",{className:"btn btn-ghost xs",onclick:function(){
           state.modalDraft=null;openModal("editclub",c.id);
         }},"✏️"))));
@@ -5213,8 +5271,10 @@ function renderModal(){
       inp.addEventListener("input",function(e){d[key]=e.target.value});
       return h("div",{className:"field"},h("label",null,label),inp);
     }
+    var catsS=curCategories();
+    if(d.category&&catsS.indexOf(d.category)===-1)catsS.push(d.category);
     var catSel=h("select",null,h("option",{value:""},"Non précisée"),
-      CATEGORIES.map(function(c){return h("option",{value:c},c)}));
+      catsS.map(function(c){return h("option",{value:c},c)}));
     catSel.value=d.category;
     catSel.addEventListener("change",function(e){d.category=e.target.value});
     var nts=h("textarea",{placeholder:"Objectifs, contexte, remarques…",rows:"2"});
@@ -5416,8 +5476,14 @@ function renderModal(){
       :{name:"",category:"",freeView:false});
     var tnInp=h("input",{placeholder:"Ex. U15 Wonders",value:td.name});
     tnInp.addEventListener("input",function(e){td.name=e.target.value});
+    /* La liste vient du club de l'équipe. Une catégorie déjà portée mais
+       absente de la liste reste proposée : sans quoi le menu la
+       remplacerait en silence à la première modification. */
+    var clubT=tRec?clubById(tRec.clubId):ctxClub();
+    var catsT=clubT?categoriesOf(clubT):curCategories();
+    if(td.category&&catsT.indexOf(td.category)===-1)catsT.push(td.category);
     var tcSel=h("select",null,h("option",{value:""},"Non précisée"),
-      CATEGORIES.map(function(c){return h("option",{value:c},c)}));
+      catsT.map(function(c){return h("option",{value:c},c)}));
     tcSel.value=td.category;
     tcSel.addEventListener("change",function(e){td.category=e.target.value});
     var fvBtn=h("button",{className:"court-toggle"+(td.freeView?" on":""),
@@ -5580,10 +5646,81 @@ function renderModal(){
   }
 
   /* ── Synchronisation ── */
+  /* Éditeur de catégories, partagé par le modal du club et celui de
+     l'administrateur : une seule façon de les remanier, un seul endroit
+     où corriger si elle est fautive. */
+  function categoryEditor(draft,clubId){
+    var usage={};
+    if(clubId)DB.teams.forEach(function(t){
+      if(t.clubId===clubId&&t.category)usage[t.category]=(usage[t.category]||0)+1;
+    });
+    var puces=h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"8px"}},
+      draft.cats.length?draft.cats.map(function(c){
+        var n=usage[c]||0;
+        return h("span",{className:"badge",style:{background:"#1E293B",color:"#CBD5E1",
+          borderColor:"#334155",padding:"6px 8px",display:"inline-flex",
+          alignItems:"center",gap:"6px"}},
+          c+(n?" · "+n:""),
+          h("button",{className:"btn btn-ghost xs",
+            style:{padding:"0 5px",lineHeight:"1",opacity:n?".35":"1",
+              cursor:n?"not-allowed":"pointer"},
+            title:n?"Utilisée par "+plural(n,"équipe")+" — retirez-la d'abord de l'équipe"
+                   :"Retirer « "+c+" »",
+            onclick:function(){
+              /* Retirer une catégorie portée reclasserait l'équipe en
+                 silence : on refuse plutôt que de la laisser filer. */
+              if(n){showToast("⚠️ « "+c+" » est utilisée par "+plural(n,"équipe"));return}
+              draft.cats=draft.cats.filter(function(x){return x!==c});
+              render();
+            }},"✕"));
+      }):h("div",{className:"muted"},"Aucune catégorie."));
+    var inp=h("input",{placeholder:"Ex. U14",value:draft.nouvelle||""});
+    inp.addEventListener("input",function(e){draft.nouvelle=e.target.value});
+    function ajouter(){
+      var v=(draft.nouvelle||"").trim();
+      if(!v)return;
+      if(draft.cats.indexOf(v)!==-1){showToast("⚠️ « "+v+" » y est déjà");return}
+      draft.cats=draft.cats.concat([v]);draft.nouvelle="";render();
+    }
+    inp.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();ajouter()}});
+    return h("div",{className:"field"},
+      h("label",null,"Catégories"),
+      puces,
+      h("div",{style:{display:"flex",gap:"6px"}},
+        h("div",{className:"grow"},inp),
+        h("button",{className:"btn btn-primary sm",onclick:ajouter},"+ Ajouter")),
+      h("div",{className:"btn-row",style:{marginTop:"8px"}},
+        h("button",{className:"btn btn-ghost xs",onclick:function(){
+          draft.cats=CATEGORIES_DEFAUT.slice();render();
+        }},"↺ Liste par défaut")));
+  }
+
+  /* L'administrateur remanie les catégories de son club sans toucher à
+     son nom, qui porte la signature du propriétaire. */
+  if(T==="clubcats"){
+    var clc=clubById(state.modalCtx)||ctxClub();
+    if(!clc)return null;
+    var ccd=state.modalDraft||(state.modalDraft={cats:categoriesOf(clc),nouvelle:""});
+    return modalShell("Catégories · "+clc.name,
+      h("div",null,
+        categoryEditor(ccd,clc.id),
+        h("div",{className:"hint"},
+          "Ces catégories alimentent le menu des équipes et des saisons. ",
+          "Une catégorie portée par une équipe ne peut pas être retirée — changez d'abord la catégorie de l'équipe.")),
+      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+        clc.categories=cleanCategories(ccd.cats);
+        logAct("status","Catégories de "+clc.name+" : "+
+          (clc.categories.join(", ")||"aucune"),{});
+        state.modalDraft=null;closeModal();saveNow();render();
+      }},"Enregistrer")],"420px");
+  }
+
   if(T==="newclub"||T==="editclub"){
     var cl=T==="editclub"?clubById(state.modalCtx):null;
     if(T==="editclub"&&!cl)return null;
-    var cd=state.modalDraft||(state.modalDraft=cl?{name:cl.name,city:cl.city||""}:{name:"",city:""});
+    var cd=state.modalDraft||(state.modalDraft=cl
+      ?{name:cl.name,city:cl.city||"",cats:categoriesOf(cl),nouvelle:""}
+      :{name:"",city:"",cats:CATEGORIES_DEFAUT.slice(),nouvelle:""});
     function cf(key,label,ph){
       var inp=h("input",{placeholder:ph,value:cd[key]||""});
       inp.addEventListener("input",function(e){cd[key]=e.target.value});
@@ -5593,25 +5730,30 @@ function renderModal(){
       h("div",null,
         cf("name","Nom du club","Ex. Les Wonders"),
         cf("city","Ville","Ex. Sherbrooke"),
+        categoryEditor(cd,cl?cl.id:null),
+        h("div",{className:"hint"},
+          "Ces catégories alimentent le menu des équipes et des saisons.",
+          cd.cats.length?null:" ⚠️ Sans catégorie, le menu ne proposera que « Non précisée »."),
         h("div",{className:"hint"},cl
           ? "Renommer un club invalide sa charte : elle porte le nom signé. Resignez-la ensuite."
           : "Le club sera charté par votre signature au moment de sa création.")),
       [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
         var n=(cd.name||"").trim();
         if(!n){showToast("⚠️ Nommez le club");return}
+        var cats=cleanCategories(cd.cats);
         if(cl){
           var change=cl.name!==n;
-          cl.name=n;cl.city=(cd.city||"").trim();
+          cl.name=n;cl.city=(cd.city||"").trim();cl.categories=cats;
           state.modalDraft=null;closeModal();
           if(change){cl.charter=null;signClub(cl)}
           else{saveNow();render()}
           return;
         }
-        var nc=mkClub({name:n,city:(cd.city||"").trim()});
+        var nc=mkClub({name:n,city:(cd.city||"").trim(),categories:cats});
         DB.clubs.push(nc);
         state.modalDraft=null;closeModal();
         signClub(nc);
-      }},cl?"Enregistrer":"Créer et charter")],"420px");
+      }},cl?"Enregistrer":"Créer et charter")],"440px");
   }
 
   if(T==="appoint"){
