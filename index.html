@@ -326,7 +326,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "5.1";
+var APP_VERSION = "6.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -444,6 +444,11 @@ var ROLES={
   selector:{key:"selector",label:"Sélectionneur",icon:"🎯",color:"#F59E0B"}
 };
 var ROLE_KEYS=["coach","selector"];
+/* L'administration est une affectation à un CLUB, pas un attribut de la
+   personne : un club peut en compter plusieurs, et un administrateur
+   d'un club n'est rien dans un autre. */
+var CLUB_ROLES={admin:{key:"admin",label:"Administrateur",icon:"🛡️",color:"#F87171"}};
+var SUPER_CTX={key:"super",label:"Propriétaire",icon:"👑",color:"#A78BFA"};
 var ADMIN_CTX={key:"admin",label:"Administration",icon:"🛡️",color:"#F87171"};
 
 /* ─── Utilitaires ───────────────────────────────────────────── */
@@ -474,12 +479,25 @@ function mkDbPlayer(o){
   return Object.assign({id:uid(),firstName:"",lastName:"",birthYear:"",notes:"",archived:false,createdAt:nowISO()},o||{});
 }
 function mkPerson(o){
-  return Object.assign({id:uid(),name:"",isAdmin:false,token:"",createdAt:nowISO(),revoked:false},o||{});
+  return Object.assign({id:uid(),name:"",token:"",createdAt:nowISO(),revoked:false},o||{});
+}
+/* Un club n'existe que s'il porte une charte signée par le propriétaire :
+   c'est elle, et non un drapeau local, qui fait foi. */
+function mkClub(o){
+  return Object.assign({id:uid(),name:"",city:"",createdAt:nowISO(),
+    charter:null,archived:false},o||{});
+}
+/* Affectation à un club — aujourd'hui « admin » seulement, mais la forme
+   est la même que pour les équipes, pour qu'un rôle s'ajoute sans refonte. */
+function mkClubAssignment(personId,clubId,role,grant){
+  return {id:uid(),personId:personId,clubId:clubId,role:role||"admin",
+    grant:grant||null,createdAt:nowISO()};
 }
 /* Équipe durable : elle traverse les saisons, et l'affectation d'un
    entraîneur la suit. */
 function mkTeamRecord(o){
-  return Object.assign({id:uid(),name:"Équipe",category:"",freeView:false,archived:false,createdAt:nowISO()},o||{});
+  return Object.assign({id:uid(),clubId:"",name:"Équipe",category:"",freeView:false,
+    archived:false,createdAt:nowISO()},o||{});
 }
 function mkAssignment(personId,teamId,role){
   return {id:uid(),personId:personId,teamId:teamId,role:ROLES[role]?role:"selector",createdAt:nowISO()};
@@ -554,9 +572,11 @@ function mkSelectorView(o){
 function mkEntryData(){return {stats:emptyS(),ratings:{},reco:"",note:""}}
 
 /* ─── Base de données ───────────────────────────────────────── */
-function emptyDB(){return {version:5,people:[],teams:[],assignments:[],
-  players:[],seasons:[],squads:[],log:[],activeSeasonId:null,
-  enrolledId:null}}   /* qui s'est inscrit sur cet appareil */
+function emptyDB(){return {version:6,clubs:[],people:[],teams:[],assignments:[],
+  clubAssignments:[],players:[],seasons:[],squads:[],log:[],activeSeasonId:null,
+  enrolledId:null,     /* qui s'est inscrit sur cet appareil */
+  superId:null,        /* le propriétaire, s'il tient cet appareil */
+  rootFile:null}}      /* copie locale de la racine publiée */
 var DB=emptyDB();
 
 /* Vues sélectionneur importées d'un autre appareil (rôle sélectionneur autonome) */
@@ -632,44 +652,112 @@ function viewById(squad,id){if(!squad)return null;for(var i=0;i<squad.selectorVi
    appareil, rien n'empêche de modifier ces valeurs — la seule frontière
    réellement tenue est celle du relais (jetons). Voir ROLES.md § 4.   */
 function me(){return state.meId?personById(state.meId):null}
-function isAdmin(){var p=me();return !!(p&&p.isAdmin&&!p.revoked)}
+/* Cette personne est-elle le propriétaire ? On ne le lit pas d'un
+   drapeau : c'est l'identité inscrite au moment de la fondation, et
+   seule la détention de la clé la rend effective. */
+function personIsSuper(p){return !!(p&&DB.superId&&p.id===DB.superId&&superProof.ok)}
+function adminClubsOf(p){
+  if(!p)return [];
+  var ids={};
+  DB.clubAssignments.forEach(function(a){
+    if(a.personId===p.id&&a.role==="admin")ids[a.clubId]=1;
+  });
+  return DB.clubs.filter(function(c){return ids[c.id]&&!c.archived});
+}
+function clubById(id){for(var i=0;i<DB.clubs.length;i++)if(DB.clubs[i].id===id)return DB.clubs[i];return null}
+function clubOfTeam(t){return t?clubById(t.clubId):null}
+
+/* Administrateur d'un club donné — plusieurs personnes peuvent l'être.
+   Le propriétaire l'est partout, par construction. */
+function isAdminOf(clubId){
+  if(isSuper())return true;
+  var p=me();if(!p||p.revoked||!clubId)return false;
+  return DB.clubAssignments.some(function(a){
+    return a.personId===p.id&&a.clubId===clubId&&a.role==="admin";
+  });
+}
+function adminsOfClub(clubId){
+  var ids={};
+  DB.clubAssignments.forEach(function(a){
+    if(a.clubId===clubId&&a.role==="admin")ids[a.personId]=a;
+  });
+  return DB.people.filter(function(p){return ids[p.id]&&!p.revoked})
+    .map(function(p){return {person:p,assignment:ids[p.id]}});
+}
+/* Clubs que je peux administrer. */
+function myClubs(){
+  if(isSuper())return DB.clubs.filter(function(c){return !c.archived});
+  var p=me();if(!p)return [];
+  var ids={};
+  DB.clubAssignments.forEach(function(a){
+    if(a.personId===p.id&&a.role==="admin")ids[a.clubId]=1;
+  });
+  return DB.clubs.filter(function(c){return !c.archived&&ids[c.id]});
+}
+/* Rétrocompatibilité : « suis-je administrateur quelque part ? ». */
+function isAdmin(){return isSuper()||myClubs().length>0}
+
 function myAssignments(){
   var p=me();if(!p)return [];
   return DB.assignments.filter(function(a){return a.personId===p.id&&teamById(a.teamId)});
 }
 function hasRole(teamId,role){
-  if(isAdmin())return true;
+  var t=teamById(teamId);
+  if(t&&isAdminOf(t.clubId))return true;
   var p=me();if(!p)return false;
   return DB.assignments.some(function(a){return a.personId===p.id&&a.teamId===teamId&&a.role===role});
 }
 function canCoach(teamId){return hasRole(teamId,"coach")}
 function canSelect(teamId){return hasRole(teamId,"selector")}
-/* Équipes visibles dans un rôle donné. L'administrateur les voit toutes. */
+/* Équipes visibles dans un rôle donné : celles de mes clubs quand je
+   les administre, plus celles où j'ai l'affectation. */
 function teamsForRole(role){
-  if(isAdmin())return DB.teams.filter(function(t){return !t.archived});
-  var p=me();if(!p)return [];
+  var p=me();
+  var clubIds={};myClubs().forEach(function(c){clubIds[c.id]=1});
   var ids={};
-  DB.assignments.forEach(function(a){if(a.personId===p.id&&a.role===role)ids[a.teamId]=1});
-  return DB.teams.filter(function(t){return !t.archived&&ids[t.id]});
+  if(p)DB.assignments.forEach(function(a){if(a.personId===p.id&&a.role===role)ids[a.teamId]=1});
+  return DB.teams.filter(function(t){
+    return !t.archived&&(ids[t.id]||clubIds[t.clubId]);
+  });
 }
-/* Les contextes offerts au sélecteur : administration, puis une entrée
-   par affectation. */
+/* Les contextes offerts au sélecteur : la propriété, puis un contexte
+   d'administration par club administré, puis une entrée par affectation. */
 function myContexts(){
   var out=[];
-  if(isAdmin())out.push({role:"admin"});
+  if(isSuper())out.push({role:"super"});
+  myClubs().forEach(function(c){out.push({role:"admin",clubId:c.id})});
   ROLE_KEYS.forEach(function(role){
     teamsForRole(role).forEach(function(t){out.push({role:role,teamId:t.id})});
   });
   return out;
 }
+function ctxColor(c){
+  if(!c)return "#64748B";
+  if(c.role==="super")return SUPER_CTX.color;
+  if(c.role==="admin")return ADMIN_CTX.color;
+  return (ROLES[c.role]||{color:"#64748B"}).color;
+}
+function ctxIcon(c){
+  if(!c)return "🔑";
+  if(c.role==="super")return SUPER_CTX.icon;
+  if(c.role==="admin")return ADMIN_CTX.icon;
+  return (ROLES[c.role]||{icon:"🔑"}).icon;
+}
 function ctxLabel(c){
   if(!c)return "Aucun contexte";
-  if(c.role==="admin")return ADMIN_CTX.icon+" "+ADMIN_CTX.label;
+  if(c.role==="super")return SUPER_CTX.icon+" "+SUPER_CTX.label;
+  if(c.role==="admin"){
+    var cl=clubById(c.clubId);
+    return ADMIN_CTX.icon+" "+ADMIN_CTX.label+(cl?" · "+cl.name:"");
+  }
   var t=teamById(c.teamId);
   return ROLES[c.role].icon+" "+ROLES[c.role].label+" · "+(t?t.name:"—");
 }
 function sameCtx(a,b){
-  return !!a&&!!b&&a.role===b.role&&(a.role==="admin"||a.teamId===b.teamId);
+  if(!a||!b||a.role!==b.role)return false;
+  if(a.role==="super")return true;
+  if(a.role==="admin")return a.clubId===b.clubId;
+  return a.teamId===b.teamId;
 }
 /* Replace le contexte sur quelque chose de valide après tout changement
    d'affectation, de personne ou d'équipe. */
@@ -713,7 +801,15 @@ function logWho(squad,pid){
 }
 function isCoachCtx(){return !!state.ctx&&state.ctx.role==="coach"}
 function isSelectorCtx(){return !!state.ctx&&state.ctx.role==="selector"}
-function isAdminCtx(){return !!state.ctx&&state.ctx.role==="admin"}
+function isAdminCtx(){return !!state.ctx&&(state.ctx.role==="admin"||state.ctx.role==="super")}
+function isSuperCtx(){return !!state.ctx&&state.ctx.role==="super"}
+/* Le club sur lequel porte le contexte courant. */
+function ctxClub(){
+  if(!state.ctx)return null;
+  if(state.ctx.role==="admin")return clubById(state.ctx.clubId);
+  if(state.ctx.teamId){var t=teamById(state.ctx.teamId);return t?clubById(t.clubId):null}
+  return null;
+}
 
 function fullName(p){
   if(!p)return "—";
@@ -786,7 +882,7 @@ var SK_VAULT="wonderstats_vault_v1";
 
 /* Jetons d'accès et adresses privées. Rangés à part de DB pour qu'une
    sauvegarde exportée ne les emporte pas, et chiffrés avec le reste. */
-var SECRETS={github:null};
+var SECRETS={github:null,superKey:null};
 var VAULT={key:null,meta:null,unlocked:false,plain:null,noCrypto:false};
 
 function subtle(){
@@ -906,9 +1002,200 @@ function vaultChangePass(oldPass,newPass,hint){
 }
 function vaultLock(){
   VAULT.key=null;VAULT.unlocked=false;VAULT.plain=null;
-  DB=emptyDB();INBOX={views:[]};SECRETS={github:null};
+  DB=emptyDB();INBOX={views:[]};SECRETS={github:null,superKey:null};
+  superProof={done:false,ok:false};
   state.meId=null;state.ctx=null;
 }
+
+/* ══ PROPRIÉTAIRE ══════════════════════════════════════════════
+   Un seul propriétaire dans tout le système. Ce n'est pas un drapeau
+   local — chacun pourrait se l'accorder — mais une paire de clés :
+
+     clé privée   dans le coffre chiffré du propriétaire, nulle part ailleurs
+     clé publique dans superadmin.json, publié à côté de l'application
+
+   Toutes les installations lisent ce fichier au démarrage. Créer un club
+   ou nommer un administrateur produit une pièce signée ; un appareil qui
+   ne sait pas signer comme le propriétaire ne peut en fabriquer aucune.
+
+   Portée honnête : la vérification se fait dans le navigateur, donc qui
+   modifie sa propre copie de la page peut la contourner. Ce qu'elle
+   empêche vraiment, c'est qu'une pièce forgée soit acceptée ailleurs —
+   par un autre appareil, ou par le relais, qui applique la même
+   vérification hors de portée de celui qu'il contrôle.
+   ══════════════════════════════════════════════════════════════ */
+var SUPER_FILE="superadmin.json";
+var ROOT={loaded:false,key:null,name:"",foundedAt:"",raw:null,error:""};
+var ECDSA={name:"ECDSA",namedCurve:"P-256"};
+var SIGN_ALG={name:"ECDSA",hash:{name:"SHA-256"}};
+
+/* Lecture de la racine de confiance. Servie par la même origine que
+   l'application, donc mise en cache par le service worker avec elle. */
+function loadRoot(){
+  if(!cryptoAvailable()){ROOT.loaded=true;ROOT.error="Chiffrement indisponible";return Promise.resolve(ROOT)}
+  return fetch(SUPER_FILE,{cache:"no-cache"}).then(function(r){
+    if(!r.ok)throw new Error("absent");
+    return r.json();
+  }).then(function(j){
+    /* Le fichier livré avec l'application déclare « non fondé » : c'est
+       un état normal, pas une erreur. */
+    if(!j||j.founded===false||!j.publicKey)throw new Error("absent");
+    return subtle().importKey("jwk",j.publicKey,ECDSA,true,["verify"]).then(function(k){
+      ROOT.key=k;ROOT.name=j.name||"";ROOT.foundedAt=j.foundedAt||"";ROOT.raw=j;
+      ROOT.loaded=true;return ROOT;
+    });
+  }).catch(function(e){
+    ROOT.loaded=true;ROOT.key=null;
+    ROOT.error=(e&&e.message==="absent")?"non fondé":"racine illisible";
+    return ROOT;
+  });
+}
+function rootExists(){return !!ROOT.key}
+
+/* Repli sur la copie locale quand le fichier publié est injoignable :
+   hors ligne, ou pas encore déposé. Cette copie ne vaut que sur cet
+   appareil — ce qui empêche une charte forgée d'être acceptée ailleurs,
+   c'est le fichier publié, que les autres installations vont chercher. */
+function adoptLocalRoot(){
+  if(ROOT.key||!DB.rootFile||!DB.rootFile.publicKey)return Promise.resolve(false);
+  return subtle().importKey("jwk",DB.rootFile.publicKey,ECDSA,true,["verify"])
+    .then(function(k){
+      ROOT.key=k;ROOT.name=DB.rootFile.name||"";
+      ROOT.foundedAt=DB.rootFile.foundedAt||"";ROOT.raw=DB.rootFile;
+      ROOT.error="racine locale";
+      return true;
+    }).catch(function(){return false});
+}
+
+/* ── Signature ─────────────────────────────────────────────── */
+function canonical(o){
+  /* Clés triées : deux appareils doivent signer et vérifier exactement
+     la même suite d'octets. */
+  var ks=[];for(var k in o)if(Object.prototype.hasOwnProperty.call(o,k)&&k!=="sig")ks.push(k);
+  ks.sort();
+  var out={};ks.forEach(function(k){out[k]=o[k]});
+  return JSON.stringify(out);
+}
+function signDoc(doc){
+  var priv=SECRETS.superKey;
+  if(!priv)return Promise.reject(new Error("Cet appareil ne détient pas la clé du propriétaire"));
+  return subtle().importKey("jwk",priv,ECDSA,false,["sign"]).then(function(k){
+    return subtle().sign(SIGN_ALG,k,utf8(canonical(doc)));
+  }).then(function(sig){
+    return Object.assign({},doc,{sig:b64(sig)});
+  });
+}
+function verifyDoc(doc){
+  if(!doc||!doc.sig)return Promise.resolve(false);
+  if(!ROOT.key)return Promise.resolve(false);
+  return subtle().verify(SIGN_ALG,ROOT.key,unb64(doc.sig),utf8(canonical(doc)))
+    .catch(function(){return false});
+}
+
+/* Cet appareil détient-il la clé du propriétaire, et correspond-elle
+   bien à la clé publiée ? On ne se contente pas de la présence : on
+   signe un aléa et on vérifie avec la clé publique. */
+var superProof={done:false,ok:false};
+function proveSuper(){
+  if(!SECRETS.superKey||!ROOT.key){superProof={done:true,ok:false};return Promise.resolve(false)}
+  var defi={n:b64(randBytes(16)),t:nowISO()};
+  return signDoc(defi).then(verifyDoc).then(function(ok){
+    superProof={done:true,ok:!!ok};return !!ok;
+  }).catch(function(){superProof={done:true,ok:false};return false});
+}
+/* Être propriétaire demande les deux : que cet appareil détienne la clé,
+   et que la personne qui l'utilise soit bien celle de la fondation.
+   Changer d'identité sur l'appareil du propriétaire ne transmet donc
+   rien à personne. */
+function isSuper(){
+  return !!(superProof.ok&&DB.superId&&state.meId===DB.superId);
+}
+
+/* ── Fondation ─────────────────────────────────────────────── */
+function foundSystem(nom){
+  if(!cryptoAvailable())return Promise.reject(new Error("Chiffrement indisponible sur cet appareil"));
+  return subtle().generateKey(ECDSA,true,["sign","verify"]).then(function(pair){
+    return Promise.all([
+      subtle().exportKey("jwk",pair.privateKey),
+      subtle().exportKey("jwk",pair.publicKey)
+    ]);
+  }).then(function(r){
+    SECRETS.superKey=r[0];
+    var pub=r[1];
+    delete pub.key_ops;delete pub.ext;
+    var fichier={version:1,name:nom||"",foundedAt:nowISO(),publicKey:pub};
+    /* La clé publique n'est utile que publiée : on la rend au fondateur
+       pour qu'il la dépose, et on l'adopte tout de suite en mémoire. */
+    return subtle().importKey("jwk",pub,ECDSA,true,["verify"]).then(function(k){
+      ROOT.key=k;ROOT.name=fichier.name;ROOT.foundedAt=fichier.foundedAt;
+      ROOT.raw=fichier;ROOT.loaded=true;ROOT.error="";
+      return fichier;
+    });
+  });
+}
+
+/* ── Transport de la clé ───────────────────────────────────────
+   La clé privée est exclue des sauvegardes et du dépôt : c'est voulu.
+   Elle a donc son propre fichier, scellé par une phrase choisie pour
+   lui — un porte-clés, pas une sauvegarde de données. */
+function sealKey(pass){
+  if(!SECRETS.superKey)return Promise.reject(new Error("Cet appareil ne détient pas la clé"));
+  var salt=randBytes(16),iv=randBytes(12),iter=200000;
+  var charge={superKey:SECRETS.superKey,superId:DB.superId,
+    name:(personById(DB.superId)||{}).name||"",publicKey:ROOT.raw?ROOT.raw.publicKey:null};
+  return deriveKey(pass,salt,iter).then(function(k){
+    return subtle().encrypt({name:"AES-GCM",iv:iv},k,utf8(JSON.stringify(charge)));
+  }).then(function(ct){
+    return {type:"wonderstats-owner-key",v:1,
+      kdf:{salt:b64(salt),iter:iter,hash:"SHA-256"},
+      cipher:"AES-GCM",iv:b64(iv),ct:b64(ct),at:nowISO()};
+  });
+}
+function openKey(box,pass){
+  if(!box||box.type!=="wonderstats-owner-key")
+    return Promise.reject(new Error("Ce fichier n'est pas une clé de propriétaire"));
+  return deriveKey(pass,unb64(box.kdf.salt),box.kdf.iter||200000).then(function(k){
+    return subtle().decrypt({name:"AES-GCM",iv:unb64(box.iv)},k,unb64(box.ct));
+  }).then(function(plain){
+    return JSON.parse(new TextDecoder().decode(plain));
+  }).catch(function(){throw new Error("Phrase de passe incorrecte pour cette clé")});
+}
+
+/* ── Chartes et nominations ────────────────────────────────── */
+function charterFor(club){
+  return {kind:"club",clubId:club.id,name:club.name,issuedAt:nowISO()};
+}
+function grantFor(person,club){
+  return {kind:"admin",clubId:club.id,personId:person.id,
+    name:person.name,issuedAt:nowISO()};
+}
+function clubIsChartered(club){
+  return !!(club&&club.charter&&club.charter.sig);
+}
+
+/* Vérifie tout ce qui prétend venir du propriétaire. Un club dont la
+   charte ne tient pas est marqué, pas supprimé : on ne détruit pas les
+   données d'un club parce qu'une signature manque. */
+function verifyAll(){
+  if(!ROOT.key)return Promise.resolve({clubs:{},grants:{}});
+  var res={clubs:{},grants:{}},jobs=[];
+  DB.clubs.forEach(function(c){
+    if(!c.charter){res.clubs[c.id]=false;return}
+    jobs.push(verifyDoc(c.charter).then(function(ok){
+      res.clubs[c.id]=ok&&c.charter.clubId===c.id;
+    }));
+  });
+  DB.clubAssignments.forEach(function(a){
+    if(!a.grant){res.grants[a.id]=false;return}
+    jobs.push(verifyDoc(a.grant).then(function(ok){
+      res.grants[a.id]=ok&&a.grant.clubId===a.clubId&&a.grant.personId===a.personId;
+    }));
+  });
+  return Promise.all(jobs).then(function(){VERIF=res;return res});
+}
+var VERIF={clubs:{},grants:{}};
+function clubVerified(id){return VERIF.clubs[id]===true}
+function grantVerified(id){return VERIF.grants[id]===true}
 
 /* ══ SAUVEGARDE GITHUB ═════════════════════════════════════════
    Un dépôt privé sert de coffre distant : sauvegarde, historique, et
@@ -1001,8 +1288,9 @@ function ghPush(force){
     var g=ghCfg();
     if(!force&&cur.box&&cur.sha&&g.lastSha&&cur.sha!==g.lastSha)
       throw new Error("conflit-distant");
-    return vaultEncrypt({db:DB,inbox:INBOX,secrets:{github:null}}).then(function(box){
-      /* Le jeton ne part pas dans le dépôt : chaque appareil a le sien. */
+    return vaultEncrypt({db:DB,inbox:INBOX,secrets:{github:null,superKey:null}}).then(function(box){
+      /* Ni le jeton GitHub ni la clé du propriétaire ne partent dans le
+         dépôt : ce sont des secrets d'appareil, pas de sauvegarde. */
       return ghWrite(box,cur.sha||null,"Sauvegarde du "+fmtDate(nowISO()));
     }).then(function(res){
       var g2=ghCfg();
@@ -1210,8 +1498,10 @@ function normalizeSquad(sq,knownPlayers){
 
 function normalizeDB(db){
   db=Object.assign(emptyDB(),db);
-  db.version=5;
+  db.version=6;
   db.enrolledId=db.enrolledId||null;
+  db.superId=db.superId||null;
+  db.rootFile=db.rootFile||null;
 
   db.log=(db.log||[]).filter(function(l){return l&&l.at&&l.text}).map(function(l){
     return {id:l.id||uid(),at:l.at,kind:LOG_KINDS[l.kind]?l.kind:"status",
@@ -1219,9 +1509,16 @@ function normalizeDB(db){
       teamId:l.teamId||"",seasonId:l.seasonId||"",playerId:l.playerId||"",text:String(l.text)};
   }).slice(-LOG_MAX);
   db.people=(db.people||[]).map(function(p){
-    var q=Object.assign(mkPerson(),p,{isAdmin:!!p.isAdmin,revoked:!!p.revoked});
+    var q=Object.assign(mkPerson(),p,{revoked:!!p.revoked});
     if(p.unclaimed)q.unclaimed=true;   /* compte hérité, en attente d'un nom */
+    /* L'administration devient une affectation : on retient l'ancien
+       drapeau le temps de la migration, puis on l'efface. */
+    if(p.isAdmin)q.wasAdmin=true;
+    delete q.isAdmin;
     return q;
+  });
+  db.clubs=(db.clubs||[]).map(function(c){
+    return Object.assign(mkClub(),c,{archived:!!c.archived});
   });
   db.players=(db.players||[]).map(function(p){return Object.assign(mkDbPlayer(),p,{archived:!!p.archived})});
   db.teams=(db.teams||[]).map(function(t){return Object.assign(mkTeamRecord(),t,{freeView:!!t.freeView,archived:!!t.archived})});
@@ -1230,6 +1527,33 @@ function normalizeDB(db){
       notes:"",closedAt:null,archived:false},s);
   });
 
+  /* ── v5 → v6 ────────────────────────────────────────────────
+     Une base d'avant les clubs en tient un seul, implicite : on lui
+     donne un nom et on y range ses équipes. Les administrateurs
+     d'alors — reconnus à leur ancien drapeau isAdmin — en deviennent
+     les administrateurs. La charte reste à signer par le propriétaire :
+     un club hérité est valide, mais il n'a pas été créé par lui. */
+  /* Une équipe appartient toujours à un club : s'il n'en existe aucun,
+     c'est une base d'avant les clubs, quelle que soit sa version
+     déclarée — les migrations plus anciennes passent aussi par ici. */
+  if(db.teams.length&&!db.clubs.length){
+    var club0=mkClub({name:"Mon club",charter:null,inherited:true});
+    db.clubs.push(club0);
+    db.teams.forEach(function(t){if(!t.clubId)t.clubId=club0.id});
+    (db.people||[]).forEach(function(p){
+      if(p.wasAdmin&&!p.revoked)
+        db.clubAssignments.push(mkClubAssignment(p.id,club0.id,"admin"));
+    });
+  }
+  if(db.clubs.length===1){
+    /* Une équipe sans club rejoint le seul qui existe, plutôt que de
+       devenir invisible. */
+    db.teams.forEach(function(t){if(!t.clubId)t.clubId=db.clubs[0].id});
+  }
+  db.people.forEach(function(p){delete p.wasAdmin});
+
+  var knownClubs={};db.clubs.forEach(function(c){knownClubs[c.id]=c});
+  db.teams=db.teams.filter(function(t){return !t.clubId||knownClubs[t.clubId]});
   var knownPlayers={};db.players.forEach(function(p){knownPlayers[p.id]=true});
   var knownPeople={};db.people.forEach(function(p){knownPeople[p.id]=true});
   var knownTeams={};db.teams.forEach(function(t){knownTeams[t.id]=t});
@@ -1245,6 +1569,16 @@ function normalizeDB(db){
     if(seen[k])return false;
     seen[k]=1;return true;
   }).map(function(a){return Object.assign({id:uid(),createdAt:nowISO()},a)});
+
+  /* Affectations de club : mêmes règles d'arête. */
+  var vus={};
+  db.clubAssignments=(db.clubAssignments||[]).filter(function(a){
+    if(!a||!knownPeople[a.personId]||!knownClubs[a.clubId])return false;
+    if(!CLUB_ROLES[a.role])return false;
+    var k=a.personId+"|"+a.clubId+"|"+a.role;
+    if(vus[k])return false;
+    vus[k]=1;return true;
+  }).map(function(a){return Object.assign({id:uid(),createdAt:nowISO(),grant:null},a)});
 
   db.squads=(db.squads||[]).filter(function(sq){
     return sq&&knownTeams[sq.teamId]&&knownSeasons[sq.seasonId];
@@ -1270,8 +1604,8 @@ function migrateV3(old){
   db.players=(old.players||[]).slice();
   /* Les versions d'avant les rôles n'avaient pas de personnes. On crée le
      propriétaire sans le nommer : l'écran de garde demandera qui c'est. */
-  var admin=mkPerson({name:"",isAdmin:true});
-  admin.unclaimed=true;
+  var admin=mkPerson({name:""});
+  admin.unclaimed=true;admin.isAdmin=true;   /* lu par la migration v5→v6 */
   db.people.push(admin);
 
   (old.seasons||[]).forEach(function(os){
@@ -1386,12 +1720,12 @@ function loadAll(fromVault){
     if(raw){
       var parsed=fromVault?fromVault.db:JSON.parse(raw);
       if(fromVault&&fromVault.inbox)INBOX=fromVault.inbox;
-      if(fromVault&&fromVault.secrets)SECRETS=Object.assign({github:null},fromVault.secrets);
+      if(fromVault&&fromVault.secrets)SECRETS=Object.assign({github:null,superKey:null},fromVault.secrets);
       /* Chaîne de migration : v1 → v2 → v3 → v4, sans perte à chaque étape. */
       /* v4 → v5 se fait dans normalizeDB : les sessions orphelines y sont
          rattachées à une rencontre déduite de leur nom. */
       DB=normalizeDB((parsed.version>=4)?parsed:migrateV3(parsed));
-      if(parsed.version<5)setTimeout(function(){showToast("✅ Données migrées vers la v5")},400);
+      if(parsed.version<6)setTimeout(function(){showToast("✅ Données migrées vers la v6")},400);
     } else {
       var legacy=null;
       for(var i=0;i<LEGACY_KEYS.length&&!legacy;i++){
@@ -1400,7 +1734,7 @@ function loadAll(fromVault){
       }
       if(!legacy)legacy=readLegacyV1();
       DB=legacy?normalizeDB(migrateV3(migrateV2(legacy))):emptyDB();
-      if(legacy)setTimeout(function(){showToast("✅ Données migrées vers la v5")},400);
+      if(legacy)setTimeout(function(){showToast("✅ Données migrées vers la v6")},400);
     }
   }catch(e){DB=emptyDB()}
 
@@ -1731,6 +2065,20 @@ function scoreColor(s){
 }
 
 /* ══ IMPORT / EXPORT ═══════════════════════════════════════════ */
+function copyText(txt){
+  if(navigator.clipboard&&navigator.clipboard.writeText)
+    return navigator.clipboard.writeText(txt).catch(function(){});
+  return Promise.resolve();
+}
+function downloadText(filename,txt){
+  try{
+    var blob=new Blob([txt],{type:"application/json"});
+    var u=URL.createObjectURL(blob);
+    var a=document.createElement("a");a.href=u;a.download=filename;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(u)},1000);
+  }catch(e){showToast("⚠️ Téléchargement impossible")}
+}
 function downloadJSON(obj,filename){
   try{
     var blob=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
@@ -2152,7 +2500,7 @@ function grantToken(person,teamId,role){
   var t=teamId?teamById(teamId):null;
   return syncPost("grant",{grant:{
     token:person.token,name:person.name,
-    role:person.isAdmin?"admin":role,
+    role:role,
     teamId:teamId||"",teamName:t?t.name:""
   }});
 }
@@ -2385,14 +2733,21 @@ function renderAutoSave(){
    sélectionneur des U18 ». */
 function ctxBadge(){
   var c=state.ctx;
-  var cls=c?(c.role==="admin"?"admin":(c.role==="coach"?"coach":"selector")):"coach";
+  var cls=c?((c.role==="admin"||c.role==="super")?"admin":(c.role==="coach"?"coach":"selector")):"coach";
   var short={coach:"COACH",selector:"SÉLECT."};
-  var lbl=c?(c.role==="admin"?"🛡️ ADMIN":(ROLES[c.role].icon+" "+short[c.role])):"🔑 —";
+  var lbl=c?(c.role==="super"?"👑 PROPR."
+            :(c.role==="admin"?"🛡️ ADMIN":(ROLES[c.role].icon+" "+short[c.role]))):"🔑 —";
   return h("button",{className:"role-badge "+cls,onclick:function(){openModal("ctxpicker")}},lbl);
 }
 function tabsForCtx(){
   var c=state.ctx;
   if(!c)return [{key:"season",label:"Saison",icon:"🗓️"}];
+  if(c.role==="super")return [
+    {key:"sup_clubs",label:"Clubs",icon:"🏛️"},
+    {key:"sup_admins",label:"Administrateurs",icon:"🛡️"},
+    {key:"sup_key",label:"Ma clé",icon:"🗝️"},
+    {key:"adm_log",label:"Journal",icon:"📜"}
+  ];
   if(c.role==="admin")return [
     {key:"adm_people",label:"Personnes",icon:"👤"},
     {key:"adm_teams",label:"Équipes",icon:"👕"},
@@ -2447,9 +2802,9 @@ function renderCtxBar(){
   var others=myContexts().filter(function(x){return !sameCtx(x,c)});
   return h("div",{className:"ctx-bar"},
     h("button",{className:"grow",onclick:function(){openModal("ctxpicker")}},
-      h("span",null,c?(c.role==="admin"?ADMIN_CTX.icon:ROLES[c.role].icon):"🔑"),
+      h("span",null,c?ctxIcon(c):"🔑"),
       h("span",{style:{fontWeight:"700",color:"#CBD5E1"}},
-        c?(c.role==="admin"?ADMIN_CTX.label:(ROLES[c.role].label+" · "+((teamById(c.teamId)||{}).name||"—"))):"Aucun contexte"),
+        c?ctxLabel(c).replace(/^\S+\s/,""):"Aucun contexte"),
       others.length?h("span",{style:{opacity:".6"}},"▾"):null),
     h("button",{onclick:function(){openModal("whoami")},style:{flexShrink:"0"}},
       h("span",{className:"muted"},p?p.name:"—")));
@@ -2965,14 +3320,19 @@ function renderAdminPeople(){
         h("div",{style:{fontSize:"16px",fontWeight:"700",color:p.revoked?"#64748B":"#F8FAFC"}},
           (p.id===state.meId?"● ":"")+(p.name||"Sans nom")),
         h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"5px"}},
-          p.isAdmin?h("span",{className:"badge",style:{background:"#EF444422",color:"#FCA5A5",borderColor:"#EF444455"}},"🛡️ Administrateur"):null,
+          personIsSuper(p)?h("span",{className:"badge",style:{background:"#A78BFA22",color:"#C4B5FD",borderColor:"#A78BFA55"}},"👑 Propriétaire"):null,
+          adminClubsOf(p).map(function(c){
+            return h("span",{className:"badge",style:{background:"#EF444422",color:"#FCA5A5",borderColor:"#EF444455"}},"🛡️ "+c.name);
+          }),
           p.revoked?h("span",{className:"badge",style:{background:"#33415530",color:"#94A3B8"}},"révoquée"):null,
           p.token?h("span",{className:"badge",style:{background:"#10B98122",color:"#34D399"}},"🔑 jeton émis"):null)),
       h("div",{className:"btn-row"},
         h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("editperson",p.id)}},"✏️"),
         h("button",{className:"btn btn-danger-o xs",onclick:function(){
-          if(DB.people.filter(function(x){return x.isAdmin&&!x.revoked}).length<=1&&p.isAdmin){
-            showToast("⚠️ Gardez au moins un administrateur");return;
+          if(personIsSuper(p)){showToast("⚠️ Le propriétaire ne se supprime pas");return}
+          var seul=adminClubsOf(p).filter(function(c){return adminsOfClub(c.id).length<=1});
+          if(seul.length){
+            showToast("⚠️ Seul administrateur de "+seul[0].name);return;
           }
           if(!confirmAct("Supprimer « "+p.name+" » ?\nSes affectations seront retirées."))return;
           DB.assignments=DB.assignments.filter(function(a){return a.personId!==p.id});
@@ -3156,6 +3516,164 @@ function renderGithubPanel(){
       }).then(function(){ghBusy=false;render()});
     }},"⬇️ Récupérer")));
   return box;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ÉCRANS DU PROPRIÉTAIRE
+   ══════════════════════════════════════════════════════════════ */
+function renderSuperClubs(){
+  var wrap=h("div",null);
+  wrap.appendChild(h("div",{className:"hint"},
+    "Un club n'existe que s'il porte votre signature. C'est ce qui fait qu'un seul propriétaire crée des clubs : ",
+    "une installation qui ne détient pas votre clé ne peut en fabriquer aucun qui soit reconnu ailleurs."));
+  wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
+    h("button",{className:"btn btn-primary sm",onclick:function(){
+      state.modalDraft=null;openModal("newclub");
+    }},"+ Nouveau club")));
+
+  if(!DB.clubs.length)wrap.appendChild(h("div",{className:"empty"},"Aucun club. Créez le premier."));
+
+  DB.clubs.forEach(function(c){
+    var equipes=DB.teams.filter(function(t){return t.clubId===c.id&&!t.archived});
+    var admins=adminsOfClub(c.id);
+    var ok=clubVerified(c.id);
+    var card=h("div",{className:"card tight"});
+    card.appendChild(h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontWeight:"700",color:"#F8FAFC",fontSize:"15px"}},c.name),
+        h("div",{className:"muted",style:{marginTop:"3px"}},
+          [c.city||null,plural(equipes.length,"équipe"),plural(admins.length,"administrateur")]
+            .filter(Boolean).join(" · ")),
+        h("div",{style:{marginTop:"6px"}},
+          ok?h("span",{className:"badge",style:{background:"#10B98122",color:"#34D399",borderColor:"#10B98155"}},"✅ Charte vérifiée")
+            :h("span",{className:"badge",style:{background:"#F59E0B22",color:"#FCD34D",borderColor:"#F59E0B55"}},
+               c.charter?"⚠️ Charte invalide":"⚠️ Sans charte"))),
+      h("div",{className:"btn-row"},
+        !ok?h("button",{className:"btn btn-primary xs",onclick:function(){
+          signClub(c);
+        }},"Signer"):null,
+        h("button",{className:"btn btn-ghost xs",onclick:function(){
+          state.modalDraft=null;openModal("editclub",c.id);
+        }},"✏️"))));
+    if(admins.length)card.appendChild(h("div",{style:{marginTop:"9px",display:"flex",gap:"5px",flexWrap:"wrap"}},
+      admins.map(function(a){
+        var bon=grantVerified(a.assignment.id);
+        return h("span",{className:"badge",style:{background:bon?"#EF444422":"#33415530",
+          color:bon?"#FCA5A5":"#94A3B8",borderColor:bon?"#EF444455":"#33415580"}},
+          (bon?"🛡️ ":"⚠️ ")+a.person.name);
+      })));
+    wrap.appendChild(card);
+  });
+  return h("div",{className:"content pad","data-scroll-key":"sup-clubs"},wrap);
+}
+
+/* Signer, c'est ce que seul le propriétaire peut faire. */
+function signClub(club){
+  signDoc(charterFor(club)).then(function(sig){
+    club.charter=sig;
+    logAct("season","Club « "+club.name+" » charté",{});
+    return verifyAll();
+  }).then(function(){
+    saveNow();showToast("✅ « "+club.name+" » charté");render();
+  }).catch(function(err){showToast("⚠️ "+err.message)});
+}
+function signGrant(person,club,assignment){
+  return signDoc(grantFor(person,club)).then(function(sig){
+    assignment.grant=sig;
+    logAct("membership",person.name+" nommée administratrice de "+club.name,{});
+    return verifyAll();
+  });
+}
+
+function renderSuperAdmins(){
+  var wrap=h("div",null);
+  wrap.appendChild(h("div",{className:"hint"},
+    "Vous seul nommez les administrateurs. Une nomination est signée et nominative : ",
+    "elle vaut pour une personne et pour un club. Un entraîneur peut l'être aussi ; ce n'est pas obligatoire."));
+
+  if(!DB.clubs.length){
+    wrap.appendChild(h("div",{className:"empty"},"Créez d'abord un club."));
+    return h("div",{className:"content pad","data-scroll-key":"sup-admins"},wrap);
+  }
+  wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
+    h("button",{className:"btn btn-primary sm",onclick:function(){
+      state.modalDraft=null;openModal("appoint");
+    }},"+ Nommer un administrateur")));
+
+  DB.clubs.forEach(function(c){
+    var admins=adminsOfClub(c.id);
+    wrap.appendChild(h("div",{className:"section-title"},c.name));
+    if(!admins.length){
+      wrap.appendChild(h("div",{className:"muted",style:{marginBottom:"10px"}},"Aucun administrateur."));
+      return;
+    }
+    admins.forEach(function(a){
+      var bon=grantVerified(a.assignment.id);
+      var coach=DB.assignments.some(function(x){
+        var t=teamById(x.teamId);
+        return x.personId===a.person.id&&x.role==="coach"&&t&&t.clubId===c.id;
+      });
+      wrap.appendChild(h("div",{className:"list-row"},
+        h("div",{className:"body"},
+          h("div",{style:{color:"#F8FAFC",fontWeight:"700"}},a.person.name),
+          h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"5px"}},
+            bon?h("span",{className:"badge",style:{background:"#10B98122",color:"#34D399",borderColor:"#10B98155"}},"✅ Nomination signée")
+               :h("span",{className:"badge",style:{background:"#F59E0B22",color:"#FCD34D",borderColor:"#F59E0B55"}},"⚠️ Non signée"),
+            coach?h("span",{className:"badge",style:{background:"#60A5FA22",color:"#93C5FD",borderColor:"#60A5FA55"}},"👔 Aussi entraîneur"):null)),
+        h("div",{className:"btn-row"},
+          !bon?h("button",{className:"btn btn-primary xs",onclick:function(){
+            signGrant(a.person,c,a.assignment).then(function(){
+              saveNow();showToast("✅ Nomination signée");render();
+            }).catch(function(err){showToast("⚠️ "+err.message)});
+          }},"Signer"):null,
+          h("button",{className:"btn btn-danger-o xs",onclick:function(){
+            if(!confirmAct("Retirer l'administration de « "+a.person.name+" » sur "+c.name+" ?"))return;
+            DB.clubAssignments=DB.clubAssignments.filter(function(x){return x.id!==a.assignment.id});
+            logAct("membership",a.person.name+" n'administre plus "+c.name,{});
+            normalizeCtx();saveNow();render();
+          }},"🗑️"))));
+    });
+  });
+  return h("div",{className:"content pad","data-scroll-key":"sup-admins"},wrap);
+}
+
+function renderSuperKey(){
+  var wrap=h("div",null);
+  wrap.appendChild(h("div",{className:"hint"},
+    "Cette clé est ce qui fait de vous le propriétaire. Elle n'est ni dans vos sauvegardes, ni dans votre dépôt : ",
+    "c'est voulu, et cela veut dire qu'elle se perd si vous ne l'exportez pas."));
+
+  wrap.appendChild(h("div",{className:"card tight",style:{marginBottom:"12px"}},
+    h("div",{style:{fontWeight:"700",color:"#F8FAFC",fontSize:"14px",marginBottom:"6px"}},"👑 Racine publiée"),
+    h("div",{className:"muted"},ROOT.name?("Fondé par "+ROOT.name):"—"),
+    ROOT.foundedAt?h("div",{className:"muted",style:{marginTop:"2px"}},"Le "+fmtDay(ROOT.foundedAt)):null,
+    h("div",{style:{marginTop:"8px"}},
+      isSuper()?h("span",{className:"badge",style:{background:"#10B98122",color:"#34D399",borderColor:"#10B98155"}},"✅ Cet appareil détient la clé")
+               :h("span",{className:"badge",style:{background:"#F59E0B22",color:"#FCD34D",borderColor:"#F59E0B55"}},"⚠️ Clé absente de cet appareil"))));
+
+  wrap.appendChild(h("div",{className:"card tight",style:{marginBottom:"12px"}},
+    h("div",{style:{fontWeight:"700",color:"#F8FAFC",fontSize:"14px",marginBottom:"4px"}},"🗝️ Exporter ma clé"),
+    h("div",{className:"muted",style:{marginBottom:"10px"}},
+      "Un fichier scellé par une phrase que vous choisissez pour lui. Gardez-le ailleurs que sur cet appareil."),
+    h("button",{className:"btn btn-primary sm",disabled:!isSuper(),onclick:function(){
+      var pass=promptAct("Phrase qui scellera le fichier de clé :");
+      if(!pass)return;
+      if(pass.length<8){showToast("⚠️ Au moins 8 caractères");return}
+      sealKey(pass).then(function(box){
+        downloadText("wonderstats-cle-proprietaire.json",JSON.stringify(box,null,2));
+        showToast("🗝️ Clé exportée");
+      }).catch(function(err){showToast("⚠️ "+err.message)});
+    }},"Exporter")));
+
+  if(ROOT.raw)wrap.appendChild(h("div",{className:"card tight"},
+    h("div",{style:{fontWeight:"700",color:"#F8FAFC",fontSize:"14px",marginBottom:"4px"}},"📄 superadmin.json"),
+    h("div",{className:"muted",style:{marginBottom:"10px"}},
+      "Le fichier public à déposer dans le dépôt, à côté de index.html. Il ne contient aucun secret."),
+    h("button",{className:"btn btn-ghost sm",onclick:function(){
+      var t=JSON.stringify(ROOT.raw,null,2);
+      copyText(t);showToast("📋 Copié");
+    }},"📋 Copier")));
+  return h("div",{className:"content pad","data-scroll-key":"sup-key"},wrap);
 }
 
 function renderAdminSync(){
@@ -4744,7 +5262,7 @@ function renderModal(){
           "Un rôle vaut pour une équipe. Basculer change les écrans et le périmètre, pas votre identité."):null,
         all.length?h("div",null,all.map(function(c){
           var on=sameCtx(c,state.ctx);
-          var col=c.role==="admin"?ADMIN_CTX.color:ROLES[c.role].color;
+          var col=ctxColor(c);
           var b=h("button",{className:"court-toggle"+(on?" on":""),
             style:{width:"100%",textAlign:"left",padding:"12px 14px",marginBottom:"6px"},
             onclick:function(){closeModal();switchCtx(c)}},ctxLabel(c));
@@ -4766,7 +5284,7 @@ function renderModal(){
               state.meId=p.id;state.ctx=null;normalizeCtx();
               state.tab=(tabsForCtx()[0]||{}).key;
               closeModal();saveNow();render();
-            }},(p.isAdmin?"🛡️ ":"")+p.name+(on?"  ✓":""));
+            }},(adminClubsOf(p).length?"🛡️ ":"")+p.name+(on?"  ✓":""));
         }))),
       [h("button",{className:"btn btn-ghost full",onclick:closeModal},"Fermer")],"420px");
   }
@@ -4776,8 +5294,8 @@ function renderModal(){
     var per=T==="editperson"?personById(state.modalCtx):null;
     if(T==="editperson"&&!per)return null;
     var pd=state.modalDraft||(state.modalDraft=per
-      ?{name:per.name,isAdmin:!!per.isAdmin,revoked:!!per.revoked}
-      :{name:"",isAdmin:false,revoked:false});
+      ?{name:per.name,revoked:!!per.revoked}
+      :{name:"",revoked:false});
     var nInp=h("input",{placeholder:"Prénom et nom",value:pd.name});
     nInp.addEventListener("input",function(e){pd.name=e.target.value});
     function toggleBtn(label,key){
@@ -4789,19 +5307,19 @@ function renderModal(){
     return modalShell(per?"Modifier la personne":"Nouvelle personne",
       h("div",null,
         h("div",{className:"field"},h("label",null,"Nom"),nInp),
-        h("div",{className:"field"},h("label",null,"Administrateur du club"),toggleBtn("🛡️ Administrateur",'isAdmin')),
         per?h("div",{className:"field"},h("label",null,"Compte"),toggleBtn("Révoquée",'revoked')):null,
-        h("div",{className:"muted"},"L'administrateur gère les équipes, les affectations et les saisons. Il ne saisit pas les matchs et n'évalue pas.")),
+        per&&adminClubsOf(per).length
+          ?h("div",{className:"muted"},"🛡️ Administratrice de "+adminClubsOf(per).map(function(c){return c.name}).join(", "))
+          :null,
+        h("div",{className:"muted",style:{marginTop:"6px"}},
+          "L'administration d'un club se confie depuis 👑 Propriétaire → Clubs : elle est nominative et signée.")),
       [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
         var n=(pd.name||"").trim();
         if(!n){showToast("⚠️ Entrez un nom");return}
         if(per){
-          if(per.isAdmin&&!pd.isAdmin&&DB.people.filter(function(x){return x.isAdmin&&!x.revoked}).length<=1){
-            showToast("⚠️ Gardez au moins un administrateur");return;
-          }
-          per.name=n;per.isAdmin=!!pd.isAdmin;per.revoked=!!pd.revoked;
+          per.name=n;per.revoked=!!pd.revoked;
           if(per.revoked)revokeToken(per);
-        } else DB.people.push(mkPerson({name:n,isAdmin:!!pd.isAdmin}));
+        } else DB.people.push(mkPerson({name:n}));
         state.modalDraft=null;normalizeCtx();closeModal();saveNow();
         showToast(per?"✅ Mise à jour":"✅ « "+n+" » ajoutée");
       }},per?"Enregistrer":"Ajouter")],"420px");
@@ -4850,13 +5368,13 @@ function renderModal(){
     return modalShell("Inviter "+ip.name,
       h("div",null,
         !syncReady()?h("div",{className:"hint warn"},"Configurez d'abord le relais (🛡️ Administration → Relais)."):null,
-        ip.isAdmin?null:(ia.length?h("div",{className:"field"},h("label",null,"Au titre de"),aSel)
+        adminClubsOf(ip).length?null:(ia.length?h("div",{className:"field"},h("label",null,"Au titre de"),aSel)
           :h("div",{className:"hint warn"},"Affectez d'abord cette personne à une équipe.")),
         h("div",{className:"field"},h("label",null,"Lien personnel"),linkBox),
         h("div",{className:"btn-row"},
           h("button",{className:"btn btn-primary sm",disabled:!syncReady(),onclick:function(){
             var a=null;ia.forEach(function(x){if(x.id===(state.modalInput2||target))a=x});
-            if(!ip.isAdmin&&!a){showToast("⚠️ Choisissez une affectation");return}
+            if(!adminClubsOf(ip).length&&!a){showToast("⚠️ Choisissez une affectation");return}
             showToast("⏳ Émission du jeton…");
             grantToken(ip,a?a.teamId:"",a?a.role:"admin").then(function(){
               linkBox.value=inviteLink(ip);
@@ -5047,6 +5565,103 @@ function renderModal(){
   }
 
   /* ── Synchronisation ── */
+  if(T==="newclub"||T==="editclub"){
+    var cl=T==="editclub"?clubById(state.modalCtx):null;
+    if(T==="editclub"&&!cl)return null;
+    var cd=state.modalDraft||(state.modalDraft=cl?{name:cl.name,city:cl.city||""}:{name:"",city:""});
+    function cf(key,label,ph){
+      var inp=h("input",{placeholder:ph,value:cd[key]||""});
+      inp.addEventListener("input",function(e){cd[key]=e.target.value});
+      return h("div",{className:"field"},h("label",null,label),inp);
+    }
+    return modalShell(cl?"Modifier le club":"Nouveau club",
+      h("div",null,
+        cf("name","Nom du club","Ex. Les Wonders"),
+        cf("city","Ville","Ex. Sherbrooke"),
+        h("div",{className:"hint"},cl
+          ? "Renommer un club invalide sa charte : elle porte le nom signé. Resignez-la ensuite."
+          : "Le club sera charté par votre signature au moment de sa création.")),
+      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+        var n=(cd.name||"").trim();
+        if(!n){showToast("⚠️ Nommez le club");return}
+        if(cl){
+          var change=cl.name!==n;
+          cl.name=n;cl.city=(cd.city||"").trim();
+          state.modalDraft=null;closeModal();
+          if(change){cl.charter=null;signClub(cl)}
+          else{saveNow();render()}
+          return;
+        }
+        var nc=mkClub({name:n,city:(cd.city||"").trim()});
+        DB.clubs.push(nc);
+        state.modalDraft=null;closeModal();
+        signClub(nc);
+      }},cl?"Enregistrer":"Créer et charter")],"420px");
+  }
+
+  if(T==="appoint"){
+    /* Nommer un administrateur : soit quelqu'un de connu — un entraîneur,
+       par exemple — soit une personne nouvelle qui n'entraîne rien. */
+    var ad=state.modalDraft||(state.modalDraft={
+      clubId:(DB.clubs[0]||{}).id||"",mode:"existing",personId:"",name:""});
+    var clubSel=h("select",null,DB.clubs.filter(function(c){return !c.archived})
+      .map(function(c){return h("option",{value:c.id},c.name)}));
+    clubSel.value=ad.clubId;
+    clubSel.addEventListener("change",function(e){ad.clubId=e.target.value;render()});
+
+    var dejaIds={};adminsOfClub(ad.clubId).forEach(function(a){dejaIds[a.person.id]=1});
+    var dispo=DB.people.filter(function(p){return !p.revoked&&!dejaIds[p.id]});
+    var persSel=h("select",null,dispo.length
+      ? dispo.map(function(p){
+          var t=DB.assignments.filter(function(a){return a.personId===p.id&&a.role==="coach"})
+            .map(function(a){var tt=teamById(a.teamId);return tt?tt.name:null}).filter(Boolean);
+          return h("option",{value:p.id},p.name+(t.length?" — 👔 "+t.join(", "):""));
+        })
+      : [h("option",{value:""},"Aucune personne disponible")]);
+    if(!ad.personId&&dispo.length)ad.personId=dispo[0].id;
+    persSel.value=ad.personId;
+    persSel.addEventListener("change",function(e){ad.personId=e.target.value});
+
+    var nomInp=h("input",{placeholder:"Prénom et nom",value:ad.name||""});
+    nomInp.addEventListener("input",function(e){ad.name=e.target.value});
+
+    function onglet(k,lbl){
+      return h("button",{className:"pill"+(ad.mode===k?" active":""),onclick:function(){
+        ad.mode=k;render();
+      }},lbl);
+    }
+    return modalShell("Nommer un administrateur",
+      h("div",null,
+        h("div",{className:"field"},h("label",null,"Club"),clubSel),
+        h("div",{style:{display:"flex",gap:"6px",marginBottom:"10px"}},
+          onglet("existing","Quelqu'un de connu"),onglet("new","Une nouvelle personne")),
+        ad.mode==="existing"
+          ? h("div",{className:"field"},h("label",null,"Personne"),persSel)
+          : h("div",{className:"field"},h("label",null,"Nom"),nomInp),
+        h("div",{className:"hint"},
+          "Un entraîneur peut être administrateur de son club : les deux rôles se cumulent sans se confondre. ",
+          "Une personne qui n'entraîne rien le peut tout autant.")),
+      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+        var club=clubById(ad.clubId);
+        if(!club){showToast("⚠️ Choisissez un club");return}
+        var per=null;
+        if(ad.mode==="existing"){
+          per=personById(ad.personId);
+          if(!per){showToast("⚠️ Choisissez une personne");return}
+        } else {
+          var n=(ad.name||"").trim();
+          if(!n){showToast("⚠️ Entrez un nom");return}
+          per=mkPerson({name:n});DB.people.push(per);
+        }
+        var asg=mkClubAssignment(per.id,club.id,"admin");
+        DB.clubAssignments.push(asg);
+        state.modalDraft=null;closeModal();
+        signGrant(per,club,asg).then(function(){
+          saveNow();showToast("🛡️ "+per.name+" administre "+club.name);render();
+        }).catch(function(err){saveNow();showToast("⚠️ "+err.message);render()});
+      }},"Nommer")],"440px");
+  }
+
   if(T==="githubconfig"){
     var gd=state.modalDraft||(state.modalDraft=Object.assign(
       {repo:"",token:"",path:"wonderstats.vault.json",test:null,busy:false},
@@ -5767,6 +6382,11 @@ function render(){
     content=emptyBlock("🔑","Aucun contexte",
       "Cet appareil n'est rattaché à aucune équipe. Demandez à votre administrateur une affectation, ou ouvrez le lien d'invitation qu'il vous a transmis.",
       DB.people.length?h("button",{className:"btn btn-primary",onclick:function(){openModal("whoami")}},"Choisir qui je suis"):null);
+  } else if(isSuperCtx()){
+    if(state.tab==="sup_clubs")content=renderSuperClubs();
+    else if(state.tab==="sup_admins")content=renderSuperAdmins();
+    else if(state.tab==="sup_key")content=renderSuperKey();
+    else content=h("div",{className:"content pad","data-scroll-key":"adm-log"},renderLogPane(""));
   } else if(isAdminCtx()){
     if(state.tab==="adm_people")content=renderAdminPeople();
     else if(state.tab==="adm_teams")content=renderAdminTeams();
@@ -5808,7 +6428,7 @@ function render(){
    encore en clair. Aucun ne donne l'administration sans qu'on la demande.
    ══════════════════════════════════════════════════════════════ */
 var gate={mode:null,busy:false,err:"",pass:"",pass2:"",hint:"",who:"",
-  step:null,loaded:false,needsName:false};
+  step:null,loaded:false,needsName:false,rootFile:null,keyFile:null};
 
 function passScore(p){
   p=p||"";
@@ -5882,18 +6502,117 @@ function renderGate(){
     wrap.appendChild(h("div",{className:"gate-logo"},"🏐"));
     wrap.appendChild(h("h1",null,"WonderStats"));
     wrap.appendChild(h("p",{className:"sub"},"Statistiques, sélection et évaluation de volleyball."));
+
+    if(!rootExists()){
+      /* Système non fondé : personne ne peut créer de club tant que le
+         propriétaire n'a pas publié sa clé. */
+      wrap.appendChild(h("div",{className:"card"},
+        h("h2",null,"👑 Fonder le système"),
+        h("p",null,"Aucun propriétaire n'est encore déclaré. La fondation engendre une clé qui n'existera qu'une fois : elle seule permettra de créer des clubs et d'en nommer les administrateurs."),
+        h("button",{className:"btn btn-primary full",onclick:function(){
+          gate.mode="found";gate.err="";renderGate();
+        }},"Je suis le propriétaire")));
+    } else {
+      wrap.appendChild(h("div",{className:"card"},
+        h("h2",null,"👑 Je suis le propriétaire"),
+        h("p",null,"Système fondé"+(ROOT.name?" par "+ROOT.name:"")+
+          ". Restaurez votre sauvegarde pour retrouver votre clé, puis vous pourrez créer des clubs et nommer leurs administrateurs."),
+        h("button",{className:"btn btn-ghost full",onclick:function(){
+          gate.mode="restore";gate.err="";renderGate();
+        }},"Restaurer ma sauvegarde")));
+    }
+
     wrap.appendChild(h("div",{className:"card"},
-      h("h2",null,"🛡️ Créer un club"),
-      h("p",null,"Vous mettez en place le club : vous créez les équipes, y nommez les entraîneurs et invitez les sélectionneurs. Cet appareil devient celui de l'administration."),
-      h("button",{className:"btn btn-primary full",onclick:function(){
-        gate.mode="create";gate.err="";renderGate();
-      }},"Créer un club")));
-    wrap.appendChild(h("div",{className:"card"},
-      h("h2",null,"🎯 Rejoindre comme sélectionneur"),
-      h("p",null,"Vous avez reçu un lien ou un code d'invitation. Vous n'évaluerez que les athlètes qu'on vous confie, par leur numéro."),
-      h("button",{className:"btn btn-ghost full",onclick:function(){
+      h("h2",null,"✉️ J'ai une invitation"),
+      h("p",null,"Administratrice d'un club, entraîneur ou sélectionneur : votre lien porte ce que le propriétaire vous a confié."),
+      h("button",{className:"btn"+(rootExists()?" btn-primary":" btn-ghost")+" full",onclick:function(){
         gate.mode="join";gate.err="";renderGate();
-      }},"J'ai une invitation")));
+      }},"Ouvrir mon invitation")));
+    app.appendChild(wrap);return;
+  }
+
+  if(gate.mode==="found"){
+    wrap.appendChild(h("div",{className:"gate-logo"},"👑"));
+    wrap.appendChild(h("h1",null,"Fonder le système"));
+    wrap.appendChild(h("p",{className:"sub"},"Une seule fois, et pour de bon."));
+    var fb=h("div",{className:"card"},
+      gateField("Votre nom","who","Ex. Sofia Nguyen","text"),
+      gateField("Phrase de passe","pass","Au moins 8 caractères"),
+      h("div",{className:"strength"},h("i",{id:"strengthBar",style:{width:"0%",background:"#F87171"}})),
+      h("div",{id:"strengthLbl",style:{fontSize:"11px",marginTop:"4px",marginBottom:"12px",minHeight:"14px"}},""),
+      gateField("Répétez-la","pass2","Pour éviter une faute de frappe"),
+      gateField("Indice (facultatif)","hint","Visible avant déverrouillage","text"),
+      gateErr(),
+      h("button",{className:"btn btn-primary full",disabled:gate.busy,onclick:gateSubmit},
+        gate.busy?"Génération de la clé…":"Fonder"));
+    wrap.appendChild(fb);
+    wrap.appendChild(h("div",{className:"note"},
+      h("b",null,"Ce que la fondation produit. "),
+      "Une clé privée, qui restera chiffrée sur cet appareil et nulle part ailleurs, ",
+      "et une clé publique à publier à côté de l'application. Les autres installations liront ",
+      "cette clé publique : sans elle, aucune ne peut créer de club ni nommer d'administrateur."));
+    wrap.appendChild(h("button",{className:"linky",onclick:function(){
+      gate.mode="welcome";gate.err="";renderGate();
+    }},"← Retour"));
+    app.appendChild(wrap);return;
+  }
+
+  if(gate.mode==="publish"){
+    /* La clé publique n'a de valeur qu'une fois publiée : on ne laisse
+       pas le fondateur passer à autre chose sans l'avoir sous les yeux. */
+    var texte=JSON.stringify(gate.rootFile,null,2);
+    var zone=h("textarea",{className:"txt",rows:"10",readonly:"readonly"});
+    zone.value=texte;
+    zone.addEventListener("focus",function(){zone.select()});
+    wrap.appendChild(h("div",{className:"gate-logo"},"📄"));
+    wrap.appendChild(h("h1",null,"Publier votre clé"));
+    wrap.appendChild(h("p",{className:"sub"},"Dernière étape de la fondation."));
+    wrap.appendChild(h("div",{className:"card"},
+      h("ol",{className:"steps"},
+        h("li",null,"Copiez le contenu ci-dessous."),
+        h("li",null,"Dans votre dépôt, créez un fichier nommé ",
+          h("code",null,"superadmin.json")," à la racine, à côté de ",
+          h("code",null,"index.html"),", et collez-le."),
+        h("li",null,"Publiez. Toutes les installations le liront au démarrage.")),
+      zone,
+      h("div",{className:"btn-row",style:{marginTop:"10px"}},
+        h("button",{className:"btn btn-primary sm",onclick:function(){
+          copyText(texte);showToast("📋 Copié");
+        }},"📋 Copier"),
+        h("button",{className:"btn btn-ghost sm",onclick:function(){
+          downloadText("superadmin.json",texte);
+        }},"⬇️ Télécharger"))));
+    wrap.appendChild(h("div",{className:"note"},
+      h("b",null,"Ce fichier ne contient aucun secret. "),
+      "Il est fait pour être public : c'est la clé publique qui permet de vérifier vos signatures. ",
+      "Votre clé privée, elle, ne quitte pas cet appareil — sauvegardez-la, elle est irremplaçable."));
+    wrap.appendChild(h("button",{className:"btn btn-save full",onclick:function(){
+      gate.rootFile=null;gateFinishOpen({db:DB,inbox:INBOX,secrets:SECRETS},true);
+    }},"J'ai publié — continuer"));
+    app.appendChild(wrap);return;
+  }
+
+  if(gate.mode==="restore"){
+    wrap.appendChild(h("div",{className:"gate-logo"},"🗝️"));
+    wrap.appendChild(h("h1",null,"Retrouver ma clé"));
+    wrap.appendChild(h("p",{className:"sub"},
+      "Importez le fichier de clé exporté depuis votre autre appareil, puis sa phrase."));
+    wrap.appendChild(h("div",{className:"card"},
+      h("button",{className:"btn btn-ghost full",style:{marginBottom:"10px"},onclick:function(){
+        pickJSON(function(data){
+          gate.keyFile=data;gate.err="";
+          if(!data||data.type!=="wonderstats-owner-key")
+            gate.err="Ce fichier n'est pas une clé de propriétaire";
+          renderGate();
+        });
+      }},gate.keyFile&&!gate.err?"✅ Fichier chargé":"📁 Choisir le fichier de clé"),
+      gateField("Phrase de la clé","pass","La phrase choisie à l'export"),
+      gateErr(),
+      h("button",{className:"btn btn-primary full",disabled:gate.busy||!gate.keyFile,
+        onclick:gateSubmit},gate.busy?"Ouverture…":"Retrouver ma clé")));
+    wrap.appendChild(h("button",{className:"linky",onclick:function(){
+      gate.mode="welcome";gate.err="";gate.keyFile=null;renderGate();
+    }},"← Retour"));
     app.appendChild(wrap);return;
   }
 
@@ -5971,6 +6690,61 @@ function gateSubmit(){
     return;
   }
 
+  if(gate.mode==="restore"){
+    if(!gate.keyFile){gate.err="Choisissez d'abord le fichier";renderGate();return}
+    if(!gate.pass){gate.err="Saisissez la phrase de la clé";renderGate();return}
+    gate.busy=true;renderGate();
+    openKey(gate.keyFile,gate.pass).then(function(charge){
+      SECRETS.superKey=charge.superKey;
+      DB=normalizeDB(emptyDB());
+      var moi=mkPerson({name:charge.name||"Propriétaire",id:charge.superId});
+      DB.people.push(moi);DB.enrolledId=moi.id;DB.superId=moi.id;
+      state.meId=moi.id;
+      return proveSuper().then(function(ok){
+        if(!ok)throw new Error("Cette clé ne correspond pas à celle publiée");
+        gate.keyFile=null;gate.pass="";gate.busy=false;
+        gate.mode="protect";gate.needsName=false;gate.loaded=true;
+        gate.who=moi.name;gate.err="";
+        renderGate();
+      });
+    }).catch(function(err){
+      gate.busy=false;gate.err=err.message;renderGate();
+    });
+    return;
+  }
+
+  if(gate.mode==="found"){
+    if(!(gate.who||"").trim()){gate.err="Indiquez votre nom";renderGate();return}
+    if((gate.pass||"").length<8){gate.err="Au moins 8 caractères";renderGate();return}
+    if(gate.pass!==gate.pass2){gate.err="Les deux phrases diffèrent";renderGate();return}
+    gate.busy=true;renderGate();
+    var fondateur=(gate.who||"").trim();
+    foundSystem(fondateur).then(function(fichier){
+      DB=emptyDB();
+      var moi=mkPerson({name:fondateur});
+      DB.people.push(moi);
+      DB.enrolledId=moi.id;DB.superId=moi.id;
+      DB.seasons.push(mkSeason());
+      DB.activeSeasonId=DB.seasons[0].id;
+      DB.rootFile=fichier;
+      DB=normalizeDB(DB);
+      state.meId=moi.id;
+      return proveSuper().then(function(){
+        state.ctx={role:"super"};
+        logAct("season","Système fondé par "+fondateur,{});
+        return vaultCreate(gate.pass,(gate.hint||"").trim(),fondateur,
+          {db:DB,inbox:INBOX,secrets:SECRETS}).then(function(){return fichier});
+      });
+    }).then(function(fichier){
+      gate.pass="";gate.pass2="";gate.busy=false;
+      gate.rootFile=fichier;gate.mode="publish";
+      renderGate();
+    }).catch(function(err){
+      gate.busy=false;gate.err=err.message;renderGate();
+    });
+    return;
+  }
+
   if(gate.mode==="create"||gate.mode==="protect"){
     if((gate.mode==="create"||gate.needsName)&&!(gate.who||"").trim()){
       gate.err="Indiquez votre nom";renderGate();return}
@@ -5981,7 +6755,7 @@ function gateSubmit(){
     if(gate.mode==="create"){
       /* Le club naît ici, et l'administration avec lui — délibérément. */
       DB=emptyDB();
-      var admin=mkPerson({name:nom,isAdmin:true});
+      var admin=mkPerson({name:nom});
       DB.people.push(admin);
       DB.enrolledId=admin.id;
       DB.seasons.push(mkSeason());
@@ -6011,14 +6785,14 @@ function applyOwner(nom){
     if(gate.needsName){
       var owner=null,admins=[];
       DB.people.forEach(function(p){
-        if(p.isAdmin&&!p.revoked){admins.push(p);if(!owner&&p.unclaimed)owner=p}
+        if(!p.revoked&&(p.unclaimed||adminClubsOf(p).length)){admins.push(p);if(!owner&&p.unclaimed)owner=p}
       });
       /* Une base d'avant le verrou porte un administrateur unique, créé
          par l'ancien amorçage. Celui qui est devant l'appareil est cette
          personne : on la renomme au lieu d'en ajouter une seconde. */
       if(!owner&&admins.length===1)owner=admins[0];
       if(owner){owner.name=nom;delete owner.unclaimed}
-      else{owner=mkPerson({name:nom,isAdmin:true});DB.people.unshift(owner)}
+      else{owner=mkPerson({name:nom});DB.people.unshift(owner)}
       DB.enrolledId=owner.id;
       /* Un club sans équipe est une impasse : on en installe une, comme
          à la création. Les équipes déjà là restent les siennes. */
@@ -6075,6 +6849,12 @@ function gateFinishOpen(data,already){
   gate.mode=null;
   bootRest();
   render();
+  /* La preuve de possession de la clé et la vérification des signatures
+     sont asynchrones : l'application s'affiche d'abord, puis se corrige.
+     Rien de ce qui compte n'est accordé avant que la preuve soit faite. */
+  adoptLocalRoot().then(proveSuper).then(verifyAll).then(function(){
+    normalizeCtx();render();
+  }).catch(function(){});
 }
 /* ══════════════════════════════════════════════════════════════
    DÉMARRAGE
@@ -6085,7 +6865,9 @@ loadSync();
    un coffre est là et il faut la phrase ; des données sont là en clair
    et il faut proposer de les protéger ; rien n'est là et il faut
    savoir qui s'inscrit. Aucun ne donne l'administration d'office. */
-(function boot(){
+loadRoot().then(boot);
+
+function boot(){
   var box=readVaultBox();
   if(box){
     VAULT.meta={kdf:box.kdf,hint:box.hint||"",who:""};
@@ -6108,7 +6890,7 @@ loadSync();
   var inv=readShareLink();
   if(inv){gate.mode="joining";renderGate();joinWithConfig(inv);return}
   gate.mode="welcome";renderGate();
-})();
+}
 
 function readAnyLegacy(){
   for(var i=0;i<LEGACY_KEYS.length;i++){
@@ -6150,7 +6932,17 @@ function adoptRemoteIdentity(g){
   person.revoked=false;
   state.meId=person.id;
 
-  if(g.role==="admin"){person.isAdmin=true;normalizeCtx();saveAll();return}
+  if(g.role==="admin"){
+    /* Le relais atteste d'une administration de club : sans club connu,
+       on ne peut rien accorder — l'appareil reste sans contexte. */
+    var cl=g.clubId?clubById(g.clubId):null;
+    if(!cl&&g.clubName){cl=mkClub({id:g.clubId||uid(),name:g.clubName});DB.clubs.push(cl)}
+    if(cl&&!DB.clubAssignments.some(function(a){
+      return a.personId===person.id&&a.clubId===cl.id&&a.role==="admin";}))
+      DB.clubAssignments.push(mkClubAssignment(person.id,cl.id,"admin",g.grant||null));
+    if(cl)state.ctx={role:"admin",clubId:cl.id};
+    normalizeCtx();saveAll();return;
+  }
   if(!g.teamId){normalizeCtx();saveAll();return}
 
   var team=teamById(g.teamId);

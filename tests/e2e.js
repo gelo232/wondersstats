@@ -53,7 +53,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
 
   say("\n── 1. Création d'une saison et d'un effectif");
   await step("l'administrateur crée la saison 2026-2027",async()=>{
-    await page.evaluate(()=>switchCtx({role:"admin"}));
+    await page.evaluate(()=>switchCtx({role:"admin",clubId:(DB.clubs[0]||{}).id}));
     await page.waitForTimeout(200);
     await tab("Saisons");
     await btn("Nouvelle saison");

@@ -592,7 +592,7 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
   await step("la saison se clôture et cesse de distribuer",async()=>{
     await beMe("Claire");
     await page.evaluate(()=>{
-      switchCtx({role:"admin"});
+      switchCtx({role:"admin",clubId:(DB.clubs[0]||{}).id});
       const x=curSeason();x.closedAt=nowISO();x.archived=true;
       logAct("season","Saison « "+x.name+" » clôturée",{teamId:"",seasonId:x.id});
       saveNow();
@@ -624,7 +624,7 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
         resultats:sq.sessions.filter(se=>hasResult(se.result)).length,
         jours:new Set(sq.sessions.map(se=>se.day)).size};
     });
-    if(r.v!==5)throw new Error("version="+r.v);
+    if(r.v!==6)throw new Error("version="+r.v);
     if(r.sessions!==19)throw new Error("matchs="+r.sessions);
     if(r.orphelines)throw new Error("sessions sans rencontre="+r.orphelines);
     if(r.resultats!==19)throw new Error("résultats conservés="+r.resultats);

@@ -34,17 +34,51 @@ async function franchirGarde(page, nom) {
   return ouvrirClub(page, nom);
 }
 
-/* Crée le club et pose le verrou. À appeler juste après le premier goto. */
+/* Fonde le système, pose le verrou, puis installe un club et une équipe.
+
+   Depuis la v6 seul le propriétaire crée des clubs, et la propriété est
+   une clé, pas une case à cocher : les suites passent donc par la vraie
+   fondation. Elles n'ont pas de superadmin.json à leur disposition, ce
+   qui est précisément l'état « système non fondé ». */
 async function ouvrirClub(page, nom) {
-  await page.waitForSelector('button:has-text("Créer un club")');
-  await page.click('button:has-text("Créer un club")');
+  await page.waitForSelector('button:has-text("Je suis le propriétaire")');
+  await page.click('button:has-text("Je suis le propriétaire")');
   await page.fill('input[type="text"]', nom || "Administrateur");
   const p = await page.$$('input[type="password"]');
   await p[0].fill(PASS);
   await p[1].fill(PASS);
-  await page.click('button:has-text("Protéger et continuer")');
+  await page.click('button:has-text("Fonder")');
+  await page.waitForFunction(() => window.gate && gate.mode === "publish",
+    null, { timeout: 25000 });
+  await page.click('button:has-text("J\'ai publié")');
   await page.waitForFunction(() => window.VAULT && VAULT.unlocked, null, { timeout: 15000 });
-  await page.waitForTimeout(150);
+  await page.waitForTimeout(200);
+  await installerClubParDefaut(page);
+}
+
+/* Un club charté et une équipe, avec le propriétaire comme entraîneur :
+   le point de départ que les suites tenaient de l'ancien amorçage. */
+async function installerClubParDefaut(page, nomClub, nomEquipe) {
+  await page.evaluate(async (o) => {
+    if (DB.clubs.length) return;
+    const club = mkClub({ name: o.club });
+    DB.clubs.push(club);
+    if (typeof signDoc === "function" && SECRETS.superKey) {
+      try { club.charter = await signDoc(charterFor(club)); } catch (e) {}
+    }
+    const t = mkTeamRecord({ name: o.equipe, clubId: club.id });
+    DB.teams.push(t);
+    const moi = me();
+    if (moi) {
+      DB.assignments.push(mkAssignment(moi.id, t.id, "coach"));
+      DB.clubAssignments.push(mkClubAssignment(moi.id, club.id, "admin"));
+    }
+    DB = normalizeDB(DB);
+    if (typeof verifyAll === "function") await verifyAll();
+    state.ctx = { role: "coach", teamId: t.id };
+    normalizeCtx(); saveNow(); render();
+  }, { club: nomClub || "Mon club", equipe: nomEquipe || "Équipe A" });
+  await page.waitForTimeout(200);
 }
 
 /* Après un rechargement, le coffre est refermé : il faut le rouvrir. */
@@ -63,4 +97,5 @@ async function rechargerEtOuvrir(page, ms) {
   if (ms) await page.waitForTimeout(ms);
 }
 
-module.exports = { PASS, franchirGarde, ouvrirClub, deverrouiller, rechargerEtOuvrir };
+module.exports = { PASS, franchirGarde, ouvrirClub, installerClubParDefaut,
+  deverrouiller, rechargerEtOuvrir };

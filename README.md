@@ -71,6 +71,43 @@ refuse. Ils passent donc par le relais, ou par lien et fichier.
 
 ---
 
+## Le propriétaire, et un seul
+
+Le système a **un propriétaire**, établi une fois pour toutes à la fondation. Lui
+seul crée des clubs et nomme leurs administrateurs.
+
+Ce n'est pas un rôle qu'on s'attribue : c'est une clé. La fondation engendre une
+paire ; la privée reste chiffrée sur l'appareil du propriétaire, la publique se
+publie dans `superadmin.json`, à côté de `index.html`. Toutes les installations la
+lisent au démarrage.
+
+- Tant qu'aucun propriétaire n'est déclaré, **aucune installation ne propose de
+  créer un club** — elle propose de fonder le système.
+- Une fois la clé publiée, une installation qui ne la détient pas ne peut plus rien
+  fonder : elle attend une invitation.
+- Un club porte une **charte signée**, une nomination d'administrateur porte une
+  **autorisation signée**. Forgées ou modifiées après coup, elles sont rejetées.
+
+> **La clé se perd si vous ne l'exportez pas.** Elle n'est ni dans vos sauvegardes,
+> ni dans votre dépôt — c'est voulu. `👑 Propriétaire → 🗝️ Ma clé → Exporter`
+> produit un fichier scellé, à garder ailleurs que sur l'appareil.
+
+**Ce que la signature empêche vraiment** : qu'un club ou une nomination inventés
+soient acceptés **ailleurs** — sur un autre appareil, ou par le relais. Sur sa
+propre machine, qui modifie sa copie de la page fait ce qu'il veut ; c'est la même
+limite qu'ailleurs dans cette application, et [`ROLES.md`](ROLES.md) la détaille.
+
+---
+
+## Clubs, équipes, administrateurs
+
+Un club regroupe des équipes et peut compter **plusieurs administrateurs**. Un
+administrateur ne voit que son club. Un entraîneur peut être administrateur du
+sien — les deux rôles se cumulent sans se confondre — et une personne qui
+n'entraîne rien le peut tout autant.
+
+---
+
 ## Trois profils, des rôles par équipe
 
 Un rôle n'appartient pas à une personne : il la relie à **une équipe**. Sofia est
