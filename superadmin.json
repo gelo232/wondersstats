@@ -1,5 +1,11 @@
 {
   "version": 1,
-  "founded": false,
-  "note": "Racine de confiance de WonderStats. Tant que 'founded' est faux, aucun propriétaire n'est déclaré et aucune installation ne peut créer de club. Le propriétaire remplace ce fichier par celui que produit l'écran « Fonder le système » : il contiendra sa clé publique. Ce fichier est public par nature et ne contient aucun secret."
+  "name": "Willy Gelo",
+  "foundedAt": "2026-09-01T21:57:37.107Z",
+  "publicKey": {
+    "crv": "P-256",
+    "kty": "EC",
+    "x": "ygwrhjbb2bn-ZyfRRmzAWFa-FbAG6WXBhZLx2Hys2ng",
+    "y": "ZZgiCUdCSNSiWUwNdkKetwLYdQBQ0My1r6Zq4rYbBh0"
+  }
 }
