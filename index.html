@@ -326,7 +326,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "5.0";
+var APP_VERSION = "5.1";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -6009,8 +6009,14 @@ function gateSubmit(){
 
 function applyOwner(nom){
     if(gate.needsName){
-      var owner=null;
-      DB.people.forEach(function(p){if(!owner&&p.unclaimed&&p.isAdmin&&!p.revoked)owner=p});
+      var owner=null,admins=[];
+      DB.people.forEach(function(p){
+        if(p.isAdmin&&!p.revoked){admins.push(p);if(!owner&&p.unclaimed)owner=p}
+      });
+      /* Une base d'avant le verrou porte un administrateur unique, créé
+         par l'ancien amorçage. Celui qui est devant l'appareil est cette
+         personne : on la renomme au lieu d'en ajouter une seconde. */
+      if(!owner&&admins.length===1)owner=admins[0];
       if(owner){owner.name=nom;delete owner.unclaimed}
       else{owner=mkPerson({name:nom,isAdmin:true});DB.people.unshift(owner)}
       DB.enrolledId=owner.id;

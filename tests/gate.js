@@ -130,6 +130,53 @@ const step=async(n,f)=>{try{await f();ok++;console.log("  ✓ "+n)}catch(e){bad.
     if(n!==1)throw new Error("joueuses après rechargement="+n);
   });
 
+  console.log("\n── Reprise d'une base déjà installée (v5.0 en clair)");
+  const ctx3=await b.newContext({viewport:{width:414,height:896}});
+  ctx3.setDefaultTimeout(8000);
+  const p3=await ctx3.newPage();
+  p3.on("dialog",d=>d.accept());
+  await step("une base v5 existante est reprise sans administrateur en double",async()=>{
+    /* On fabrique l'état exact d'un utilisateur déjà déployé : données en
+       clair, un administrateur nommé par l'ancien amorçage, pas d'inscrit. */
+    await p3.addInitScript(()=>{
+      if(localStorage.getItem("__v5"))return;
+      localStorage.setItem("__v5","1");
+      localStorage.setItem("wonderstats_v3",JSON.stringify({
+        version:5,
+        people:[{id:"adm1",name:"Administrateur",isAdmin:true,token:"",revoked:false}],
+        teams:[{id:"t1",name:"U15 Wonders",category:"U15"}],
+        assignments:[{id:"a1",personId:"adm1",teamId:"t1",role:"coach"}],
+        players:[{id:"p1",firstName:"Léa",lastName:"Tremblay"}],
+        seasons:[{id:"s1",name:"Saison 2026"}],
+        squads:[{id:"q1",teamId:"t1",seasonId:"s1",roster:[{playerId:"p1",number:"7",
+          position:"OH",status:"selected"}],playerIds:["p1"]}],
+        log:[],activeSeasonId:"s1"
+      }));
+    });
+    await p3.goto(B+"/index.html");await p3.waitForTimeout(600);
+    const t=await p3.textContent("#app");
+    if(!/Protéger vos données|Dites qui vous êtes/.test(t))
+      throw new Error("écran attendu : protection des données existantes");
+    await p3.fill('input[type="text"]',"Sofia Nguyen");
+    const pw=await p3.$$('input[type="password"]');
+    await pw[0].fill("reprise-de-base-2027");await pw[1].fill("reprise-de-base-2027");
+    await p3.click('button:has-text("Protéger et continuer")');
+    await p3.waitForTimeout(2000);
+    const st=await p3.evaluate(()=>({
+      admins:DB.people.filter(x=>x.isAdmin&&!x.revoked).map(x=>x.name),
+      gens:DB.people.length,nom:me()?me().name:null,
+      joueuses:DB.players.length,equipe:DB.teams[0]?DB.teams[0].name:null,
+      unlocked:VAULT.unlocked}));
+    if(!st.unlocked)throw new Error("coffre non ouvert");
+    if(st.gens!==1)throw new Error("personnes="+st.gens+" ("+st.admins.join(", ")+")");
+    if(st.nom!=="Sofia Nguyen")throw new Error("nom="+st.nom);
+    if(st.joueuses!==1)throw new Error("joueuses perdues : "+st.joueuses);
+    if(st.equipe!=="U15 Wonders")throw new Error("équipe="+st.equipe);
+    const clair=await p3.evaluate(()=>localStorage.getItem("wonderstats_v3"));
+    if(clair)throw new Error("la copie en clair subsiste après chiffrement");
+  });
+  await ctx3.close();
+
   console.log("\n── Ce que voit quelqu'un qui ouvre l'app sur son mobile");
   const ctx2=await b.newContext({viewport:{width:414,height:896}});
   ctx2.setDefaultTimeout(8000);
