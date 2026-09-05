@@ -120,6 +120,27 @@ limite qu'ailleurs dans cette application, et [`ROLES.md`](ROLES.md) la détaill
 
 ---
 
+## Catégories
+
+Les catégories ne sont pas figées dans le code : ce sont des **données du club**,
+que son administrateur remanie depuis `🛡️ Administration → 👕 Équipes → 🏷️
+Catégories` (le propriétaire y accède aussi depuis la carte du club).
+
+La liste de départ d'un club neuf est `U12 · U13 · U14 · U15 · U16 · U18 · U21 ·
+Senior`, mais chaque fédération a les siennes et elles changent : ajoutez,
+retirez, ou repartez de la liste par défaut.
+
+Deux garde-fous :
+
+- Une catégorie **portée par une équipe** ne peut pas être retirée — sa puce
+  affiche le nombre d'équipes concernées et sa croix est inactive. Changez
+  d'abord la catégorie de l'équipe.
+- Une catégorie **héritée** d'une base plus ancienne reste proposée dans le menu
+  même si elle ne figure plus dans la liste du club, pour qu'une simple
+  modification d'équipe ne la reclasse pas en silence.
+
+---
+
 ## Clubs, équipes, administrateurs
 
 Un club regroupe des équipes et peut compter **plusieurs administrateurs**. Un
