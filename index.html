@@ -217,8 +217,8 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .qp-group{margin-bottom:10px}
 .qp-group-title{font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;margin-bottom:4px;display:inline-block}
 .qp-stats-row{display:flex;gap:6px;flex-wrap:wrap}
-.qp-stat-btn{flex:1;min-width:70px;height:56px;border-radius:12px;font-size:13px;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border:2px solid;transition:all .12s;touch-action:manipulation;-webkit-user-select:none;user-select:none}
-@media(min-width:600px){.qp-stat-btn{min-width:90px;height:64px}}
+.qp-stat-btn{flex:1;min-width:70px;height:56px;min-height:56px;border-radius:12px;font-size:13px;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border:2px solid;transition:all .12s;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+@media(min-width:600px){.qp-stat-btn{min-width:90px;height:64px;min-height:64px}}
 .qp-stat-btn .count{font-size:20px;font-weight:800;line-height:1}
 .qp-stat-btn .lbl{font-size:10px;font-weight:600;opacity:.8;margin-top:2px}
 .qp-dec{font-size:11px;background:none;border:none;color:#64748B;cursor:pointer;padding:2px 10px;touch-action:manipulation}
@@ -262,15 +262,19 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .num-tile.done{border-color:#10B981}
 .num-tile .st{font-size:9px;font-weight:700;opacity:.8;letter-spacing:.3px}
 .rate-scale{display:flex;gap:5px}
-.rate-dot{flex:1;height:40px;border-radius:9px;border:1.5px solid #334155;background:#0F172A;color:#64748B;font-weight:800;font-size:14px;cursor:pointer;transition:all .12s;touch-action:manipulation;padding:0}
+.rate-dot{flex:1;height:46px;border-radius:9px;border:1.5px solid #334155;background:#0F172A;color:#64748B;font-weight:800;font-size:14px;cursor:pointer;transition:all .12s;touch-action:manipulation;padding:0}
 .rate-dot.on{background:#6366F1;border-color:#818CF8;color:#fff}
 .crit-block{margin-bottom:12px}
 .crit-block .ttl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
 .crit-block .ttl b{font-size:13px;color:#F8FAFC;font-weight:700}
 .crit-block .ttl span{font-size:10px;color:#64748B}
 .reco-row{display:flex;gap:6px}
-.reco-btn{flex:1;padding:11px 6px;border-radius:10px;border:2px solid #334155;background:#0F172A;color:#94A3B8;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;touch-action:manipulation}
+.reco-btn{flex:1;min-height:46px;padding:11px 6px;border-radius:10px;border:2px solid #334155;background:#0F172A;color:#94A3B8;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;touch-action:manipulation}
 .reco-btn.on{color:#fff}
+.pos-vote-row{display:flex;gap:5px}
+.pos-vote-btn{flex:1;min-width:0;min-height:46px;border-radius:10px;border:2px solid #334155;background:#0F172A;color:#94A3B8;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.pos-vote-btn.on{background:#6366F1;border-color:#818CF8;color:#fff}
+@media(min-width:600px){.pos-vote-btn{min-height:52px;font-size:15px}}
 .view-card{background:#1E293B;border-radius:12px;padding:14px;border:1px solid #334155;margin-bottom:10px}
 .view-card.submitted{border-color:#10B981}
 .view-card h4{font-size:15px;color:#F8FAFC;margin:0 0 3px}
@@ -326,15 +330,19 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "6.1";
+var APP_VERSION = "6.2";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
 var POS_LABELS={S:"Passeuse",OH:"Réceptionneuse-attaquante",OPP:"Pointue",MB:"Centrale",L:"Libéro"};
+/* Les postes réellement portés par une athlète. POSITIONS porte en plus
+   « Toutes » et « — », qui n'appartiennent qu'aux filtres et aux menus. */
+var POS_KEYS=POSITIONS.filter(function(p){return p.key!=="ALL"&&p.key!=="NONE"}).map(function(p){return p.key});
+var POS_SET={};POS_KEYS.forEach(function(k){POS_SET[k]=true});
 
 var SG={
   services:{name:"Services",color:"#3B82F6",stats:[{key:"srv_ace",label:"Ace"},{key:"srv_in",label:"En jeu"},{key:"srv_err",label:"Erreur"}]},
-  reception:{name:"Réception",color:"#10B981",stats:[{key:"rec_in",label:"En jeu"},{key:"rec_out",label:"Hors sys."}]},
+  reception:{name:"Réception",color:"#10B981",stats:[{key:"rec_in",label:"En jeu"},{key:"rec_out",label:"Hors sys."},{key:"rec_err",label:"Erreur"}]},
   passes:{name:"Passes",color:"#8B5CF6",stats:[{key:"pas_att",label:"Attaquable"},{key:"pas_out",label:"Hors sys."}]},
   attaques:{name:"Attaques",color:"#EF4444",stats:[{key:"atk_kill",label:"Kill"},{key:"atk_ok",label:"Réussie"},{key:"atk_err",label:"Erreur"}]},
   blocs:{name:"Blocs",color:"#F59E0B",stats:[{key:"blk_kill",label:"Kill"},{key:"blk_solo",label:"Solo"},{key:"blk_aid",label:"Aide"},{key:"blk_err",label:"Erreur"}]},
@@ -491,6 +499,10 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 function clone(o){return JSON.parse(JSON.stringify(o))}
 function emptyS(){var o={};for(var i=0;i<ALL_STATS.length;i++)o[ALL_STATS[i].key]=0;return o}
 function normStats(s){var o=emptyS();if(s)for(var i=0;i<ALL_STATS.length;i++){var k=ALL_STATS[i].key;var v=s[k];if(typeof v==="number"&&isFinite(v)&&v>0)o[k]=Math.round(v)}return o}
+/* Un poste n'est retenu que s'il existe : une soumission ancienne, sans
+   poste, comme un fichier bricolé, se normalise en « aucun avis ». */
+function normPos(v){return POS_SET[v]?v:""}
+function emptyPos(){var o={};for(var i=0;i<POS_KEYS.length;i++)o[POS_KEYS[i]]=0;return o}
 function sumStats(s){var t=0;for(var i=0;i<ALL_STATS.length;i++)t+=s[ALL_STATS[i].key]||0;return t}
 function hasStats(s){return sumStats(s)>0}
 function addStats(dst,src){for(var i=0;i<ALL_STATS.length;i++){var k=ALL_STATS[i].key;dst[k]+=(src&&src[k])||0}return dst}
@@ -604,7 +616,7 @@ function mkSelectorView(o){
     data:{},createdAt:nowISO(),submittedAt:null,submissionCount:0,
     origin:"local",seasonName:"",published:false},o||{});
 }
-function mkEntryData(){return {stats:emptyS(),ratings:{},reco:"",note:""}}
+function mkEntryData(){return {stats:emptyS(),ratings:{},reco:"",pos:"",note:""}}
 
 /* ─── Base de données ───────────────────────────────────────── */
 function emptyDB(){return {version:6,clubs:[],people:[],teams:[],assignments:[],
@@ -1512,7 +1524,7 @@ function normalizeSquad(sq,knownPlayers){
     var d={};v.playerIds.forEach(function(pid){
       var src=(v.data||{})[pid]||{};
       d[pid]={stats:normStats(src.stats),ratings:src.ratings||{},
-        reco:RECO_BY_KEY[src.reco]?src.reco:"",note:src.note||""};
+        reco:RECO_BY_KEY[src.reco]?src.reco:"",pos:normPos(src.pos),note:src.note||""};
     });
     v.data=d;
     return v;
@@ -1525,7 +1537,7 @@ function normalizeSquad(sq,knownPlayers){
       submittedAt:sub.submittedAt||nowISO(),criteria:sub.criteria||CRITERIA.map(function(c){return c.key}),
       entries:(sub.entries||[]).filter(function(e){return e&&e.playerId}).map(function(e){
         return {playerId:e.playerId,number:cleanNum(e.number),stats:normStats(e.stats),
-          ratings:e.ratings||{},reco:RECO_BY_KEY[e.reco]?e.reco:"",note:e.note||""};
+          ratings:e.ratings||{},reco:RECO_BY_KEY[e.reco]?e.reco:"",pos:normPos(e.pos),note:e.note||""};
       })};
   });
   return sq;
@@ -1978,6 +1990,7 @@ function squadsOf(pid){return DB.squads.filter(function(sq){return !!rosterEntry
 function dataFilled(d){
   if(!d)return false;
   if(d.reco)return true;
+  if(d.pos)return true;
   if((d.note||"").trim())return true;
   if(hasStats(d.stats))return true;
   return CRITERIA.some(function(c){return (d.ratings||{})[c.key]>0});
@@ -1991,7 +2004,8 @@ function compileSubmissions(squad,campaignId){
   if(!squad)return out;
   function bucket(pid){
     if(!out[pid])out[pid]={playerId:pid,n:0,stats:emptyS(),ratings:{},
-      reco:{select:0,recall:0,cut:0},topReco:null,score:0,notes:[],selectors:[]};
+      reco:{select:0,recall:0,cut:0},topReco:null,
+      pos:emptyPos(),posVotes:0,topPos:null,score:0,notes:[],selectors:[]};
     return out[pid];
   }
   squad.submissions.forEach(function(sub){
@@ -2009,6 +2023,7 @@ function compileSubmissions(squad,campaignId){
         r.sum+=v;r.n++;r.min=Math.min(r.min,v);r.max=Math.max(r.max,v);
       });
       if(e.reco&&b.reco[e.reco]!=null)b.reco[e.reco]++;
+      if(e.pos&&b.pos[e.pos]!=null){b.pos[e.pos]++;b.posVotes++}
       if((e.note||"").trim())b.notes.push({by:who,at:sub.submittedAt,text:e.note.trim()});
       if(b.selectors.indexOf(who)===-1)b.selectors.push(who);
     });
@@ -2023,6 +2038,9 @@ function compileSubmissions(squad,campaignId){
     var best=null;
     ["select","recall","cut"].forEach(function(k){if(b.reco[k]>0&&(best===null||b.reco[k]>b.reco[best]))best=k});
     b.topReco=best;
+    var bestPos=null;
+    POS_KEYS.forEach(function(k){if(b.pos[k]>0&&(bestPos===null||b.pos[k]>b.pos[bestPos]))bestPos=k});
+    b.topPos=bestPos;
   });
   return out;
 }
@@ -2366,7 +2384,7 @@ function buildSubmission(view,numberFor){
     entries:view.playerIds.map(function(pid){
       var d=view.data[pid]||mkEntryData();
       return {playerId:pid,number:numberFor(pid),stats:normStats(d.stats),
-        ratings:d.ratings||{},reco:d.reco||"",note:(d.note||"").trim()};
+        ratings:d.ratings||{},reco:d.reco||"",pos:normPos(d.pos),note:(d.note||"").trim()};
     })
   };
 }
@@ -2406,7 +2424,8 @@ function integrateSubmission(squad,data){
     context:data.context||"",submittedAt:data.submittedAt||nowISO(),
     criteria:data.criteria||CRITERIA.map(function(c){return c.key}),
     entries:entries.map(function(e){return {playerId:e.playerId,number:cleanNum(e.number),
-      stats:normStats(e.stats),ratings:e.ratings||{},reco:RECO_BY_KEY[e.reco]?e.reco:"",note:e.note||""}})};
+      stats:normStats(e.stats),ratings:e.ratings||{},reco:RECO_BY_KEY[e.reco]?e.reco:"",
+      pos:normPos(e.pos),note:e.note||""}})};
   squad.submissions.push(sub);
   return sub;
 }
@@ -2879,6 +2898,16 @@ function statusBadge(status){
 function posBadge(pos){
   return h("span",{className:"badge",style:{background:"#6366F122",color:"#A5B4FC",borderColor:"#6366F155"}},pos||"—");
 }
+/* Le poste que les sélectionneurs proposent. Violet, comme tout ce qui
+   vient de l'évaluation, pour qu'on ne le confonde pas avec le poste de
+   l'effectif : c'est un avis, et il n'écrit rien dans le roster. */
+function posVoteBadge(c,compact){
+  if(!c||!c.topPos)return null;
+  var part=c.pos[c.topPos]+"/"+c.posVotes;
+  return h("span",{className:"badge",title:"Poste proposé par "+plural(c.posVotes,"sélectionneur")+" — le poste de l'effectif ne change pas",
+    style:{background:"#8B5CF61E",color:"#C4B5FD",borderColor:"#8B5CF655"}},
+    compact?(c.topPos+" "+part):("Poste : "+c.topPos+" ("+part+")"));
+}
 function emptyBlock(icon,title,sub,action){
   return h("div",{style:{flex:"1",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",padding:"30px",textAlign:"center"}},
     h("div",{style:{fontSize:"46px",marginBottom:"10px"}},icon),
@@ -2982,6 +3011,7 @@ function renderSelectionBoard(squad){
         "★ "+c.score.toFixed(1)+" · "+plural(c.n,"éval")));
       if(c.topReco)meta.push(h("span",{className:"badge",style:{background:RECO_BY_KEY[c.topReco].color+"18",color:RECO_BY_KEY[c.topReco].color}},
         "Avis : "+RECO_BY_KEY[c.topReco].short));
+      if(c.topPos)meta.push(posVoteBadge(c));
     }
     if(!e.number)meta.push(h("span",{className:"badge",style:{background:"#EF444422",color:"#FCA5A5",borderColor:"#EF444455"}},"numéro à saisir"));
 
@@ -4374,6 +4404,7 @@ function renderEvalsPane(squad){
       h("div",{style:{flex:"1",minWidth:"0"}},
         h("div",{className:"pname"},(e&&e.number?"#"+e.number+" ":"")+fullName(p)),
         h("div",{className:"psub"},plural(c.n,"évaluation")+" · "+c.selectors.join(", "))),
+      posVoteBadge(c,true),
       c.topReco?h("span",{className:"badge",style:{background:RECO_BY_KEY[c.topReco].color+"20",color:RECO_BY_KEY[c.topReco].color}},
         RECO_BY_KEY[c.topReco].icon+" "+c.reco[c.topReco]+"/"+c.n):null,
       h("span",{style:{color:"#475569"}},open?"▲":"▼")));
@@ -4384,6 +4415,17 @@ function renderEvalsPane(squad){
     box.appendChild(h("div",{style:{display:"flex",gap:"6px",flexWrap:"wrap"}},RECOS.map(function(r){
       return h("span",{className:"badge",style:{background:r.color+"18",color:r.color,padding:"5px 10px"}},r.icon+" "+r.label+" : "+(c.reco[r.key]||0));
     })));
+    if(c.posVotes){
+      box.appendChild(h("div",{className:"section-title"},"Poste proposé"));
+      box.appendChild(h("div",{style:{display:"flex",gap:"6px",flexWrap:"wrap"}},
+        POS_KEYS.filter(function(k){return c.pos[k]}).map(function(k){
+          var on=k===c.topPos;
+          return h("span",{className:"badge",style:{background:on?"#8B5CF628":"#33415530",color:on?"#C4B5FD":"#94A3B8",padding:"5px 10px"}},
+            k+" · "+POS_LABELS[k]+" : "+c.pos[k]);
+        })));
+      box.appendChild(h("div",{className:"muted",style:{marginTop:"6px"}},
+        "Un avis, pas une donnée : le poste de l'effectif se change depuis la fiche de saison."));
+    }
     if(e){
       box.appendChild(h("div",{className:"section-title"},"Statut dans la saison"));
       box.appendChild(h("div",{className:"reco-row"},RECOS.map(function(r){
@@ -4507,6 +4549,7 @@ function exportEvalsCSV(squad,rows,camp){
   var head=["Campagne","Numero","Joueuse","Position","Statut","Effectif","Evaluations","Score"]
     .concat(CRITERIA.map(function(c){return c.label}))
     .concat(["Retenir","Recaller","Non_retenue"])
+    .concat(["Poste_propose","Poste_votes"])
     .concat(ALL_STATS.map(function(st){return st.key}));
   var lines=[head.join(";")];
   rows.forEach(function(c){
@@ -4517,6 +4560,7 @@ function exportEvalsCSV(squad,rows,camp){
       c.n,c.score.toFixed(2)]
       .concat(CRITERIA.map(function(cr){var x=c.ratings[cr.key];return x&&x.n?x.avg.toFixed(2):""}))
       .concat([c.reco.select||0,c.reco.recall||0,c.reco.cut||0])
+      .concat([c.topPos||"",c.topPos?(c.pos[c.topPos]+"/"+c.posVotes):""])
       .concat(ALL_STATS.map(function(st){return c.stats[st.key]||0})).join(";"));
   });
   downloadCSV(lines,"Evaluations_"+safeName(squad.name)+"_"+safeName(camp?camp.name:"toutes")+"_"+stamp()+".csv");
@@ -4888,6 +4932,7 @@ function svEntry(view,pid){
   var d=view.data[pid];
   if(!d.stats)d.stats=emptyS();
   if(!d.ratings)d.ratings={};
+  d.pos=normPos(d.pos);          /* une vue reçue avant les postes n'en a pas */
   return d;
 }
 function svProgress(src){
@@ -5127,6 +5172,29 @@ function renderSvPlayerPanel(src,pid,ordered){
   });
   panel.appendChild(recoRow);
 
+  /* Poste proposé — facultatif, et toujours un avis : rien n'est écrit
+     dans l'effectif, que seul l'entraîneur tient. Le « — » est allumé
+     tant que rien n'est proposé, pour qu'un choix reste lisible d'un
+     coup d'œil, et il sert aussi à revenir en arrière. */
+  panel.appendChild(h("div",{className:"section-title"},"Poste proposé"));
+  var posChoices=[{key:"",label:"—",title:"Sans avis"}].concat(POS_KEYS.map(function(k){
+    return {key:k,label:k,title:POS_LABELS[k]};
+  }));
+  var posRow=h("div",{className:"pos-vote-row"});
+  posChoices.forEach(function(pc){
+    posRow.appendChild(h("button",{className:"pos-vote-btn"+((d.pos||"")===pc.key?" on":""),title:pc.title,onclick:function(){
+      pushUndoView("Poste · "+numLabel(num),v);
+      d.pos=(d.pos===pc.key)?"":pc.key;
+      Array.prototype.forEach.call(posRow.children,function(el,j){
+        el.className="pos-vote-btn"+((d.pos||"")===posChoices[j].key?" on":"");
+      });
+      scheduleAutoSave();
+    }},pc.label));
+  });
+  panel.appendChild(posRow);
+  panel.appendChild(h("div",{className:"muted",style:{marginTop:"6px"}},
+    "Facultatif — "+POS_KEYS.map(function(k){return k+" "+POS_LABELS[k].toLowerCase()}).join(" · ")+"."));
+
   /* Commentaire */
   panel.appendChild(h("div",{className:"section-title"},"Commentaire"));
   var ta=h("textarea",{className:"txt",placeholder:"Observations sur l'athlète "+svDisplay(src,pid)+"…",rows:"3"});
@@ -5174,7 +5242,8 @@ function renderSvSubmit(){
       h("span",{className:"score-pill",style:{background:scoreColor(avg)+"22",color:scoreColor(avg)}},avg?avg.toFixed(1):"—"),
       h("div",{style:{flex:"1",minWidth:"0"}},
         h("div",{className:"pname"},svDisplay(src,pid)),
-        h("div",{className:"psub"},crits.length+"/"+v.criteria.length+" critères · "+plural(nStats,"action")+((d.note||"").trim()?" · 💬":""))),
+        h("div",{className:"psub"},crits.length+"/"+v.criteria.length+" critères · "+plural(nStats,"action")+
+          (d.pos?" · "+d.pos:"")+((d.note||"").trim()?" · 💬":""))),
       r?h("span",{className:"badge",style:{background:r.color+"20",color:r.color}},r.icon+" "+r.short):
         h("span",{className:"badge",style:{background:"#33415530",color:"#64748B"}},"sans avis")));
   });

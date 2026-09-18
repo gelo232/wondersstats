@@ -189,8 +189,12 @@ son équipe, mais ni nommer un entraîneur, ni exporter le club entier.
 ### 🎯 Sélectionneur
 
 Interface réduite : chaque athlète est désignée par son **numéro**. Pour chacune,
-5 critères notés de 1 à 5, des compteurs de statistiques, une recommandation et un
-commentaire. Puis `📤 Soumettre`.
+5 critères notés de 1 à 5, des compteurs de statistiques, une recommandation, un
+**poste proposé** (facultatif) et un commentaire. Puis `📤 Soumettre`.
+
+Le poste proposé est un **avis**, jamais une donnée d'effectif : il est compté par
+joueuse comme les recommandations, s'affiche en violet sous le badge *Avis*, et ne
+touche pas au poste du roster — que seul l'entraîneur écrit.
 
 Deux façons de recevoir du travail :
 
@@ -379,6 +383,30 @@ vous publiez explicitement sur votre propre relais.
 - Les saisons enregistrées avant les rencontres sont reprises : les matchs d'un même
   tournoi se regroupent d'eux-mêmes, la nature est devinée du nom, l'adversaire lu
   dans « vs X ».
+
+---
+
+## Notes de version
+
+### v6.2 — la réception à trois niveaux, le poste proposé
+
+- **Réception** : un troisième compteur, `rec_err` « Erreur », à côté de *En jeu* et
+  *Hors sys.* L'ace subi se compte enfin, et la réception s'aligne sur le service et
+  l'attaque, qui avaient déjà leurs trois niveaux.
+- **⚠️ Export CSV** — `Récap → ⭐ Évaluations → 📤 Exporter (CSV)` : les colonnes de
+  statistiques sont engendrées dans l'ordre des compteurs, donc **`rec_err` s'insère
+  au milieu du fichier, entre `rec_out` et `pas_att`**, et deux colonnes
+  `Poste_propose` · `Poste_votes` s'ajoutent après les avis. Un tableur qui lisait
+  ces colonnes **par position** se décale : relisez-les par en-tête, ou refaites le
+  gabarit. Les exports et sauvegardes **JSON** ne bougent pas.
+- **Poste proposé** : le sélectionneur peut dire « je pense que la 14 est une
+  passeuse ». Les votes sont compilés par joueuse et le poste majoritaire s'affiche
+  auprès de l'avis. Le poste du roster n'est jamais écrasé.
+- **Cibles tactiles** : les boutons de saisie annonçaient 56 px et n'en faisaient que
+  37 — `flex:1` annulait leur hauteur. Ils sont revenus à 56 px, et les rangées de
+  notes et d'avis du sélectionneur à 46 px, au-dessus du seuil de 44 px.
+- Toute sauvegarde ou soumission antérieure se recharge sans changement : la clé
+  `rec_err` naît à 0 et le poste proposé à vide.
 
 ---
 

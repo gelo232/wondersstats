@@ -1,7 +1,7 @@
 /* WonderStats — service worker
    App-shell en cache-first (démarrage instantané hors-ligne),
    revalidation en arrière-plan. Requêtes non-GET et cross-origin ignorées. */
-var CACHE = "wonderstats-v6-2";
+var CACHE = "wonderstats-v6-3";
 var SHELL = ["./", "./index.html", "./manifest.json", "./icon.png"];
 
 self.addEventListener("install", function (e) {

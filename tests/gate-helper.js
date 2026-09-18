@@ -9,6 +9,21 @@
    PBKDF2 est calibré par l'appareil, une demi-seconde environ. */
 const PASS = "suite-de-tests-2027";
 
+/* Le dépôt publie, à côté de l'application, le vrai `superadmin.json` du
+   système en service : une racine fondée. C'est l'état d'un déploiement,
+   pas celui d'un appareil qui découvre l'application, et l'écran de garde
+   n'y propose plus « Je suis le propriétaire » mais « Restaurer ma
+   sauvegarde ». Toute suite qui fonde le système doit donc servir
+   elle-même la racine — ici le fichier livré d'origine, qui se déclare
+   non fondé. Celles qui ont besoin d'une racine publiée (owner, config,
+   parcours) posent leur propre route et n'appellent pas ceci. */
+async function sansRacine(ctx) {
+  await ctx.route("**/superadmin.json", (r) => r.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ version: 1, founded: false })
+  }));
+}
+
 /* Franchit l'écran de garde, quel qu'il soit : accueil d'un appareil
    vierge, invite à protéger des données déjà présentes, ou verrou posé.
    Les suites appellent ceci après chaque goto ou reload et n'ont pas à
@@ -38,8 +53,7 @@ async function franchirGarde(page, nom) {
 
    Depuis la v6 seul le propriétaire crée des clubs, et la propriété est
    une clé, pas une case à cocher : les suites passent donc par la vraie
-   fondation. Elles n'ont pas de superadmin.json à leur disposition, ce
-   qui est précisément l'état « système non fondé ». */
+   fondation, sur un système que sansRacine() déclare non fondé. */
 async function ouvrirClub(page, nom) {
   await page.waitForSelector('button:has-text("Je suis le propriétaire")');
   await page.click('button:has-text("Je suis le propriétaire")');
@@ -97,5 +111,5 @@ async function rechargerEtOuvrir(page, ms) {
   if (ms) await page.waitForTimeout(ms);
 }
 
-module.exports = { PASS, franchirGarde, ouvrirClub, installerClubParDefaut,
+module.exports = { PASS, sansRacine, franchirGarde, ouvrirClub, installerClubParDefaut,
   deverrouiller, rechargerEtOuvrir };

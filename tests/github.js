@@ -5,7 +5,7 @@
    restitue rien, et qu'un envoi concurrent ne s'écrase pas en silence. */
 const {chromium}=require("playwright");
 const fs=require("fs");
-const {franchirGarde,PASS}=require("./gate-helper");
+const {sansRacine,franchirGarde,PASS}=require("./gate-helper");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
 const BASE=process.env.BASE_URL||"http://127.0.0.1:8899";
@@ -16,6 +16,7 @@ const ERRORS=[];
   const b=await chromium.launch(EXE?{executablePath:EXE}:{});
   const ctx=await b.newContext({viewport:{width:414,height:896}});
   ctx.setDefaultTimeout(8000);
+  await sansRacine(ctx);            /* système non fondé : on le fonde nous-mêmes */
   const page=await ctx.newPage();
   page.on("pageerror",e=>ERRORS.push("PAGEERROR: "+e.message));
   page.on("dialog",d=>d.accept());

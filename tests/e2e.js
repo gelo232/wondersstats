@@ -1,5 +1,5 @@
 const {chromium}=require("playwright");
-const {franchirGarde}=require("./gate-helper");
+const {sansRacine,franchirGarde}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -11,6 +11,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   const b=await chromium.launch(EXE?{executablePath:EXE}:{});
   const ctx=await b.newContext({viewport:{width:414,height:896}});
   ctx.setDefaultTimeout(8000);
+  await sansRacine(ctx);            /* système non fondé : on le fonde nous-mêmes */
   const page=await ctx.newPage();
   page.on("pageerror",e=>ERRORS.push("PAGEERROR: "+e.message));
   page.on("console",m=>{const t=m.text();if(m.type()==="error"&&!/favicon/.test(t))ERRORS.push("CONSOLE: "+t)});
@@ -155,6 +156,29 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(d.s!==2)throw new Error("stats="+d.s);
     if(!d.note)throw new Error("note vide");
   });
+  await step("réception à trois niveaux : l'ace subi se compte",async()=>{
+    const grp=page.locator(".qp-group").filter({hasText:"Réception"}).first();
+    const btns=grp.locator(".qp-stat-btn");
+    const n=await btns.count();
+    if(n!==3)throw new Error("boutons de réception="+n);
+    const lbl=(await btns.nth(2).locator(".lbl").textContent()).trim();
+    if(lbl!=="Erreur")throw new Error("troisième niveau="+lbl);
+    await btns.nth(2).click();await btns.nth(2).click();await page.waitForTimeout(120);
+    const st=await page.evaluate(()=>svFind(state.svViewId).view.data[state.svPlayerId].stats);
+    if(st.rec_err!==2)throw new Error("rec_err="+st.rec_err);
+  });
+  await step("le poste proposé se choisit, et se retire",async()=>{
+    const btns=page.locator(".pos-vote-btn");
+    const n=await btns.count();
+    if(n!==6)throw new Error("boutons de poste="+n);            // — S OH OPP MB L
+    const lu=async()=>await page.evaluate(()=>svFind(state.svViewId).view.data[state.svPlayerId].pos);
+    await btns.nth(1).click();await page.waitForTimeout(100);
+    if(await lu()!=="S")throw new Error("poste="+await lu());
+    await btns.nth(1).click();await page.waitForTimeout(100);    // le même bouton l'annule
+    if(await lu()!=="")throw new Error("le poste ne se retire pas : "+await lu());
+    await btns.nth(1).click();await page.waitForTimeout(100);
+    if(await lu()!=="S")throw new Error("poste="+await lu());
+  });
   await step("évaluer #12 (recaller) et #3 (retenir)",async()=>{
     for(const [num,reco,val] of [["12","Recaller",3],["3","Retenir",5]]){
       await page.locator(".num-tile").filter({hasText:new RegExp("^#"+num)}).first().click();await page.waitForTimeout(120);
@@ -235,6 +259,20 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
       return compileSubmissions(s2)[pid];
     });
     if(noN)throw new Error("#9 non observée ne doit pas apparaître dans la compilation");
+  });
+
+  await step("le poste proposé remonte, sans toucher à l'effectif",async()=>{
+    const r=await page.evaluate(()=>{
+      const s=curSquad(),e=s.roster.find(x=>x.number==="7");
+      const c=compileSubmissions(s)[e.playerId];
+      return {top:c.topPos,votes:c.posVotes,s:c.pos.S,err:c.stats.rec_err,roster:e.position};
+    });
+    if(r.top!=="S")throw new Error("topPos="+r.top);
+    if(r.votes!==1||r.s!==1)throw new Error("votes="+r.votes+" · S="+r.s);
+    if(r.err!==2)throw new Error("rec_err compilé="+r.err);
+    if(r.roster!=="")throw new Error("le poste de l'effectif a été écrasé : "+r.roster);
+    const t=await page.textContent("#app");
+    if(!/S 1\/1/.test(t))throw new Error("le badge du poste proposé n'apparaît pas");
   });
 
   say("\n── 7. Équipe de la saison & saisie de match");
@@ -340,6 +378,28 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
       return !orphan;
     });
     if(!ok)throw new Error("références orphelines");
+  });
+
+  say("\n── 10. Compatibilité : ce qui vient d'avant");
+  await step("une entrée sans poste ni rec_err se normalise à vide",async()=>{
+    const r=await page.evaluate(()=>{
+      const vieille={playerId:"x",number:"12",stats:{rec_in:3,rec_out:1},ratings:{tech:4},reco:"recall",note:"ancienne"};
+      const st=normStats(vieille.stats);
+      return {rec_err:st.rec_err,rec_in:st.rec_in,pos:normPos(vieille.pos),
+              bidon:normPos("ALL"),vue:dataFilled(vieille)};
+    });
+    if(r.rec_err!==0)throw new Error("rec_err="+r.rec_err);
+    if(r.rec_in!==3)throw new Error("rec_in="+r.rec_in);
+    if(r.pos!=="")throw new Error("poste inventé : "+r.pos);
+    if(r.bidon!=="")throw new Error("« ALL » accepté comme poste");
+    if(!r.vue)throw new Error("une ancienne entrée cesserait d'être vue comme observée");
+  });
+  await step("la colonne rec_err s'insère entre rec_out et pas_att",async()=>{
+    const k=await page.evaluate(()=>ALL_STATS.map(x=>x.key));
+    const i=k.indexOf("rec_err");
+    if(i<0)throw new Error("rec_err absent de ALL_STATS");
+    if(k[i-1]!=="rec_out"||k[i+1]!=="pas_att")
+      throw new Error("ordre des colonnes : "+k.slice(i-1,i+2).join(","));
   });
 
   await ctx.close();await b.close();

@@ -1,0 +1,5 @@
+# Rien de tout ceci n’appartient à l’application : `index.html` reste
+# autonome. Ces fichiers naissent du `npm i -D playwright` des tests.
+node_modules/
+package.json
+package-lock.json

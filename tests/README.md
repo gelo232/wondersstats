@@ -10,7 +10,7 @@ n'est ajoutée à l'application pour les tests**.
 | Suite | Couverture |
 |---|---|
 | `smoke.js` | Migration v2 → v3 puis **v4 → v5** (les matchs d'un ancien tournoi se regroupent d'eux-mêmes, la nature est devinée, l'adversaire lu dans « vs X », l'opération est idempotente), navigation des onglets, stabilité de l'identité d'une joueuse (renommage + changement de numéro sans perte d'historique), détection des numéros en double |
-| `e2e.js` | Parcours complet : création de saison → effectif → vues sélectionneur (joueuse partagée entre deux vues) → **anonymat strict** (aucun nom dans le DOM ni dans le paquet exporté) → évaluation → soumission → compilation multi-évaluateurs → application des avis → composition de l'équipe → saisie de match → undo → persistance → suppression sans référence orpheline. Vérifie aussi qu'**aucun numéro n'est attribué automatiquement** |
+| `e2e.js` | Parcours complet : création de saison → effectif → vues sélectionneur (joueuse partagée entre deux vues) → **anonymat strict** (aucun nom dans le DOM ni dans le paquet exporté) → évaluation → soumission → compilation multi-évaluateurs → application des avis → composition de l'équipe → saisie de match → undo → persistance → suppression sans référence orpheline. Vérifie aussi qu'**aucun numéro n'est attribué automatiquement**, que la **réception compte ses trois niveaux** (l'ace subi inclus), que le **poste proposé** se choisit, se retire, remonte compilé chez l'entraîneuse **sans écraser le poste de l'effectif**, et qu'une entrée d'avant ces deux ajouts se normalise à vide |
 | `modals.js` | Ouverture, rendu et fermeture de chacune des 17 modales, absence de fuite d'état entre modales, saisie manuelle du numéro et refus d'un doublon |
 | `campaigns.js` | **Cloisonnement des campagnes** (2,0 en sélection et 4,0 en fin de saison ne se moyennent pas), mesure de la progression, copie de vue vierge, clôture de campagne et de saison, statut d'effectif préservant les matchs joués, fiche joueuse réunissant match et évaluations, anonymat réglable, filtre de période |
 | `roles.js` | **La matrice des accès** de `ROLES.md` : un rôle est une arête (personne · équipe · rôle), Sofia cumule entraîneuse des U15 et sélectionneuse des U18, chacun ne voit que son périmètre, un contexte forgé à la main ne survit pas au rendu, la vue libre expose un catalogue sans nom, l'export d'équipe n'emporte pas les collègues, et supprimer une équipe ne laisse aucune affectation orpheline |
@@ -35,6 +35,13 @@ Variables : `PORT` (défaut 8899), `BASE_URL`, `CHROMIUM_PATH`, `LOG_FILE`
 
 Le relais réseau de `sync.js` est **simulé en mémoire** : la suite vérifie le contrat
 HTTP, elle ne contacte aucun service externe.
+
+La racine de confiance est, elle aussi, servie par les suites. Le dépôt publie à côté
+de l'application le vrai `superadmin.json` du système en service : un appareil neuf y
+lit « système déjà fondé » et l'écran de garde ne propose plus de le fonder. Toute
+suite qui passe par la fondation appelle donc `sansRacine(ctx)` (`gate-helper.js`),
+qui sert le fichier d'origine — celui qui se déclare non fondé. Celles qui ont besoin
+d'une racine publiée (`owner`, `config`, `parcours`) posent leur propre route.
 
 `season.js` se distingue des autres : elle **instrumente un parcours** de neuf mois
 plutôt que des gestes isolés. Les onze manques relevés par le quatrième audit (⚑)

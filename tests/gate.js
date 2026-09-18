@@ -1,4 +1,5 @@
 const {chromium}=require("playwright");
+const {sansRacine}=require("./gate-helper");
 const B=process.env.BASE_URL||"http://127.0.0.1:8899";
 let ok=0,bad=[];
 const step=async(n,f)=>{try{await f();ok++;console.log("  ✓ "+n)}catch(e){bad.push(n+" → "+e.message);console.log("  ✗ "+n+" → "+e.message)}};
@@ -7,6 +8,7 @@ const step=async(n,f)=>{try{await f();ok++;console.log("  ✓ "+n)}catch(e){bad.
   const b=await chromium.launch({executablePath:process.env.CHROMIUM_PATH});
   const ctx=await b.newContext({viewport:{width:414,height:896}});
   ctx.setDefaultTimeout(8000);
+  await sansRacine(ctx);            /* système non fondé : c'est ce que la suite éprouve */
   const page=await ctx.newPage();
   const errs=[];page.on("pageerror",e=>errs.push(e.message));
   page.on("dialog",d=>d.accept());
@@ -137,6 +139,7 @@ const step=async(n,f)=>{try{await f();ok++;console.log("  ✓ "+n)}catch(e){bad.
   console.log("\n── Reprise d'une base déjà installée (v5.0 en clair)");
   const ctx3=await b.newContext({viewport:{width:414,height:896}});
   ctx3.setDefaultTimeout(8000);
+  await sansRacine(ctx3);
   const p3=await ctx3.newPage();
   p3.on("dialog",d=>d.accept());
   await step("une base v5 existante est reprise sans administrateur en double",async()=>{
@@ -184,6 +187,7 @@ const step=async(n,f)=>{try{await f();ok++;console.log("  ✓ "+n)}catch(e){bad.
   console.log("\n── Ce que voit quelqu'un qui ouvre l'app sur son mobile");
   const ctx2=await b.newContext({viewport:{width:414,height:896}});
   ctx2.setDefaultTimeout(8000);
+  await sansRacine(ctx2);
   const p2=await ctx2.newPage();
   p2.on("dialog",d=>d.accept());
   await step("un appareil neuf n'hérite d'aucune donnée ni d'aucun droit",async()=>{

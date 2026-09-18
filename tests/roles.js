@@ -5,7 +5,7 @@
    cloisonnement est ergonomique, pas une barrière — la seule frontière
    réellement tenue est celle du relais, vérifiée par tests/sync.js. */
 const {chromium}=require("playwright");
-const {franchirGarde}=require("./gate-helper");
+const {sansRacine,franchirGarde}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -17,6 +17,7 @@ const ERRORS=[];let PASS=0;
   const b=await chromium.launch(EXE?{executablePath:EXE}:{});
   const ctx=await b.newContext({viewport:{width:414,height:896}});
   ctx.setDefaultTimeout(8000);
+  await sansRacine(ctx);            /* système non fondé : on le fonde nous-mêmes */
   const page=await ctx.newPage();
   page.on("pageerror",e=>ERRORS.push("PAGEERROR: "+e.message));
   page.on("console",m=>{const t=m.text();if(m.type()==="error"&&!/favicon/.test(t))ERRORS.push("CONSOLE: "+t)});
