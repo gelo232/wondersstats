@@ -322,7 +322,18 @@ documente, il ne prouve pas.
 - **Le code de salon n'est pas une authentification.** Quiconque obtient le lien
   peut lire les vues publiées et déposer des soumissions. Suffisant pour un club,
   insuffisant si les données devenaient sensibles.
-- **Pondération des critères** : le score reste une moyenne simple. Pondérer par
-  critère ou par expérience du sélectionneur est l'évolution naturelle.
+- **Le biais d'un sélectionneur est estimé globalement, pas critère par critère.**
+  La correction de sévérité se mesure sur les athlètes que plusieurs ont vues, puis
+  s'applique à toutes les notes de la personne. Quand le recoupement ne porte que
+  sur un critère — un coach de drill qui ne note que la Technique — le biais mesuré
+  là s'applique aussi ailleurs. Il est amorti selon le nombre de recoupements, borné
+  à ±1,5, et **recentré** pour ne pas déplacer le niveau général ; l'ordre s'en
+  trouve peu affecté, mais la limite est réelle. Un biais par critère demanderait
+  bien plus de données qu'une séance de sélection n'en produit.
+- **L'échelle des statistiques est relative à la campagne.** Une efficacité est notée
+  par rapport aux autres athlètes du même moment, jamais contre un barème absolu.
+  C'est ce qui permet de servir une U13 et une senior sans réglage, mais cela veut
+  dire qu'un score statistique n'est pas comparable d'une campagne à l'autre si les
+  groupes diffèrent entièrement.
 - **Quota `localStorage`** : ~5 Mo, très loin des besoins ; l'échec d'écriture est
   désormais signalé à l'utilisateur au lieu d'être avalé.

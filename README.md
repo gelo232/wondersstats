@@ -279,6 +279,88 @@ Une campagne close, comme une saison clôturée, disparaît du rôle sélectionn
 
 ---
 
+## Comment se calcule le score
+
+Le score d'une athlète dans une campagne se construit en cinq temps. Chacun corrige
+un travers que la moyenne simple laissait passer. `Récap → ⭐ Évaluations → ⚖️ Formule`
+règle l'ensemble, **pour toute la saison** — comparer septembre à décembre n'a de sens
+que si les deux sont mesurés pareil.
+
+**1 · Les notes, corrigées de la sévérité.** Deux évaluateurs n'ont pas la même main.
+L'application compare chacun aux autres **sur les athlètes qu'ils ont vues en commun**
+— jamais à la moyenne générale, qui ferait passer pour complaisant celui qui n'a vu
+que les meilleures — et retire l'écart qui lui est propre. Sans recoupement, rien
+n'est corrigé. La correction est amortie quand elle repose sur peu de comparaisons,
+bornée à ±1,5, et recentrée pour ne pas déplacer le niveau général.
+
+**2 · Les critères, pondérés.** Chaque critère porte un poids de — (écarté) à ×3.
+À poids égal, c'est la moyenne d'avant.
+
+**3 · Les compteurs, ramenés à une efficacité.** Douze kills ne disent rien sans le
+nombre de tentatives. Chaque famille se réduit donc à une **efficacité** entre −1 et
++1 — la part nette de gestes réussis — et à un **volume**. En dessous du volume
+minimum, la famille n'est pas notée : trop peu de gestes pour en tirer quoi que ce
+soit.
+
+| Famille | Compte pour | Compte contre |
+|---|---|---|
+| Services | Ace | Erreur |
+| Réception | En jeu | Erreur |
+| Passes | Attaquable | Hors sys. |
+| Attaques | Kill | Erreur |
+| Blocs | Kill, Solo, Aide | Erreur |
+| Défense | Réussie, Soutien | Sout. err. |
+
+*Hors sys.* en réception et en défense ne compte ni d'un côté ni de l'autre : la balle
+est restée en jeu.
+
+**4 · Les efficacités, situées dans la campagne.** Une efficacité d'attaque de +0,30
+est excellente en U13 et ordinaire chez les seniors. Plutôt qu'un barème importé,
+l'application situe chaque athlète **parmi celles du même moment** et ramène cela sur
+la même échelle 1–5 que les critères. Un groupe sans dispersion donne 3 à tout le monde.
+
+**5 · Le mélange, puis l'amortissement.** La part des statistiques est réglable
+(30 % par défaut). Enfin, un score qui ne repose que sur un seul regard est ramené
+vers la moyenne du groupe, à proportion du peu sur quoi il repose : une athlète vue
+une fois cesse de coiffer celles que trois personnes ont jugées.
+
+> Chaque ligne du classement se déplie sur **« D'où vient le score »** : la part des
+> critères, celle des statistiques, ce que la correction de sévérité a déplacé et ce
+> que l'amortissement a retiré. Un chiffre qui décide d'une sélection doit pouvoir
+> être défendu devant l'athlète et ses parents.
+
+`⚖️ Formule → Moyenne simple` rétablit d'un bouton le calcul d'avant : critères à
+poids égal, statistiques à 0 %, aucune correction.
+
+### Le score ordonne, il ne tranche pas
+
+Le statut *Retenue · Recallée · Non retenue* ne vient jamais du score : il vient des
+**avis** des sélectionneurs, comptés à part, ou de la main de l'entraîneur. `⚡ Appliquer
+les avis` aligne les statuts sur l'avis majoritaire — et le dénominateur ne compte que
+ceux qui se sont prononcés, pas ceux qui n'ont relevé que des compteurs.
+
+---
+
+## La sélection comme point de départ
+
+Les compteurs relevés le jour de la sélection ne sont pas un souvenir : c'est la
+**première mesure** de l'athlète. Une fois retenue, sa fiche de saison
+(`🗓️ Saison → Sélection`, dépliez-la) porte un bloc **« Depuis la sélection »** qui met
+face à face l'efficacité relevée ce jour-là et celle du cumul des matchs, famille par
+famille, avec l'écart.
+
+```
+                sélect.   saison    écart
+Réception        +0,73     +0,58    −0,15
+Attaques         +0,38     +0,49    +0,11
+```
+
+La comparaison porte sur les **efficacités**, jamais sur les volumes : une séance de
+sélection et vingt matchs ne se comparent pas en nombre de gestes. Une famille absente
+d'un côté se lit « — » plutôt que zéro — ne pas avoir servi n'est pas avoir mal servi.
+
+---
+
 ## Le circuit de sélection
 
 ```
@@ -387,6 +469,33 @@ vous publiez explicitement sur votre propre relais.
 ---
 
 ## Notes de version
+
+### v6.3 — les statistiques décident aussi
+
+- **Le score n'est plus une moyenne simple.** Les compteurs relevés en sélection
+  pèsent désormais sur la décision : ramenés à une efficacité, situés parmi les
+  athlètes de la campagne, mélangés aux notes selon une part réglable. La sévérité
+  propre à chaque évaluateur est corrigée, et un score fondé sur un seul regard est
+  amorti. Tout se règle dans `Récap → ⭐ Évaluations → ⚖️ Formule`, et
+  **`Moyenne simple` rétablit le calcul d'avant en un bouton**.
+- **⚠️ Les scores d'une saison existante changent au premier chargement**, puisque la
+  formule par défaut fait peser les statistiques à 30 %. Les notes, les avis et les
+  statuts, eux, ne bougent pas : seul le chiffre qui ordonne la liste est recalculé.
+  Un club qui veut retrouver exactement ses anciens scores passe par `Moyenne simple`.
+- **⚠️ Export CSV** — `Récap → ⭐ Évaluations → 📤 Exporter (CSV)` : les colonnes
+  `Evaluations` et `Score` deviennent `Saisies · Notes · Avis · Score ·
+  Score_criteres · Score_stats · Corr_severite · Corr_fiabilite · Part_stats`, et une
+  colonne `Eff_<famille>` s'insère avant les compteurs bruts. Relisez par en-tête,
+  jamais par position.
+- **Une vue sans compteur est enfin possible.** Décocher tous les groupes de
+  statistiques les réaffichait tous ; la liste vide est désormais respectée, ce qui
+  permet la vue de notes seules que décrit un plan de sélection.
+- **« 1/2 avis » ne ment plus.** Un coach de drill qui ne relève que des compteurs
+  ne comptait pas moins comme un avis exprimé. Saisies, notes et avis sont maintenant
+  comptés séparément, et une athlète dont on n'a que des compteurs se lit « — » au
+  lieu d'être classée dernière avec un zéro qu'elle n'a pas mérité.
+- **« Depuis la sélection »** : la fiche de saison d'une retenue compare l'efficacité
+  relevée au tryout à celle du cumul des matchs, famille par famille.
 
 ### v6.2 — la réception à trois niveaux, le poste proposé
 

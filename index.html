@@ -287,6 +287,25 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .bar-mini i{display:block;height:100%}
 .compile-row{display:flex;align-items:center;gap:10px;padding:10px 11px;background:#1E293B;border:1px solid #334155;border-radius:10px;margin-bottom:6px;cursor:pointer}
 .note-item{background:#0F172A;border-radius:8px;padding:8px 10px;margin-top:6px;font-size:12px;color:#CBD5E1;line-height:1.5}
+.score-break{background:#0F172A;border:1px solid #1E293B;border-radius:10px;padding:8px 10px;margin-top:6px}
+.sb-row{display:flex;align-items:baseline;gap:8px;padding:3px 0;font-size:12px}
+.sb-lbl{color:#94A3B8;min-width:104px;flex-shrink:0}
+.sb-val{font-weight:800;color:#F8FAFC;min-width:46px;text-align:right}
+.sb-note{color:#64748B;font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sb-total{border-top:1px solid #1E293B;margin-top:4px;padding-top:6px}
+.sb-total .sb-lbl{color:#CBD5E1;font-weight:700}
+.fam-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;border-bottom:1px solid #1E293B}
+.fam-name{font-weight:700;min-width:82px;flex-shrink:0}
+.fam-eff{font-weight:800;color:#F8FAFC;min-width:46px;text-align:right}
+.fam-vol{color:#64748B;font-size:11px;flex:1;min-width:0}
+.w-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.w-lbl{font-size:12px;color:#CBD5E1;flex:1;min-width:0}
+.w-btns{display:flex;gap:3px;flex-shrink:0}
+.w-btn{min-width:30px;height:30px;border-radius:7px;border:1px solid #334155;background:#0F172A;color:#94A3B8;font-size:12px;font-weight:700}
+.w-btn.on{background:#8B5CF6;border-color:#8B5CF6;color:#fff}
+.modal input[type=range]{-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;background:#334155;padding:0;border:0}
+.modal input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#8B5CF6;border:2px solid #0F172A}
+.modal input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#8B5CF6;border:2px solid #0F172A}
 .note-item b{color:#94A3B8;font-size:10px;display:block;margin-bottom:2px;font-weight:700;letter-spacing:.3px}
 
 /* ── MODAL / TOAST ────────────────────────────────── */
@@ -330,7 +349,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "6.2";
+var APP_VERSION = "6.3";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -359,6 +378,64 @@ var VIEWS=[
 ];
 var ALL_STATS=[];SG_KEYS.forEach(function(k){SG[k].stats.forEach(function(s){ALL_STATS.push(s)})});
 var STAT_LABEL={};ALL_STATS.forEach(function(s){STAT_LABEL[s.key]=s.label});
+
+/* ─── Efficacité statistique ─────────────────────────────────
+   Un compteur brut ne se compare pas : 12 kills ne disent rien sans le
+   nombre de tentatives, et deux sélectionneurs n'ont pas vu la même durée
+   de jeu. Chaque famille se ramène donc à une efficacité — la part nette
+   de gestes réussis, entre −1 et +1 — et à un volume, qui dit si cette
+   efficacité mérite qu'on s'y fie.
+
+   La réception compte `rec_out` comme ni réussi ni manqué : la balle est
+   restée en jeu, hors système. Même raison pour `def_out`. */
+var STAT_FAMILIES={
+  services:{pos:["srv_ace"],neg:["srv_err"]},
+  reception:{pos:["rec_in"],neg:["rec_err"]},
+  passes:{pos:["pas_att"],neg:["pas_out"]},
+  attaques:{pos:["atk_kill"],neg:["atk_err"]},
+  blocs:{pos:["blk_kill","blk_solo","blk_aid"],neg:["blk_err"]},
+  defense:{pos:["def_ok","sup_in"],neg:["sup_err"]},
+  habiletes:{pos:["hab_ctrl","hab_appel","hab_couv"],neg:[]}
+};
+var FAMILY_KEYS=Object.keys(STAT_FAMILIES);
+/* Le volume d'une famille est la somme de tous ses compteurs, pas seulement
+   des réussis : c'est le nombre de fois où l'athlète a été mise à l'épreuve. */
+function familyVolume(stats,fam){
+  var g=SG[fam];if(!g)return 0;
+  return g.stats.reduce(function(t,s){return t+((stats&&stats[s.key])||0)},0);
+}
+/* Efficacité d'une famille, ou null si l'athlète n'y a rien fait. */
+function familyEff(stats,fam){
+  var def=STAT_FAMILIES[fam],vol=familyVolume(stats,fam);
+  if(!def||!vol)return null;
+  var pos=0,neg=0;
+  def.pos.forEach(function(k){pos+=(stats&&stats[k])||0});
+  def.neg.forEach(function(k){neg+=(stats&&stats[k])||0});
+  return (pos-neg)/vol;
+}
+/* Toutes les familles d'un relevé, avec leur volume. */
+function statProfile(stats){
+  var out={};
+  FAMILY_KEYS.forEach(function(f){
+    var v=familyVolume(stats,f);
+    if(v)out[f]={eff:familyEff(stats,f),volume:v};
+  });
+  return out;
+}
+function fmtEff(e){
+  if(e==null)return "—";
+  return (e>=0?"+":"")+e.toFixed(2);
+}
+/* Une efficacité se lit mal dans l'absolu : ce qui compte est l'écart aux
+   autres athlètes du même moment. On la ramène donc sur la même échelle
+   1–5 que les critères, en la situant dans la distribution de la campagne.
+   Sans dispersion — tout le monde au même niveau — chacune vaut 3. */
+function effToScale(eff,moyenne,ecart){
+  if(eff==null)return null;
+  if(!(ecart>0.0001))return 3;
+  var v=3+(eff-moyenne)/ecart;
+  return Math.max(1,Math.min(RATING_MAX,v));
+}
 
 /* Critères d'évaluation qualitative utilisés par les sélectionneurs */
 var CRITERIA=[
@@ -474,7 +551,8 @@ var LOG_KINDS={
   campaign:{icon:"📅",label:"Campagnes",color:"#C084FC"},
   match:{icon:"🏐",label:"Rencontres",color:"#38BDF8"},
   season:{icon:"🗓️",label:"Saisons",color:"#94A3B8"},
-  access:{icon:"🔑",label:"Accès",color:"#FBBF24"}
+  access:{icon:"🔑",label:"Accès",color:"#FBBF24"},
+  scoring:{icon:"🎚️",label:"Formule",color:"#A78BFA"}
 };
 var LOG_MAX=500;
 
@@ -617,6 +695,64 @@ function mkSelectorView(o){
     origin:"local",seasonName:"",published:false},o||{});
 }
 function mkEntryData(){return {stats:emptyS(),ratings:{},reco:"",pos:"",note:""}}
+
+/* ─── Réglages du score ──────────────────────────────────────
+   La formule appartient au club, pas à l'application. Elle est tenue au
+   niveau de la saison, et non de la campagne : comparer la sélection de
+   septembre au bilan de mai n'a de sens que si les deux sont mesurées de
+   la même façon. */
+function mkScoring(o){
+  var cw={},sw={};
+  CRITERIA.forEach(function(c){cw[c.key]=1});
+  FAMILY_KEYS.forEach(function(f){sw[f]=1});
+  return Object.assign({
+    critWeights:cw,
+    statWeights:sw,
+    statShare:0.3,      /* part des statistiques dans le score */
+    severity:true,      /* corriger la sévérité propre à chaque sélectionneur */
+    reliability:1,      /* amortissement d'un score fondé sur peu de regards */
+    minVolume:5         /* gestes au-dessous desquels une famille ne dit rien */
+  },o||{});
+}
+/* Les réglages d'une saison, complétés de leurs valeurs par défaut : une
+   sauvegarde antérieure n'en porte aucun, et ne doit pas pour autant
+   produire un score vide. */
+function scoringOf(squad){
+  var base=mkScoring(),s=(squad&&squad.scoring)||{};
+  var out=mkScoring();
+  CRITERIA.forEach(function(c){
+    var v=(s.critWeights||{})[c.key];
+    out.critWeights[c.key]=(typeof v==="number"&&v>=0)?v:base.critWeights[c.key];
+  });
+  FAMILY_KEYS.forEach(function(f){
+    var v=(s.statWeights||{})[f];
+    out.statWeights[f]=(typeof v==="number"&&v>=0)?v:base.statWeights[f];
+  });
+  ["statShare","reliability","minVolume"].forEach(function(k){
+    if(typeof s[k]==="number"&&s[k]>=0)out[k]=s[k];
+  });
+  out.statShare=Math.max(0,Math.min(1,out.statShare));
+  if(typeof s.severity==="boolean")out.severity=s.severity;
+  return out;
+}
+/* Vrai quand la saison s'en tient à la moyenne simple d'autrefois. */
+function scoringIsPlain(sc){
+  if(sc.statShare>0||sc.severity||sc.reliability>0)return false;
+  var w=null,egal=true;
+  CRITERIA.forEach(function(c){
+    if(w===null)w=sc.critWeights[c.key];
+    else if(sc.critWeights[c.key]!==w)egal=false;
+  });
+  return egal&&w>0;
+}
+/* Groupes de compteurs d'une vue. Une liste vide est un choix — le plan de
+   séance prévoit une vue d'évaluateur sans aucun compteur — tandis qu'un
+   champ absent est une donnée ancienne, d'avant le réglage : elle reçoit
+   tous les groupes, comme elle les affichait. */
+function normGroups(g){
+  if(!Array.isArray(g))return SG_KEYS.slice();
+  return g.filter(function(k){return SG[k]});
+}
 
 /* ─── Base de données ───────────────────────────────────────── */
 function emptyDB(){return {version:6,clubs:[],people:[],teams:[],assignments:[],
@@ -1512,12 +1648,15 @@ function normalizeSquad(sq,knownPlayers){
         number:cleanNum(en.number),position:en.position||"",stats:normStats(en.stats)}})};
   });
   attachOrphanSessions(sq);
+  /* Les réglages du score : normalisés une fois ici, pour qu'une sauvegarde
+     d'avant leur existence reparte des valeurs par défaut sans rien casser. */
+  sq.scoring=scoringOf(sq);
   sq.selectorViews=(sq.selectorViews||[]).map(function(v){
     v=Object.assign(mkSelectorView(),v);
     v.playerIds=(v.playerIds||[]).filter(function(pid){return inRoster[pid]});
     v.criteria=(v.criteria||[]).filter(function(c){return CRIT_BY_KEY[c]});
     if(!v.criteria.length)v.criteria=CRITERIA.map(function(c){return c.key});
-    v.groups=(v.groups||[]).filter(function(g){return SG[g]});
+    v.groups=normGroups(v.groups);
     if(!campKnown[v.campaignId])v.campaignId=legacyCampaignId;
     v.campaignName=campKnown[v.campaignId].name;
     v.anonymous=v.anonymous!==false;
@@ -1998,16 +2137,34 @@ function dataFilled(d){
 
 /* Compilation multi-sélectionneurs : une entrée par joueuse réellement évaluée.
    campaignId absent ou null → toutes campagnes confondues ; sinon la campagne
-   nommée seule, ce qui est la seule lecture ayant du sens pour un bilan daté. */
+   nommée seule, ce qui est la seule lecture ayant du sens pour un bilan daté.
+
+   Le score se construit en cinq temps, et chacun corrige un travers que la
+   moyenne simple laissait passer :
+     1. on recueille les notes brutes, par sélectionneur ;
+     2. on mesure la sévérité propre à chacun, sur les athlètes que
+        plusieurs ont vues, et on la retire ;
+     3. on moyenne les critères, pondérés ;
+     4. on note les statistiques relevées, situées dans la campagne ;
+     5. on mélange les deux, puis on amortit ce qui ne repose que sur un
+        seul regard.
+   Chaque étape est retenue dans `detail`, pour que l'écran puisse montrer
+   d'où vient le chiffre plutôt que de l'asséner. */
 function compileSubmissions(squad,campaignId){
   var out={};
   if(!squad)return out;
+  var sc=scoringOf(squad);
   function bucket(pid){
-    if(!out[pid])out[pid]={playerId:pid,n:0,stats:emptyS(),ratings:{},
+    if(!out[pid])out[pid]={playerId:pid,n:0,nRatings:0,nReco:0,stats:emptyS(),ratings:{},
       reco:{select:0,recall:0,cut:0},topReco:null,
-      pos:emptyPos(),posVotes:0,topPos:null,score:0,notes:[],selectors:[]};
+      pos:emptyPos(),posVotes:0,topPos:null,score:0,notes:[],selectors:[],
+      statScore:null,critScore:null,rawScore:0,statFams:{},
+      detail:{severity:0,shrink:0,statShare:0}};
     return out[pid];
   }
+
+  /* ── 1. les notes brutes, gardées par sélectionneur ─────────── */
+  var brut=[];          /* {who, pid, crit, val} */
   squad.submissions.forEach(function(sub){
     if(campaignId&&sub.campaignId!==campaignId)return;
     var who=(sub.selectorName||"").trim()||sub.viewName||"Sélectionneur";
@@ -2016,30 +2173,187 @@ function compileSubmissions(squad,campaignId){
       var b=bucket(e.playerId);
       b.n++;
       addStats(b.stats,e.stats);
+      /* Une saisie n'est pas une note. Un coach de drill qui ne remplit que
+         des compteurs ne doit ni gonfler le nombre de notes, ni peser sur
+         le dénominateur des avis — sans quoi « 1/2 » ferait croire à un
+         désaccord là où une seule personne s'est prononcée. */
+      var aNote=false;
       CRITERIA.forEach(function(c){
         var v=e.ratings&&e.ratings[c.key];
         if(typeof v!=="number"||v<1)return;
-        var r=b.ratings[c.key]||(b.ratings[c.key]={sum:0,n:0,min:v,max:v,avg:0});
-        r.sum+=v;r.n++;r.min=Math.min(r.min,v);r.max=Math.max(r.max,v);
+        aNote=true;
+        brut.push({who:who,pid:e.playerId,crit:c.key,val:v});
       });
-      if(e.reco&&b.reco[e.reco]!=null)b.reco[e.reco]++;
+      if(aNote)b.nRatings++;
+      if(e.reco&&b.reco[e.reco]!=null){b.reco[e.reco]++;b.nReco++}
       if(e.pos&&b.pos[e.pos]!=null){b.pos[e.pos]++;b.posVotes++}
       if((e.note||"").trim())b.notes.push({by:who,at:sub.submittedAt,text:e.note.trim()});
       if(b.selectors.indexOf(who)===-1)b.selectors.push(who);
     });
   });
-  Object.keys(out).forEach(function(pid){
-    var b=out[pid],tot=0,cnt=0;
+
+  /* ── 2. la sévérité de chacun ───────────────────────────────
+     On ne compare pas un sélectionneur à la moyenne générale : celui qui
+     n'a vu que les meilleures aurait l'air complaisant. On le compare à ce
+     que les autres ont mis aux mêmes athlètes, sur les mêmes critères.
+     Le biais est amorti quand il repose sur peu de recoupements, et borné :
+     une estimation fragile ne doit jamais retourner un classement. */
+  var biais={};
+  if(sc.severity){
+    var parCle={};      /* athlète+critère → [{who,val}] */
+    brut.forEach(function(r){
+      var k=r.pid+"|"+r.crit;
+      (parCle[k]=parCle[k]||[]).push(r);
+    });
+    var ecarts={};
+    Object.keys(parCle).forEach(function(k){
+      var lot=parCle[k];
+      var noms={};lot.forEach(function(r){noms[r.who]=1});
+      if(Object.keys(noms).length<2)return;      // rien à recouper
+      lot.forEach(function(r){
+        var autres=lot.filter(function(x){return x.who!==r.who});
+        if(!autres.length)return;
+        var moy=autres.reduce(function(t,x){return t+x.val},0)/autres.length;
+        (ecarts[r.who]=ecarts[r.who]||[]).push(r.val-moy);
+      });
+    });
+    Object.keys(ecarts).forEach(function(who){
+      var lot=ecarts[who],k=lot.length;
+      var moy=lot.reduce(function(t,v){return t+v},0)/k;
+      var amorti=moy*(k/(k+5));                  // peu de recoupements → peu de correction
+      biais[who]=Math.max(-1.5,Math.min(1.5,amorti));
+    });
+    /* Recentrage. Sans lui, la correction déplacerait le niveau général :
+       un évaluateur qui note seul quatre critères verrait ceux-ci baisser
+       d'un biais mesuré sur le cinquième, et le score cesserait d'être
+       comparable d'une campagne à l'autre. On répartit donc les biais
+       autour de zéro, au prorata du nombre de notes de chacun — ce qui
+       corrige les écarts entre évaluateurs sans toucher à l'échelle. */
+    var parQui={};
+    brut.forEach(function(r){parQui[r.who]=(parQui[r.who]||0)+1});
+    var sommeP=0,total=0;
+    Object.keys(biais).forEach(function(who){
+      var n=parQui[who]||0;sommeP+=n*biais[who];total+=n;
+    });
+    if(total){
+      var centre=sommeP/total;
+      Object.keys(biais).forEach(function(who){biais[who]-=centre});
+    }
+  }
+
+  /* ── 3. les critères, corrigés puis pondérés ────────────────── */
+  brut.forEach(function(r){
+    var b=out[r.pid];
+    var v=r.val-(biais[r.who]||0);
+    v=Math.max(1,Math.min(RATING_MAX,v));
+    var rr=b.ratings[r.crit]||(b.ratings[r.crit]={sum:0,n:0,min:v,max:v,avg:0,rawSum:0});
+    rr.sum+=v;rr.rawSum+=r.val;rr.n++;
+    rr.min=Math.min(rr.min,v);rr.max=Math.max(rr.max,v);
+  });
+
+  /* ── 4. les statistiques relevées, situées dans la campagne ───
+     L'efficacité de chaque famille est d'abord calculée pour toutes les
+     athlètes, puis chacune est notée par rapport à la distribution du
+     moment : c'est la seule échelle qui vaille pour une catégorie d'âge
+     donnée, et elle ne suppose aucun barème importé d'ailleurs. */
+  var pids=Object.keys(out);
+  var dist={};
+  FAMILY_KEYS.forEach(function(f){
+    var vals=[];
+    pids.forEach(function(pid){
+      var b=out[pid],vol=familyVolume(b.stats,f);
+      if(vol>=sc.minVolume){
+        var e=familyEff(b.stats,f);
+        if(e!=null){b.statFams[f]={eff:e,volume:vol,scale:null};vals.push(e)}
+      } else if(vol>0){
+        b.statFams[f]={eff:familyEff(b.stats,f),volume:vol,scale:null,tropPeu:true};
+      }
+    });
+    if(!vals.length)return;
+    var moy=vals.reduce(function(t,v){return t+v},0)/vals.length;
+    var varc=vals.reduce(function(t,v){return t+(v-moy)*(v-moy)},0)/vals.length;
+    dist[f]={moyenne:moy,ecart:Math.sqrt(varc),n:vals.length};
+  });
+  pids.forEach(function(pid){
+    var b=out[pid];
+    FAMILY_KEYS.forEach(function(f){
+      var fam=b.statFams[f];
+      if(!fam||fam.tropPeu||!dist[f])return;
+      fam.scale=effToScale(fam.eff,dist[f].moyenne,dist[f].ecart);
+    });
+  });
+
+  /* ── 5. le score, et ce qui l'a formé ───────────────────────── */
+  pids.forEach(function(pid){
+    var b=out[pid];
+    /* critères */
+    var tot=0,poids=0;
     CRITERIA.forEach(function(c){
       var r=b.ratings[c.key];
-      if(r&&r.n){r.avg=r.sum/r.n;tot+=r.avg;cnt++}
+      if(!r||!r.n)return;
+      r.avg=r.sum/r.n;
+      r.rawAvg=r.rawSum/r.n;
+      var w=sc.critWeights[c.key];
+      if(w>0){tot+=w*r.avg;poids+=w}
     });
-    b.score=cnt?tot/cnt:0;
+    b.critScore=poids?tot/poids:null;
+    /* statistiques */
+    var st=0,sp=0;
+    FAMILY_KEYS.forEach(function(f){
+      var fam=b.statFams[f];
+      if(!fam||fam.scale==null)return;
+      var w=sc.statWeights[f];
+      if(w>0){st+=w*fam.scale;sp+=w}
+    });
+    b.statScore=sp?st/sp:null;
+    /* mélange : la part des statistiques ne s'applique que si les deux
+       existent ; sinon celle qui est là porte le score entière. */
+    var part=(b.critScore!=null&&b.statScore!=null)?sc.statShare:(b.statScore!=null?1:0);
+    b.detail.statShare=part;
+    if(b.critScore==null&&b.statScore==null)b.rawScore=0;
+    else if(b.critScore==null)b.rawScore=b.statScore;
+    else if(b.statScore==null)b.rawScore=b.critScore;
+    else b.rawScore=(1-part)*b.critScore+part*b.statScore;
+    b.score=b.rawScore;
+  });
+
+  /* Amortissement : un score tiré d'un seul regard est ramené vers la
+     moyenne du groupe, à proportion du peu sur quoi il repose. Une athlète
+     vue une fois cesse ainsi de coiffer celles que trois personnes ont
+     jugées. La moyenne de référence est celle des athlètes notées. */
+  if(sc.reliability>0){
+    var somme=0,pds=0;
+    pids.forEach(function(pid){
+      var b=out[pid];
+      if(!b.nRatings||b.critScore==null&&b.statScore==null)return;
+      somme+=b.rawScore*b.nRatings;pds+=b.nRatings;
+    });
+    if(pds){
+      var refer=somme/pds;
+      pids.forEach(function(pid){
+        var b=out[pid],n=b.nRatings;
+        if(!n)return;
+        var avant=b.rawScore;
+        b.score=(n*b.rawScore+sc.reliability*refer)/(n+sc.reliability);
+        b.detail.shrink=b.score-avant;
+        b.detail.reference=refer;
+      });
+    }
+  }
+
+  /* Ce que la correction de sévérité a déplacé, athlète par athlète. */
+  pids.forEach(function(pid){
+    var b=out[pid],d=0,k=0;
+    CRITERIA.forEach(function(c){
+      var r=b.ratings[c.key];
+      if(r&&r.n){d+=(r.avg-r.rawAvg);k++}
+    });
+    b.detail.severity=k?d/k:0;
     var best=null;
-    ["select","recall","cut"].forEach(function(k){if(b.reco[k]>0&&(best===null||b.reco[k]>b.reco[best]))best=k});
+    ["select","recall","cut"].forEach(function(x){if(b.reco[x]>0&&(best===null||b.reco[x]>b.reco[best]))best=x});
     b.topReco=best;
     var bestPos=null;
-    POS_KEYS.forEach(function(k){if(b.pos[k]>0&&(bestPos===null||b.pos[k]>b.pos[bestPos]))bestPos=k});
+    POS_KEYS.forEach(function(x){if(b.pos[x]>0&&(bestPos===null||b.pos[x]>b.pos[bestPos]))bestPos=x});
     b.topPos=bestPos;
   });
   return out;
@@ -2080,6 +2394,47 @@ function fmtDelta(d){
   if(d==null)return "—";
   var v=(d>=0?"+":"")+d.toFixed(1);
   return v;
+}
+
+/* ─── La sélection comme point de départ ─────────────────────
+   Ce que les évaluateurs ont compté le jour de la sélection n'est pas un
+   souvenir : c'est la première mesure de l'athlète, celle à laquelle tout
+   le reste de la saison se compare. Les volumes n'ont rien de comparable
+   — une séance contre vingt matchs — mais les efficacités, si. */
+function selectionCampaign(squad){
+  if(!squad||!squad.campaigns||!squad.campaigns.length)return null;
+  var t=null;
+  squad.campaigns.forEach(function(c){if(!t&&c.kind==="tryout")t=c});
+  return t||squad.campaigns[0];
+}
+function selectionBaseline(squad,pid){
+  var c=selectionCampaign(squad);
+  if(!c)return null;
+  var comp=compileSubmissions(squad,c.id)[pid];
+  if(!comp||!sumStats(comp.stats))return null;
+  return {campaign:c,stats:comp.stats,
+          score:comp.nRatings?comp.score:null,
+          profile:statProfile(comp.stats)};
+}
+/* Famille par famille : où elle en était, où elle en est, et l'écart.
+   Une famille absente d'un côté se lit « — » plutôt que zéro : ne pas
+   avoir servi n'est pas avoir mal servi. */
+function baselineCompare(squad,pid,minVolume){
+  var base=selectionBaseline(squad,pid);
+  if(!base)return null;
+  var saison=playerSeasonStats(squad,pid);
+  var seuil=minVolume||1;
+  var lignes=[];
+  FAMILY_KEYS.forEach(function(f){
+    var vb=familyVolume(base.stats,f),vs=familyVolume(saison.stats,f);
+    if(!vb&&!vs)return;
+    var eb=vb>=seuil?familyEff(base.stats,f):null;
+    var es=vs>=seuil?familyEff(saison.stats,f):null;
+    lignes.push({family:f,
+      fromEff:eb,fromVol:vb,toEff:es,toVol:vs,
+      delta:(eb!=null&&es!=null)?(es-eb):null});
+  });
+  return {campaign:base.campaign,sessions:saison.sessions,lignes:lignes};
 }
 
 /* Cumul de match d'une joueuse sur toute la saison, toutes équipes confondues.
@@ -2335,7 +2690,7 @@ function packetToView(data){
     name:(data.view&&data.view.name)||"Vue importée",
     selectorName:(data.view&&data.view.selectorName)||"",
     criteria:((data.view&&data.view.criteria)||[]).filter(function(c){return CRIT_BY_KEY[c]}),
-    groups:((data.view&&data.view.groups)||[]).filter(function(g){return SG[g]}),
+    groups:normGroups(data.view&&data.view.groups),
     anonymous:!(data.view&&data.view.anonymous===false),
     context:(data.view&&data.view.context)||"",
     campaignId:data.campaignId||null,campaignName:data.campaignName||"",
@@ -2964,7 +3319,11 @@ function renderSelectionBoard(squad){
       return (fullName(p).toLowerCase().indexOf(q)!==-1)||(e.number.indexOf(q)===0);
     });
     return list.slice().sort(function(a,b){
-      var sa=(compiled[a.playerId]||{}).score||0,sb=(compiled[b.playerId]||{}).score||0;
+      var ca=compiled[a.playerId]||{},cb=compiled[b.playerId]||{};
+      /* Notées d'abord, par score ; puis celles dont on n'a que des
+         compteurs ; puis celles que personne n'a vues. */
+      if(!ca.nRatings!==!cb.nRatings)return ca.nRatings?-1:1;
+      var sa=ca.score||0,sb=cb.score||0;
       if(sb!==sa)return sb-sa;
       return (parseInt(a.number,10)||999)-(parseInt(b.number,10)||999);
     });
@@ -3007,8 +3366,9 @@ function renderSelectionBoard(squad){
     if(isInSquad(e)===false&&e.status==="selected")meta.push(membershipBadge(e.membership));
     else if(e.status==="selected"&&e.membership!=="active")meta.push(membershipBadge(e.membership));
     if(c&&c.n){
-      meta.push(h("span",{className:"badge",style:{background:scoreColor(c.score)+"22",color:scoreColor(c.score),borderColor:scoreColor(c.score)+"55"}},
-        "★ "+c.score.toFixed(1)+" · "+plural(c.n,"éval")));
+      var sc=c.nRatings?c.score:0;
+      meta.push(h("span",{className:"badge",style:{background:scoreColor(sc)+"22",color:scoreColor(sc),borderColor:scoreColor(sc)+"55"}},
+        c.nRatings?("★ "+c.score.toFixed(1)+" · "+plural(c.nRatings,"note")):("★ — · "+plural(c.n,"relevé"))));
       if(c.topReco)meta.push(h("span",{className:"badge",style:{background:RECO_BY_KEY[c.topReco].color+"18",color:RECO_BY_KEY[c.topReco].color}},
         "Avis : "+RECO_BY_KEY[c.topReco].short));
       if(c.topPos)meta.push(posVoteBadge(c));
@@ -3114,6 +3474,14 @@ function renderPlayerSheet(squad,entry,p){
     box.appendChild(renderStatMini(ms.stats));
   } else box.appendChild(h("div",{className:"muted"},"Aucun match enregistré."));
 
+  /* Depuis la sélection — ce que valait son premier relevé, et ce qu'il vaut
+     aujourd'hui. C'est la lecture que réclame une athlète retenue. */
+  var cmpBase=renderBaselineCompare(squad,entry.playerId);
+  if(cmpBase){
+    box.appendChild(h("div",{className:"section-title"},"Depuis la sélection"));
+    box.appendChild(cmpBase);
+  }
+
   /* Évaluations, campagne par campagne */
   var perCamp=squad.campaigns.map(function(c){
     return {campaign:c,c:compileSubmissions(squad,c.id)[entry.playerId]};
@@ -3125,10 +3493,12 @@ function renderPlayerSheet(squad,entry,p){
     var prev=i>0?perCamp[i-1]:null;
     var delta=prev?(x.c.score-prev.c.score):null;
     box.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:"10px",margin:"10px 0 6px"}},
-      h("span",{className:"score-pill",style:{background:scoreColor(x.c.score)+"22",color:scoreColor(x.c.score)}},x.c.score.toFixed(1)),
+      h("span",{className:"score-pill",style:{background:scoreColor(x.c.nRatings?x.c.score:0)+"22",color:scoreColor(x.c.nRatings?x.c.score:0)}},
+        x.c.nRatings?x.c.score.toFixed(1):"—"),
       h("div",{style:{flex:"1",minWidth:"0"}},
         h("div",{style:{fontSize:"13px",fontWeight:"700",color:"#F8FAFC"}},campaignLabel(x.campaign)),
-        h("div",{className:"psub"},plural(x.c.n,"évaluation")+" · "+x.c.selectors.join(", "))),
+        h("div",{className:"psub"},(x.c.nRatings?plural(x.c.nRatings,"note"):"aucune note")+
+          (x.c.n>x.c.nRatings?" · "+plural(x.c.n-x.c.nRatings,"relevé"):"")+" · "+x.c.selectors.join(", "))),
       delta!=null?h("span",{className:"badge",style:{background:deltaColor(delta)+"20",color:deltaColor(delta)}},fmtDelta(delta)):null));
     box.appendChild(renderCritBars(x.c));
   });
@@ -3172,6 +3542,100 @@ function renderCritBars(c){
         r&&r.n?(avg.toFixed(1)+(r.min!==r.max?" ("+r.min+"–"+r.max+")":"")):"—"));
   }));
 }
+/* Depuis la sélection : la première mesure face à celle d'aujourd'hui.
+   Les volumes sont rappelés parce qu'ils décident de ce qu'on peut croire :
+   une efficacité tirée de six gestes n'est pas une tendance. */
+function renderBaselineCompare(squad,pid){
+  var cmp=baselineCompare(squad,pid,scoringOf(squad).minVolume);
+  if(!cmp||!cmp.lignes.length)return null;
+  var wrap=h("div",null);
+  wrap.appendChild(h("div",{className:"muted",style:{marginBottom:"6px"}},
+    "Relevé le jour de « "+cmp.campaign.name+" », face au cumul de "+
+    plural(cmp.sessions,"match")+". Comparaison en efficacité, seule grandeur que "+
+    "des volumes aussi différents autorisent."));
+  var head=h("div",{className:"fam-row",style:{borderBottom:"1px solid #334155"}},
+    h("span",{className:"fam-name",style:{color:"#64748B"}},""),
+    h("span",{className:"fam-eff",style:{color:"#64748B",fontWeight:"600"}},"sélect."),
+    h("span",{className:"fam-eff",style:{color:"#64748B",fontWeight:"600"}},"saison"),
+    h("span",{className:"fam-vol",style:{textAlign:"right"}},"écart"));
+  wrap.appendChild(head);
+  cmp.lignes.forEach(function(l){
+    var g=SG[l.family];
+    wrap.appendChild(h("div",{className:"fam-row"},
+      h("span",{className:"fam-name",style:{color:g.color}},g.name),
+      h("span",{className:"fam-eff",title:l.fromVol+" gestes"},fmtEff(l.fromEff)),
+      h("span",{className:"fam-eff",title:l.toVol+" gestes"},fmtEff(l.toEff)),
+      h("span",{className:"fam-vol",style:{textAlign:"right"}},
+        l.delta==null
+          ? h("span",{style:{color:"#475569"}},"—")
+          : h("span",{style:{color:deltaColor(l.delta),fontWeight:"800"}},
+              (l.delta>=0?"+":"")+l.delta.toFixed(2)))));
+  });
+  return wrap;
+}
+
+/* D'où vient le score. Un chiffre qui décide d'une sélection doit pouvoir
+   être défendu devant l'athlète et ses parents : chaque étape est donc
+   montrée, avec ce qu'elle a ajouté ou retiré. */
+function renderScoreBreakdown(squad,c){
+  var sc=scoringOf(squad);
+  var box=h("div",{className:"score-break"});
+  function ligne(libelle,valeur,couleur,precision){
+    return h("div",{className:"sb-row"},
+      h("span",{className:"sb-lbl"},libelle),
+      h("span",{className:"sb-val",style:couleur?{color:couleur}:null},valeur),
+      precision?h("span",{className:"sb-note"},precision):null);
+  }
+  if(c.critScore!=null)
+    box.appendChild(ligne("Critères",c.critScore.toFixed(2),scoreColor(c.critScore),
+      pondLibelle(sc.critWeights,CRITERIA.map(function(x){return {key:x.key,label:x.label}}))));
+  if(c.statScore!=null)
+    box.appendChild(ligne("Statistiques",c.statScore.toFixed(2),scoreColor(c.statScore),
+      Math.round(c.detail.statShare*100)+" % du score"));
+  else if(Object.keys(c.statFams).length)
+    box.appendChild(ligne("Statistiques","—",null,"volumes trop faibles pour être notés"));
+  if(Math.abs(c.detail.severity)>=0.005)
+    box.appendChild(ligne("Sévérité corrigée",fmtDelta(c.detail.severity),deltaColor(c.detail.severity),
+      c.detail.severity>0?"l'évaluateur notait bas":"l'évaluateur notait haut"));
+  if(Math.abs(c.detail.shrink)>=0.005)
+    box.appendChild(ligne("Peu de regards",fmtDelta(c.detail.shrink),deltaColor(c.detail.shrink),
+      plural(c.nRatings,"regard")+" — ramené vers "+(c.detail.reference||0).toFixed(2)));
+  box.appendChild(h("div",{className:"sb-row sb-total"},
+    h("span",{className:"sb-lbl"},"Score retenu"),
+    h("span",{className:"sb-val",style:{color:scoreColor(c.score)}},c.score.toFixed(2)),
+    null));
+  return box;
+}
+function pondLibelle(poids,items){
+  var parts=[],tous=true,ref=null;
+  items.forEach(function(it){
+    var w=poids[it.key];
+    if(ref===null)ref=w; else if(w!==ref)tous=false;
+    if(w>0&&w!==1)parts.push(it.label+" ×"+w);
+    if(w===0)parts.push(it.label+" écarté");
+  });
+  if(tous&&ref===1)return "à poids égal";
+  return parts.join(" · ")||"à poids égal";
+}
+/* Les familles de compteurs relevées : l'efficacité, le volume qui la
+   porte, et la note qui en découle une fois située dans la campagne. */
+function renderStatFamilies(c){
+  var fams=FAMILY_KEYS.filter(function(f){return c.statFams[f]});
+  if(!fams.length)return h("div",{className:"muted"},"Aucun compteur relevé.");
+  var wrap=h("div",null);
+  fams.forEach(function(f){
+    var fam=c.statFams[f],g=SG[f];
+    wrap.appendChild(h("div",{className:"fam-row"},
+      h("span",{className:"fam-name",style:{color:g.color}},g.name),
+      h("span",{className:"fam-eff"},fmtEff(fam.eff)),
+      h("span",{className:"fam-vol"},fam.volume+" gestes"),
+      fam.scale!=null
+        ? h("span",{className:"badge",style:{background:scoreColor(fam.scale)+"20",color:scoreColor(fam.scale)}},fam.scale.toFixed(1))
+        : h("span",{className:"badge",style:{background:"#33415530",color:"#64748B"}},"trop peu")));
+  });
+  return wrap;
+}
+
 function renderStatMini(stats){
   var wrap=h("div",{className:"stat-mini"});
   var any=false;
@@ -4379,7 +4843,12 @@ function renderEvalsPane(squad){
   var campId=state.evalCampaignId==="__all"?null:state.evalCampaignId;
   var camp=campId?campaignById(squad,campId):null;
   var compiled=compileSubmissions(squad,campId);
-  var rows=Object.keys(compiled).map(function(pid){return compiled[pid]}).sort(function(a,b){return b.score-a.score});
+  /* Une athlète dont on n'a que des compteurs n'a pas « 0 » : elle n'a pas
+     de note. Elle se range après les athlètes notées, jamais sous elles. */
+  var rows=Object.keys(compiled).map(function(pid){return compiled[pid]}).sort(function(a,b){
+    if(!a.nRatings!==!b.nRatings)return a.nRatings?-1:1;
+    return b.score-a.score;
+  });
   var subs=campaignSubs(squad,campId);
 
   wrap.appendChild(h("div",{className:"hint"},
@@ -4390,7 +4859,16 @@ function renderEvalsPane(squad){
 
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
     (camp&&rows.length)?h("button",{className:"btn btn-warn sm",onclick:function(){openModal("applyreco")}},"⚡ Appliquer les avis au roster"):null,
+    h("button",{className:"btn btn-ghost sm",onclick:function(){state.modalDraft=null;openModal("scoring")}},"⚖️ Formule"),
     rows.length?h("button",{className:"btn btn-export sm",onclick:function(){exportEvalsCSV(squad,rows,camp)}},"📤 Exporter (CSV)"):null));
+  var scNow=scoringOf(squad);
+  wrap.appendChild(h("div",{className:"muted",style:{marginBottom:"10px"}},
+    scoringIsPlain(scNow)
+      ? "Score : moyenne simple des critères. Les compteurs relevés ne pèsent pas."
+      : "Score : critères "+(100-Math.round(scNow.statShare*100))+" % · statistiques "+Math.round(scNow.statShare*100)+" %"+
+        (scNow.severity?" · sévérité des sélectionneurs corrigée":"")+
+        (scNow.reliability>0?" · amorti selon le nombre de regards":"")+". "+
+        "Chaque ligne dépliée montre le détail."));
 
   if(!rows.length){wrap.appendChild(h("div",{className:"empty"},"Aucune joueuse évaluée dans cette campagne"));return wrap}
 
@@ -4400,17 +4878,30 @@ function renderEvalsPane(squad){
     wrap.appendChild(h("div",{className:"compile-row",onclick:function(){
       state.expandedPlayerId=open?null:c.playerId;render();
     }},
-      h("span",{className:"score-pill",style:{background:scoreColor(c.score)+"22",color:scoreColor(c.score)}},c.score.toFixed(1)),
+      h("span",{className:"score-pill",style:{background:scoreColor(c.nRatings?c.score:0)+"22",color:scoreColor(c.nRatings?c.score:0)}},
+        c.nRatings?c.score.toFixed(1):"—"),
       h("div",{style:{flex:"1",minWidth:"0"}},
         h("div",{className:"pname"},(e&&e.number?"#"+e.number+" ":"")+fullName(p)),
-        h("div",{className:"psub"},plural(c.n,"évaluation")+" · "+c.selectors.join(", "))),
+        h("div",{className:"psub"},(c.nRatings?plural(c.nRatings,"note"):"aucune note")+
+          (c.n>c.nRatings?" · "+plural(c.n-c.nRatings,"relevé")+" de compteurs":"")+
+          " · "+c.selectors.join(", "))),
       posVoteBadge(c,true),
       c.topReco?h("span",{className:"badge",style:{background:RECO_BY_KEY[c.topReco].color+"20",color:RECO_BY_KEY[c.topReco].color}},
-        RECO_BY_KEY[c.topReco].icon+" "+c.reco[c.topReco]+"/"+c.n):null,
+        RECO_BY_KEY[c.topReco].icon+" "+c.reco[c.topReco]+"/"+c.nReco):null,
       h("span",{style:{color:"#475569"}},open?"▲":"▼")));
     if(!open)return;
     var box=h("div",{className:"card"});
+    box.appendChild(h("div",{className:"section-title"},"D'où vient le score"));
+    box.appendChild(renderScoreBreakdown(squad,c));
+    box.appendChild(h("div",{className:"section-title"},"Critères"));
     box.appendChild(renderCritBars(c));
+    if(Object.keys(c.statFams).length){
+      box.appendChild(h("div",{className:"section-title"},"Efficacité relevée"));
+      box.appendChild(renderStatFamilies(c));
+      box.appendChild(h("div",{className:"muted",style:{marginTop:"6px"}},
+        "L'efficacité est la part nette de gestes réussis, entre −1 et +1. La note qui l'accompagne "+
+        "situe l'athlète parmi celles de la même campagne — jamais contre un barème venu d'ailleurs."));
+    }
     box.appendChild(h("div",{className:"section-title"},"Avis"));
     box.appendChild(h("div",{style:{display:"flex",gap:"6px",flexWrap:"wrap"}},RECOS.map(function(r){
       return h("span",{className:"badge",style:{background:r.color+"18",color:r.color,padding:"5px 10px"}},r.icon+" "+r.label+" : "+(c.reco[r.key]||0));
@@ -4546,10 +5037,18 @@ function downloadCSV(lines,filename){
   }catch(e){showToast("⚠️ Export impossible")}
 }
 function exportEvalsCSV(squad,rows,camp){
-  var head=["Campagne","Numero","Joueuse","Position","Statut","Effectif","Evaluations","Score"]
+  /* Les colonnes suivent l'ordre de lecture : ce qui identifie, ce qui
+     décide, puis la matière brute. Les colonnes de score sont explicitées
+     — un tableur qui recalculerait la moyenne des critères ne retrouverait
+     pas le score, puisque celui-ci porte aussi les statistiques, la
+     sévérité corrigée et l'amortissement. */
+  var head=["Campagne","Numero","Joueuse","Position","Statut","Effectif",
+            "Saisies","Notes","Avis","Score","Score_criteres","Score_stats",
+            "Corr_severite","Corr_fiabilite","Part_stats"]
     .concat(CRITERIA.map(function(c){return c.label}))
     .concat(["Retenir","Recaller","Non_retenue"])
     .concat(["Poste_propose","Poste_votes"])
+    .concat(FAMILY_KEYS.map(function(f){return "Eff_"+f}))
     .concat(ALL_STATS.map(function(st){return st.key}));
   var lines=[head.join(";")];
   rows.forEach(function(c){
@@ -4557,10 +5056,17 @@ function exportEvalsCSV(squad,rows,camp){
     lines.push([camp?camp.name:"toutes",(e&&e.number)||"",fullName(p).replace(/;/g,","),
       (e&&e.position)||"",(e&&STATUSES[e.status].label)||"",
       (e&&e.status==="selected"&&MEMBERSHIPS[e.membership])?MEMBERSHIPS[e.membership].label:"",
-      c.n,c.score.toFixed(2)]
+      c.n,c.nRatings,c.nReco,
+      c.nRatings||c.statScore!=null?c.score.toFixed(2):"",
+      c.critScore!=null?c.critScore.toFixed(2):"",
+      c.statScore!=null?c.statScore.toFixed(2):"",
+      c.detail.severity.toFixed(2),c.detail.shrink.toFixed(2),
+      c.detail.statShare]
       .concat(CRITERIA.map(function(cr){var x=c.ratings[cr.key];return x&&x.n?x.avg.toFixed(2):""}))
       .concat([c.reco.select||0,c.reco.recall||0,c.reco.cut||0])
       .concat([c.topPos||"",c.topPos?(c.pos[c.topPos]+"/"+c.posVotes):""])
+      .concat(FAMILY_KEYS.map(function(f){
+        var fam=c.statFams[f];return fam&&fam.eff!=null?fam.eff.toFixed(3):"";}))
       .concat(ALL_STATS.map(function(st){return c.stats[st.key]||0})).join(";"));
   });
   downloadCSV(lines,"Evaluations_"+safeName(squad.name)+"_"+safeName(camp?camp.name:"toutes")+"_"+stamp()+".csv");
@@ -5125,7 +5631,7 @@ function renderSvPlayerPanel(src,pid,ordered){
   }
 
   /* Statistiques observées */
-  var groups=(v.groups&&v.groups.length?v.groups:SG_KEYS).filter(function(g){return SG[g]});
+  var groups=normGroups(v.groups);
   if(groups.length){
     panel.appendChild(h("div",{className:"section-title"},"Statistiques observées"));
     groups.forEach(function(gk){
@@ -5615,13 +6121,12 @@ function renderModal(){
           name:cat.teamName+" · "+(cat.campaignName||"observation"),
           selectorName:m?m.name:"",
           criteria:(cat.criteria||[]).filter(function(c){return CRIT_BY_KEY[c]}),
-          groups:(cat.groups||[]).filter(function(g){return SG[g]}),
+          groups:normGroups(cat.groups),
           anonymous:true,origin:"self",
           campaignId:cat.campaignId,campaignName:cat.campaignName||"",
           seasonId:cat.seasonId,seasonName:cat.seasonName||""
         });
         if(!v.criteria.length)v.criteria=CRITERIA.map(function(c){return c.key});
-        if(!v.groups.length)v.groups=SG_KEYS.slice();
         v.teamId=cat.teamId;v.teamName=cat.teamName;
         v.numbers={};v.labels={};
         var byId={};cat.players.forEach(function(pl){byId[pl.playerId]=pl});
@@ -6499,7 +7004,10 @@ function renderModal(){
       h("div",{className:"field"},h("label",null,"Groupes de statistiques"),
         toggleGrid(SG_KEYS.map(function(k){return {id:k,label:SG[k].name}}),
           function(it){return draft2.groups.indexOf(it.id)!==-1},
-          function(it){var i=draft2.groups.indexOf(it.id);if(i!==-1)draft2.groups.splice(i,1);else draft2.groups.push(it.id)})),
+          function(it){var i=draft2.groups.indexOf(it.id);if(i!==-1)draft2.groups.splice(i,1);else draft2.groups.push(it.id)}),
+        h("div",{className:"muted",style:{marginTop:"5px"}},
+          "Tout décocher donne une vue de notes seules : le sélectionneur n'y voit aucun compteur. "+
+          "C'est la vue de celui qui tranche, pendant que les coachs de drill comptent sur la leur.")),
       h("div",{className:"muted"},"Une joueuse peut appartenir à plusieurs vues, y compris dans la même campagne."));
 
     var btns4=[cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
@@ -6527,6 +7035,98 @@ function renderModal(){
     return modalShell(v0?"Modifier la vue":"Nouvelle vue sélectionneur",body4,btns4,"480px");
   }
 
+  /* ── Réglage de la formule du score ── */
+  if(T==="scoring"){
+    if(!season)return null;
+    var d3=state.modalDraft||(state.modalDraft=JSON.parse(JSON.stringify(scoringOf(season))));
+    function poidsRow(libelle,obj,key,max){
+      var btns=h("div",{className:"w-btns"});
+      for(var i=0;i<=(max||3);i++)(function(n){
+        var b=h("button",{className:"w-btn"+(obj[key]===n?" on":""),onclick:function(){
+          obj[key]=n;
+          Array.prototype.forEach.call(btns.children,function(el,j){
+            el.className="w-btn"+(obj[key]===j?" on":"");
+          });
+        }},n===0?"—":("×"+n));
+        btns.appendChild(b);
+      })(i);
+      return h("div",{className:"w-row"},h("span",{className:"w-lbl"},libelle),btns);
+    }
+    var corps=h("div",null,
+      h("div",{className:"muted",style:{marginBottom:"10px"}},
+        "La formule vaut pour toute la saison : comparer deux campagnes n'a de sens "+
+        "que si elles sont mesurées de la même façon."),
+
+      h("div",{className:"section-title"},"Poids des critères"),
+      h("div",null,CRITERIA.map(function(c){return poidsRow(c.label,d3.critWeights,c.key,3)})),
+
+      h("div",{className:"section-title"},"Part des statistiques"),
+      (function(){
+        var val=h("span",{style:{fontWeight:"800",color:"#A78BFA",minWidth:"46px",textAlign:"right"}},
+          Math.round(d3.statShare*100)+" %");
+        var rng=h("input",{type:"range",min:"0",max:"100",step:"5",value:String(Math.round(d3.statShare*100)),
+          style:{flex:"1"}});
+        rng.addEventListener("input",function(e){
+          d3.statShare=(parseInt(e.target.value,10)||0)/100;
+          val.textContent=Math.round(d3.statShare*100)+" %";
+        });
+        return h("div",null,
+          h("div",{style:{display:"flex",alignItems:"center",gap:"10px"}},rng,val),
+          h("div",{className:"muted",style:{marginTop:"4px"}},
+            "Ce que les compteurs relevés pèsent face aux notes. À 0 %, seules les notes comptent ; "+
+            "une athlète dont on n'a que des compteurs garde alors son score statistique, faute d'autre chose."));
+      })(),
+
+      h("div",{className:"section-title"},"Poids des familles de compteurs"),
+      h("div",null,FAMILY_KEYS.map(function(f){return poidsRow(SG[f].name,d3.statWeights,f,3)})),
+      h("div",{className:"muted"},
+        "Les habiletés n'ont pas de geste manqué : leur efficacité mesure le volume de balles "+
+        "traitées proprement, pas un rendement. Beaucoup de clubs les mettent à —."),
+
+      h("div",{className:"section-title"},"Corrections"),
+      (function(){
+        var sevBtn=h("button",{className:"court-toggle"+(d3.severity?" on":""),
+          style:{width:"100%",textAlign:"center",padding:"10px"}},
+          d3.severity?"✓ Sévérité des sélectionneurs corrigée":"Sévérité non corrigée");
+        sevBtn.onclick=function(){
+          d3.severity=!d3.severity;
+          sevBtn.className="court-toggle"+(d3.severity?" on":"");
+          sevBtn.textContent=d3.severity?"✓ Sévérité des sélectionneurs corrigée":"Sévérité non corrigée";
+        };
+        return h("div",null,sevBtn,
+          h("div",{className:"muted",style:{margin:"5px 0 10px"}},
+            "Compare chaque sélectionneur aux autres sur les athlètes qu'ils ont vues en commun, "+
+            "et retire l'écart qui lui est propre. Sans recoupement, rien n'est corrigé."));
+      })(),
+      poidsRow("Amortir un score peu observé",d3,"reliability",3),
+      h("div",{className:"muted",style:{marginBottom:"10px"}},
+        "À —, une athlète vue une seule fois se compare à l'identique avec une athlète vue trois fois. "+
+        "Plus le poids monte, plus un score isolé est ramené vers la moyenne du groupe."),
+      poidsRow("Gestes minimum par famille",d3,"minVolume",10),
+      h("div",{className:"muted"},
+        "Au-dessous, l'efficacité de la famille n'est pas notée : trop peu de gestes pour en tirer quoi que ce soit."));
+
+    return modalShell("Formule du score",corps,
+      [cancel,
+       h("button",{className:"btn btn-ghost full",onclick:function(){
+         var plat=mkScoring();
+         CRITERIA.forEach(function(c){plat.critWeights[c.key]=1});
+         plat.statShare=0;plat.severity=false;plat.reliability=0;
+         season.scoring=plat;state.modalDraft=null;
+         closeModal();saveNow();showToast("Moyenne simple rétablie");
+       }},"Moyenne simple"),
+       h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+         var poids=0;CRITERIA.forEach(function(c){poids+=d3.critWeights[c.key]});
+         if(!poids&&d3.statShare<1){showToast("⚠️ Gardez au moins un critère, ou passez les statistiques à 100 %");return}
+         season.scoring=JSON.parse(JSON.stringify(d3));
+         logAct("scoring","Formule du score modifiée : critères "+
+           (100-Math.round(d3.statShare*100))+" % · statistiques "+Math.round(d3.statShare*100)+" %",
+           {teamId:season.teamId,seasonId:season.seasonId});
+         state.modalDraft=null;
+         closeModal();saveNow();showToast("✅ Formule enregistrée");
+       }},"Enregistrer")],"460px");
+  }
+
   /* ── Application des avis compilés au roster ── */
   if(T==="applyreco"){
     if(!season)return null;
@@ -6548,7 +7148,7 @@ function renderModal(){
       list.appendChild(h("div",{className:"list-row"},
         h("div",{className:"body"},h("div",{className:"pname"},numLabel(ch.entry.number)+" "+shortName(p)),
           h("div",{className:"psub"},STATUSES[ch.entry.status].label+" → "+STATUSES[ch.target].label+
-            "  ("+ch.c.reco[ch.c.topReco]+"/"+ch.c.n+" avis)"))));
+            "  ("+ch.c.reco[ch.c.topReco]+"/"+ch.c.nReco+" avis)"))));
     });
     return modalShell("Appliquer les avis des sélectionneurs",
       h("div",null,h("div",{className:"muted",style:{marginBottom:"8px"}},
