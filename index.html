@@ -422,6 +422,16 @@ function statProfile(stats){
   });
   return out;
 }
+/* Combien de jours nous séparent d'une date ISO. Sert à décider ce qu'on
+   propose encore de compléter : un tournoi d'il y a trois mois, non. */
+var RATTACH_JOURS=21;
+function joursDepuis(iso){
+  var d=dayOf(iso);
+  if(!d)return 1e9;
+  var t=Date.parse(d+"T00:00:00"),n=Date.parse(todayISO()+"T00:00:00");
+  if(!isFinite(t)||!isFinite(n))return 1e9;
+  return Math.abs(Math.round((n-t)/86400000));
+}
 function fmtEff(e){
   if(e==null)return "—";
   return (e>=0?"+":"")+e.toFixed(2);
@@ -2159,6 +2169,7 @@ function compileSubmissions(squad,campaignId){
       reco:{select:0,recall:0,cut:0},topReco:null,
       pos:emptyPos(),posVotes:0,topPos:null,score:0,notes:[],selectors:[],
       statScore:null,critScore:null,rawScore:0,statFams:{},
+      avis:{},recoTie:false,
       detail:{severity:0,shrink:0,statShare:0}};
     return out[pid];
   }
@@ -2185,8 +2196,18 @@ function compileSubmissions(squad,campaignId){
         brut.push({who:who,pid:e.playerId,crit:c.key,val:v});
       });
       if(aNote)b.nRatings++;
-      if(e.reco&&b.reco[e.reco]!=null){b.reco[e.reco]++;b.nReco++}
-      if(e.pos&&b.pos[e.pos]!=null){b.pos[e.pos]++;b.posVotes++}
+      /* Un avis est une décision, pas une observation : quand le même
+         évaluateur revoit une athlète dans la même campagne — deux séances
+         de pratique, par exemple — sa seconde parole remplace la première.
+         Les notes et les compteurs, eux, s'additionnent : ce sont des
+         observations, et deux séances valent mieux qu'une. */
+      var quand=String(sub.submittedAt||"");
+      var a=b.avis[who]||(b.avis[who]={reco:"",recoAt:"",pos:"",posAt:""});
+      /* Recommandation et poste sont deux avis distincts : celui qui se
+         prononce sur le poste en septembre et seulement sur la sélection
+         en octobre ne doit pas voir son premier avis effacé par le second. */
+      if(e.reco&&quand>=a.recoAt){a.reco=e.reco;a.recoAt=quand}
+      if(e.pos&&quand>=a.posAt){a.pos=e.pos;a.posAt=quand}
       if((e.note||"").trim())b.notes.push({by:who,at:sub.submittedAt,text:e.note.trim()});
       if(b.selectors.indexOf(who)===-1)b.selectors.push(who);
     });
@@ -2246,9 +2267,13 @@ function compileSubmissions(squad,campaignId){
     var b=out[r.pid];
     var v=r.val-(biais[r.who]||0);
     v=Math.max(1,Math.min(RATING_MAX,v));
-    var rr=b.ratings[r.crit]||(b.ratings[r.crit]={sum:0,n:0,min:v,max:v,avg:0,rawSum:0});
+    var rr=b.ratings[r.crit]||(b.ratings[r.crit]={sum:0,n:0,min:r.val,max:r.val,avg:0,rawSum:0});
     rr.sum+=v;rr.rawSum+=r.val;rr.n++;
-    rr.min=Math.min(rr.min,v);rr.max=Math.max(rr.max,v);
+    /* min et max restent les notes telles qu'elles ont été mises : la
+       correction de sévérité ajuste la moyenne, elle n'efface pas le
+       désaccord. « 4,5 (3–5) » dit le résultat et la divergence ; un
+       « 4,5 (4,5–4,5) » laisserait croire à une unanimité qui n'existe pas. */
+    rr.min=Math.min(rr.min,r.val);rr.max=Math.max(rr.max,r.val);
   });
 
   /* ── 4. les statistiques relevées, situées dans la campagne ───
@@ -2349,9 +2374,30 @@ function compileSubmissions(squad,campaignId){
       if(r&&r.n){d+=(r.avg-r.rawAvg);k++}
     });
     b.detail.severity=k?d/k:0;
-    var best=null;
-    ["select","recall","cut"].forEach(function(x){if(b.reco[x]>0&&(best===null||b.reco[x]>b.reco[best]))best=x});
-    b.topReco=best;
+
+    /* Dépouillement : une voix par évaluateur, la dernière qu'il a donnée. */
+    var derniers=[];
+    Object.keys(b.avis).forEach(function(who){derniers.push(b.avis[who])});
+    derniers.forEach(function(a){
+      if(a.reco&&b.reco[a.reco]!=null){b.reco[a.reco]++;b.nReco++}
+      if(a.pos&&b.pos[a.pos]!=null){b.pos[a.pos]++;b.posVotes++}
+    });
+    /* À égalité, c'est l'avis le plus récent qui l'emporte — et l'écran le
+       signale, plutôt que de laisser croire à une majorité qui n'existe pas. */
+    var best=null,exaequo=false;
+    ["select","recall","cut"].forEach(function(x){
+      if(!b.reco[x])return;
+      if(best===null||b.reco[x]>b.reco[best]){best=x;exaequo=false}
+      else if(b.reco[x]===b.reco[best])exaequo=true;
+    });
+    if(exaequo){
+      var tard=null;
+      derniers.forEach(function(a){
+        if(a.reco&&b.reco[a.reco]===b.reco[best]&&(!tard||a.recoAt>tard.recoAt))tard=a;
+      });
+      if(tard&&tard.reco)best=tard.reco;
+    }
+    b.topReco=best;b.recoTie=exaequo;
     var bestPos=null;
     POS_KEYS.forEach(function(x){if(b.pos[x]>0&&(bestPos===null||b.pos[x]>b.pos[bestPos]))bestPos=x});
     b.topPos=bestPos;
@@ -4886,8 +4932,9 @@ function renderEvalsPane(squad){
           (c.n>c.nRatings?" · "+plural(c.n-c.nRatings,"relevé")+" de compteurs":"")+
           " · "+c.selectors.join(", "))),
       posVoteBadge(c,true),
-      c.topReco?h("span",{className:"badge",style:{background:RECO_BY_KEY[c.topReco].color+"20",color:RECO_BY_KEY[c.topReco].color}},
-        RECO_BY_KEY[c.topReco].icon+" "+c.reco[c.topReco]+"/"+c.nReco):null,
+      c.topReco?h("span",{className:"badge",style:{background:RECO_BY_KEY[c.topReco].color+"20",color:RECO_BY_KEY[c.topReco].color},
+        title:c.recoTie?"Avis partagés — le plus récent l'emporte":""},
+        RECO_BY_KEY[c.topReco].icon+" "+c.reco[c.topReco]+"/"+c.nReco+(c.recoTie?" ⚖":"")):null,
       h("span",{style:{color:"#475569"}},open?"▲":"▼")));
     if(!open)return;
     var box=h("div",{className:"card"});
@@ -4980,7 +5027,7 @@ function renderProgressPane(squad,withSubs,wrap){
         h("div",{className:"pname"},(e&&e.number?"#"+e.number+" ":"")+fullName(p)),
         h("div",{className:"psub"},
           (r.from!=null?r.from.toFixed(1):"—")+" → "+(r.to!=null?r.to.toFixed(1):"—")+
-          (r.delta==null?" · "+missingWhy(season,r,from,to):""))),
+          (r.delta==null?" · "+missingWhy(squad,r,from,to):""))),
       h("span",{style:{color:"#475569"}},open?"▲":"▼")));
     if(!open)return;
     var box=h("div",{className:"card"});
@@ -6733,15 +6780,30 @@ function renderModal(){
   if(T==="savesession"){
     var sqS=curSquad();
     if(!sqS)return null;
-    /* Rencontres encore ouvertes : un tournoi accueille plusieurs matchs
-       le même jour, on ne veut pas en recréer un par match. */
-    var recentes=eventsWithSessions(sqS).slice(0,6).map(function(x){return x.event})
-      .filter(function(ev){return kindIsMulti(ev.kind)&&ev.date===todayISO()});
+    /* Rencontres encore ouvertes : un tournoi accueille plusieurs matchs,
+       on ne veut pas en recréer un par match. Longtemps le rattachement
+       n'était proposé que le jour même ; un tournoi joué samedi et saisi
+       dimanche — ce que l'application revendique pourtant — se retrouvait
+       alors éclaté en autant de rencontres que de tours. On propose donc
+       les tournois récents, date affichée, le choix restant explicite. */
+    var recentes=eventsWithSessions(sqS).map(function(x){return x.event})
+      .filter(function(ev){return kindIsMulti(ev.kind)&&joursDepuis(ev.date)<=RATTACH_JOURS})
+      .slice(0,6);
+    /* Un tournoi du jour se complète sans y penser : il est proposé d'emblée.
+       Passé le jour même, le rattachement reste offert mais ne s'impose plus —
+       un match isolé quinze jours après ne doit pas atterrir dedans par défaut. */
+    var duJour=recentes.filter(function(ev){return ev.date===todayISO()});
     var sd=state.modalDraft||(state.modalDraft={
-      eventId:recentes.length?recentes[0].id:"",
+      eventId:duJour.length?duJour[0].id:"",
       kind:"league",eventName:"",opponent:"",day:todayISO(),location:"",
       name:"",sets:[{us:"",them:""},{us:"",them:""},{us:"",them:""}]
     });
+    /* Un match rattaché appartient au jour de sa rencontre, pas à celui où
+       on le saisit : c'est tout l'objet de la distinction entre les deux. */
+    if(sd.eventId){
+      var evSd=eventById(sqS,sd.eventId);
+      if(evSd&&evSd.date)sd.day=evSd.date;
+    }
 
     var body=h("div",null);
 
@@ -6749,10 +6811,16 @@ function renderModal(){
       var evSel=h("select",null,
         h("option",{value:""},"➕ Nouvelle rencontre"),
         recentes.map(function(ev){
-          return h("option",{value:ev.id},eventLabel(ev)+" · "+plural(sessionsOfEvent(sqS,ev.id).length,"match"));
+          return h("option",{value:ev.id},eventLabel(ev)+" · "+fmtDay(ev.date)+
+            " · "+plural(sessionsOfEvent(sqS,ev.id).length,"match"));
         }));
       evSel.value=sd.eventId;
-      evSel.addEventListener("change",function(e){state.modalDraft.eventId=e.target.value;render()});
+      evSel.addEventListener("change",function(e){
+        state.modalDraft.eventId=e.target.value;
+        var evc=e.target.value?eventById(sqS,e.target.value):null;
+        state.modalDraft.day=(evc&&evc.date)||todayISO();
+        render();
+      });
       body.appendChild(h("div",{className:"field"},h("label",null,"Rattacher à"),evSel));
     }
 
@@ -6778,7 +6846,10 @@ function renderModal(){
     } else {
       var evCur=eventById(sqS,sd.eventId);
       body.appendChild(h("div",{className:"note"},"Match rattaché à ",h("b",null,eventLabel(evCur)),
-        " — ",plural(sessionsOfEvent(sqS,evCur.id).length,"match")," déjà enregistré(s)."));
+        " du ",h("b",null,fmtDay(evCur.date)),
+        " — ",plural(sessionsOfEvent(sqS,evCur.id).length,"match")," déjà enregistré(s).",
+        evCur.date!==todayISO()?h("div",{className:"muted",style:{marginTop:"4px"}},
+          "Ce match sera daté du jour de la rencontre, pas d'aujourd'hui."):null));
       /* Dans un tournoi on change d'adversaire à chaque tour : la question
          se repose même quand la rencontre est déjà ouverte. */
       var advInp=h("input",{placeholder:"Ex. Les Lions",value:sd.opponent||""});
@@ -7148,12 +7219,19 @@ function renderModal(){
       list.appendChild(h("div",{className:"list-row"},
         h("div",{className:"body"},h("div",{className:"pname"},numLabel(ch.entry.number)+" "+shortName(p)),
           h("div",{className:"psub"},STATUSES[ch.entry.status].label+" → "+STATUSES[ch.target].label+
-            "  ("+ch.c.reco[ch.c.topReco]+"/"+ch.c.nReco+" avis)"))));
+            "  ("+ch.c.reco[ch.c.topReco]+"/"+ch.c.nReco+" avis"+
+            (ch.c.recoTie?", partagés — le plus récent l'emporte":"")+")"))));
     });
+    var partages=changes.filter(function(ch){return ch.c.recoTie}).length;
     return modalShell("Appliquer les avis des sélectionneurs",
       h("div",null,h("div",{className:"muted",style:{marginBottom:"8px"}},
         "Le statut de chaque joueuse est aligné sur l'avis majoritaire reçu dans la campagne "+
-        (applyCamp?"« "+applyCamp.name+" »":"active")+". Vous restez libre de le modifier ensuite."),list),
+        (applyCamp?"« "+applyCamp.name+" »":"active")+". Un évaluateur qui s'est prononcé "+
+        "plusieurs fois ne compte qu'une voix : la dernière. Vous restez libre de modifier ensuite."),
+        partages?h("div",{className:"hint warn"},
+          "⚖ "+plural(partages,"athlète")+" dont les avis sont partagés : c'est le plus récent qui tranche. "+
+          "Regardez-les avant d'appliquer."):null,
+        list),
       [cancel,changes.length?h("button",{id:"modalOk",className:"btn btn-warn full",onclick:function(){
         changes.forEach(function(ch){setRosterStatus(season,ch.entry,ch.target)});
         logAct("status","Avis de la campagne "+(applyCamp?"« "+applyCamp.name+" »":"active")+

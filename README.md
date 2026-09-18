@@ -10,6 +10,7 @@ sw.js           service worker (app-shell en cache-first)
 server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
+GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
 tests/          suite de non-régression Playwright
 ```
 
@@ -496,6 +497,20 @@ vous publiez explicitement sur votre propre relais.
   lieu d'être classée dernière avec un zéro qu'elle n'a pas mérité.
 - **« Depuis la sélection »** : la fiche de saison d'une retenue compare l'efficacité
   relevée au tryout à celle du cumul des matchs, famille par famille.
+- **Un tournoi se complète enfin le lendemain.** Le rattachement d'un match à une
+  rencontre existante n'était proposé que le jour même : un tournoi saisi le
+  lendemain se retrouvait éclaté en autant de rencontres que de tours, alors que
+  l'application revendique la distinction entre date de jeu et date de saisie. Les
+  tournois des trois dernières semaines sont désormais proposés, avec leur date, et
+  **un match rattaché est daté du jour de sa rencontre**, non du jour de la saisie.
+- **Un évaluateur ne compte qu'une voix.** Quand la même personne revoit une athlète
+  dans la même campagne — deux séances de pratique — son second avis remplace le
+  premier au lieu de s'y ajouter. À égalité, le plus récent l'emporte, le badge porte
+  un ⚖ et la modale d'application le signale avant d'appliquer. Les notes et les
+  compteurs, eux, continuent de s'additionner : ce sont des observations, pas des
+  décisions.
+- **[`GUIDE.md`](GUIDE.md)** — un guide d'utilisation qui suit une sélection puis une
+  demi-saison de bout en bout.
 
 ### v6.2 — la réception à trois niveaux, le poste proposé
 

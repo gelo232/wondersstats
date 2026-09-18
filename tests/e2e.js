@@ -224,23 +224,77 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     const r=await page.evaluate(()=>state.ctx.role);
     if(r!=="coach")throw new Error("role="+r);
   });
-  await step("#3 : moyenne de deux avis = 4.0",async()=>{
+  await step("#3 : la moyenne des critères de deux avis vaut 4.0",async()=>{
+    /* Depuis la v6.3 le score n'est plus la moyenne des notes : il porte
+       aussi les statistiques, la sévérité corrigée et l'amortissement.
+       C'est la part « critères » qui doit valoir la moyenne d'autrefois. */
     const c=await page.evaluate(()=>{
       const s=curSquad(),pid=s.roster.find(e=>e.number==="3").playerId;
       const comp=compileSubmissions(s)[pid];
-      return {n:comp.n,score:comp.score,tech:comp.ratings.tech,reco:comp.reco,top:comp.topReco};
+      return {n:comp.n,nRatings:comp.nRatings,nReco:comp.nReco,
+              score:comp.score,crit:comp.critScore,stats:comp.statScore,
+              tech:comp.ratings.tech,reco:comp.reco,top:comp.topReco};
     });
     if(c.n!==2)throw new Error("n="+c.n);
-    if(Math.abs(c.score-4)>1e-9)throw new Error("score="+c.score);
+    if(c.nRatings!==2)throw new Error("nRatings="+c.nRatings);
+    if(c.nReco!==2)throw new Error("nReco="+c.nReco);
+    /* La moyenne BRUTE des deux notes vaut 4.0 : c'est la matière première.
+       La moyenne corrigée, elle, a le droit d'en différer — c'est même tout
+       l'objet de la correction de sévérité, vérifiée juste après. */
+    if(Math.abs(c.tech.rawAvg-4)>1e-9)throw new Error("moyenne brute tech="+c.tech.rawAvg);
     if(c.tech.min!==3||c.tech.max!==5)throw new Error("min/max="+c.tech.min+"/"+c.tech.max);
     if(c.reco.select!==1||c.reco.recall!==1)throw new Error("reco="+JSON.stringify(c.reco));
+  });
+  await step("la correction de sévérité rapproche deux évaluateurs qui divergent",async()=>{
+    const d=await page.evaluate(()=>{
+      const s=curSquad(),pid=s.roster.find(e=>e.number==="3").playerId;
+      const avec=compileSubmissions(s)[pid];
+      const garde=s.scoring;
+      s.scoring=Object.assign({},scoringOf(s),{severity:false});
+      const sans=compileSubmissions(s)[pid];
+      s.scoring=garde;
+      return {avecCrit:avec.critScore,sansCrit:sans.critScore,
+              deplacement:avec.detail.severity,
+              ecartBrut:avec.ratings.tech.max-avec.ratings.tech.min};
+    });
+    if(Math.abs(d.sansCrit-4)>1e-9)throw new Error("sans correction, critScore devrait valoir 4 : "+d.sansCrit);
+    if(Math.abs(d.deplacement)<1e-9)throw new Error("deux évaluateurs qui divergent de 2 points : rien n'a été corrigé");
+    if(d.ecartBrut!==2)throw new Error("écart brut attendu 2, obtenu "+d.ecartBrut);
+  });
+  await step("« Moyenne simple » rétablit exactement le calcul d'avant",async()=>{
+    const avant=await page.evaluate(()=>{
+      const s=curSquad(),pid=s.roster.find(e=>e.number==="3").playerId;
+      const plat=mkScoring();
+      CRITERIA.forEach(c=>{plat.critWeights[c.key]=1});
+      plat.statShare=0;plat.severity=false;plat.reliability=0;
+      s.scoring=plat;saveNow();
+      return compileSubmissions(s)[pid].score;
+    });
+    if(Math.abs(avant-4)>1e-9)throw new Error("score après Moyenne simple="+avant);
+    await page.evaluate(()=>{           // on remet la formule par défaut
+      const s=curSquad();s.scoring=mkScoring();saveNow();render();
+    });
+    await page.waitForTimeout(150);
+  });
+  await step("un évaluateur ne pèse qu'une voix, la dernière",async()=>{
+    /* Deux évaluateurs distincts : chacun garde sa voix. */
+    const c=await page.evaluate(()=>{
+      const s=curSquad(),pid=s.roster.find(e=>e.number==="3").playerId;
+      const comp=compileSubmissions(s)[pid];
+      return {nReco:comp.nReco,tie:comp.recoTie,top:comp.topReco,
+              selecteurs:comp.selectors.length};
+    });
+    if(c.nReco!==2)throw new Error("nReco="+c.nReco);
+    if(c.selecteurs!==2)throw new Error("sélectionneurs="+c.selecteurs);
+    if(!c.tie)throw new Error("une égalité 1-1 doit être signalée, tie="+c.tie);
   });
   await step("l'onglet Récap → Évaluations affiche les scores",async()=>{
     await tab("Récap");
     await page.locator(".pill").filter({hasText:"Évaluations"}).click();await page.waitForTimeout(200);
     const t=await page.textContent("#app");
     if(!t.includes("Tremblay"))throw new Error("noms absents de la vue entraîneur");
-    if(!/4[.,]0/.test(t))throw new Error("score 4.0 absent");
+    if(!/\d[.,]\d/.test(t))throw new Error("aucun score affiché");
+    if(!/critères/i.test(t))throw new Error("la formule en vigueur n'est pas rappelée");
     const rows=await page.locator(".compile-row").count();
     if(rows!==3)throw new Error("lignes="+rows);   // seules #7 #12 #3 ont été observées
   });
