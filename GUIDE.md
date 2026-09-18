@@ -137,7 +137,7 @@ Dépliez une ligne. Le premier bloc détaille le calcul :
 ```
 D'OÙ VIENT LE SCORE
   Critères          4.00    à poids égal
-  Statistiques      3.00    30 % du score
+  Statistiques      3.00    50 % du score
   Sévérité corrigée +0.15   l'évaluateur notait bas
   Peu de regards    −0.12   2 regards — ramené vers 3.42
   Score retenu      3.70
@@ -159,7 +159,7 @@ comparer septembre à décembre n'a de sens que si les deux sont mesurés pareil
 | Réglage | Effet |
 |---|---|
 | **Poids des critères** | — (écarté) à ×3 |
-| **Part des statistiques** | 0 à 100 %, 30 % par défaut |
+| **Part des statistiques** | 0 à 100 %, 50 % par défaut |
 | **Poids des familles** | quelles familles de compteurs pèsent |
 | **Sévérité** | corriger l'exigence propre à chaque évaluateur |
 | **Amortir un score peu observé** | ramener vers la moyenne ce qui repose sur un seul regard |
@@ -327,7 +327,7 @@ n'est pas comparable d'une campagne à l'autre si les groupes diffèrent entièr
 réussissent autant, la famille ne départage rien.
 
 **Les scores d'une saison antérieure à la v6.3 changent au premier chargement**, la
-part des statistiques étant à 30 % par défaut. Notes, avis et statuts ne bougent pas.
+part des statistiques étant à 50 % par défaut. Notes, avis et statuts ne bougent pas.
 `⚖️ Formule → Moyenne simple` rétablit l'ancien calcul.
 
 **Sauvegardez.** `🗓️ Saison → 🗓️ Saisons → 📤 Sauvegarde` avant chaque séance de

@@ -708,7 +708,7 @@ function mkScoring(o){
   return Object.assign({
     critWeights:cw,
     statWeights:sw,
-    statShare:0.3,      /* part des statistiques dans le score */
+    statShare:0.5,      /* part des statistiques dans le score */
     severity:true,      /* corriger la sévérité propre à chaque sélectionneur */
     reliability:1,      /* amortissement d'un score fondé sur peu de regards */
     minVolume:5         /* gestes au-dessous desquels une famille ne dit rien */

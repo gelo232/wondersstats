@@ -321,7 +321,8 @@ l'application situe chaque athlète **parmi celles du même moment** et ramène 
 la même échelle 1–5 que les critères. Un groupe sans dispersion donne 3 à tout le monde.
 
 **5 · Le mélange, puis l'amortissement.** La part des statistiques est réglable
-(30 % par défaut). Enfin, un score qui ne repose que sur un seul regard est ramené
+(50 % par défaut : notes et compteurs pèsent à égalité). Enfin, un score qui ne
+repose que sur un seul regard est ramené
 vers la moyenne du groupe, à proportion du peu sur quoi il repose : une athlète vue
 une fois cesse de coiffer celles que trois personnes ont jugées.
 
@@ -480,7 +481,7 @@ vous publiez explicitement sur votre propre relais.
   amorti. Tout se règle dans `Récap → ⭐ Évaluations → ⚖️ Formule`, et
   **`Moyenne simple` rétablit le calcul d'avant en un bouton**.
 - **⚠️ Les scores d'une saison existante changent au premier chargement**, puisque la
-  formule par défaut fait peser les statistiques à 30 %. Les notes, les avis et les
+  formule par défaut fait peser les statistiques à 50 %. Les notes, les avis et les
   statuts, eux, ne bougent pas : seul le chiffre qui ordonne la liste est recalculé.
   Un club qui veut retrouver exactement ses anciens scores passe par `Moyenne simple`.
 - **⚠️ Export CSV** — `Récap → ⭐ Évaluations → 📤 Exporter (CSV)` : les colonnes
