@@ -422,16 +422,6 @@ function statProfile(stats){
   });
   return out;
 }
-/* Combien de jours nous séparent d'une date ISO. Sert à décider ce qu'on
-   propose encore de compléter : un tournoi d'il y a trois mois, non. */
-var RATTACH_JOURS=21;
-function joursDepuis(iso){
-  var d=dayOf(iso);
-  if(!d)return 1e9;
-  var t=Date.parse(d+"T00:00:00"),n=Date.parse(todayISO()+"T00:00:00");
-  if(!isFinite(t)||!isFinite(n))return 1e9;
-  return Math.abs(Math.round((n-t)/86400000));
-}
 function fmtEff(e){
   if(e==null)return "—";
   return (e>=0?"+":"")+e.toFixed(2);
@@ -6780,14 +6770,20 @@ function renderModal(){
   if(T==="savesession"){
     var sqS=curSquad();
     if(!sqS)return null;
-    /* Rencontres encore ouvertes : un tournoi accueille plusieurs matchs,
-       on ne veut pas en recréer un par match. Longtemps le rattachement
-       n'était proposé que le jour même ; un tournoi joué samedi et saisi
-       dimanche — ce que l'application revendique pourtant — se retrouvait
-       alors éclaté en autant de rencontres que de tours. On propose donc
-       les tournois récents, date affichée, le choix restant explicite. */
+    /* Rencontres à plusieurs matchs de la saison : un tournoi ne se saisit
+       pas d'un bloc, il se complète. Le rattachement n'était proposé que le
+       jour même, si bien qu'un tournoi joué samedi et saisi dimanche — ce
+       que l'application revendique pourtant — se retrouvait éclaté en
+       autant de rencontres que de tours.
+
+       Aucune fenêtre de temps ici : elle se tromperait à tous les coups.
+       Un club saisit parfois une semaine après, parfois en rattrapant un
+       carnet de notes au mois suivant, et une saison compte de toute façon
+       peu de tournois. La liste est courte, datée, et « ➕ Nouvelle
+       rencontre » reste le choix par défaut dès qu'on n'est plus le jour
+       même : rattacher est un geste voulu, jamais subi. */
     var recentes=eventsWithSessions(sqS).map(function(x){return x.event})
-      .filter(function(ev){return kindIsMulti(ev.kind)&&joursDepuis(ev.date)<=RATTACH_JOURS})
+      .filter(function(ev){return kindIsMulti(ev.kind)})
       .slice(0,6);
     /* Un tournoi du jour se complète sans y penser : il est proposé d'emblée.
        Passé le jour même, le rattachement reste offert mais ne s'impose plus —

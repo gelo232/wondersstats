@@ -501,8 +501,10 @@ vous publiez explicitement sur votre propre relais.
   rencontre existante n'était proposé que le jour même : un tournoi saisi le
   lendemain se retrouvait éclaté en autant de rencontres que de tours, alors que
   l'application revendique la distinction entre date de jeu et date de saisie. Les
-  tournois des trois dernières semaines sont désormais proposés, avec leur date, et
-  **un match rattaché est daté du jour de sa rencontre**, non du jour de la saisie.
+  tournois de la saison sont désormais proposés, avec leur date, et **un match
+  rattaché est daté du jour de sa rencontre**, non du jour de la saisie. Passé le
+  jour même, « ➕ Nouvelle rencontre » reste le choix par défaut : rattacher est un
+  geste voulu, jamais subi.
 - **Un évaluateur ne compte qu'une voix.** Quand la même personne revoit une athlète
   dans la même campagne — deux séances de pratique — son second avis remplace le
   premier au lieu de s'y ajouter. À égalité, le plus récent l'emporte, le badge porte

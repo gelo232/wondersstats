@@ -243,9 +243,13 @@ La modale demande la **nature** (🏆 Championnat · 🎪 Tournoi · 🤝 Amical
 réelle et le lieu. Les sets sont facultatifs ; l'issue (V/D/N) s'en déduit.
 
 **Un tournoi se saisit une fois puis se complète.** Au match suivant, le champ
-« Rattacher à » propose les tournois récents avec leur date. Le match rattaché est
-daté du jour de la rencontre, pas du jour où vous le saisissez — un tournoi joué
+« Rattacher à » propose les tournois de la saison avec leur date. Le match rattaché
+est daté du jour de la rencontre, pas du jour où vous le saisissez — un tournoi joué
 samedi et saisi dimanche reste daté de samedi.
+
+Le jour même, le tournoi en cours est proposé d'emblée. Les jours suivants, il reste
+dans la liste mais « ➕ Nouvelle rencontre » redevient le choix par défaut : on
+rattache parce qu'on le veut, jamais par inadvertance.
 
 Chaque match d'un tournoi garde **son propre adversaire** : la question se repose à
 chaque tour.
