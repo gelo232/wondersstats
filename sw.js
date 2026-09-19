@@ -1,7 +1,13 @@
 /* WonderStats — service worker
    App-shell en cache-first (démarrage instantané hors-ligne),
    revalidation en arrière-plan. Requêtes non-GET et cross-origin ignorées. */
-var CACHE = "wonderstats-v6-3";
+/* Le nom du cache est ce qui déclenche la mise à jour : le navigateur ne
+   compare que les octets de ce fichier. Sans changement ici, une
+   application déjà installée sert son index.html en cache et n'affiche
+   jamais « Une nouvelle version est disponible » — le nouveau code
+   n'arriverait qu'au chargement suivant, en silence. À bouger donc à
+   chaque livraison, version de l'application ou simple correctif. */
+var CACHE = "wonderstats-v6-3-2";
 var SHELL = ["./", "./index.html", "./manifest.json", "./icon.png"];
 
 self.addEventListener("install", function (e) {
