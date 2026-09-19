@@ -804,7 +804,27 @@ function squadFor(teamId,seasonId){
     if(DB.squads[i].teamId===teamId&&DB.squads[i].seasonId===seasonId)return DB.squads[i];
   return null;
 }
-/* Crée le squad à la volée : une équipe existe dès qu'on la fait jouer. */
+/* Le dernier squad connu d'une équipe, saison exclue : celui dont la
+   saison a été créée le plus récemment. Sert à reprendre ce qui doit
+   survivre d'une saison à l'autre. */
+function dernierSquadDe(teamId,saufSeasonId){
+  var best=null,bestAt="";
+  (DB.squads||[]).forEach(function(sq){
+    if(sq.teamId!==teamId||sq.seasonId===saufSeasonId)return;
+    var s=seasonById(sq.seasonId);
+    if(!s)return;
+    var at=String(s.createdAt||"");
+    if(!best||at>bestAt){best=sq;bestAt=at}
+  });
+  return best;
+}
+/* Crée le squad à la volée : une équipe existe dès qu'on la fait jouer.
+
+   La formule du score suit l'équipe d'une saison à l'autre : un club qui
+   a décidé du poids de ses critères ne veut pas le redécider chaque
+   septembre, et un retour silencieux aux valeurs par défaut fausserait la
+   comparaison avec la saison passée. Tout le reste — roster, campagnes,
+   vues, matchs — naît vierge : c'est une nouvelle saison. */
 function ensureSquad(teamId,seasonId){
   var sq=squadFor(teamId,seasonId);
   if(sq)return sq;
@@ -812,6 +832,8 @@ function ensureSquad(teamId,seasonId){
   if(!t||!seasonId)return null;
   sq=mkSquad(teamId,seasonId,t.name);
   sq.category=t.category;sq.freeView=!!t.freeView;
+  var prec=dernierSquadDe(teamId,seasonId);
+  if(prec&&prec.scoring)sq.scoring=clone(prec.scoring);
   DB.squads.push(sq);
   return sq;
 }
@@ -7169,8 +7191,8 @@ function renderModal(){
       h("div",{className:"muted",style:{marginBottom:"4px"}},
         "Cette formule vaut pour "+((curSquad()||{}).name||"cette équipe")+" sur toute la saison, "+
         "et pour chacune de ses campagnes : comparer la sélection au bilan de mai n'a de sens "+
-        "que si les deux sont mesurés de la même façon. Une autre équipe, ou une autre saison, "+
-        "a la sienne."),
+        "que si les deux sont mesurés de la même façon. Cette équipe la gardera la saison "+
+        "prochaine ; une autre équipe a la sienne."),
       h("div",{style:{marginBottom:"10px"}},lienGuide("Chaque réglage expliqué, avec des exemples chiffrés","formule")),
 
       h("div",{className:"section-title"},"Poids des critères"),

@@ -183,16 +183,20 @@ selon le nombre de regards.
 |---|---|
 | Deux **campagnes** d'une même équipe-saison — sélection de septembre et bilan de mai | **oui**, toujours |
 | Deux **équipes** de la même saison — U14 et U16 | **non**, chacune la sienne |
-| La **même équipe** d'une saison à l'autre — U14 2026 et U14 2027 | **non**, la nouvelle saison repart des valeurs par défaut |
+| La **même équipe** d'une saison à l'autre — U14 2026 et U14 2027 | **oui**, elle est reprise |
 
 Comparer septembre à décembre n'aurait aucun sens si les deux étaient mesurés
 autrement : c'est pourquoi la formule ne se règle pas par campagne. Changer la
 formule recalcule aussitôt tous les scores de la saison — les notes, les avis et les
 statuts, eux, ne bougent jamais.
 
-> **Attention à la nouvelle saison.** Elle ne reprend pas la formule de la
-> précédente. Si vous aviez un réglage maison, refaites-le : la carte de
-> `🗓️ Saison → 📅 Campagnes` vous montre en une ligne ce qui est en vigueur.
+**La formule suit l'équipe d'une saison à l'autre.** Un club qui a décidé du poids
+de ses critères ne le redécide pas chaque septembre, et la comparaison avec la
+saison passée reste valable. Seul le réglage est repris : le roster, les campagnes,
+les vues et les matchs naissent vierges — c'est une nouvelle saison.
+
+Une **équipe créée après coup** part, elle, des valeurs par défaut : elle n'a pas de
+passé dont hériter.
 
 **Ce qui reste propre à chaque campagne**, même avec des réglages partagés : les
 efficacités sont situées parmi les athlètes *de cette campagne*, la correction de
@@ -419,6 +423,64 @@ corrigée · amorti selon le nombre de regards.
 
 Toute modification est inscrite au **journal des décisions**
 (`🗓️ Saison → 📜 Journal`, entrée 🎚️ *Formule*) : on sait qui a changé quoi, et quand.
+
+---
+
+<a id="equipes"></a>
+
+## 5bis · Ce qui appartient à quoi
+
+Une question revient dès qu'un club gère plus d'une équipe : **qu'est-ce qu'une
+nouvelle équipe emporte avec elle ?** Tout, sauf les joueuses.
+
+### Chaque équipe-saison a son propre lot
+
+Créez une équipe U16 à côté de vos U14, et elle arrive avec :
+
+| Ce qu'elle a en propre | À la création |
+|---|---|
+| **Roster** — qui est convoqué, les dossards, les postes, les statuts | vide |
+| **Campagnes** d'évaluation | une, nommée *Sélection* |
+| **Vues sélectionneur** et **soumissions** | aucune |
+| **Rencontres** et **matchs** | aucun |
+| **Formule du score** | valeurs par défaut |
+| **Effectif**, composition de terrain, sous-équipes | vide |
+
+Rien ne déborde d'une équipe sur l'autre. Régler les U14 à 80 % de statistiques
+laisse les U16 à 50 %. Convoquer une athlète chez les U14 ne la convoque pas chez
+les U16. Une campagne *Sélection* ouverte chez les unes n'existe pas chez les autres.
+
+### Ce qui est commun au club
+
+| Ce qui est partagé | Portée |
+|---|---|
+| **Base de joueuses** | tout le club, toutes saisons |
+| **Personnes et rôles** — entraîneurs, sélectionneurs | le club |
+| **Catégories** (U12, U14…) | le club |
+| **Relais de synchronisation** | le club |
+| **Journal des décisions** | le club, filtrable par équipe |
+
+La **base de joueuses est commune** : une athlète qui passe des U14 aux U16 garde sa
+fiche, son historique et ses évaluations passées. C'est elle qu'on convoque dans
+l'une ou l'autre équipe, jamais un doublon.
+
+### D'une saison à l'autre
+
+Pour une **équipe qui existait déjà**, la nouvelle saison reprend **la formule du
+score**, et rien d'autre : roster, campagnes, vues et matchs repartent de zéro. Si
+vous voulez aussi reprendre l'effectif, `🗓️ Saison → 🗓️ Saisons → + Nouvelle saison`
+propose **« reprendre l'effectif d'une saison précédente »** — les joueuses
+reviennent au statut *Candidate*, avec leur numéro et leur position, à
+re-sélectionner.
+
+```
+Nouvelle saison d'une équipe existante
+  ├── formule du score ........ reprise
+  ├── effectif ................ sur demande, au statut Candidate
+  └── campagnes, vues,
+      soumissions, matchs ..... vierges
+```
+
 
 ## 6 · Trancher
 

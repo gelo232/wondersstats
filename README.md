@@ -286,8 +286,8 @@ Le score d'une athlète dans une campagne se construit en cinq temps. Chacun cor
 un travers que la moyenne simple laissait passer. `Récap → ⭐ Évaluations → ⚖️ Formule`
 règle l'ensemble — **pour une équipe, sur toute sa saison, et pour chacune de ses
 campagnes**. Comparer septembre à décembre n'a de sens que si les deux sont mesurés
-pareil. Une autre équipe, ou une autre saison, a sa propre formule : une saison neuve
-repart des valeurs par défaut.
+pareil. Chaque équipe a la sienne ; elle la conserve d'une saison à l'autre, tandis qu'une
+équipe créée après coup part des valeurs par défaut.
 
 **1 · Les notes, corrigées de la sévérité.** Deux évaluateurs n'ont pas la même main.
 L'application compare chacun aux autres **sur les athlètes qu'ils ont vues en commun**
