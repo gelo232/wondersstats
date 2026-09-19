@@ -263,6 +263,9 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .sess-count{font-size:11px;color:#64748B;text-align:center;margin:4px 0 6px}
 
 /* ── SELECTOR (rôle sélectionneur) ────────────────── */
+.sv-strip-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.sv-fold{flex:1;min-width:0;display:flex;align-items:center;gap:7px;background:none;border:none;color:#CBD5E1;font-size:12px;font-weight:700;cursor:pointer;padding:2px 0;text-align:left}
+.sv-fold .muted{margin-left:auto;flex-shrink:0}
 .num-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:8px}
 .num-tile{height:62px;border-radius:12px;border:2px solid #334155;background:#1E293B;color:#94A3B8;font-weight:800;font-size:20px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:all .15s;touch-action:manipulation;padding:0}
 .num-tile.active{border-color:#F59E0B;background:#422006;color:#FDE68A}
@@ -686,7 +689,11 @@ function parseBulkLine(line){
     birthDate:birth.date,birthYear:birth.year,number:num};
 }
 function mkPerson(o){
-  return Object.assign({id:uid(),name:"",token:"",createdAt:nowISO(),revoked:false},o||{});
+  /* `tokenFor` retient ce pour quoi le jeton a été émis — rôle et équipe.
+     C'est ce que le lien d'invitation promet, et ce que la réponse du
+     relais devra confirmer au moment de rejoindre. */
+  return Object.assign({id:uid(),name:"",token:"",tokenFor:null,
+    createdAt:nowISO(),revoked:false},o||{});
 }
 /* Un club n'existe que s'il porte une charte signée par le propriétaire :
    c'est elle, et non un drapeau local, qui fait foi. */
@@ -769,7 +776,11 @@ function mkSeason(name){
           startDate:"",endDate:"",notes:"",closedAt:null,archived:false};
 }
 function mkSelectorView(o){
-  return Object.assign({id:uid(),name:"",selectorName:"",playerIds:[],
+  /* `groups` sont les familles de compteurs ; `playerGroups` sont les
+     groupes d'athlètes — les vagues du gymnase. Deux notions distinctes,
+     deux champs : une vue de vingt-huit numéros ne se saisit pas d'un
+     seul écran, elle se découpe. */
+  return Object.assign({id:uid(),name:"",selectorName:"",playerIds:[],playerGroups:[],
     criteria:CRITERIA.map(function(c){return c.key}),
     groups:SG_KEYS.slice(),
     campaignId:null,campaignName:"",anonymous:true,context:"",
@@ -835,6 +846,44 @@ function normGroups(g){
   if(!Array.isArray(g))return SG_KEYS.slice();
   return g.filter(function(k){return SG[k]});
 }
+/* Groupes d'athlètes d'une vue. On ne garde que des numéros que la vue
+   contient vraiment : un paquet bricolé ou une vue dont on a retiré des
+   athlètes ne doit pas laisser des groupes qui désignent le vide. */
+function normPlayerGroups(raw,playerIds){
+  if(!Array.isArray(raw))return [];
+  var connus={};(playerIds||[]).forEach(function(p){connus[p]=1});
+  var vus={},out=[];
+  raw.forEach(function(g){
+    if(!g||!Array.isArray(g.playerIds))return;
+    var ids=g.playerIds.filter(function(p){
+      if(!connus[p]||vus[p])return false;      /* une athlète n'est que dans un groupe */
+      vus[p]=1;return true;
+    });
+    if(!ids.length)return;
+    out.push({id:String(g.id||uid()),name:String(g.name||("Groupe "+(out.length+1))).slice(0,40),
+      playerIds:ids});
+  });
+  return out;
+}
+/* Découpe une vue en groupes de `taille`, dans l'ordre des numéros :
+   c'est l'ordre du gymnase, celui des dossards appelés. */
+function decouperEnGroupes(squad,playerIds,taille){
+  taille=parseInt(taille,10)||0;
+  if(taille<1)return [];
+  var ordre=(playerIds||[]).slice().sort(function(a,b){
+    var na=parseInt(numOf(squad,a),10),nb=parseInt(numOf(squad,b),10);
+    if(isNaN(na))na=9999;if(isNaN(nb))nb=9999;
+    if(na!==nb)return na-nb;
+    return comparerNoms(playerById(a),playerById(b));
+  });
+  var out=[],lettres="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  for(var i=0;i<ordre.length;i+=taille){
+    var n=out.length;
+    out.push({id:uid(),name:"Groupe "+(n<26?lettres.charAt(n):String(n+1)),
+      playerIds:ordre.slice(i,i+taille)});
+  }
+  return out;
+}
 
 /* ─── Base de données ───────────────────────────────────────── */
 function emptyDB(){return {version:6,clubs:[],people:[],teams:[],assignments:[],
@@ -873,6 +922,7 @@ var state={
   toast:null, modalType:null, modalInput:"", modalInput2:"", modalSel:[], modalCtx:null, modalDraft:null,
   editingSubteamId:null, editViewId:null,
   svViewId:null, svPlayerId:null, svGroupIdx:0,
+  svPlayerGroupId:null, svTilesOpen:true, svHideDone:false,
   expandedPlayerId:null,
   updateReady:false
 };
@@ -2843,6 +2893,11 @@ function buildPacket(squad,view){
     view:{
       id:view.id,name:view.name,selectorName:view.selectorName,
       criteria:view.criteria.slice(),groups:view.groups.slice(),
+      /* Les groupes ne portent que des identifiants déjà présents dans
+         `players` : rien de nominatif ne s'ajoute au paquet. */
+      playerGroups:(view.playerGroups||[]).map(function(g){
+        return {id:g.id,name:g.name,playerIds:g.playerIds.slice()};
+      }),
       anonymous:anon,context:view.context||"",
       players:view.playerIds.map(function(pid){
         var o={playerId:pid,number:numOf(squad,pid)};
@@ -2873,6 +2928,7 @@ function packetToView(data){
     if(pl.label)v.labels[pl.playerId]=String(pl.label);
     v.data[pl.playerId]=mkEntryData();
   });
+  v.playerGroups=normPlayerGroups(data.view&&data.view.playerGroups,v.playerIds);
   return v;
 }
 /* Une vue partie chez quelqu'un emporte les numéros du moment. Les
@@ -3086,6 +3142,7 @@ function syncList(kind,since,teamId){
 function grantToken(person,teamId,role){
   var fresh=!person.token;
   if(!person.token)person.token=mkToken();
+  person.tokenFor={role:role,teamId:teamId||""};
   logAct("access","Jeton "+(fresh?"émis":"réémis")+" pour "+person.name+
     (teamId?" sur « "+((teamById(teamId)||{}).name||"—")+" »":""),{teamId:teamId||""});
   var t=teamId?teamById(teamId):null;
@@ -3098,7 +3155,7 @@ function grantToken(person,teamId,role){
 function revokeToken(person){
   if(!person||!person.token)return Promise.resolve();
   var tok=person.token;
-  person.token="";
+  person.token="";person.tokenFor=null;
   logAct("access","Jeton de "+person.name+" révoqué");
   if(!syncReady())return Promise.resolve();
   return syncPost("revoke",{target:tok}).catch(function(){});
@@ -3114,19 +3171,48 @@ function b64urlDecode(str){
   while(str.length%4)str+="=";
   return decodeURIComponent(escape(atob(str)));
 }
+/* Le lien porte le rôle et l'équipe pour lesquels le jeton a été émis.
+   Non pour les accorder — seul le relais accorde — mais pour que
+   l'appareil qui rejoint puisse vérifier que la réponse du relais est
+   bien celle qu'on lui a promise. Sans quoi un salon expiré ou réclamé
+   par un autre appareil fait d'une sélectionneuse une administratrice,
+   puisque le relais répond « Administrateur » à qui arrive le premier
+   dans un salon sans propriétaire. */
 function inviteLink(person){
   if(!SYNC.url||!SYNC.room||!person||!person.token)return "";
   var base=location.href.replace(/[?#].*$/,"");
-  return base+"#s="+b64urlEncode(JSON.stringify({u:SYNC.url,r:SYNC.room,t:person.token}));
+  var o={u:SYNC.url,r:SYNC.room,t:person.token};
+  var f=person.tokenFor;
+  if(f&&f.role){o.ro=f.role;if(f.teamId)o.tm=f.teamId}
+  return base+"#s="+b64urlEncode(JSON.stringify(o));
+}
+function decodeShare(raw){
+  try{
+    var o=JSON.parse(b64urlDecode(raw));
+    if(o&&o.u&&o.r&&o.t)return {url:normUrl(o.u),room:String(o.r),token:String(o.t),
+      role:o.ro?String(o.ro):"",teamId:o.tm?String(o.tm):""};
+  }catch(e){}
+  return null;
 }
 function readShareLink(){
   var m=(location.hash||"").match(/[#&]s=([A-Za-z0-9_-]+)/);
-  if(!m)return null;
-  try{
-    var o=JSON.parse(b64urlDecode(m[1]));
-    if(o&&o.u&&o.r&&o.t)return {url:normUrl(o.u),room:String(o.r),token:String(o.t)};
-  }catch(e){}
-  return null;
+  return m?decodeShare(m[1]):null;
+}
+/* Ce que le relais répond doit correspondre à ce que le lien annonçait.
+   Un écart n'est pas un détail : c'est la différence entre évaluer une
+   équipe et administrer un club. */
+function roleEnClair(r){
+  if(r==="admin")return "administrateur";
+  return ROLES[r]?ROLES[r].label.toLowerCase():(r||"—");
+}
+function ecartInvitation(cfg,g){
+  if(!cfg||!cfg.role||!g)return "";          /* lien d'avant : rien de promis */
+  if(g.role!==cfg.role)
+    return "Votre invitation est de "+roleEnClair(cfg.role)+", mais le relais vous répond « "+
+      roleEnClair(g.role)+" ». Le salon a expiré ou changé de mains : demandez un nouveau lien.";
+  if(cfg.teamId&&g.teamId&&g.teamId!==cfg.teamId)
+    return "Le relais vous rattache à une autre équipe que celle de votre invitation. Demandez un nouveau lien.";
+  return "";
 }
 /* Un sélectionneur colle ce qu'il a reçu : l'URL entière, ou juste le
    fragment. On accepte les deux plutôt que d'exiger le bon découpage. */
@@ -3134,12 +3220,7 @@ function parseShareText(txt){
   txt=(txt||"").trim();
   if(!txt)return null;
   var m=txt.match(/[#&]s=([A-Za-z0-9_-]+)/)||txt.match(/^([A-Za-z0-9_-]{20,})$/);
-  if(!m)return null;
-  try{
-    var o=JSON.parse(b64urlDecode(m[1]));
-    if(o&&o.u&&o.r&&o.t)return {url:normUrl(o.u),room:String(o.r),token:String(o.t)};
-  }catch(e){}
-  return null;
+  return m?decodeShare(m[1]):null;
 }
 function clearHash(){
   try{history.replaceState(null,"",location.href.replace(/#.*$/,""))}catch(e){location.hash=""}
@@ -3229,6 +3310,11 @@ function pullForSelector(){
       var existing=null;
       INBOX.views.forEach(function(v){if(v.id===pk.view.id)existing=v});
       var fresh=packetToView(pk);
+      /* L'équipe voyage avec l'enregistrement du relais, jamais dans le
+         paquet — qui est anonyme. Sans elle, la soumission repartirait
+         sans équipe et le relais la refuserait : un jeton de
+         sélectionneur ne dépose que pour la sienne. */
+      fresh.teamId=it.teamId||(SYNC.identity&&SYNC.identity.teamId)||"";
       if(!existing){INBOX.views.push(fresh);added++}
       else{
         /* On ne réécrit jamais un travail en cours : seule la composition
@@ -3237,7 +3323,8 @@ function pullForSelector(){
         existing.anonymous=fresh.anonymous;existing.labels=fresh.labels;
         existing.campaignId=fresh.campaignId;existing.campaignName=fresh.campaignName;
         existing.context=fresh.context;existing.numbers=fresh.numbers;
-        existing.playerIds=fresh.playerIds;
+        existing.playerIds=fresh.playerIds;existing.playerGroups=fresh.playerGroups;
+        existing.teamId=fresh.teamId||existing.teamId;
         fresh.playerIds.forEach(function(pid){if(!existing.data[pid])existing.data[pid]=mkEntryData()});
         updated++;
       }
@@ -3254,8 +3341,13 @@ function pullForSelector(){
 }
 function uploadSubmission(view){
   var sub=buildSubmission(view,function(pid){return (view.numbers||{})[pid]||""});
+  /* Les vues reçues avant que l'équipe ne soit estampillée n'en portent
+     pas : celle du jeton fait foi, c'est de toute façon la seule pour
+     laquelle le relais acceptera quoi que ce soit. */
+  var tid=view.teamId||(SYNC.identity&&SYNC.identity.teamId)||"";
+  if(!view.teamId&&tid)view.teamId=tid;
   syncBusy=true;render();
-  syncPublish("submission",sub.id,sub,{teamId:view.teamId||""}).then(function(){
+  syncPublish("submission",sub.id,sub,{teamId:tid}).then(function(){
     view.submittedAt=sub.submittedAt;view.submissionCount=(view.submissionCount||0)+1;
     view.uploadedAt=sub.submittedAt;SYNC.lastSyncAt=nowISO();
     syncBusy=false;saveNow();saveSync();
@@ -5912,7 +6004,8 @@ function renderViewCard(squad,camp,v){
   if(open){
     acts.appendChild(h("button",{className:"btn btn-warn sm",onclick:function(){
       ensureSelectorCtx(squad.teamId);
-      state.tab="sv_eval";state.svViewId=v.id;state.svPlayerId=null;saveNow();render();
+      state.tab="sv_eval";state.svViewId=v.id;state.svPlayerId=null;
+      state.svPlayerGroupId=null;state.svTilesOpen=true;saveNow();render();
     }},"🎯 Ouvrir ici"));
     if(syncReady())acts.appendChild(h("button",{className:"btn btn-primary xs",disabled:syncBusy,onclick:function(){
       publishView(squad,v);
@@ -6069,12 +6162,35 @@ function svProgress(src){
   return {done:done,total:v.playerIds.length,pct:v.playerIds.length?Math.round(done/v.playerIds.length*100):0};
 }
 /* Numéros triés numériquement — l'ordre d'affichage du sélectionneur */
-function svOrdered(src){
-  return src.view.playerIds.slice().sort(function(a,b){
+function svOrderIds(src,ids){
+  return (ids||[]).slice().sort(function(a,b){
     var na=parseInt(svNumber(src,a),10),nb=parseInt(svNumber(src,b),10);
     if(isNaN(na))na=9999;if(isNaN(nb))nb=9999;
     return na-nb;
   });
+}
+function svOrdered(src){return svOrderIds(src,src.view.playerIds)}
+/* Les groupes de la vue, tels que le sélectionneur les parcourt : ceux
+   du paquet, plus le reliquat s'il en manque — une vue peut avoir gagné
+   des athlètes après le découpage. */
+function svGroups(src){
+  var v=src.view,gs=(v.playerGroups||[]).filter(function(g){return g.playerIds.length});
+  if(!gs.length)return [];
+  var dans={};gs.forEach(function(g){g.playerIds.forEach(function(p){dans[p]=1})});
+  var reste=v.playerIds.filter(function(p){return !dans[p]});
+  if(reste.length)gs=gs.concat([{id:"_reste",name:"Autres",playerIds:reste}]);
+  return gs;
+}
+function svGroupCourant(src){
+  var gs=svGroups(src);
+  if(!gs.length)return null;
+  for(var i=0;i<gs.length;i++)if(gs[i].id===state.svPlayerGroupId)return gs[i];
+  return null;                       /* null = toutes les athlètes */
+}
+function svFait(src,ids){
+  var v=src.view,n=0;
+  (ids||[]).forEach(function(p){if(entryFilled(v,p))n++});
+  return n;
 }
 
 /* ── Liste des vues ────────────────────────────────────────── */
@@ -6149,7 +6265,8 @@ function renderSvViews(){
     card.appendChild(h("div",{className:"muted",style:{marginTop:"5px"}},pr.done+"/"+pr.total+" évaluées"));
     card.appendChild(h("div",{className:"btn-row",style:{marginTop:"10px"}},
       h("button",{className:"btn btn-warn sm",style:{flex:"1"},onclick:function(){
-        state.svViewId=v.id;state.svPlayerId=null;state.tab="sv_eval";saveNow();render();
+        state.svViewId=v.id;state.svPlayerId=null;state.svPlayerGroupId=null;
+        state.svTilesOpen=true;state.tab="sv_eval";saveNow();render();
       }},"✏️ Évaluer"),
       h("button",{className:"btn btn-ghost sm",onclick:function(){
         state.svViewId=v.id;state.tab="sv_submit";saveNow();render();
@@ -6175,11 +6292,22 @@ function renderSvEval(){
     return emptyBlock("🎯","Choisissez une vue","Sélectionnez la vue que vous devez évaluer.",
       h("button",{className:"btn btn-primary",onclick:function(){state.tab="sv_views";render()}},"Voir mes vues"));
   }
-  var v=src.view,ordered=svOrdered(src);
-  if(!ordered.length)return emptyBlock("🎯",v.name,"Cette vue ne contient aucune athlète.",null);
+  var v=src.view;
+  if(!v.playerIds.length)return emptyBlock("🎯",v.name,"Cette vue ne contient aucune athlète.",null);
+
+  /* Le groupe qui passe, et lui seul. Vingt-huit numéros d'un bloc, on
+     ne sait plus où on en est ; sept, c'est la vague qui est sur le
+     terrain. Le groupe disparu d'une vue republiée retombe sur « tout ». */
+  var groupes=svGroups(src);
+  if(state.svPlayerGroupId&&!svGroupCourant(src))state.svPlayerGroupId=null;
+  var gCour=svGroupCourant(src);
+  var ordered=svOrderIds(src,gCour?gCour.playerIds:v.playerIds);
   if(ordered.indexOf(state.svPlayerId)===-1)state.svPlayerId=null;
 
-  var tiles=h("div",{className:"num-grid"},ordered.map(function(pid){
+  var visibles=ordered.filter(function(pid){
+    return !state.svHideDone||!entryFilled(v,pid)||pid===state.svPlayerId;
+  });
+  var tiles=h("div",{className:"num-grid"},visibles.map(function(pid){
     var on=pid===state.svPlayerId,done=entryFilled(v,pid);
     var d=v.data[pid]||mkEntryData();
     var r=d.reco?RECO_BY_KEY[d.reco]:null;
@@ -6190,12 +6318,48 @@ function renderSvEval(){
     }},h("span",null,disp),
       h("span",{className:"st"},r?r.icon:(done?"•":"")));
   }));
-  var strip=h("div",{style:{padding:"10px 12px",background:"#162032",borderBottom:"1px solid #1E293B",flexShrink:"0",maxHeight:"36vh",overflowY:"auto"},"data-scroll-key":"sv-tiles"},tiles);
+
+  var faits=svFait(src,ordered);
+  var stripKids=[];
+  if(groupes.length){
+    var pills=h("div",{className:"sub-pills",style:{marginBottom:"8px"}});
+    function gPill(id,libelle,ids){
+      var on=(state.svPlayerGroupId||null)===id;
+      var b=h("button",{className:"pill sm"+(on?" active":""),onclick:function(){
+        state.svPlayerGroupId=id;state.svPlayerId=null;state.svTilesOpen=true;render();
+      }},libelle+" "+svFait(src,ids)+"/"+ids.length);
+      if(on)b.style.background="#3B82F6";
+      return b;
+    }
+    pills.appendChild(gPill(null,"Toutes",v.playerIds));
+    groupes.forEach(function(g){pills.appendChild(gPill(g.id,g.name,g.playerIds))});
+    stripKids.push(pills);
+  }
+  /* Replier libère l'écran pour la saisie : sur un téléphone, la grille
+     et le panneau ne tiennent pas ensemble. */
+  var tete=h("div",{className:"sv-strip-head"},
+    h("button",{className:"sv-fold",onclick:function(){
+      state.svTilesOpen=!state.svTilesOpen;render();
+    }},h("span",null,state.svTilesOpen?"▾":"▸"),
+      h("span",null,(gCour?gCour.name:"Toutes les athlètes")+" · "+faits+"/"+ordered.length+" évaluées"),
+      h("span",{className:"muted"},state.svTilesOpen?"replier":"déplier")),
+    h("button",{className:"pill sm"+(state.svHideDone?" active":""),style:state.svHideDone?{background:"#3B82F6"}:null,
+      onclick:function(){state.svHideDone=!state.svHideDone;render()}},
+      state.svHideDone?"✓ Faites masquées":"Masquer les faites"));
+  stripKids.push(tete);
+  if(state.svTilesOpen){
+    if(!visibles.length)stripKids.push(h("div",{className:"muted",style:{padding:"6px 2px"}},
+      "Tout ce groupe est évalué. Passez au suivant, ou réaffichez les faites."));
+    else stripKids.push(tiles);
+  }
+  var strip=h("div",{style:{padding:"10px 12px",background:"#162032",borderBottom:"1px solid #1E293B",flexShrink:"0",maxHeight:"46vh",overflowY:"auto"},"data-scroll-key":"sv-tiles"},stripKids);
 
   var body;
   if(!state.svPlayerId){
     body=h("div",{className:"quick-prompt"},h("div",{className:"arrow"},"↑"),
-      h("div",{style:{fontSize:"14px"}},"Choisissez un numéro d'athlète"));
+      h("div",{style:{fontSize:"14px"}},state.svTilesOpen
+        ?("Choisissez un numéro"+(gCour?" — "+gCour.name:""))
+        :"Dépliez la grille pour choisir un numéro"));
   } else {
     body=renderSvPlayerPanel(src,state.svPlayerId,ordered);
   }
@@ -6490,6 +6654,40 @@ function toggleSel(id){
   if(i!==-1)state.modalSel.splice(i,1);else state.modalSel.push(id);
 }
 
+/* La taille des vagues telle qu'elle se relit d'une vue existante : le
+   plus grand groupe suffit, puisque seul le dernier peut être incomplet. */
+function tailleDesGroupes(v){
+  var g=(v&&v.playerGroups)||[];
+  if(!g.length)return 0;
+  var max=0;g.forEach(function(x){if(x.playerIds.length>max)max=x.playerIds.length});
+  return max;
+}
+function resumeGroupes(d){
+  var n=state.modalSel.length,t=parseInt(d.groupSize,10)||0;
+  if(!n)return "Choisissez d'abord les athlètes.";
+  if(!t)return plural(n,"athlète")+" sur une seule liste.";
+  var nb=Math.ceil(n/t),reste=n%t;
+  return plural(n,"athlète")+" · "+plural(nb,"groupe")+" de "+t+
+    (reste?" (le dernier en compte "+reste+")":"");
+}
+function groupSizeRow(d){
+  var row=h("div",{className:"sub-pills",style:{marginBottom:"2px"}});
+  [0,4,5,6,7,8,10].forEach(function(t){
+    var b=h("button",{className:"pill sm"+(d.groupSize===t?" active":""),onclick:function(){
+      d.groupSize=t;
+      Array.prototype.forEach.call(row.children,function(el,i){
+        var v=[0,4,5,6,7,8,10][i];
+        el.className="pill sm"+(d.groupSize===v?" active":"");
+        el.style.background=d.groupSize===v?"#3B82F6":"";
+      });
+      var hint=document.getElementById("groupHint");
+      if(hint)hint.textContent=resumeGroupes(d);
+    }},t?("par "+t):"Aucun");
+    if(d.groupSize===t)b.style.background="#3B82F6";
+    row.appendChild(b);
+  });
+  return row;
+}
 function renderModal(){
   if(!state.modalType)return null;
   var season=curSquad(),T=state.modalType;
@@ -6795,7 +6993,8 @@ function renderModal(){
           v.data[pid]=mkEntryData();
         });
         INBOX.views.push(v);
-        state.svViewId=v.id;state.svPlayerId=null;state.tab="sv_eval";
+        state.svViewId=v.id;state.svPlayerId=null;state.svPlayerGroupId=null;
+        state.svTilesOpen=true;state.tab="sv_eval";
         closeModal();saveNow();showToast("✅ "+plural(v.playerIds.length,"athlète")+" à évaluer");
       }},"Créer mon observation")],"440px");
   }
@@ -6870,6 +7069,11 @@ function renderModal(){
           seasonId:season.id,seasonName:season.name
         });
         nv.playerIds=vSrc.playerIds.slice();
+        /* Les vagues se reprennent : on réévalue le même monde dans le
+           même ordre, c'est ce qui rend deux campagnes comparables. */
+        nv.playerGroups=(vSrc.playerGroups||[]).map(function(g){
+          return {id:uid(),name:g.name,playerIds:g.playerIds.slice()};
+        });
         nv.playerIds.forEach(function(pid){nv.data[pid]=mkEntryData()});   // données vierges
         season.selectorViews.push(nv);
         season.activeCampaignId=camp.id;
@@ -7631,7 +7835,9 @@ function renderModal(){
       anonymous:v0?(v0.anonymous!==false):true,
       campaignId:v0?v0.campaignId:(season.activeCampaignId||openCamps[0].id),
       criteria:v0?v0.criteria.slice():CRITERIA.map(function(c){return c.key}),
-      groups:v0?v0.groups.slice():SG_KEYS.slice()
+      groups:v0?v0.groups.slice():SG_KEYS.slice(),
+      /* Taille des vagues. 0 = une seule liste, comme avant. */
+      groupSize:v0?tailleDesGroupes(v0):0
     });
     if(v0&&!state.modalSel.length&&v0.playerIds.length)state.modalSel=v0.playerIds.slice();
     var dupN=dupNumbers(season);
@@ -7677,7 +7883,17 @@ function renderModal(){
         h("div",{className:"muted",style:{marginTop:"5px"}},
           "Anonyme en sélection, pour un regard neutre. Nominative pour un bilan de fin de saison, où l'évaluateur connaît déjà l'équipe.")),
       h("div",{className:"field"},h("label",null,"Athlètes de la vue"),quick,selCount(),
-        toggleGrid(items4,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){toggleSel(it.id)})),
+        toggleGrid(items4,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){
+          toggleSel(it.id);
+          var hint=document.getElementById("groupHint");
+          if(hint)hint.textContent=resumeGroupes(draft2);
+        })),
+      h("div",{className:"field"},h("label",null,"Groupes d'évaluation"),
+        groupSizeRow(draft2),
+        h("div",{id:"groupHint",className:"muted",style:{marginTop:"5px"}},resumeGroupes(draft2)),
+        h("div",{className:"muted",style:{marginTop:"3px"}},
+          "Vingt-huit numéros sur un écran, personne ne s'y retrouve. Découpés en vagues, "+
+          "le sélectionneur n'a devant lui que le groupe qui passe — et replie la grille pendant qu'il saisit.")),
       h("div",{className:"field"},h("label",null,"Critères d'évaluation"),
         toggleGrid(CRITERIA.map(function(c){return {id:c.key,label:c.label}}),
           function(it){return draft2.criteria.indexOf(it.id)!==-1},
@@ -7705,6 +7921,7 @@ function renderModal(){
       v.anonymous=!!draft2.anonymous;
       v.criteria=draft2.criteria.slice();v.groups=draft2.groups.slice();
       v.playerIds=state.modalSel.slice();
+      v.playerGroups=decouperEnGroupes(season,v.playerIds,draft2.groupSize);
       v.campaignId=camp?camp.id:null;v.campaignName=camp?camp.name:"";
       v.seasonId=season.id;v.seasonName=season.name;
       var dd={};v.playerIds.forEach(function(pid){dd[pid]=v.data[pid]||mkEntryData()});
@@ -8417,6 +8634,8 @@ function joinWithConfig(cfg){
   syncWhoami().then(function(data){
     var g=data&&data.grant;
     if(!g)throw new Error("Jeton inconnu du relais");
+    var ecart=ecartInvitation(cfg,g);
+    if(ecart)throw new Error(ecart);
     SYNC.identity=g;saveSync();
     DB=normalizeDB(emptyDB());
     adoptRemoteIdentity(g);
@@ -8501,6 +8720,8 @@ function bootRest(){
   syncWhoami().then(function(data){
     var g=data&&data.grant;
     if(!g)throw new Error("Jeton inconnu du relais");
+    var ecart=ecartInvitation(cfg,g);
+    if(ecart)throw new Error(ecart);
     SYNC.identity=g;saveSync();
     adoptRemoteIdentity(g);
     showToast("📡 Bonjour "+(g.name||"")+" — "+(g.teamName||""));

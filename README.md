@@ -544,6 +544,28 @@ vous publiez explicitement sur votre propre relais.
   encombrer la liste : `📦 Archiver`, qui se défait.
 - **`🗑️ Vider la convocation`** reste à un seul bouton, dans `📋 Convoquées` : c'est
   le geste de la liste montée sur la mauvaise saison, il n'y a rien à y choisir.
+- **⚠️ Une invitation de sélectionneur ne peut plus devenir une administration.**
+  Le relais répond « Administrateur » à qui arrive le premier dans un salon sans
+  propriétaire — et un salon expire au bout de 120 jours d'inactivité. Une
+  sélectionneuse rouvrant son lien après coup se retrouvait alors **administratrice,
+  renommée « Administrateur », sans son équipe**. Le lien porte désormais le rôle et
+  l'équipe pour lesquels le jeton a été émis, et l'appareil qui rejoint **refuse
+  toute réponse qui ne correspond pas** : il affiche « votre invitation est de
+  sélectionneur, mais le relais vous répond administrateur » et invite à demander un
+  nouveau lien. Les liens émis avant cette version n'annoncent rien : réémettez-les.
+- **⚠️ Une vue reçue par relais peut enfin être soumise.** Elle ne retenait pas son
+  équipe ; la soumission repartait sans, et le relais la refusait — un jeton de
+  sélectionneur ne dépose que pour la sienne. L'équipe est maintenant estampillée à
+  la réception, et à défaut celle du jeton fait foi, ce qui rattrape les vues déjà
+  reçues.
+- **Une vue se découpe en groupes.** `Groupes d'évaluation` dans la modale de la vue :
+  `par 7` fait de 28 athlètes **4 groupes de 7**, nommés `Groupe A` à `Groupe D`,
+  dans l'ordre des numéros. L'évaluateur ne voit que la vague qui passe, avec son
+  avancement (`Groupe B 3/7`), et les flèches du panneau restent dans le groupe —
+  « athlète 3/7 », pas 3/28.
+- **La grille de numéros se replie**, et les athlètes déjà évaluées se masquent.
+  Repliée, le panneau de saisie a tout l'écran : sur un téléphone, vingt-huit tuiles
+  et un formulaire ne tiennent pas ensemble.
 - **La saison n'a plus de catégorie.** Le formulaire en proposait une, et la barre
   de contexte l'affichait — mais une saison est l'axe de temps du club, où les U13
   et les U21 jouent ensemble. Le champ appartenait déjà à l'équipe depuis la v3 : il

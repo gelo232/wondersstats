@@ -211,13 +211,44 @@ et Brittany voient les dix.
 
 ---
 
+### Découper une vue en groupes
+
+Vingt-huit numéros sur un écran de téléphone, personne ne s'y retrouve. Dans la
+modale de la vue, sous `Groupes d'évaluation`, choisissez la taille des vagues :
+
+| | |
+|---|---|
+| `Aucun` | une seule liste, comme avant |
+| `par 7` | 28 athlètes → **4 groupes de 7**, nommés `Groupe A` à `Groupe D` |
+
+Le découpage suit **l'ordre des numéros** — celui des dossards qu'on appelle. Le
+résumé sous les boutons dit exactement ce que ça donne avant d'enregistrer, et le
+dernier groupe est plus petit quand le compte ne tombe pas juste.
+
+L'évaluateur reçoit les groupes avec la vue. Sur son écran, une rangée de pastilles
+`Toutes 0/28 · Groupe A 0/7 · Groupe B 0/7 …` : il n'a devant lui **que la vague qui
+passe**, avec son avancement. `Réévaluer ces athlètes` reprend les mêmes groupes,
+pour que deux campagnes se comparent dans le même ordre.
+
+---
+
 ## 3 · Pendant la séance — qui saisit quoi
 
 `🎯 Ouvrir ici` passe l'appareil en mode évaluateur sur cette vue. (Sur trois
 appareils, configurez le relais et utilisez `📡 Publier` ; hors-ligne,
 `📤 Fichier`.)
 
-L'écran présente les dossards en tuiles. Une tuile ouvre le panneau de l'athlète :
+L'écran présente les dossards en tuiles. **Trois gestes libèrent la place** quand
+elles sont nombreuses :
+
+- une **pastille de groupe** en haut n'affiche que la vague qui passe (`Groupe B 3/7`) ;
+- le **titre de la grille** la replie et la déplie (`▾ Groupe B · 3/7 évaluées ·
+  replier`) — repliée, le panneau de saisie a tout l'écran ;
+- `Masquer les faites` retire les numéros déjà évalués, pour ne garder que ce qui
+  reste à faire.
+
+Les flèches `←` `→` du panneau restent **dans le groupe** : « athlète 3/7 », pas
+3/28. Une tuile ouvre le panneau de l'athlète :
 
 1. **Évaluation** — les critères, de 1 à 5. Un critère non touché reste *non noté*
    et n'entre dans aucune moyenne. Ce n'est pas un zéro.
