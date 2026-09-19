@@ -303,6 +303,8 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .w-btns{display:flex;gap:3px;flex-shrink:0}
 .w-btn{min-width:30px;height:30px;border-radius:7px;border:1px solid #334155;background:#0F172A;color:#94A3B8;font-size:12px;font-weight:700}
 .w-btn.on{background:#8B5CF6;border-color:#8B5CF6;color:#fff}
+.lien-doc{display:inline-block;color:#A78BFA;text-decoration:none;font-size:12px;font-weight:700;padding:7px 0}
+.lien-doc:active{opacity:.6}
 .modal input[type=range]{-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;background:#334155;padding:0;border:0}
 .modal input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#8B5CF6;border:2px solid #0F172A}
 .modal input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#8B5CF6;border:2px solid #0F172A}
@@ -3875,7 +3877,9 @@ function renderSeasonsPane(){
   wrap.appendChild(h("div",{className:"section-title"},"Données de mon équipe"));
   wrap.appendChild(h("div",{className:"data-actions",style:{marginTop:"0"}},
     h("button",{className:"btn btn-export sm",onclick:exportMyTeam},"📤 Exporter mon équipe")));
-  wrap.appendChild(h("div",{className:"muted",style:{textAlign:"center",marginTop:"14px"}},
+  wrap.appendChild(h("div",{style:{textAlign:"center",marginTop:"14px"}},
+    lienGuide("Guide d'utilisation")));
+  wrap.appendChild(h("div",{className:"muted",style:{textAlign:"center",marginTop:"2px"}},
     "WonderStats v"+APP_VERSION));
   return wrap;
 }
@@ -4898,13 +4902,15 @@ function renderEvalsPane(squad){
     h("button",{className:"btn btn-ghost sm",onclick:function(){state.modalDraft=null;openModal("scoring")}},"⚖️ Formule"),
     rows.length?h("button",{className:"btn btn-export sm",onclick:function(){exportEvalsCSV(squad,rows,camp)}},"📤 Exporter (CSV)"):null));
   var scNow=scoringOf(squad);
-  wrap.appendChild(h("div",{className:"muted",style:{marginBottom:"10px"}},
+  wrap.appendChild(h("div",{className:"muted",style:{marginBottom:"2px"}},
     scoringIsPlain(scNow)
       ? "Score : moyenne simple des critères. Les compteurs relevés ne pèsent pas."
       : "Score : critères "+(100-Math.round(scNow.statShare*100))+" % · statistiques "+Math.round(scNow.statShare*100)+" %"+
         (scNow.severity?" · sévérité des sélectionneurs corrigée":"")+
         (scNow.reliability>0?" · amorti selon le nombre de regards":"")+". "+
         "Chaque ligne dépliée montre le détail."));
+  wrap.appendChild(h("div",{style:{marginBottom:"8px"}},
+    lienGuide("Comment se calcule le score","formule")));
 
   if(!rows.length){wrap.appendChild(h("div",{className:"empty"},"Aucune joueuse évaluée dans cette campagne"));return wrap}
 
@@ -5841,6 +5847,16 @@ function modalShell(title,body,buttons,maxWidth){
       h("h3",null,title),body,
       h("div",{style:{display:"flex",gap:"8px",marginTop:"6px",flexWrap:"wrap"}},buttons)));
 }
+/* Lien vers le guide d'utilisation. Il vit dans le dépôt plutôt que dans
+   l'application : une PWA de 400 ko n'a pas à embarquer son mode d'emploi,
+   et GitHub le rend lisible sur téléphone. Hors-ligne le lien ne s'ouvre
+   pas — c'est de la documentation, pas une fonction du terrain. */
+var GUIDE_URL="https://github.com/gelo232/wondersstats/blob/main/GUIDE.md";
+function lienGuide(texte,ancre){
+  return h("a",{className:"lien-doc",href:GUIDE_URL+(ancre?"#"+ancre:""),
+    target:"_blank",rel:"noopener noreferrer"},"📖 "+texte+" ↗");
+}
+
 function textField(placeholder,value,onchange,label){
   var inp=h("input",{placeholder:placeholder,value:value||""});
   inp.addEventListener("input",function(e){onchange(e.target.value)});
@@ -7120,9 +7136,10 @@ function renderModal(){
       return h("div",{className:"w-row"},h("span",{className:"w-lbl"},libelle),btns);
     }
     var corps=h("div",null,
-      h("div",{className:"muted",style:{marginBottom:"10px"}},
+      h("div",{className:"muted",style:{marginBottom:"4px"}},
         "La formule vaut pour toute la saison : comparer deux campagnes n'a de sens "+
         "que si elles sont mesurées de la même façon."),
+      h("div",{style:{marginBottom:"10px"}},lienGuide("Chaque réglage expliqué, avec des exemples chiffrés","formule")),
 
       h("div",{className:"section-title"},"Poids des critères"),
       h("div",null,CRITERIA.map(function(c){return poidsRow(c.label,d3.critWeights,c.key,3)})),

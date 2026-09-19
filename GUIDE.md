@@ -151,41 +151,236 @@ Ce détail n'est pas décoratif : **un chiffre qui décide d'une sélection doit
 
 ---
 
-## 5 · Régler la formule
+<a id="formule"></a>
 
-`📊 Récap → ⭐ Évaluations → ⚖️ Formule`. Le réglage vaut **pour toute la saison** :
-comparer septembre à décembre n'a de sens que si les deux sont mesurés pareil.
+## 5 · Régler la formule du score
 
-| Réglage | Effet |
+`📊 Récap → ⭐ Évaluations → ⚖️ Formule`
+
+Le réglage vaut **pour toute la saison**, pas pour une campagne. Comparer septembre
+à décembre n'aurait aucun sens si les deux étaient mesurés autrement. Changer la
+formule recalcule aussitôt tous les scores de la saison — les notes, les avis et les
+statuts, eux, ne bougent jamais.
+
+### Comment le score se construit
+
+```
+        notes des critères            compteurs relevés
+                │                            │
+                ▼                            ▼
+   ① sévérité de l'évaluateur      ③ efficacité par famille
+          corrigée                          │
+                │                    ④ notée de 1 à 5 parmi
+   ② moyenne pondérée                 les athlètes de la campagne
+      des critères                           │
+                └──────────┬─────────────────┘
+                           ▼
+              ⑤ mélange selon la part des statistiques
+                           ▼
+              ⑥ amortissement si peu de regards
+                           ▼
+                      SCORE RETENU
+```
+
+Les six réglages ci-dessous agissent chacun sur une de ces étapes.
+
+---
+
+### ① Poids des critères
+
+Cinq lignes — Technique, Physique, Lecture du jeu, Attitude, Potentiel — chacune
+réglable sur quatre crans :
+
+| Cran | Effet |
 |---|---|
-| **Poids des critères** | — (écarté) à ×3 |
-| **Part des statistiques** | 0 à 100 %, 50 % par défaut |
-| **Poids des familles** | quelles familles de compteurs pèsent |
-| **Sévérité** | corriger l'exigence propre à chaque évaluateur |
-| **Amortir un score peu observé** | ramener vers la moyenne ce qui repose sur un seul regard |
-| **Gestes minimum** | seuil sous lequel une famille n'est pas notée |
+| **—** | le critère est **écarté** du score (il reste noté et affiché) |
+| **×1** | poids normal *(défaut)* |
+| **×2** | compte double |
+| **×3** | compte triple |
 
-**`Moyenne simple`** rétablit le calcul d'avant la v6.3 en un bouton : critères à
-poids égal, statistiques à 0 %, aucune correction.
+Le score des critères est leur **moyenne pondérée** : `Σ(poids × note) ÷ Σ(poids)`.
+Seuls les critères effectivement notés entrent au calcul.
 
-### Ce que les corrections changent, concrètement
+> **Exemple.** Une athlète notée Technique 3, Physique 4, Lecture 5, Attitude 4,
+> Potentiel 3.
+> À poids égal : `(3+4+5+4+3)÷5 = 3,80`.
+> Avec Lecture ×3 et Potentiel ×2 : `(3+4+15+4+6)÷(1+1+3+1+2) = 32÷8 = 4,00`.
 
-Sur le cas joué, trois athlètes étaient à **4,00 partout** sur les critères. Le
-classement les départageait par numéro de dossard — c'est-à-dire par hasard. Une
-fois les compteurs pris en compte, elles se séparent nettement.
+**Quand y toucher.** Une sélection de passeuses met Lecture du jeu à ×2 ou ×3. Un
+camp de développement met Potentiel à ×2. Une journée qui n'a pas permis de juger le
+physique met Physique à **—** plutôt que de laisser une note molle peser.
 
-La correction de sévérité compare chaque évaluateur aux autres **sur les athlètes
-qu'ils ont vues en commun**, jamais à la moyenne générale : celui qui n'a observé
-que les meilleures passerait sinon pour complaisant. Sans recoupement, rien n'est
-corrigé.
+---
+
+### ② Part des statistiques
+
+Un curseur de **0 à 100 %**, à **50 % par défaut**.
+
+```
+score = (1 − part) × score des critères  +  part × score des statistiques
+```
+
+| Réglage | Ce que ça veut dire |
+|---|---|
+| **0 %** | seules les notes comptent — le calcul d'avant la v6.3 |
+| **50 %** | *(défaut)* ce qu'on a vu et ce qu'on a compté pèsent pareil |
+| **100 %** | seuls les compteurs comptent, les notes deviennent indicatives |
+
+> **Exemple.** Critères 4,00 · statistiques 3,00.
+> À 0 % → **4,00** · à 30 % → **3,70** · à 50 % → **3,50** · à 100 % → **3,00**.
+
+**Deux cas où la part est ignorée**, et c'est voulu :
+
+- une athlète **notée mais sans compteur exploitable** garde son score de critères
+  entier — on ne la pénalise pas d'un volume qu'on n'a pas relevé ;
+- une athlète **avec des compteurs mais aucune note** est jugée sur ses seuls
+  compteurs, et son score reste lisible plutôt que de tomber à zéro.
+
+---
+
+### ③ Poids des familles de compteurs
+
+Sept lignes — Services, Réception, Passes, Attaques, Blocs, Défense, Habiletés — sur
+la même échelle **—** / ×1 / ×2 / ×3.
+
+Chaque famille est d'abord ramenée à une **efficacité** entre −1 et +1 :
+
+| Famille | Compte pour | Compte contre | Neutre |
+|---|---|---|---|
+| Services | Ace | Erreur | En jeu |
+| Réception | En jeu | Erreur | Hors sys. |
+| Passes | Attaquable | Hors sys. | |
+| Attaques | Kill | Erreur | Réussie |
+| Blocs | Kill, Solo, Aide | Erreur | |
+| Défense | Réussie, Soutien | Sout. err. | Hors sys. |
+| Habiletés | Contrôlée, Avec appel, Couverture | *(rien)* | |
+
+`efficacité = (gestes positifs − gestes négatifs) ÷ total des gestes de la famille`
+
+> **Exemple.** 7 kills, 4 réussies, 2 erreurs → `(7−2) ÷ 13 = +0,38`.
+
+**Habiletés n'a pas de geste manqué** : son efficacité mesure un volume propre, pas
+un rendement. Beaucoup de clubs la mettent à **—**.
+
+**Le cas du libéro.** Une libéro n'attaque pas : dans une formule où toutes les
+familles pèsent pareil, ses quelques attaques la desservent. Pour une campagne
+centrée sur la défense, mettez Attaques et Blocs à **—**, ou Réception et Défense à
+×2. L'application ne le fait pas d'elle-même — c'est une décision de club.
+
+---
+
+### ④ Sévérité des évaluateurs
+
+Un interrupteur, **activé par défaut**.
+
+Deux personnes n'ont pas la même main. L'application compare chaque évaluateur aux
+autres **sur les athlètes qu'ils ont vues en commun** — jamais à la moyenne
+générale, qui ferait passer pour complaisant celui qui n'a observé que les
+meilleures — et retire l'écart qui lui est propre.
+
+**Sans effet dans trois cas** : un seul évaluateur ; aucune athlète vue par deux
+personnes ; des évaluateurs qui notent déjà pareil.
+
+> **Exemple.** Willy et Brittany voient les mêmes dix athlètes, Brittany note
+> systématiquement un point plus bas. La correction ramène les deux sur une échelle
+> commune, et le classement cesse de dépendre de qui a vu qui.
+
+Le min–max affiché à côté de chaque critère montre toujours les **notes réellement
+mises** : la correction ajuste la moyenne, elle n'efface pas le désaccord.
 
 > **Une limite à connaître.** Le biais est mesuré sur les critères recoupés, puis
 > appliqué à toutes les notes de la personne. Quand un coach de drill ne note que la
-> Technique, le biais mesuré là déborde sur les autres critères de celui qui les
-> note seul. L'effet est amorti, borné et recentré pour ne pas déplacer l'échelle,
-> mais il existe. Voir [`AUDIT.md`](AUDIT.md).
+> Technique, le biais mesuré là déborde sur les autres critères. L'effet est amorti
+> selon le nombre de recoupements, borné à ±1,5 et recentré pour ne pas déplacer
+> l'échelle — mais il existe. Voir [`AUDIT.md`](AUDIT.md).
 
 ---
+
+### ⑤ Amortir un score peu observé
+
+Quatre crans : **—** / ×1 *(défaut)* / ×2 / ×3.
+
+Un score tiré d'un seul regard est ramené vers la moyenne du groupe, à proportion du
+peu sur quoi il repose :
+
+```
+score final = (n × score + K × moyenne du groupe) ÷ (n + K)
+```
+où `n` est le nombre d'évaluateurs qui ont **noté** l'athlète, et `K` le cran choisi.
+
+| Cran | Une athlète vue 1 fois | Vue 2 fois | Vue 3 fois |
+|---|---|---|---|
+| **—** | aucun amortissement | — | — |
+| **×1** | 50 % de son score, 50 % de la moyenne | 67 % / 33 % | 75 % / 25 % |
+| **×2** | 33 % / 67 % | 50 % / 50 % | 60 % / 40 % |
+
+> **Ce que ça évite.** Une athlète vue par un seul évaluateur généreux coiffait
+> celles que trois personnes avaient jugées. Elle ne le peut plus.
+
+**Quand toutes les athlètes sont vues autant de fois, ce réglage ne change aucun
+classement** — il ne fait que resserrer l'échelle. Il n'agit que sur les écarts de
+nombre de regards.
+
+Mettez **—** si chaque athlète est vue par le même nombre de personnes et que vous
+préférez des scores non tassés.
+
+---
+
+### ⑥ Gestes minimum par famille
+
+De **0 à 10**, à **5 par défaut**.
+
+En dessous de ce seuil, l'efficacité d'une famille **n'est pas notée** : six services
+ne disent rien, et une efficacité tirée de deux gestes serait du bruit. La famille
+est alors marquée « trop peu » dans le détail et ne pèse pas.
+
+Montez-le à 8 ou 10 pour une longue séance où chacune touche beaucoup de ballons ;
+descendez-le à 3 pour un format court où les volumes sont faibles.
+
+---
+
+### Le bouton `Moyenne simple`
+
+En bas de la modale. Il remet d'un coup :
+
+- tous les critères à ×1 ;
+- la part des statistiques à **0 %** ;
+- la sévérité **désactivée** ;
+- l'amortissement à **—**.
+
+C'est **exactement** le calcul d'avant la v6.3. Utilisez-le si les scores de vos
+saisons passées doivent rester ceux que vos coachs connaissent.
+
+---
+
+### Trois réglages types
+
+| | Sélection classique | Journée très comptée | Bilan qualitatif |
+|---|---|---|---|
+| **Part des statistiques** | 50 % | 70 % | 20 % |
+| **Poids des critères** | tous ×1 | tous ×1 | Lecture ×2, Attitude ×2 |
+| **Familles** | Habiletés — | toutes ×1 | Habiletés — |
+| **Sévérité** | activée | activée | activée |
+| **Amortissement** | ×1 | ×1 | ×2 |
+| **Gestes minimum** | 5 | 8 | 3 |
+
+---
+
+### Vérifier l'effet de son réglage
+
+Ne réglez pas à l'aveugle. Après chaque changement, **dépliez une ligne du
+classement** : le bloc « D'où vient le score » montre la part des critères, celle
+des statistiques, ce que la sévérité a déplacé et ce que l'amortissement a retiré.
+
+Le bandeau au-dessus de la liste rappelle en permanence la formule en vigueur :
+
+```
+Score : critères 50 % · statistiques 50 % · sévérité des sélectionneurs
+corrigée · amorti selon le nombre de regards.
+```
+
+Toute modification est inscrite au **journal des décisions**
+(`🗓️ Saison → 📜 Journal`, entrée 🎚️ *Formule*) : on sait qui a changé quoi, et quand.
 
 ## 6 · Trancher
 
