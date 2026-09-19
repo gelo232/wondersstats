@@ -211,37 +211,38 @@ et Brittany voient les dix.
 
 ---
 
-### Découper une vue en groupes
-
-Vingt-huit numéros sur un écran de téléphone, personne ne s'y retrouve. Dans la
-modale de la vue, sous `Groupes d'évaluation`, choisissez la taille des vagues :
-
-| | |
-|---|---|
-| `Aucun` | une seule liste, comme avant |
-| `par 7` | 28 athlètes → **4 groupes de 7**, nommés `Groupe A` à `Groupe D` |
-
-Le découpage suit **l'ordre des numéros** — celui des dossards qu'on appelle. Le
-résumé sous les boutons dit exactement ce que ça donne avant d'enregistrer, et le
-dernier groupe est plus petit quand le compte ne tombe pas juste.
-
-L'évaluateur reçoit les groupes avec la vue. Sur son écran, une rangée de pastilles
-`Toutes 0/28 · Groupe A 0/7 · Groupe B 0/7 …` : il n'a devant lui **que la vague qui
-passe**, avec son avancement. `Réévaluer ces athlètes` reprend les mêmes groupes,
-pour que deux campagnes se comparent dans le même ordre.
-
----
-
 ## 3 · Pendant la séance — qui saisit quoi
 
 `🎯 Ouvrir ici` passe l'appareil en mode évaluateur sur cette vue. (Sur trois
 appareils, configurez le relais et utilisez `📡 Publier` ; hors-ligne,
 `📤 Fichier`.)
 
-L'écran présente les dossards en tuiles. **Trois gestes libèrent la place** quand
-elles sont nombreuses :
+L'écran présente les dossards en tuiles.
 
-- une **pastille de groupe** en haut n'affiche que la vague qui passe (`Groupe B 3/7`) ;
+### Se faire des groupes — c'est l'évaluateur qui les compose
+
+Vingt-huit numéros sur un écran de téléphone, personne ne s'y retrouve. La rangée du
+haut porte `⚙️ Créer des groupes` : **c'est vous qui les faites, sur votre écran**.
+L'entraîneure ne sait pas dans quel ordre les vagues passeront devant vous, ni si
+vous préférez regrouper par poste ; elle ne vous impose rien.
+
+Deux chemins dans la modale :
+
+- **Découper la vue** — `par 4 · 5 · 6 · 7 · 8 · 10`. `par 7` fait de 28 athlètes
+  **4 groupes de 7**, nommés `Groupe A` à `Groupe D`, dans l'ordre des numéros. Le
+  dernier est plus petit quand le compte ne tombe pas juste.
+- **À la main** — `+ Groupe` en crée un, vous le renommez (« Passeuses », « 9 h »),
+  puis vous touchez les numéros à y mettre. Une puce déjà prise affiche son groupe
+  (`#8 · B`) ; la toucher l'y enlève et l'amène chez vous. **Un numéro n'appartient
+  qu'à un seul groupe.**
+
+Les deux se combinent : découpez d'un geste, puis rectifiez à la main.
+
+Une fois enregistrés, la rangée devient `Toutes 12/28 · Groupe A 7/7 · Groupe B 5/7 …`
+et vous n'avez devant vous **que la vague choisie**, avec son avancement.
+
+### Libérer l'écran pendant la saisie
+
 - le **titre de la grille** la replie et la déplie (`▾ Groupe B · 3/7 évaluées ·
   replier`) — repliée, le panneau de saisie a tout l'écran ;
 - `Masquer les faites` retire les numéros déjà évalués, pour ne garder que ce qui

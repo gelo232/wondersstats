@@ -558,11 +558,15 @@ vous publiez explicitement sur votre propre relais.
   sélectionneur ne dépose que pour la sienne. L'équipe est maintenant estampillée à
   la réception, et à défaut celle du jeton fait foi, ce qui rattrape les vues déjà
   reçues.
-- **Une vue se découpe en groupes.** `Groupes d'évaluation` dans la modale de la vue :
-  `par 7` fait de 28 athlètes **4 groupes de 7**, nommés `Groupe A` à `Groupe D`,
-  dans l'ordre des numéros. L'évaluateur ne voit que la vague qui passe, avec son
-  avancement (`Groupe B 3/7`), et les flèches du panneau restent dans le groupe —
-  « athlète 3/7 », pas 3/28.
+- **L'évaluateur se fait ses propres groupes.** `⚙️ Créer des groupes` sur son écran
+  de saisie : `par 7` fait de 28 athlètes **4 groupes de 7** dans l'ordre des
+  numéros, ou `+ Groupe` en crée un qu'il nomme (« Passeuses », « 9 h ») et
+  qu'il remplit en touchant les numéros — une puce déjà prise affiche son groupe
+  (`#8 · B`), et un numéro n'appartient qu'à un seul. Il ne voit ensuite que la vague
+  qui passe, avec son avancement (`Groupe B 3/7`), et les flèches du panneau restent
+  dans le groupe : « athlète 3/7 », pas 3/28. **L'entraîneur ne compose pas ces
+  groupes** — il ne sait pas dans quel ordre les vagues passeront devant l'évaluateur
+  — et ils ne voyagent pas dans le paquet : republier une vue ne les efface pas.
 - **La grille de numéros se replie**, et les athlètes déjà évaluées se masquent.
   Repliée, le panneau de saisie a tout l'écran : sur un téléphone, vingt-huit tuiles
   et un formulaire ne tiennent pas ensemble.

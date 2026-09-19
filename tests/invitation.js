@@ -188,33 +188,25 @@ async function serveRelay(route,request){
     await coach.page.waitForTimeout(200);
   });
 
-  await step("une vue de 28 athlètes, découpée en groupes de 7",async()=>{
+  await step("une vue de 28 athlètes, sans groupes : ils ne sont pas de son ressort",async()=>{
     await coach.page.evaluate(()=>{
       const t=DB.teams[0];switchCtx({role:"coach",teamId:t.id});
       state.tab="selection";state.editViewId=null;state.modalSel=[];state.modalDraft=null;
       openModal("editview");
     });
     await coach.page.waitForTimeout(400);
+    if(/Groupes d'évaluation/.test(await coach.page.textContent(".modal")))
+      throw new Error("la composition de la vue propose encore de découper");
     await coach.page.locator(".modal input").first().fill("Tryout — vague du samedi");
     await coach.page.locator(".modal button").filter({hasText:"Toutes"}).first().click();
     await coach.page.waitForTimeout(250);
-    await coach.page.locator(".modal .pill").filter({hasText:"par 7"}).first().click();
-    await coach.page.waitForTimeout(200);
-    const resume=await coach.page.textContent("#groupHint");
-    if(!/4 groupes de 7/.test(resume||""))throw new Error("résumé : "+resume);
     await coach.page.locator("#modalOk").click();await coach.page.waitForTimeout(500);
     const r=await coach.page.evaluate(()=>{
       const v=curSquad().selectorViews[0];
-      return {athletes:v.playerIds.length,groupes:v.playerGroups.length,
-        tailles:v.playerGroups.map(g=>g.playerIds.length),
-        noms:v.playerGroups.map(g=>g.name),
-        premiers:v.playerGroups[0].playerIds.map(p=>numOf(curSquad(),p))};
+      return {athletes:v.playerIds.length,groupes:(v.playerGroups||[]).length};
     });
     if(r.athletes!==28)throw new Error("athlètes="+r.athletes);
-    if(r.groupes!==4)throw new Error("groupes="+r.groupes);
-    if(r.tailles.join(",")!=="7,7,7,7")throw new Error("tailles="+r.tailles.join(","));
-    if(r.noms.join(",")!=="Groupe A,Groupe B,Groupe C,Groupe D")throw new Error("noms="+r.noms.join(","));
-    if(r.premiers.join(",")!=="1,2,3,4,5,6,7")throw new Error("le groupe A ne suit pas les numéros : "+r.premiers.join(","));
+    if(r.groupes)throw new Error("l'entraîneure a composé des groupes : "+r.groupes);
   });
 
   await step("la vue est publiée nominativement à Marie",async()=>{
@@ -227,8 +219,7 @@ async function serveRelay(route,request){
     await coach.page.waitForTimeout(400);
     const paquets=[...items.values()].filter(v=>v.kind==="packet");
     if(paquets.length!==1)throw new Error("paquets="+paquets.length);
-    const groupes=paquets[0].payload.view.playerGroups;
-    if(!groupes||groupes.length!==4)throw new Error("le paquet ne porte pas les groupes");
+    if(paquets[0].payload.view.playerGroups)throw new Error("le paquet emporte des groupes qui ne le regardent pas");
     const brut=JSON.stringify(paquets[0].payload);
     const fuite=NOMS.filter(n=>brut.includes(n));
     if(fuite.length)throw new Error("fuite de noms sur le relais : "+fuite.join(", "));
@@ -248,7 +239,7 @@ async function serveRelay(route,request){
     if(st.clubs)throw new Error("un club lui a été fabriqué : "+st.clubs);
   });
 
-  await step("elle reçoit la vue, avec ses quatre groupes",async()=>{
+  await step("elle reçoit la vue, sans aucun groupe imposé",async()=>{
     await marie.page.evaluate(()=>pullForSelector());
     await marie.page.waitForTimeout(1000);
     const r=await marie.page.evaluate(()=>({vues:INBOX.views.length,
@@ -256,15 +247,66 @@ async function serveRelay(route,request){
       groupes:INBOX.views[0]?INBOX.views[0].playerGroups.length:0}));
     if(r.vues!==1)throw new Error("vues reçues="+r.vues);
     if(r.athletes!==28)throw new Error("athlètes="+r.athletes);
-    if(r.groupes!==4)throw new Error("groupes reçus="+r.groupes);
+    if(r.groupes)throw new Error("des groupes lui sont imposés : "+r.groupes);
   });
 
-  await step("l'écran de saisie ne montre qu'un groupe à la fois",async()=>{
+  await step("elle compose elle-même quatre groupes de sept",async()=>{
     await marie.page.evaluate(()=>{state.svViewId=INBOX.views[0].id;state.svPlayerId=null;
       state.svPlayerGroupId=null;state.tab="sv_eval";render()});
     await marie.page.waitForTimeout(350);
     const toutes=await marie.page.locator(".num-tile").count();
-    if(toutes!==28)throw new Error("sans groupe choisi, la vue devrait tout montrer : "+toutes);
+    if(toutes!==28)throw new Error("sans groupe, la vue devrait tout montrer : "+toutes);
+    await marie.page.locator(".sub-pills .pill").filter({hasText:"Créer des groupes"}).click();
+    await marie.page.waitForTimeout(350);
+    await marie.page.locator(".modal .pill").filter({hasText:"par 7"}).first().click();
+    await marie.page.waitForTimeout(350);
+    const apercu=await marie.page.textContent(".modal");
+    if(!/4 groupes/.test(apercu))throw new Error("le découpage n'est pas annoncé");
+    await marie.page.locator("#modalOk").click();await marie.page.waitForTimeout(400);
+    const r=await marie.page.evaluate(()=>{
+      const v=INBOX.views[0],src=svFind(v.id);
+      return {groupes:v.playerGroups.length,tailles:v.playerGroups.map(g=>g.playerIds.length),
+        noms:v.playerGroups.map(g=>g.name),
+        premiers:v.playerGroups[0].playerIds.map(p=>svNumber(src,p))};
+    });
+    if(r.groupes!==4)throw new Error("groupes="+r.groupes);
+    if(r.tailles.join(",")!=="7,7,7,7")throw new Error("tailles="+r.tailles.join(","));
+    if(r.noms.join(",")!=="Groupe A,Groupe B,Groupe C,Groupe D")throw new Error("noms="+r.noms.join(","));
+    if(r.premiers.join(",")!=="1,2,3,4,5,6,7")throw new Error("le groupe A ne suit pas les numéros : "+r.premiers.join(","));
+  });
+
+  await step("elle déplace un numéro d'un groupe à l'autre, puis le remet",async()=>{
+    const compo=()=>marie.page.evaluate(()=>{
+      const v=INBOX.views[0],src=svFind(v.id);
+      const o={};v.playerGroups.forEach(g=>{o[g.name]=g.playerIds.map(p=>svNumber(src,p)).join(",")});
+      return o;
+    });
+    await marie.page.locator(".sub-pills .pill").filter({hasText:"⚙️ Groupes"}).click();
+    await marie.page.waitForTimeout(350);
+    await marie.page.locator(".modal .pill").filter({hasText:"Groupe A"}).first().click();
+    await marie.page.waitForTimeout(250);
+    /* #8 appartient au groupe B : la puce le dit, et le toucher le déplace. */
+    const puce=marie.page.locator(".modal .court-toggle").filter({hasText:"#8"}).first();
+    if(!/·\s*B/.test(await puce.textContent()))throw new Error("la puce n'indique pas son groupe : "+await puce.textContent());
+    await puce.click();await marie.page.waitForTimeout(250);
+    await marie.page.locator("#modalOk").click();await marie.page.waitForTimeout(400);
+    const apres=await compo();
+    if(apres["Groupe A"]!=="1,2,3,4,5,6,7,8")throw new Error("groupe A="+apres["Groupe A"]);
+    if(apres["Groupe B"]!=="9,10,11,12,13,14")throw new Error("groupe B="+apres["Groupe B"]);
+    /* Et on le remet, pour que la suite se joue à sept par vague. */
+    await marie.page.locator(".sub-pills .pill").filter({hasText:"⚙️ Groupes"}).click();
+    await marie.page.waitForTimeout(350);
+    await marie.page.locator(".modal .pill").filter({hasText:"Groupe B"}).first().click();
+    await marie.page.waitForTimeout(250);
+    await marie.page.locator(".modal .court-toggle").filter({hasText:"#8"}).first().click();
+    await marie.page.waitForTimeout(250);
+    await marie.page.locator("#modalOk").click();await marie.page.waitForTimeout(400);
+    const fin=await compo();
+    if(fin["Groupe A"]!=="1,2,3,4,5,6,7")throw new Error("retour groupe A="+fin["Groupe A"]);
+    if(fin["Groupe B"]!=="8,9,10,11,12,13,14")throw new Error("retour groupe B="+fin["Groupe B"]);
+  });
+
+  await step("l'écran de saisie ne montre qu'un groupe à la fois",async()=>{
     await marie.page.locator(".sub-pills .pill").filter({hasText:"Groupe B"}).first().click();
     await marie.page.waitForTimeout(300);
     const n=await marie.page.locator(".num-tile").count();

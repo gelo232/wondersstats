@@ -865,23 +865,18 @@ function normPlayerGroups(raw,playerIds){
   });
   return out;
 }
-/* Découpe une vue en groupes de `taille`, dans l'ordre des numéros :
-   c'est l'ordre du gymnase, celui des dossards appelés. */
-function decouperEnGroupes(squad,playerIds,taille){
+/* Découpe une liste déjà ordonnée en groupes de `taille`. L'ordre reçu
+   est celui des numéros — celui des dossards qu'on appelle. */
+function nomDeGroupe(n){
+  var lettres="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  return "Groupe "+(n<26?lettres.charAt(n):String(n+1));
+}
+function decouperEnGroupes(idsOrdonnes,taille){
   taille=parseInt(taille,10)||0;
   if(taille<1)return [];
-  var ordre=(playerIds||[]).slice().sort(function(a,b){
-    var na=parseInt(numOf(squad,a),10),nb=parseInt(numOf(squad,b),10);
-    if(isNaN(na))na=9999;if(isNaN(nb))nb=9999;
-    if(na!==nb)return na-nb;
-    return comparerNoms(playerById(a),playerById(b));
-  });
-  var out=[],lettres="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  for(var i=0;i<ordre.length;i+=taille){
-    var n=out.length;
-    out.push({id:uid(),name:"Groupe "+(n<26?lettres.charAt(n):String(n+1)),
-      playerIds:ordre.slice(i,i+taille)});
-  }
+  var out=[],ids=idsOrdonnes||[];
+  for(var i=0;i<ids.length;i+=taille)
+    out.push({id:uid(),name:nomDeGroupe(out.length),playerIds:ids.slice(i,i+taille)});
   return out;
 }
 
@@ -2893,11 +2888,10 @@ function buildPacket(squad,view){
     view:{
       id:view.id,name:view.name,selectorName:view.selectorName,
       criteria:view.criteria.slice(),groups:view.groups.slice(),
-      /* Les groupes ne portent que des identifiants déjà présents dans
-         `players` : rien de nominatif ne s'ajoute au paquet. */
-      playerGroups:(view.playerGroups||[]).map(function(g){
-        return {id:g.id,name:g.name,playerIds:g.playerIds.slice()};
-      }),
+      /* Les groupes d'athlètes ne voyagent pas : ils appartiennent à qui
+         évalue. C'est lui qui sait comment il veut organiser sa séance —
+         par vagues du gymnase, par poste, par ce qu'il voit du terrain —
+         et l'entraîneur n'a pas à le décider pour lui. */
       anonymous:anon,context:view.context||"",
       players:view.playerIds.map(function(pid){
         var o={playerId:pid,number:numOf(squad,pid)};
@@ -3323,7 +3317,10 @@ function pullForSelector(){
         existing.anonymous=fresh.anonymous;existing.labels=fresh.labels;
         existing.campaignId=fresh.campaignId;existing.campaignName=fresh.campaignName;
         existing.context=fresh.context;existing.numbers=fresh.numbers;
-        existing.playerIds=fresh.playerIds;existing.playerGroups=fresh.playerGroups;
+        existing.playerIds=fresh.playerIds;
+        /* Les groupes sont le travail de l'évaluateur : on ne les
+           remplace pas, on les recadre sur les athlètes encore présentes. */
+        existing.playerGroups=normPlayerGroups(existing.playerGroups,fresh.playerIds);
         existing.teamId=fresh.teamId||existing.teamId;
         fresh.playerIds.forEach(function(pid){if(!existing.data[pid])existing.data[pid]=mkEntryData()});
         updated++;
@@ -6321,20 +6318,24 @@ function renderSvEval(){
 
   var faits=svFait(src,ordered);
   var stripKids=[];
-  if(groupes.length){
-    var pills=h("div",{className:"sub-pills",style:{marginBottom:"8px"}});
-    function gPill(id,libelle,ids){
-      var on=(state.svPlayerGroupId||null)===id;
-      var b=h("button",{className:"pill sm"+(on?" active":""),onclick:function(){
-        state.svPlayerGroupId=id;state.svPlayerId=null;state.svTilesOpen=true;render();
-      }},libelle+" "+svFait(src,ids)+"/"+ids.length);
-      if(on)b.style.background="#3B82F6";
-      return b;
-    }
-    pills.appendChild(gPill(null,"Toutes",v.playerIds));
-    groupes.forEach(function(g){pills.appendChild(gPill(g.id,g.name,g.playerIds))});
-    stripKids.push(pills);
+  /* La rangée existe même sans groupe : c'est de là qu'on les compose,
+     et c'est l'évaluateur qui les compose — lui seul sait dans quel
+     ordre les vagues passent devant lui. */
+  var pills=h("div",{className:"sub-pills",style:{marginBottom:"8px"}});
+  function gPill(id,libelle,ids){
+    var on=(state.svPlayerGroupId||null)===id;
+    var b=h("button",{className:"pill sm"+(on?" active":""),onclick:function(){
+      state.svPlayerGroupId=id;state.svPlayerId=null;state.svTilesOpen=true;render();
+    }},libelle+" "+svFait(src,ids)+"/"+ids.length);
+    if(on)b.style.background="#3B82F6";
+    return b;
   }
+  pills.appendChild(gPill(null,"Toutes",v.playerIds));
+  groupes.forEach(function(g){pills.appendChild(gPill(g.id,g.name,g.playerIds))});
+  pills.appendChild(h("button",{className:"pill sm",style:{flexShrink:"0"},onclick:function(){
+    state.modalDraft=null;openModal("svgroups");
+  }},groupes.length?"⚙️ Groupes":"⚙️ Créer des groupes"));
+  stripKids.push(pills);
   /* Replier libère l'écran pour la saisie : sur un téléphone, la grille
      et le panneau ne tiennent pas ensemble. */
   var tete=h("div",{className:"sv-strip-head"},
@@ -6654,40 +6655,6 @@ function toggleSel(id){
   if(i!==-1)state.modalSel.splice(i,1);else state.modalSel.push(id);
 }
 
-/* La taille des vagues telle qu'elle se relit d'une vue existante : le
-   plus grand groupe suffit, puisque seul le dernier peut être incomplet. */
-function tailleDesGroupes(v){
-  var g=(v&&v.playerGroups)||[];
-  if(!g.length)return 0;
-  var max=0;g.forEach(function(x){if(x.playerIds.length>max)max=x.playerIds.length});
-  return max;
-}
-function resumeGroupes(d){
-  var n=state.modalSel.length,t=parseInt(d.groupSize,10)||0;
-  if(!n)return "Choisissez d'abord les athlètes.";
-  if(!t)return plural(n,"athlète")+" sur une seule liste.";
-  var nb=Math.ceil(n/t),reste=n%t;
-  return plural(n,"athlète")+" · "+plural(nb,"groupe")+" de "+t+
-    (reste?" (le dernier en compte "+reste+")":"");
-}
-function groupSizeRow(d){
-  var row=h("div",{className:"sub-pills",style:{marginBottom:"2px"}});
-  [0,4,5,6,7,8,10].forEach(function(t){
-    var b=h("button",{className:"pill sm"+(d.groupSize===t?" active":""),onclick:function(){
-      d.groupSize=t;
-      Array.prototype.forEach.call(row.children,function(el,i){
-        var v=[0,4,5,6,7,8,10][i];
-        el.className="pill sm"+(d.groupSize===v?" active":"");
-        el.style.background=d.groupSize===v?"#3B82F6":"";
-      });
-      var hint=document.getElementById("groupHint");
-      if(hint)hint.textContent=resumeGroupes(d);
-    }},t?("par "+t):"Aucun");
-    if(d.groupSize===t)b.style.background="#3B82F6";
-    row.appendChild(b);
-  });
-  return row;
-}
 function renderModal(){
   if(!state.modalType)return null;
   var season=curSquad(),T=state.modalType;
@@ -7835,9 +7802,7 @@ function renderModal(){
       anonymous:v0?(v0.anonymous!==false):true,
       campaignId:v0?v0.campaignId:(season.activeCampaignId||openCamps[0].id),
       criteria:v0?v0.criteria.slice():CRITERIA.map(function(c){return c.key}),
-      groups:v0?v0.groups.slice():SG_KEYS.slice(),
-      /* Taille des vagues. 0 = une seule liste, comme avant. */
-      groupSize:v0?tailleDesGroupes(v0):0
+      groups:v0?v0.groups.slice():SG_KEYS.slice()
     });
     if(v0&&!state.modalSel.length&&v0.playerIds.length)state.modalSel=v0.playerIds.slice();
     var dupN=dupNumbers(season);
@@ -7883,17 +7848,10 @@ function renderModal(){
         h("div",{className:"muted",style:{marginTop:"5px"}},
           "Anonyme en sélection, pour un regard neutre. Nominative pour un bilan de fin de saison, où l'évaluateur connaît déjà l'équipe.")),
       h("div",{className:"field"},h("label",null,"Athlètes de la vue"),quick,selCount(),
-        toggleGrid(items4,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){
-          toggleSel(it.id);
-          var hint=document.getElementById("groupHint");
-          if(hint)hint.textContent=resumeGroupes(draft2);
-        })),
-      h("div",{className:"field"},h("label",null,"Groupes d'évaluation"),
-        groupSizeRow(draft2),
-        h("div",{id:"groupHint",className:"muted",style:{marginTop:"5px"}},resumeGroupes(draft2)),
-        h("div",{className:"muted",style:{marginTop:"3px"}},
-          "Vingt-huit numéros sur un écran, personne ne s'y retrouve. Découpés en vagues, "+
-          "le sélectionneur n'a devant lui que le groupe qui passe — et replie la grille pendant qu'il saisit.")),
+        toggleGrid(items4,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){toggleSel(it.id)}),
+        h("div",{className:"muted",style:{marginTop:"5px"}},
+          "Une vue de vingt-huit numéros se saisit par groupes — mais c'est l'évaluateur qui les "+
+          "compose, sur son écran : lui seul sait dans quel ordre les vagues passent.")),
       h("div",{className:"field"},h("label",null,"Critères d'évaluation"),
         toggleGrid(CRITERIA.map(function(c){return {id:c.key,label:c.label}}),
           function(it){return draft2.criteria.indexOf(it.id)!==-1},
@@ -7921,7 +7879,7 @@ function renderModal(){
       v.anonymous=!!draft2.anonymous;
       v.criteria=draft2.criteria.slice();v.groups=draft2.groups.slice();
       v.playerIds=state.modalSel.slice();
-      v.playerGroups=decouperEnGroupes(season,v.playerIds,draft2.groupSize);
+      v.playerGroups=normPlayerGroups(v.playerGroups,v.playerIds);
       v.campaignId=camp?camp.id:null;v.campaignName=camp?camp.name:"";
       v.seasonId=season.id;v.seasonName=season.name;
       var dd={};v.playerIds.forEach(function(pid){dd[pid]=v.data[pid]||mkEntryData()});
@@ -7931,6 +7889,119 @@ function renderModal(){
       closeModal();saveNow();showToast("✅ Vue « "+n+" » enregistrée");
     }},v0?"Enregistrer":"Créer la vue")];
     return modalShell(v0?"Modifier la vue":"Nouvelle vue sélectionneur",body4,btns4,"480px");
+  }
+
+  /* ── Les groupes de l'évaluateur ──────────────────────────────
+     Composés ici, sur l'écran où l'on saisit, et non dans la vue reçue :
+     l'entraîneur ne sait pas dans quel ordre les vagues passeront devant
+     l'évaluateur, ni s'il préfère regrouper par poste. Deux chemins, l'un
+     pour aller vite, l'autre pour être juste : découper d'un geste, ou
+     poser les numéros un à un. */
+  if(T==="svgroups"){
+    var srcG=state.svViewId?svFind(state.svViewId):null;
+    if(!srcG)return null;
+    var vG=srcG.view;
+    var dG=state.modalDraft||(state.modalDraft={
+      groupes:(vG.playerGroups||[]).map(function(g){
+        return {id:g.id,name:g.name,playerIds:g.playerIds.slice()};
+      }),
+      sel:(vG.playerGroups&&vG.playerGroups[0])?vG.playerGroups[0].id:""
+    });
+    var ordreG=svOrdered(srcG);
+    function groupeSel(){
+      for(var i=0;i<dG.groupes.length;i++)if(dG.groupes[i].id===dG.sel)return dG.groupes[i];
+      return null;
+    }
+    function groupeDe(pid){
+      for(var i=0;i<dG.groupes.length;i++)
+        if(dG.groupes[i].playerIds.indexOf(pid)!==-1)return dG.groupes[i];
+      return null;
+    }
+    function sansGroupe(){
+      return ordreG.filter(function(p){return !groupeDe(p)}).length;
+    }
+    /* Découper : on repart de zéro, dans l'ordre des numéros. */
+    var decoupe=h("div",{className:"sub-pills",style:{marginBottom:"6px"}},
+      [4,5,6,7,8,10].map(function(t){
+        return h("button",{className:"pill sm",onclick:function(){
+          dG.groupes=decouperEnGroupes(ordreG,t);
+          dG.sel=dG.groupes.length?dG.groupes[0].id:"";
+          render();
+        }},"par "+t);
+      }));
+    var gsel=groupeSel();
+    var rangee=h("div",{className:"sub-pills",style:{marginBottom:"8px"}},
+      dG.groupes.map(function(g){
+        var on=g.id===dG.sel;
+        var b=h("button",{className:"pill sm"+(on?" active":""),onclick:function(){dG.sel=g.id;render()}},
+          g.name+" "+g.playerIds.length);
+        if(on)b.style.background="#3B82F6";
+        return b;
+      }),
+      h("button",{className:"pill sm",style:{borderStyle:"dashed",flexShrink:"0"},onclick:function(){
+        var g={id:uid(),name:nomDeGroupe(dG.groupes.length),playerIds:[]};
+        dG.groupes.push(g);dG.sel=g.id;render();
+      }},"+ Groupe"));
+
+    var corpsG=h("div",null,
+      h("div",{className:"muted",style:{marginBottom:"8px"}},
+        "Découpez d'un geste dans l'ordre des numéros, ou composez vos groupes vous-même : ",
+        "choisissez un groupe, puis touchez les numéros à y mettre."),
+      h("div",{className:"field"},h("label",null,"Découper la vue"),decoupe,
+        h("div",{className:"muted"},plural(ordreG.length,"athlète")+" dans cette vue"+
+          (dG.groupes.length?(" · "+plural(dG.groupes.length,"groupe")+
+            (sansGroupe()?" · "+sansGroupe()+" sans groupe":"")):" · aucun groupe"))),
+      h("div",{className:"field"},h("label",null,"Mes groupes"),rangee));
+
+    if(gsel){
+      var nomInp=h("input",{placeholder:"Nom du groupe",value:gsel.name,maxlength:"40"});
+      nomInp.addEventListener("input",function(e){gsel.name=e.target.value});
+      corpsG.appendChild(h("div",{className:"field"},
+        h("div",{className:"row-between",style:{marginBottom:"6px"}},
+          h("label",{style:{margin:"0"}},"Athlètes de « "+gsel.name+" »"),
+          h("button",{className:"btn btn-danger-o xs",onclick:function(){
+            dG.groupes=dG.groupes.filter(function(g){return g.id!==gsel.id});
+            dG.sel=dG.groupes.length?dG.groupes[0].id:"";render();
+          }},"🗑️ Supprimer ce groupe")),
+        nomInp,
+        h("div",{className:"muted",style:{margin:"6px 0 4px"}},
+          "Un numéro n'appartient qu'à un groupe : le toucher ici le retire du sien."),
+        toggleGrid(ordreG.map(function(pid){
+          var g=groupeDe(pid);
+          var ailleurs=g&&g.id!==gsel.id;
+          return {id:pid,label:svDisplay(srcG,pid)+(ailleurs?" · "+g.name.replace(/^Groupe /,""):"")};
+        }),function(it){
+          var g=groupeDe(it.id);return !!g&&g.id===gsel.id;
+        },function(it){
+          var g=groupeDe(it.id);
+          if(g&&g.id===gsel.id){
+            g.playerIds=g.playerIds.filter(function(x){return x!==it.id});
+          } else {
+            if(g)g.playerIds=g.playerIds.filter(function(x){return x!==it.id});
+            gsel.playerIds.push(it.id);
+            /* Le groupe se range dans l'ordre des numéros — celui dans
+               lequel il passera, et celui qu'on relit. */
+            gsel.playerIds.sort(function(a,b){return ordreG.indexOf(a)-ordreG.indexOf(b)});
+          }
+          render();
+        })));
+    } else if(dG.groupes.length){
+      corpsG.appendChild(h("div",{className:"muted"},"Choisissez un groupe pour y affecter des numéros."));
+    }
+
+    return modalShell("Groupes d'évaluation",corpsG,
+      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+        var propres=dG.groupes.map(function(g){
+          return {id:g.id,name:(g.name||"").trim()||"Groupe",playerIds:g.playerIds.slice()};
+        }).filter(function(g){return g.playerIds.length});
+        vG.playerGroups=normPlayerGroups(propres,vG.playerIds);
+        if(state.svPlayerGroupId&&!vG.playerGroups.some(function(g){return g.id===state.svPlayerGroupId}))
+          state.svPlayerGroupId=null;
+        state.modalDraft=null;closeModal();saveNow();
+        showToast(vG.playerGroups.length
+          ? "✅ "+plural(vG.playerGroups.length,"groupe")+" enregistré(s)"
+          : "Groupes effacés — la vue se saisit d'une seule liste");
+      }},"Enregistrer")],"460px");
   }
 
   /* ── Réglage de la formule du score ── */
