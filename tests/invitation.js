@@ -410,6 +410,72 @@ async function serveRelay(route,request){
     if(!r.note)throw new Error("aucun score pour le 8");
   });
 
+  /* ── Inviter depuis la vue, et n'ouvrir que celle-là ────────── */
+  say("\n── L'entraîneure invite un second évaluateur, sur une seule vue");
+  const karl=await mkDevice("Karl");
+  let lienKarl="";
+  await step("une seconde vue, et l'invitation part de la vue elle-même",async()=>{
+    await coach.page.evaluate(()=>{
+      const sq=curSquad();
+      const v=mkSelectorView({name:"Tryout — vague du dimanche",
+        campaignId:sq.activeCampaignId,campaignName:curCampaign(sq).name,
+        seasonId:sq.seasonId,seasonName:curSeason().name});
+      v.playerIds=sq.roster.slice(0,5).map(e=>e.playerId);
+      v.playerIds.forEach(pid=>{v.data[pid]=mkEntryData()});
+      sq.selectorViews.push(v);
+      state.tab="selection";state.selectionPane="views";saveNow();render();
+    });
+    await coach.page.waitForTimeout(400);
+    const carte=coach.page.locator(".view-card").filter({hasText:"vague du dimanche"});
+    await carte.locator("button").filter({hasText:"Inviter un sélectionneur"}).click();
+    await coach.page.waitForTimeout(350);
+    await coach.page.locator(".modal input").first().fill("Karl B.");
+    await coach.page.locator(".modal button").filter({hasText:"Inviter et publier"}).click();
+    await coach.page.waitForTimeout(1200);
+    lienKarl=await coach.page.locator(".modal textarea").inputValue();
+    if(!lienKarl.includes("#s="))throw new Error("aucun lien émis : "+lienKarl);
+    await coach.page.locator(".modal button").filter({hasText:"Fermer"}).click();
+    await coach.page.waitForTimeout(250);
+    const r=await coach.page.evaluate(()=>{
+      const p=DB.people.find(x=>x.name==="Karl B.");
+      const v=curSquad().selectorViews.find(x=>x.name==="Tryout — vague du dimanche");
+      return {existe:!!p,jeton:!!(p&&p.token),
+        role:(DB.assignments.find(a=>p&&a.personId===p.id)||{}).role,
+        reservee:!!(v&&v.selectorPersonId===(p||{}).id),publiee:!!(v&&v.published)};
+    });
+    if(!r.existe||!r.jeton)throw new Error("personne ou jeton manquant : "+JSON.stringify(r));
+    if(r.role!=="selector")throw new Error("rôle="+r.role);
+    if(!r.reservee||!r.publiee)throw new Error("vue non réservée/publiée : "+JSON.stringify(r));
+    /* Le paquet est adressé : c'est ce qui restreint ce que le relais remet. */
+    const paquet=[...items.values()].find(x=>x.kind==="packet"&&x.payload.view.name==="Tryout — vague du dimanche");
+    if(!paquet||!paquet.to)throw new Error("le paquet n'est pas adressé");
+  });
+
+  await step("Karl rejoint et ne reçoit que sa vue",async()=>{
+    await karl.page.goto(lienKarl);
+    await franchirGarde(karl.page,"Karl B.");
+    await karl.page.waitForTimeout(1200);
+    const st=await karl.page.evaluate(()=>({role:state.ctx&&state.ctx.role,moi:(me()||{}).name}));
+    if(st.role!=="selector")throw new Error("rôle="+st.role);
+    if(st.moi!=="Karl B.")throw new Error("identité="+st.moi);
+    await karl.page.evaluate(()=>pullForSelector());
+    await karl.page.waitForTimeout(1200);
+    const r=await karl.page.evaluate(()=>({n:INBOX.views.length,
+      noms:INBOX.views.map(v=>v.name)}));
+    if(r.n!==1)throw new Error("vues reçues="+r.n+" ("+r.noms.join(", ")+")");
+    if(r.noms[0]!=="Tryout — vague du dimanche")throw new Error("vue reçue : "+r.noms[0]);
+  });
+
+  await step("et la vue de Marie ne lui parvient pas, ni la sienne à Marie",async()=>{
+    await marie.page.evaluate(()=>pullForSelector());
+    await marie.page.waitForTimeout(1200);
+    const r=await marie.page.evaluate(()=>({n:INBOX.views.length,
+      noms:INBOX.views.map(v=>v.name)}));
+    if(r.n!==1)throw new Error("Marie reçoit "+r.n+" vues ("+r.noms.join(", ")+")");
+    if(!/samedi/.test(r.noms[0]))throw new Error("Marie a reçu : "+r.noms[0]);
+    await karl.ctx.close();
+  });
+
   /* ── Ce qui faisait échouer l'invitation dans la vraie vie ────
      Trois chemins qui menaient tous au même écran : « Je suis le
      propriétaire », qui n'est pour personne d'autre que lui. Ici la

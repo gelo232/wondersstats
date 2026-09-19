@@ -5950,6 +5950,20 @@ function renderViewsPane(squad){
       (miss?plural(miss,"manquant"):"")+(miss&&Object.keys(dup).length?", ":"")+
       (Object.keys(dup).length?Object.keys(dup).length+" en double":"")+") — onglet 🗓️ Saison → Sélection."));
 
+  /* Une vue publiée sans destinataire est lisible par tout sélectionneur
+     de l'équipe : c'est le mode « qui veut la prend », et il se retourne
+     contre celui qui croit avoir réservé ses vues. On le dit là où on
+     invite. */
+  var ouvertes=squad.selectorViews.filter(function(v){return v.published&&!v.selectorPersonId});
+  var invites=DB.people.filter(function(p){
+    return p.token&&!p.revoked&&DB.assignments.some(function(a){
+      return a.personId===p.id&&a.teamId===squad.teamId&&a.role==="selector";});
+  });
+  if(ouvertes.length&&invites.length)wrap.appendChild(h("div",{className:"hint warn"},
+    "⚠️ "+plural(ouvertes.length,"vue")+" publiée(s) sans destinataire — ",
+    h("b",null,"tout sélectionneur invité peut les recevoir"),". Pour en réserver une, ",
+    "invitez depuis la vue : le lien n'ouvre alors que celle-là."));
+
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
     h("button",{className:"btn btn-primary sm",disabled:seasonClosed(squad),onclick:function(){
       if(!squad.roster.length){showToast("⚠️ Convoquez d'abord des joueuses");return}
@@ -5988,6 +6002,14 @@ function renderViewCard(squad,camp,v){
           ?{background:"#F59E0B22",color:"#FBBF24",borderColor:"#F59E0B55"}
           :{background:"#33415530",color:"#94A3B8"}},v.anonymous?"🔒 Anonyme":"👁 Nominative"),
         v.published?h("span",{className:"badge",style:{background:"#10B98122",color:"#34D399"}},"📡 Publiée"):null,
+        (function(){
+          var pv=v.selectorPersonId?personById(v.selectorPersonId):null;
+          if(!pv)return null;
+          return h("span",{className:"badge",style:pv.token
+            ?{background:"#F59E0B22",color:"#FBBF24",borderColor:"#F59E0B55"}
+            :{background:"#33415530",color:"#94A3B8"}},
+            pv.token?("🔗 réservée à "+pv.name):("👤 "+pv.name+" — sans lien"));
+        })(),
         v.context?h("span",{className:"badge",style:{background:"#0F172A",color:"#94A3B8",borderColor:"#334155"}},v.context):null)),
     h("div",{className:"btn-row"},
       h("button",{className:"btn btn-ghost xs",onclick:function(){state.editViewId=v.id;state.modalSel=v.playerIds.slice();openModal("editview")}},"✏️"),
@@ -6013,6 +6035,12 @@ function renderViewCard(squad,camp,v){
       state.tab="sv_eval";state.svViewId=v.id;state.svPlayerId=null;
       state.svPlayerGroupId=null;state.svTilesOpen=true;saveNow();render();
     }},"🎯 Ouvrir ici"));
+    /* Inviter part de la vue : c'est le geste entier — la personne, son
+       jeton, et la vue publiée à son nom — et c'est lui qui restreint ce
+       que le relais lui remettra. */
+    acts.appendChild(h("button",{className:"btn btn-warn xs",onclick:function(){
+      state.modalDraft=null;openModal("inviteview",v.id);
+    }},v.selectorPersonId?"🔗 Lien du sélectionneur":"🔗 Inviter un sélectionneur"));
     if(syncReady())acts.appendChild(h("button",{className:"btn btn-primary xs",disabled:syncBusy,onclick:function(){
       publishView(squad,v);
     }},syncBusy?"…":(v.published?"📡 Republier":"📡 Publier")));
@@ -7915,6 +7943,109 @@ function renderModal(){
       closeModal();saveNow();showToast("✅ Vue « "+n+" » enregistrée");
     }},v0?"Enregistrer":"Créer la vue")];
     return modalShell(v0?"Modifier la vue":"Nouvelle vue sélectionneur",body4,btns4,"480px");
+  }
+
+  /* ── Inviter quelqu'un sur une vue, et sur elle seule ─────────
+     Le chemin d'avant demandait quatre écrans : créer la personne,
+     l'affecter à l'équipe, lui émettre un jeton, puis revenir publier la
+     vue en la lui adressant. Quatre écrans pour un seul geste — « voici
+     ce que tu évalues » — et trois occasions d'oublier le dernier, celui
+     qui restreint justement ce que le relais lui remettra. Ici tout part
+     de la vue, et le paquet est adressé d'office : le relais ne délivre
+     à ce jeton que ce qui lui est destiné. */
+  if(T==="inviteview"){
+    if(!season)return null;
+    var vI=viewById(season,state.modalCtx);
+    if(!vI)return null;
+    var dI=state.modalDraft||(state.modalDraft={
+      nom:vI.selectorName||"",lien:"",busy:false
+    });
+    /* Les sélectionneurs déjà connus de l'équipe : on ne recrée pas une
+       personne à chaque vue, on la retrouve. */
+    var connus=DB.people.filter(function(p){
+      return !p.revoked&&DB.assignments.some(function(a){
+        return a.personId===p.id&&a.teamId===season.teamId&&a.role==="selector";
+      });
+    });
+    var nomInpI=h("input",{placeholder:"Ex. Marie Tremblay",value:dI.nom,maxlength:"60"});
+    nomInpI.addEventListener("input",function(e){dI.nom=e.target.value});
+    var lienBox=h("textarea",{className:"txt",rows:"3",readonly:"readonly",
+      placeholder:"Le lien s'écrira ici une fois l'invitation émise."});
+    lienBox.value=dI.lien||"";
+    lienBox.addEventListener("focus",function(){lienBox.select()});
+
+    function inviter(){
+      var nom=(dI.nom||"").trim();
+      if(!nom){showToast("⚠️ Indiquez qui évalue cette vue");return}
+      if(!syncReady()){showToast("⚠️ Branchez d'abord le relais");return}
+      var bad=viewNumberIssues(season,vI);
+      if(bad.length){showToast("⚠️ "+plural(bad.length,"numéro")+" à corriger avant d'inviter");return}
+      var p=null;
+      DB.people.forEach(function(x){
+        if(!p&&!x.revoked&&x.name.trim().toLowerCase()===nom.toLowerCase())p=x;
+      });
+      if(!p){p=mkPerson({name:nom});DB.people.push(p)}
+      else p.name=nom;
+      if(!DB.assignments.some(function(a){
+        return a.personId===p.id&&a.teamId===season.teamId&&a.role==="selector";}))
+        DB.assignments.push(mkAssignment(p.id,season.teamId,"selector"));
+      dI.busy=true;render();
+      showToast("⏳ Émission du jeton…");
+      grantToken(p,season.teamId,"selector").then(function(){
+        vI.selectorPersonId=p.id;vI.selectorName=p.name;
+        return syncPublish("packet",vI.id,buildPacket(season,vI),
+          {teamId:season.teamId,to:p.token});
+      }).then(function(){
+        vI.published=true;SYNC.lastSyncAt=nowISO();
+        dI.lien=inviteLink(p);dI.busy=false;
+        logAct("access","Invitation émise pour "+p.name+" sur la vue « "+vI.name+" »",
+          {teamId:season.teamId,seasonId:season.seasonId});
+        saveNow();saveSync();render();
+        showToast("🔗 Lien émis pour "+p.name+" — copiez-le");
+      }).catch(function(err){
+        dI.busy=false;render();showToast("⚠️ "+err.message);
+      });
+    }
+
+    var corpsI=h("div",null,
+      !syncReady()?h("div",{className:"hint warn"},
+        h("b",null,"Le relais n'est pas branché.")," Sans lui, aucune invitation ne peut partir : ",
+        "c'est le relais qui délivre les identités et ne remet à chacun que ce qui lui est destiné. ",
+        h("button",{className:"btn btn-primary sm full",style:{marginTop:"8px"},onclick:function(){
+          closeModal();state.tab="adm_sync";render();
+        }},"📡 Brancher le relais")):null,
+      h("div",{className:"muted",style:{marginBottom:"8px"}},
+        "« ",h("b",null,vI.name)," » · ",plural(vI.playerIds.length,"athlète"),
+        " · ",plural(vI.criteria.length,"critère"),
+        vI.anonymous?" · numéros seuls":" · nominative"),
+      h("div",{className:"field"},h("label",null,"Qui évalue cette vue ?"),nomInpI),
+      connus.length?h("div",{className:"muted",style:{margin:"-6px 0 4px"}},"Déjà connus de l'équipe :"):null,
+      connus.length?h("div",{className:"sub-pills",style:{marginBottom:"10px"}},
+        connus.map(function(p){
+          return h("button",{className:"pill sm",onclick:function(){
+            dI.nom=p.name;dI.lien="";render();
+          }},p.name);
+        })):null,
+      syncReady()?h("button",{className:"btn btn-primary full",disabled:!!dI.busy,onclick:inviter},
+        dI.busy?"⏳ Envoi…":(dI.lien?"🔄 Réémettre le lien":"🔑 Inviter et publier")):null,
+      dI.lien?h("div",{className:"field",style:{marginTop:"12px"}},
+        h("label",null,"Lien personnel"),lienBox,
+        h("button",{className:"btn btn-ghost sm full",style:{marginTop:"6px"},onclick:function(){
+          if(navigator.clipboard&&navigator.clipboard.writeText)
+            navigator.clipboard.writeText(dI.lien).then(function(){showToast("🔗 Lien copié")},
+              function(){lienBox.select()});
+          else lienBox.select();
+        }},"📋 Copier le lien")):null,
+      h("div",{className:"hint warn",style:{marginTop:"12px"}},
+        "Ce lien vaut identité, et ",h("b",null,"n'ouvre que cette vue")," : le relais ne remet à ce ",
+        "jeton que ce qui lui est adressé. Il doit arriver ",h("b",null,"entier"),", jusqu'au dernier ",
+        "caractère — ce qui suit le « # » porte le jeton, et certaines messageries le coupent. ",
+        "Révocable à tout moment depuis 🛡️ Administration → Relais."));
+
+    return modalShell("Inviter sur cette vue",corpsI,
+      [h("button",{className:"btn btn-ghost full",onclick:function(){
+        state.modalDraft=null;closeModal();
+      }},"Fermer")],"460px");
   }
 
   /* ── Les groupes de l'évaluateur ──────────────────────────────

@@ -544,6 +544,16 @@ vous publiez explicitement sur votre propre relais.
   encombrer la liste : `📦 Archiver`, qui se défait.
 - **`🗑️ Vider la convocation`** reste à un seul bouton, dans `📋 Convoquées` : c'est
   le geste de la liste montée sur la mauvaise saison, il n'y a rien à y choisir.
+- **L'invitation part de la vue, et n'ouvre que celle-là.**
+  `🔗 Inviter un sélectionneur` sur la carte d'une vue fait tout d'un geste : la
+  personne est créée si besoin, affectée à l'équipe, son jeton émis, la vue publiée
+  **à son nom**, et le lien rendu à transmettre. Il fallait auparavant quatre écrans
+  — créer, affecter, inviter, puis revenir publier en adressant — et trois occasions
+  d'oublier le dernier, celui qui restreint justement ce que le relais remet.
+  L'isolement est tenu par le relais, pas par l'application : un paquet adressé n'est
+  remis qu'à son destinataire, et deux évaluateurs invités sur deux vues ne voient
+  jamais celle de l'autre. Une vue publiée **sans** destinataire reste lisible par
+  tout sélectionneur invité de l'équipe — l'écran le dit dès qu'un jeton circule.
 - **⚠️ L'invitation aboutit enfin, quel que soit le chemin.** Elle échouait de
   quatre façons, toutes finissant sur le même écran — « Je suis le propriétaire »,
   qui n'est pour personne d'autre que lui :

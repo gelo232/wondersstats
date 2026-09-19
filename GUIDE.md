@@ -211,6 +211,27 @@ et Brittany voient les dix.
 
 ---
 
+### Inviter un évaluateur sur une vue
+
+`🔗 Inviter un sélectionneur`, sur la carte de la vue. C'est **un seul geste** : vous
+donnez un nom, l'application crée la personne si elle n'existe pas, l'affecte à
+l'équipe, lui émet son jeton, publie la vue **à son nom**, et vous rend le lien à
+transmettre.
+
+> **Le lien n'ouvre que cette vue.** C'est le relais qui le garantit, pas
+> l'application : un paquet adressé n'est remis qu'à son destinataire. Deux
+> évaluateurs invités sur deux vues ne voient jamais celle de l'autre.
+
+La carte porte ensuite `🔗 réservée à Marie T.`, et le bouton devient
+`🔗 Lien du sélectionneur` — pour recopier le lien, ou le réémettre si le jeton a
+été révoqué.
+
+> **Une vue publiée sans destinataire**, elle, est lisible par **tout** sélectionneur
+> invité de l'équipe : c'est le mode « qui veut la prend ». L'écran vous en avertit
+> dès qu'un jeton circule. Pour réserver une vue, invitez depuis elle.
+
+---
+
 ## 3 · Pendant la séance — qui saisit quoi
 
 `🎯 Ouvrir ici` passe l'appareil en mode évaluateur sur cette vue. (Sur trois
