@@ -4,7 +4,7 @@
    jamais lire les soumissions d'autrui, ni une vue adressée à quelqu'un
    d'autre. Le relais simulé reproduit fidèlement server/worker.js. */
 const {chromium}=require("playwright");
-const {franchirGarde}=require("./gate-helper");
+const {sansRacine,franchirGarde}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -120,6 +120,7 @@ async function serveRelay(route,request){
     const ctx=await b.newContext({viewport:{width:414,height:896}});
     ctx.setDefaultTimeout(8000);
     await ctx.route("https://relais.test/**",serveRelay);
+    await sansRacine(ctx);            /* système non fondé : la suite fonde elle-même */
     const page=await ctx.newPage();
     page.on("pageerror",e=>ERRORS.push(label+" PAGEERROR: "+e.message));
     page.on("console",m=>{const t=m.text();

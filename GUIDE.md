@@ -764,6 +764,24 @@ mal servi.
 
 ---
 
+### Si une invitation n'aboutit pas
+
+L'invité doit arriver sur **🎯 Mes vues**. S'il voit autre chose :
+
+| Ce qu'il voit | Ce que ça veut dire |
+|---|---|
+| `✉️ J'ai une invitation` / `👑 Je suis le propriétaire` | le lien n'est pas arrivé entier — ce qui suit le `#` porte le jeton, et certaines messageries le coupent. Qu'il touche `Ouvrir mon invitation` et y recolle le lien complet |
+| `Ce lien d'invitation est incomplet` | même chose, dite par l'application |
+| `Votre invitation est de sélectionneur, mais le relais vous répond administrateur` | le salon a expiré (120 jours sans usage) ou a été réclamé par un autre appareil. Réémettez le jeton et renvoyez le lien |
+| `Jeton inconnu du relais` | le jeton a été révoqué ou réémis depuis. Renvoyez le lien courant |
+| `Adresse injoignable` | le relais ne répond pas : vérifiez son adresse dans `🛡️ Administration → 📡 Relais` |
+
+Côté entraîneur, si la modale `🔗 Inviter` dit **« Le relais n'est pas branché »**,
+aucun lien ne peut exister : c'est le relais qui délivre les identités. Branchez-le
+d'abord, puis émettez le jeton.
+
+---
+
 ## 10 · Ce qui se passe mal, et ce qu'il faut savoir
 
 **Les statuts et l'effectif sont deux axes distincts.** Une joueuse blessée ou partie

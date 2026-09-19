@@ -410,6 +410,80 @@ async function serveRelay(route,request){
     if(!r.note)throw new Error("aucun score pour le 8");
   });
 
+  /* ── Ce qui faisait échouer l'invitation dans la vraie vie ────
+     Trois chemins qui menaient tous au même écran : « Je suis le
+     propriétaire », qui n'est pour personne d'autre que lui. Ici la
+     racine publiée est la vraie — le système est fondé, comme en
+     production — et l'appareil n'a jamais rien fait d'autre qu'ouvrir
+     l'application. */
+  say("\n── Les chemins de travers d'une invitation");
+  const mkVierge=async(label)=>{
+    const ctx=await b.newContext({viewport:{width:414,height:896}});
+    ctx.setDefaultTimeout(8000);
+    await ctx.route("https://relais.test/**",serveRelay);   /* pas de sansRacine : système fondé */
+    const page=await ctx.newPage();
+    page.on("pageerror",e=>ERRORS.push(label+" PAGEERROR: "+e.message));
+    return {ctx,page};
+  };
+
+  const d1=await mkVierge("curieuse");
+  await step("ouvrir l'application puis la quitter n'écrit aucune base",async()=>{
+    await d1.page.goto(BASE+"/index.html");
+    await d1.page.waitForTimeout(900);
+    const accueil=await d1.page.textContent("#app");
+    /* L'accueil mène par l'invitation, pas par la fondation. */
+    if(accueil.indexOf("J'ai une invitation")>accueil.indexOf("Je suis le propriétaire"))
+      throw new Error("l'accueil met le propriétaire devant l'invitation");
+    /* Ce que fait un téléphone dès qu'on revient à sa messagerie. */
+    await d1.page.evaluate(()=>{
+      Object.defineProperty(document,"visibilityState",{value:"hidden",configurable:true});
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await d1.page.waitForTimeout(400);
+    if(await d1.page.evaluate(()=>!!localStorage.getItem("wonderstats_v3")))
+      throw new Error("une base vide a été écrite avant même que l'écran de garde soit franchi");
+  });
+
+  await step("le lien touché sur l'application déjà ouverte la fait rejoindre",async()=>{
+    /* Une application installée ne s'ouvre pas deux fois : le lien ne
+       change que ce qui suit le « # », rien ne se recharge. */
+    await d1.page.goto(lien);
+    await d1.page.waitForTimeout(1800);
+    const st=await d1.page.evaluate(()=>({mode:gate.mode,needsName:gate.needsName,
+      moi:(me()||{}).name,ctx:state.ctx&&state.ctx.role}));
+    if(st.ctx!=="selector")throw new Error("rôle="+st.ctx);
+    if(st.moi!=="Marie T.")throw new Error("identité="+st.moi);
+    if(st.needsName)throw new Error("on lui demande de se nommer comme propriétaire");
+    await d1.ctx.close();
+  });
+
+  const d2=await mkVierge("base-vide");
+  await step("une base vide sur le disque ne prime pas sur l'invitation",async()=>{
+    await d2.page.goto(BASE+"/index.html");
+    await d2.page.waitForTimeout(600);
+    /* L'état qu'ont déjà les appareils touchés par le défaut. */
+    await d2.page.evaluate(()=>localStorage.setItem("wonderstats_v3",JSON.stringify(
+      {version:6,clubs:[],people:[],teams:[],assignments:[],clubAssignments:[],
+       players:[],seasons:[],squads:[],log:[]})));
+    await d2.page.goto(lien);
+    await d2.page.waitForTimeout(1800);
+    const st=await d2.page.evaluate(()=>({needsName:gate.needsName,
+      moi:(me()||{}).name,ctx:state.ctx&&state.ctx.role}));
+    if(st.ctx!=="selector")throw new Error("rôle="+st.ctx);
+    if(st.needsName)throw new Error("on lui demande de se nommer comme propriétaire");
+    await d2.ctx.close();
+  });
+
+  const d3=await mkVierge("lien-coupé");
+  await step("un lien coupé le dit, au lieu de proposer de fonder le système",async()=>{
+    await d3.page.goto(lien.slice(0,lien.indexOf("#s=")+12));
+    await d3.page.waitForTimeout(1200);
+    const st=await d3.page.evaluate(()=>({mode:gate.mode,err:gate.err}));
+    if(st.mode!=="join")throw new Error("écran="+st.mode);
+    if(!/incomplet/.test(st.err||""))throw new Error("message="+st.err);
+    await d3.ctx.close();
+  });
+
   await coach.ctx.close();await marie.ctx.close();await b.close();
   say("\n"+PASS+" contrôles réussis.");
   say(ERRORS.length?("❌ "+ERRORS.length+" problème(s):\n"+ERRORS.join("\n")):"✅ Aucun problème");

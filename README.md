@@ -544,6 +544,27 @@ vous publiez explicitement sur votre propre relais.
   encombrer la liste : `📦 Archiver`, qui se défait.
 - **`🗑️ Vider la convocation`** reste à un seul bouton, dans `📋 Convoquées` : c'est
   le geste de la liste montée sur la mauvaise saison, il n'y a rien à y choisir.
+- **⚠️ L'invitation aboutit enfin, quel que soit le chemin.** Elle échouait de
+  quatre façons, toutes finissant sur le même écran — « Je suis le propriétaire »,
+  qui n'est pour personne d'autre que lui :
+  - **L'application enregistrait avant d'avoir rien chargé.** Un `saveAll()` part à
+    chaque fois que l'onglet passe en arrière-plan — sur un téléphone, dès qu'on
+    revient à sa messagerie. Un appareil qui n'avait fait qu'ouvrir l'écran d'accueil
+    se retrouvait avec une **base vide sur le disque**, et cette base prenait ensuite
+    le pas sur le lien : l'invité était accueilli en propriétaire d'un club qui
+    n'existait pas. Plus rien ne s'écrit tant que rien n'est chargé, et une
+    invitation l'emporte sur une base où il n'y a personne — ce qui rattrape les
+    appareils déjà marqués.
+  - **Le lien touché sur une application déjà ouverte ne faisait rien.** Une
+    application installée ne s'ouvre pas deux fois : le lien ne change que ce qui
+    suit le `#`, et rien ne se rechargeait. Ce changement est désormais entendu.
+  - **Un lien coupé en route** renvoyait à la fondation ; il le dit maintenant, et
+    mène à l'écran où le recoller.
+  - **Sans relais, aucun lien ne peut exister.** Le champ vide et le bouton grisé
+    laissaient croire à une panne, et « Copier » recopiait le vide. C'est dit, avec
+    le bouton qui mène au relais.
+  L'écran d'accueil mène désormais par **✉️ J'ai une invitation** quand le système
+  est déjà fondé : la carte du propriétaire ne concerne qu'une personne au monde.
 - **⚠️ Une invitation de sélectionneur ne peut plus devenir une administration.**
   Le relais répond « Administrateur » à qui arrive le premier dans un salon sans
   propriétaire — et un salon expire au bout de 120 jours d'inactivité. Une

@@ -1668,6 +1668,15 @@ function uiSnapshot(){
     posFilter:state.posFilter,inputMode:state.inputMode,svViewId:state.svViewId};
 }
 function saveAll(){
+  /* Rien n'est chargé : il n'y a rien à écrire, et écrire serait pire
+     que ne rien faire. L'application enregistre à chaque fois que
+     l'onglet passe en arrière-plan — ce qui, sur un téléphone, arrive
+     dès qu'on revient à sa messagerie. Un appareil qui n'avait fait
+     qu'ouvrir l'écran de garde se retrouvait ainsi avec une base vide
+     sur le disque, et cette base prenait ensuite le pas sur le lien
+     d'invitation : l'invité était accueilli en propriétaire d'un club
+     qui n'existait pas. */
+  if(gate.mode&&!gate.loaded)return;
   /* Coffre ouvert : rien ne part en clair sur le disque. L'écriture est
      asynchrone, mais l'ordre est garanti par la file ci-dessous. */
   if(VAULT.unlocked){
@@ -6835,17 +6844,37 @@ function renderModal(){
     }));
     aSel.value=target;
     aSel.addEventListener("change",function(e){state.modalInput2=e.target.value});
-    var linkBox=h("textarea",{className:"txt",rows:"3",readonly:"readonly"});
-    linkBox.value=inviteLink(ip)||"";
+    /* Sans relais, aucun lien ne peut exister : le dire, et y conduire.
+       Un champ vide et un bouton grisé laissaient croire à une panne, et
+       « Copier » recopiait le vide — l'invité recevait alors l'adresse
+       nue de l'application, qui l'accueille en propriétaire. */
+    var lien=inviteLink(ip);
+    var linkBox=h("textarea",{className:"txt",rows:"3",readonly:"readonly",
+      placeholder:"Émettez le jeton : le lien s'écrira ici."});
+    linkBox.value=lien||"";
     linkBox.addEventListener("focus",function(){linkBox.select()});
+    function copier(){
+      var l=inviteLink(ip);
+      if(!l){showToast("⚠️ Aucun lien à copier — émettez d'abord le jeton");return}
+      if(navigator.clipboard&&navigator.clipboard.writeText)
+        navigator.clipboard.writeText(l).then(function(){showToast("🔗 Lien copié")},function(){linkBox.select()});
+      else linkBox.select();
+    }
     return modalShell("Inviter "+ip.name,
       h("div",null,
-        !syncReady()?h("div",{className:"hint warn"},"Configurez d'abord le relais (🛡️ Administration → Relais)."):null,
+        !syncReady()?h("div",{className:"hint warn"},
+          h("b",null,"Le relais n'est pas branché.")," Sans lui, aucun lien d'invitation ne peut être émis : ",
+          "c'est le relais qui délivre les identités et vérifie les jetons. ",
+          h("button",{className:"btn btn-primary sm full",style:{marginTop:"8px"},onclick:function(){
+            closeModal();state.tab="adm_sync";render();
+          }},"📡 Brancher le relais")):null,
         adminClubsOf(ip).length?null:(ia.length?h("div",{className:"field"},h("label",null,"Au titre de"),aSel)
           :h("div",{className:"hint warn"},"Affectez d'abord cette personne à une équipe.")),
-        h("div",{className:"field"},h("label",null,"Lien personnel"),linkBox),
-        h("div",{className:"btn-row"},
-          h("button",{className:"btn btn-primary sm",disabled:!syncReady(),onclick:function(){
+        syncReady()?h("div",{className:"field"},h("label",null,"Lien personnel"),linkBox,
+          (ip.token&&!lien)?h("div",{className:"muted",style:{marginTop:"5px"}},
+            "Le jeton existe mais le lien ne peut pas se composer — réémettez-le."):null):null,
+        syncReady()?h("div",{className:"btn-row"},
+          h("button",{className:"btn btn-primary sm",onclick:function(){
             var a=null;ia.forEach(function(x){if(x.id===(state.modalInput2||target))a=x});
             if(!adminClubsOf(ip).length&&!a){showToast("⚠️ Choisissez une affectation");return}
             showToast("⏳ Émission du jeton…");
@@ -6854,14 +6883,11 @@ function renderModal(){
               saveNow();showToast("🔑 Jeton émis — copiez le lien");render();
             }).catch(function(err){showToast("⚠️ "+err.message)});
           }},ip.token?"🔄 Réémettre":"🔑 Émettre le jeton"),
-          ip.token?h("button",{className:"btn btn-ghost sm",onclick:function(){
-            var l=inviteLink(ip);
-            if(navigator.clipboard&&navigator.clipboard.writeText)
-              navigator.clipboard.writeText(l).then(function(){showToast("🔗 Lien copié")},function(){linkBox.select()});
-            else linkBox.select();
-          }},"📋 Copier"):null),
+          lien?h("button",{className:"btn btn-ghost sm",onclick:copier},"📋 Copier"):null):null,
         h("div",{className:"hint warn",style:{marginTop:"12px"}},
-          "Ce lien vaut identité : ne le transmettez qu'à ",h("b",null,ip.name),". Il est révocable à tout moment depuis l'onglet Relais.")),
+          "Ce lien vaut identité : ne le transmettez qu'à ",h("b",null,ip.name),
+          ". Il doit arriver ",h("b",null,"entier"),", jusqu'au dernier caractère : ce qui suit le « # » ",
+          "porte le jeton, et certaines messageries le coupent. Il est révocable à tout moment depuis l'onglet Relais.")),
       [h("button",{className:"btn btn-ghost full",onclick:closeModal},"Fermer")],"440px");
   }
 
@@ -8357,6 +8383,18 @@ function renderGate(){
     wrap.appendChild(h("h1",null,"WonderStats"));
     wrap.appendChild(h("p",{className:"sub"},"Statistiques, sélection et évaluation de volleyball."));
 
+    /* Le système déjà fondé, il n'y a qu'une personne au monde pour qui
+       la carte du propriétaire compte, et tout le reste du club arrive
+       par invitation : c'est elle qui passe devant. Mettre « Je suis le
+       propriétaire » en tête laissait un sélectionneur devant un écran
+       qui ne le concernait pas. */
+    var carteInvitation=h("div",{className:"card"},
+      h("h2",null,"✉️ J'ai une invitation"),
+      h("p",null,"Administratrice d'un club, entraîneur ou sélectionneur : votre lien porte ce que le propriétaire vous a confié."),
+      h("button",{className:"btn"+(rootExists()?" btn-primary":" btn-ghost")+" full",onclick:function(){
+        gate.mode="join";gate.err="";renderGate();
+      }},"Ouvrir mon invitation"));
+
     if(!rootExists()){
       /* Système non fondé : personne ne peut créer de club tant que le
          propriétaire n'a pas publié sa clé. */
@@ -8366,22 +8404,17 @@ function renderGate(){
         h("button",{className:"btn btn-primary full",onclick:function(){
           gate.mode="found";gate.err="";renderGate();
         }},"Je suis le propriétaire")));
+      wrap.appendChild(carteInvitation);
     } else {
+      wrap.appendChild(carteInvitation);
       wrap.appendChild(h("div",{className:"card"},
         h("h2",null,"👑 Je suis le propriétaire"),
         h("p",null,"Système fondé"+(ROOT.name?" par "+ROOT.name:"")+
-          ". Restaurez votre sauvegarde pour retrouver votre clé, puis vous pourrez créer des clubs et nommer leurs administrateurs."),
+          ". Cette carte n'est que pour "+(ROOT.name||"le propriétaire")+" : restaurez votre sauvegarde pour retrouver votre clé."),
         h("button",{className:"btn btn-ghost full",onclick:function(){
           gate.mode="restore";gate.err="";renderGate();
         }},"Restaurer ma sauvegarde")));
     }
-
-    wrap.appendChild(h("div",{className:"card"},
-      h("h2",null,"✉️ J'ai une invitation"),
-      h("p",null,"Administratrice d'un club, entraîneur ou sélectionneur : votre lien porte ce que le propriétaire vous a confié."),
-      h("button",{className:"btn"+(rootExists()?" btn-primary":" btn-ghost")+" full",onclick:function(){
-        gate.mode="join";gate.err="";renderGate();
-      }},"Ouvrir mon invitation")));
     app.appendChild(wrap);return;
   }
 
@@ -8698,7 +8731,10 @@ function gateSubmitJoin(){
 /* Le relais est seul juge : c'est lui qui dit qui est le porteur du jeton
    et sur quelle équipe il travaille. Le lien ne fait que transporter. */
 function joinWithConfig(cfg){
-  clearHash();
+  /* L'adresse garde son lien tant que le relais n'a pas répondu : si la
+     connexion échoue ou si l'appareil se recharge avant d'avoir posé sa
+     phrase, recharger la page réessaie l'invitation au lieu de la
+     perdre. On ne l'efface qu'une fois l'identité en main. */
   SYNC.url=cfg.url;SYNC.room=cfg.room;SYNC.token=cfg.token;
   SYNC.pulled={packet:"",catalog:"",submission:""};SYNC.identity=null;
   saveSync();
@@ -8707,6 +8743,7 @@ function joinWithConfig(cfg){
     if(!g)throw new Error("Jeton inconnu du relais");
     var ecart=ecartInvitation(cfg,g);
     if(ecart)throw new Error(ecart);
+    clearHash();
     SYNC.identity=g;saveSync();
     DB=normalizeDB(emptyDB());
     adoptRemoteIdentity(g);
@@ -8753,6 +8790,11 @@ function boot(){
     gate.mode="unlock";renderGate();return;
   }
   var enClair=localStorage.getItem(SK)||readAnyLegacy();
+  /* Une invitation l'emporte sur une base où il n'y a personne : ce
+     n'est pas un club, c'est une trace laissée par une visite. La
+     ceinture après les bretelles — saveAll() ne l'écrit plus, mais les
+     appareils qui en portent déjà une doivent pouvoir rejoindre. */
+  if(enClair&&baseSansPersonne(enClair)&&readShareLink())enClair=null;
   if(enClair){
     loadAll();
     gate.loaded=true;
@@ -8768,9 +8810,27 @@ function boot(){
      suite, puis on demande au sélectionneur sa propre phrase de passe. */
   var inv=readShareLink();
   if(inv){gate.mode="joining";renderGate();joinWithConfig(inv);return}
+  /* Un lien coupé en route — une messagerie qui n'emporte pas ce qui suit
+     le « # », un copier-coller à moitié — laissait l'invité devant
+     « Je suis le propriétaire », qui n'est pas pour lui. On le dit, et on
+     l'amène là où il pourra recoller son lien. */
+  if(/[#&]s=/.test(location.hash||"")){
+    gate.mode="join";gate.who="";
+    gate.err="Ce lien d'invitation est incomplet : recopiez-le en entier, jusqu'au dernier caractère.";
+    renderGate();return;
+  }
   gate.mode="welcome";renderGate();
 }
 
+/* Une base qui ne nomme personne n'a rien à protéger : ni compte, ni
+   athlète, ni équipe-saison. */
+function baseSansPersonne(brut){
+  try{
+    var d=JSON.parse(brut);
+    if(!d||typeof d!=="object")return true;
+    return !(d.people||[]).length&&!(d.players||[]).length&&!(d.squads||[]).length;
+  }catch(e){return true}
+}
 function readAnyLegacy(){
   for(var i=0;i<LEGACY_KEYS.length;i++){
     var d=localStorage.getItem(LEGACY_KEYS[i]);
@@ -8858,6 +8918,22 @@ window.addEventListener("resize",function(){
     if(w===lastW&&Math.abs(h2-lastH)<120)return;   // simple apparition du clavier
     lastW=w;lastH=h2;render();
   },220);
+});
+/* Une invitation qui arrive sur une page déjà ouverte. C'est le cas le
+   plus courant sur un téléphone : l'application installée ne s'ouvre pas
+   une seconde fois, le lien ne change que ce qui suit le « # », et rien
+   ne se recharge. Toucher son invitation depuis sa messagerie ne faisait
+   alors strictement rien — on restait devant l'écran d'accueil, celui
+   qui parle de fonder le système. */
+window.addEventListener("hashchange",function(){
+  var inv=readShareLink();
+  if(!inv)return;
+  if(!gate.mode){bootRest();return}                 /* application ouverte : on adopte */
+  if(gate.mode==="welcome"||gate.mode==="join"||gate.mode==="found"){
+    gate.mode="joining";gate.err="";renderGate();joinWithConfig(inv);
+  }
+  /* unlock et protect : le lien attend que le coffre soit ouvert, et
+     c'est bootRest() qui le lira. On ne jette pas des données pour lui. */
 });
 window.addEventListener("beforeunload",function(){saveAll()});
 document.addEventListener("visibilitychange",function(){if(document.visibilityState==="hidden")saveAll()});
