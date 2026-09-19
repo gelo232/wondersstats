@@ -3750,7 +3750,7 @@ function renderCampaignsPane(squad){
   wrap.appendChild(h("div",{className:"card tight",style:{marginBottom:"12px"}},
     h("div",{className:"row-between"},
       h("div",{style:{minWidth:"0"}},
-        h("div",{className:"muted"},"Formule du score, pour toute la saison"),
+        h("div",{className:"muted"},"Formule du score — cette équipe, toute la saison"),
         h("div",{style:{fontWeight:"700",color:"#F8FAFC",marginTop:"2px",fontSize:"13px",lineHeight:"1.4"}},
           formuleEnClair(scoringOf(squad)))),
       h("button",{className:"btn btn-ghost xs",style:{flexShrink:"0"},onclick:function(){
@@ -4866,7 +4866,8 @@ function renderEvalsPane(squad){
     h("button",{className:"btn btn-primary full",onclick:function(){state.tab="selection";state.selectionPane="views";render()}},"🎯 Créer une vue sélectionneur"),
     h("div",{className:"section-title"},"Formule du score"),
     h("div",{className:"muted",style:{marginBottom:"8px"}},
-      formuleEnClair(scoringOf(squad))+" Réglez-la maintenant, avant la séance : elle vaut pour toute la saison."),
+      formuleEnClair(scoringOf(squad))+" Réglez-la maintenant, avant la séance : "+
+      "elle vaut pour cette équipe, sur toute la saison, et pour chacune de ses campagnes."),
     h("div",{className:"btn-row"},
       h("button",{className:"btn btn-ghost sm",onclick:function(){state.modalDraft=null;openModal("scoring")}},"⚖️ Régler la formule")),
     h("div",{style:{marginTop:"4px"}},lienGuide("Comment se calcule le score","formule")));
@@ -7166,8 +7167,10 @@ function renderModal(){
     }
     var corps=h("div",null,
       h("div",{className:"muted",style:{marginBottom:"4px"}},
-        "La formule vaut pour toute la saison : comparer deux campagnes n'a de sens "+
-        "que si elles sont mesurées de la même façon."),
+        "Cette formule vaut pour "+((curSquad()||{}).name||"cette équipe")+" sur toute la saison, "+
+        "et pour chacune de ses campagnes : comparer la sélection au bilan de mai n'a de sens "+
+        "que si les deux sont mesurés de la même façon. Une autre équipe, ou une autre saison, "+
+        "a la sienne."),
       h("div",{style:{marginBottom:"10px"}},lienGuide("Chaque réglage expliqué, avec des exemples chiffrés","formule")),
 
       h("div",{className:"section-title"},"Poids des critères"),

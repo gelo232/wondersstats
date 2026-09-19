@@ -177,10 +177,28 @@ selon le nombre de regards.
 > **Réglez-la avant la séance.** La formule décide de ce sur quoi la sélection se
 > jouera ; la découvrir une fois les notes tombées, c'est la découvrir trop tard.
 
-Le réglage vaut **pour toute la saison**, pas pour une campagne. Comparer septembre
-à décembre n'aurait aucun sens si les deux étaient mesurés autrement. Changer la
+### Sa portée : une équipe, une saison, toutes ses campagnes
+
+| | Même formule ? |
+|---|---|
+| Deux **campagnes** d'une même équipe-saison — sélection de septembre et bilan de mai | **oui**, toujours |
+| Deux **équipes** de la même saison — U14 et U16 | **non**, chacune la sienne |
+| La **même équipe** d'une saison à l'autre — U14 2026 et U14 2027 | **non**, la nouvelle saison repart des valeurs par défaut |
+
+Comparer septembre à décembre n'aurait aucun sens si les deux étaient mesurés
+autrement : c'est pourquoi la formule ne se règle pas par campagne. Changer la
 formule recalcule aussitôt tous les scores de la saison — les notes, les avis et les
 statuts, eux, ne bougent jamais.
+
+> **Attention à la nouvelle saison.** Elle ne reprend pas la formule de la
+> précédente. Si vous aviez un réglage maison, refaites-le : la carte de
+> `🗓️ Saison → 📅 Campagnes` vous montre en une ligne ce qui est en vigueur.
+
+**Ce qui reste propre à chaque campagne**, même avec des réglages partagés : les
+efficacités sont situées parmi les athlètes *de cette campagne*, la correction de
+sévérité se mesure sur les recoupements *de cette campagne*, et l'amortissement
+ramène vers la moyenne *de cette campagne*. Les réglages sont communs ; les calculs,
+eux, ne se mélangent jamais d'un moment à l'autre.
 
 ### Comment le score se construit
 

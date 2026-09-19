@@ -284,8 +284,10 @@ Une campagne close, comme une saison clôturée, disparaît du rôle sélectionn
 
 Le score d'une athlète dans une campagne se construit en cinq temps. Chacun corrige
 un travers que la moyenne simple laissait passer. `Récap → ⭐ Évaluations → ⚖️ Formule`
-règle l'ensemble, **pour toute la saison** — comparer septembre à décembre n'a de sens
-que si les deux sont mesurés pareil.
+règle l'ensemble — **pour une équipe, sur toute sa saison, et pour chacune de ses
+campagnes**. Comparer septembre à décembre n'a de sens que si les deux sont mesurés
+pareil. Une autre équipe, ou une autre saison, a sa propre formule : une saison neuve
+repart des valeurs par défaut.
 
 **1 · Les notes, corrigées de la sévérité.** Deux évaluateurs n'ont pas la même main.
 L'application compare chacun aux autres **sur les athlètes qu'ils ont vues en commun**
