@@ -117,6 +117,59 @@ const ERRORS=[];let PASS=0;
     if(r.p!==4||r.r!==4)throw new Error(JSON.stringify(r));
     if(r.num!=="21")throw new Error("numéro saisi non conservé : "+r.num);
   });
+  await step("une date de naissance se saisit, une date impossible est refusée",async()=>{
+    await page.evaluate(()=>openModal("newplayer"));await page.waitForTimeout(140);
+    await page.locator(".modal input").nth(0).fill("Rosalie");
+    await page.locator(".modal input").nth(1).fill("Béland");
+    await page.locator(".modal input").nth(2).fill("31/02/2011");    // le 31 février n'existe pas
+    await page.locator(".modal button").filter({hasText:"Ajouter"}).click();await page.waitForTimeout(200);
+    if(await page.locator(".modal").count()!==1)throw new Error("la modale aurait dû rester ouverte");
+    if(await page.evaluate(()=>DB.players.length)!==4)throw new Error("fiche créée malgré la date");
+    await page.locator(".modal input").nth(2).fill("26/10/2011");
+    await page.locator(".modal button").filter({hasText:"Ajouter"}).click();await page.waitForTimeout(220);
+    const r=await page.evaluate(()=>{
+      const p=DB.players.filter(x=>x.firstName==="Rosalie")[0];
+      return {date:p.birthDate,an:p.birthYear,lu:fmtBirth(p)};
+    });
+    if(r.date!=="2011-10-26"||r.an!=="2011")throw new Error(JSON.stringify(r));
+    if(r.lu!=="26/10/2011")throw new Error("relecture="+r.lu);
+    /* La fiche rouverte affiche la date telle qu'on l'a écrite. */
+    await page.evaluate(()=>{
+      const p=DB.players.filter(x=>x.firstName==="Rosalie")[0];openModal("editplayer",p.id);
+    });
+    await page.waitForTimeout(160);
+    const champ=await page.locator(".modal input").nth(2).inputValue();
+    if(champ!=="26/10/2011")throw new Error("champ pré-rempli : "+champ);
+    await page.locator(".modal button").filter({hasText:"Annuler"}).click();await page.waitForTimeout(120);
+    await page.evaluate(()=>{
+      const p=DB.players.filter(x=>x.firstName==="Rosalie")[0];
+      squadsOf(p.id).forEach(sq=>removeFromSquad(sq,p.id));
+      DB.players=DB.players.filter(x=>x.firstName!=="Rosalie");saveNow();render();
+    });
+    await page.waitForTimeout(150);
+  });
+  await step("ajout en lot : une ligne fautive n'écrit aucune fiche",async()=>{
+    const avant=await page.evaluate(()=>DB.players.length);
+    await page.evaluate(()=>openModal("bulkplayers"));await page.waitForTimeout(140);
+    await page.locator(".modal textarea").fill("Bonne Ligne 2010 21\nMauvaise Ligne 31/02/2011");
+    await page.locator(".modal button").filter({hasText:"Ajouter"}).click();await page.waitForTimeout(220);
+    if(await page.locator(".modal").count()!==1)throw new Error("le lot fautif est passé");
+    const apres=await page.evaluate(()=>DB.players.length);
+    if(apres!==avant)throw new Error("fiches écrites malgré la ligne fautive : "+avant+" → "+apres);
+    await page.locator(".modal textarea").fill("Bonne Ligne 2010 21\nAutre Ligne 04/03/2012");
+    await page.locator(".modal button").filter({hasText:"Ajouter"}).click();await page.waitForTimeout(250);
+    const r=await page.evaluate(()=>DB.players.slice(-2).map(p=>p.firstName+":"+(p.birthDate||"—")+"/"+p.birthYear));
+    if(r.join(",")!=="Bonne:—/2010,Autre:2012-03-04/2012")throw new Error("lot corrigé : "+r.join(","));
+    await page.evaluate(()=>{
+      ["Bonne","Autre"].forEach(f=>{
+        const p=DB.players.filter(x=>x.firstName===f)[0];
+        if(p){squadsOf(p.id).forEach(sq=>removeFromSquad(sq,p.id));
+          DB.players=DB.players.filter(x=>x.id!==p.id)}
+      });
+      saveNow();render();
+    });
+    await page.waitForTimeout(150);
+  });
   await step("un numéro déjà pris est refusé",async()=>{
     await page.evaluate(()=>openModal("newplayer"));await page.waitForTimeout(140);
     await page.locator(".modal input").nth(0).fill("Doublon");

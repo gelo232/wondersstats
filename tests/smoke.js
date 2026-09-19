@@ -210,6 +210,54 @@ const ERRORS=[];
     if(apres!==avant)throw new Error("rencontres dupliquées : "+avant+" → "+apres);
   });
 
+  say("\n── Date de naissance : ce qui vient d'avant");
+  await step("l'année seule survit, une date reçue redonne son année",async()=>{
+    await page.evaluate(()=>{
+      /* Trois fiches comme on en trouve : une base d'avant la date
+         complète, une fiche venue d'ailleurs qui ne porte que la date,
+         et une qui ne sait rien. */
+      DB.players.push({id:"b-an",firstName:"Ancienne",lastName:"Fiche",birthYear:"2011",
+        notes:"",archived:false,createdAt:nowISO()});
+      DB.players.push({id:"b-date",firstName:"Venue",lastName:"Dailleurs",birthDate:"2012-03-04",
+        notes:"",archived:false,createdAt:nowISO()});
+      DB.players.push({id:"b-rien",firstName:"Sans",lastName:"Rien",
+        notes:"",archived:false,createdAt:nowISO()});
+      saveNow();
+    });
+    await page.reload(); await franchirGarde(page);await page.waitForTimeout(500);
+    const r=await page.evaluate(()=>{
+      const lis=id=>{const p=playerById(id);return p?((p.birthDate||"—")+"/"+(p.birthYear||"—")+"/"+(fmtBirth(p)||"—")):"absente"};
+      return {an:lis("b-an"),date:lis("b-date"),rien:lis("b-rien")};
+    });
+    if(r.an!=="—/2011/2011")throw new Error("année seule : "+r.an);
+    if(r.date!=="2012-03-04/2012/04/03/2012")throw new Error("date sans année : "+r.date);
+    if(r.rien!=="—/—/—")throw new Error("fiche vide : "+r.rien);
+    /* Et le tri les range comme annoncé : la date, puis l'année seule,
+       puis ce qui ne sait rien. */
+    const ordre=await page.evaluate(()=>sortDbPlayers(
+      [playerById("b-rien"),playerById("b-an"),playerById("b-date")],"birth","old")
+      .map(p=>p.firstName).join(","));
+    if(ordre!=="Ancienne,Venue,Sans")throw new Error("ordre="+ordre);
+  });
+  await step("fusionner un export complète une naissance sans l'écraser",async()=>{
+    const r=await page.evaluate(()=>{
+      /* Même athlète, même année : la fusion la reconnaît. L'export porte
+         le jour que la base locale n'a jamais eu. */
+      const inc={players:[
+        {id:"autre-id",firstName:"Ancienne",lastName:"Fiche",birthYear:"2011",birthDate:"2011-06-15",
+          notes:"",archived:false,createdAt:nowISO()},
+        {id:"encore",firstName:"Venue",lastName:"Dailleurs",birthYear:"2012",birthDate:"1999-01-01",
+          notes:"",archived:false,createdAt:nowISO()}
+      ],teams:[],clubs:[],people:[],assignments:[],clubAssignments:[],seasons:[],squads:[],log:[]};
+      mergeDB(inc);
+      return {complete:playerById("b-an").birthDate,intacte:playerById("b-date").birthDate,
+        n:DB.players.filter(p=>p.firstName==="Ancienne").length};
+    });
+    if(r.complete!=="2011-06-15")throw new Error("date non complétée : "+r.complete);
+    if(r.intacte!=="2012-03-04")throw new Error("date écrasée : "+r.intacte);
+    if(r.n!==1)throw new Error("fiche dupliquée : "+r.n);
+  });
+
   await ctx.close(); await b.close();
   say("\n"+PASS+" contrôles réussis.");
   say(ERRORS.length?("❌ "+ERRORS.length+" problème(s):\n"+ERRORS.join("\n")):"✅ Aucun problème");

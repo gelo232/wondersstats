@@ -540,11 +540,29 @@ vous publiez explicitement sur votre propre relais.
   encombrer la liste : `📦 Archiver`, qui se défait.
 - **`🗑️ Vider la convocation`** reste à un seul bouton, dans `📋 Convoquées` : c'est
   le geste de la liste montée sur la mauvaise saison, il n'y a rien à y choisir.
-- **La base se trie par année de naissance.** `👥 Joueuses → 🗂️ Base de données`
-  propose `A → Z` ou `🎂 Plus âgées d'abord`, un second clic inversant le sens.
-  Trier, cocher, `📋 Convoquer` : c'est ainsi qu'on compose une catégorie. Les
-  fiches sans année restent en fin de liste dans les deux sens : on ne leur invente
-  pas un âge.
+- **La base se trie par date de naissance, jour compris.** `👥 Joueuses →
+  🗂️ Base de données` propose `A → Z` ou `🎂 Plus âgées d'abord`, un second clic
+  inversant le sens. Trier, cocher, `📋 Convoquer` : c'est ainsi qu'on compose une
+  catégorie. Une fiche qui ne porte que l'année se range avec son année, après
+  celles dont on connaît le jour ; celles qui n'ont ni l'une ni l'autre restent en
+  fin de liste, dans les deux sens — on ne leur invente ni un jour, ni un âge.
+- **La naissance s'écrit `26/10/2011`, ou `2011` quand le jour n'est pas connu.**
+  Dans la fiche (`Date de naissance`) comme dans `⚡ Ajout en lot`, où la ligne
+  devient `Prénom Nom [naissance] [dossard]` :
+
+  ```
+  Rosalie Béland 26/10/2011 1
+  Maëva Côté 2010 2
+  Anaïs Lavoie 3
+  ```
+
+  Rien n'est deviné à la position : la naissance se reconnaît à sa forme, le dossard
+  à la sienne — un à trois chiffres en fin de ligne. Quatre chiffres ne peuvent pas
+  être un dossard, un dossard ne peut pas être une année. Une date impossible
+  (`31/02`) est refusée sur place, et fait refuser le lot entier en nommant la ligne
+  fautive plutôt que d'écrire la moitié des fiches. Les bases existantes gardent leur
+  année seule ; l'année reste ce qui décide des catégories et ce qui dédoublonne à la
+  fusion d'un export.
 - **[`GUIDE.md`](GUIDE.md)** — un guide d'utilisation qui suit une sélection puis une
   demi-saison de bout en bout.
 

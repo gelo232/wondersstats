@@ -66,13 +66,22 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(active!=="Saison 2026-2027")throw new Error("active="+active);
     await asCoach();
   });
-  await step("ajout en lot de 5 joueuses avec numéros",async()=>{
+  await step("ajout en lot : nom, naissance et numéro sur la même ligne",async()=>{
     await tab("Joueuses");
     await btn("Ajout en lot");
-    await page.locator(".modal textarea").fill("Léa Tremblay 7\nSofia Nguyen 12\nMaya Roy 3\nAlice Bouchard 9\nZoé Gagnon 14");
+    /* Trois formes sur cinq lignes : date complète, année seule, rien.
+       Le dossard reste le nombre de fin de ligne. */
+    await page.locator(".modal textarea").fill(
+      "Léa Tremblay 26/10/2011 7\nSofia Nguyen 2011 12\nMaya Roy 03/02/2012 3\nAlice Bouchard 9\nZoé Gagnon 04/03/2011 14");
     await btn("Ajouter");await page.waitForTimeout(200);
     const r=await page.evaluate(()=>curSquad().roster.map(e=>e.number));
     if(r.join(",")!=="7,12,3,9,14")throw new Error("numéros="+r.join(","));
+    const nais=await page.evaluate(()=>DB.players.map(p=>p.firstName+":"+(p.birthDate||"—")+"/"+(p.birthYear||"—")));
+    const attendu="Léa:2011-10-26/2011,Sofia:—/2011,Maya:2012-02-03/2012,Alice:—/—,Zoé:2011-03-04/2011";
+    if(nais.join(",")!==attendu)throw new Error("naissances="+nais.join(","));
+    /* L'année se déduit toujours de la date : c'est elle qui dédoublonne. */
+    const lisible=await page.evaluate(()=>fmtBirth(DB.players[0]));
+    if(lisible!=="26/10/2011")throw new Error("relecture="+lisible);
     // aucun numéro n'est inventé : une ligne sans numéro reste vide
     const vide=await page.evaluate(()=>{
       const s=curSquad(),before=s.roster.length;
@@ -90,10 +99,8 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     const ok=await page.evaluate(()=>Object.keys(dupNumbers(curSquad())).length===0&&missingNumbers(curSquad()).length===0);
     if(!ok)throw new Error("numéros invalides");
   });
-  await step("la base se trie par année de naissance",async()=>{
+  await step("la base se trie par date de naissance, jour compris",async()=>{
     await page.evaluate(()=>{
-      const an={"Léa":"2011","Sofia":"2009","Maya":"2012","Alice":"2010"};   // Zoé : fiche sans année
-      DB.players.forEach(p=>{p.birthYear=an[p.firstName]||""});
       state.tab="players";state.playersPane="db";state.search="";
       state.dbSort="name";state.dbSortDir="old";render();
     });
@@ -101,16 +108,23 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     const noms=async()=>await page.$$eval(".pname",els=>els.map(e=>e.textContent.split(" ")[0]).join(","));
     const az=await noms();
     if(az!=="Alice,Léa,Maya,Sofia,Zoé")throw new Error("A→Z : "+az);
+    /* Zoé 04/03/2011, Léa 26/10/2011, Sofia l'année seule : le jour
+       départage, et l'année seule se range après les dates de son année.
+       Alice, sans naissance, ferme la marche. */
     await btn("Plus âgées d'abord");await page.waitForTimeout(160);
     const vieilles=await noms();
-    if(vieilles!=="Sofia,Alice,Léa,Maya,Zoé")throw new Error("plus âgées d'abord : "+vieilles);
-    /* Second clic : le sens s'inverse — mais une fiche sans année ne
-       remonte jamais en tête, on ne lui invente pas un âge. */
+    if(vieilles!=="Zoé,Léa,Sofia,Maya,Alice")throw new Error("plus âgées d'abord : "+vieilles);
+    /* Second clic : le sens s'inverse — mais ni la fiche sans date ni
+       celle qui n'a que l'année ne remontent, on ne leur invente pas un
+       jour de naissance. */
     await btn("Plus âgées d'abord");await page.waitForTimeout(160);
     const jeunes=await noms();
-    if(jeunes!=="Maya,Léa,Alice,Sofia,Zoé")throw new Error("plus jeunes d'abord : "+jeunes);
+    if(jeunes!=="Maya,Léa,Zoé,Sofia,Alice")throw new Error("plus jeunes d'abord : "+jeunes);
     const libelle=await page.evaluate(()=>state.dbSortDir);
     if(libelle!=="young")throw new Error("sens du tri="+libelle);
+    /* La date se relit dans la liste, telle qu'on l'a écrite. */
+    const sous=await page.$$eval(".psub",els=>els[0].textContent);
+    if(sous.indexOf("03/02/2012")!==0)throw new Error("date non affichée : "+sous);
     await page.evaluate(()=>{state.dbSort="name";state.dbSortDir="old";render()});
     await page.waitForTimeout(120);
   });

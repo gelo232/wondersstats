@@ -595,6 +595,49 @@ function sumStats(s){var t=0;for(var i=0;i<ALL_STATS.length;i++)t+=s[ALL_STATS[i
 function hasStats(s){return sumStats(s)>0}
 function addStats(dst,src){for(var i=0;i<ALL_STATS.length;i++){var k=ALL_STATS[i].key;dst[k]+=(src&&src[k])||0}return dst}
 function cleanNum(v){return String(v==null?"":v).replace(/\D/g,"").slice(0,3)}
+/* ─── Date de naissance ───────────────────────────────────────
+   Un club écrit « 26/10/2011 » ; il arrive aussi qu'il ne connaisse que
+   l'année, et c'est déjà suffisant pour une catégorie. Les deux formes
+   sont acceptées et rangées séparément : `birthDate` porte la date
+   complète au format ISO quand on la connaît, `birthYear` l'année seule
+   — elle reste ce sur quoi les catégories se décident, et ce qui
+   dédoublonne deux homonymes à la fusion d'un export.
+
+   Une date illisible n'est jamais devinée : elle est refusée. Le 31
+   février d'une frappe de travers ne doit pas devenir une naissance. */
+function mkBirth(y,mo,d){
+  if(y<1900||y>2100||mo<1||mo>12||d<1||d>31)return null;
+  var dt=new Date(Date.UTC(y,mo-1,d));
+  if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==mo-1||dt.getUTCDate()!==d)return null;
+  return {date:y+"-"+pad2(mo)+"-"+pad2(d),year:String(y)};
+}
+function parseBirth(v){
+  var t=String(v==null?"":v).trim();
+  if(!t)return {date:"",year:""};
+  var m=t.match(/^(\d{1,2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{4})$/);
+  if(m)return mkBirth(+m[3],+m[2],+m[1]);
+  var iso=t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);   /* ce que portent les sauvegardes */
+  if(iso)return mkBirth(+iso[1],+iso[2],+iso[3]);
+  if(/^\d{4}$/.test(t)){var y=+t;return (y>=1900&&y<=2100)?{date:"",year:t}:null}
+  return null;
+}
+function hasBirthDate(p){return !!(p&&p.birthDate&&/^\d{4}-\d{2}-\d{2}$/.test(p.birthDate))}
+/* Telle qu'on l'écrit : jj/mm/aaaa, ou l'année seule quand c'est tout
+   ce qu'on sait d'elle. */
+function fmtBirth(p){
+  if(hasBirthDate(p)){var x=p.birthDate.split("-");return x[2]+"/"+x[1]+"/"+x[0]}
+  return (p&&p.birthYear)||"";
+}
+/* Ce qui ordonne : l'année, puis le jour lorsqu'il est connu. Une fiche
+   qui ne porte que l'année se range avec son année, après celles dont on
+   sait le jour — dans un sens comme dans l'autre. Lui prêter un premier
+   janvier la ferait passer devant des athlètes réellement plus âgées. */
+function birthSortKey(p){
+  var y=(p&&/^\d{4}$/.test(p.birthYear))?+p.birthYear:null;
+  var md=hasBirthDate(p)?p.birthDate.slice(5):"";
+  if(y===null&&md)y=+p.birthDate.slice(0,4);
+  return {y:y,md:md};
+}
 function nowISO(){return new Date().toISOString()}
 function pad2(n){return (n<10?"0":"")+n}
 function todayISO(){
@@ -611,7 +654,36 @@ function isLand(){return window.innerWidth>window.innerHeight}
 
 /* ─── Fabriques ─────────────────────────────────────────────── */
 function mkDbPlayer(o){
-  return Object.assign({id:uid(),firstName:"",lastName:"",birthYear:"",notes:"",archived:false,createdAt:nowISO()},o||{});
+  return Object.assign({id:uid(),firstName:"",lastName:"",birthYear:"",birthDate:"",
+    notes:"",archived:false,createdAt:nowISO()},o||{});
+}
+/* Une ligne d'ajout en lot : « Prénom Nom [naissance] [dossard] ».
+
+   Rien n'est deviné à la position : la naissance se reconnaît à sa forme
+   — 26/10/2011, ou une année seule à quatre chiffres — et le dossard à
+   la sienne, un à trois chiffres en fin de ligne. Quatre chiffres ne
+   peuvent pas être un dossard, un dossard ne peut pas être une année :
+   les deux ne se confondent jamais. Ce qui reste est le nom.
+
+   Une date de forme juste mais impossible (31/02) rend la ligne
+   illisible plutôt que de se glisser dans le nom de famille. */
+function parseBulkLine(line){
+  var t=String(line||"").trim();
+  var brut="",m=t.match(/(^|\s)(\d{1,2}\s*[\/\-.]\s*\d{1,2}\s*[\/\-.]\s*\d{4})(\s|$)/);
+  if(m)brut=m[2];
+  else {var m2=t.match(/(^|\s)(\d{4})(\s|$)/);if(m2)brut=m2[2]}
+  var birth={date:"",year:""};
+  if(brut){
+    birth=parseBirth(brut);
+    if(!birth)return null;
+    var i=t.indexOf(brut);
+    t=(t.slice(0,i)+" "+t.slice(i+brut.length)).trim();
+  }
+  var num="",mn=t.match(/\s(\d{1,3})$/);
+  if(mn){num=mn[1];t=t.slice(0,mn.index).trim()}
+  var parts=t.split(/\s+/).filter(Boolean);
+  return {firstName:parts.shift()||"",lastName:parts.join(" "),
+    birthDate:birth.date,birthYear:birth.year,number:num};
 }
 function mkPerson(o){
   return Object.assign({id:uid(),name:"",token:"",createdAt:nowISO(),revoked:false},o||{});
@@ -1743,7 +1815,16 @@ function normalizeDB(db){
     if(!q.categories.length)q.categories=CATEGORIES_DEFAUT.slice();
     return q;
   });
-  db.players=(db.players||[]).map(function(p){return Object.assign(mkDbPlayer(),p,{archived:!!p.archived})});
+  db.players=(db.players||[]).map(function(p){
+    var q=Object.assign(mkDbPlayer(),p,{archived:!!p.archived});
+    /* Une base d'avant la date complète ne porte que l'année : elle la
+       garde. Une date reçue d'ailleurs redonne son année, pour que le
+       dédoublonnage continue de s'y appuyer. */
+    var b=parseBirth(q.birthDate||q.birthYear)||parseBirth(q.birthYear);
+    if(b){q.birthDate=b.date;q.birthYear=b.year}
+    else {q.birthDate="";q.birthYear=cleanNum(q.birthYear).slice(0,4)}
+    return q;
+  });
   db.teams=(db.teams||[]).map(function(t){return Object.assign(mkTeamRecord(),t,{freeView:!!t.freeView,archived:!!t.archived})});
   db.seasons=(db.seasons||[]).map(function(s){
     return Object.assign({id:uid(),name:"Saison",createdAt:nowISO(),startDate:"",endDate:"",
@@ -2654,7 +2735,14 @@ function mergeDB(inc){
   inc.players.forEach(function(p){
     if(byId[p.id]){remap[p.id]=p.id;return}
     var ex=byName[nameKey(p)];
-    if(ex){remap[p.id]=ex.id;return}
+    if(ex){
+      /* L'existant fait foi — mais une fiche incomplète se complète : un
+         export venu d'un autre appareil peut porter le jour de naissance
+         que la nôtre n'a jamais eu. Jamais d'écrasement : le
+         dédoublonnage s'est fait sur l'année, les deux s'accordent. */
+      if(!ex.birthDate&&p.birthDate)ex.birthDate=p.birthDate;
+      remap[p.id]=ex.id;return;
+    }
     DB.players.push(p);byId[p.id]=p;byName[nameKey(p)]=p;remap[p.id]=p.id;
   });
   function rp(id){return remap[id]||id}
@@ -4701,10 +4789,11 @@ function sortDbPlayers(list,mode,dir){
   var out=list.slice();
   if(mode!=="birth")return out.sort(comparerNoms);
   return out.sort(function(a,b){
-    var ya=parseInt(a.birthYear,10),yb=parseInt(b.birthYear,10);
-    var oka=isFinite(ya),okb=isFinite(yb);
-    if(oka!==okb)return oka?-1:1;
-    if(oka&&ya!==yb)return dir==="young"?(yb-ya):(ya-yb);
+    var ka=birthSortKey(a),kb=birthSortKey(b);
+    if((ka.y===null)!==(kb.y===null))return ka.y===null?1:-1;   /* sans naissance : en fin de liste */
+    if(ka.y!==null&&ka.y!==kb.y)return dir==="young"?(kb.y-ka.y):(ka.y-kb.y);
+    if(!!ka.md!==!!kb.md)return ka.md?-1:1;                     /* jour connu avant année seule */
+    if(ka.md&&ka.md!==kb.md)return dir==="young"?(ka.md<kb.md?1:-1):(ka.md<kb.md?-1:1);
     return comparerNoms(a,b);
   });
 }
@@ -4724,7 +4813,7 @@ function renderDbPane(squad){
   function card(p){
     var inSeason=squad?!!rosterEntry(squad,p.id):false;
     var seasons=squadsOf(p.id).length;
-    var sous=(p.birthYear?p.birthYear+" · ":"")+plural(seasons,"équipe-saison")+
+    var sous=(fmtBirth(p)?fmtBirth(p)+" · ":"")+plural(seasons,"équipe-saison")+
       (p.archived?" · archivée":"")+(picking&&inSeason?" · convoquée":"");
     if(picking)return pickRow(h("div",{className:"list-row"},
       h("div",{className:"body"},
@@ -4767,7 +4856,7 @@ function renderDbPane(squad){
     barre,
     triBase(),
     state.dbSort==="birth"?h("div",{className:"muted",style:{marginBottom:"8px"}},
-      "Tri sur l'année de naissance de la fiche — celle qui décide des catégories. Les fiches sans année restent en fin de liste."):null,
+      "Tri sur la date de naissance. Une fiche qui ne porte que l'année se range avec son année, après celles dont on connaît le jour ; celles qui n'ont ni l'une ni l'autre restent en fin de liste."):null,
     searchInp);
   if(!shown.length)wrap.appendChild(h("div",{className:"empty"},DB.players.length?"Aucun résultat":"Base vide — ajoutez vos joueuses."));
   shown.forEach(function(p){wrap.appendChild(card(p))});
@@ -7205,8 +7294,8 @@ function renderModal(){
     if(T==="editplayer"&&!p0)return null;
     var entry0=(p0&&season)?rosterEntry(season,p0.id):null;
     var draft=state.modalDraft||(state.modalDraft=p0
-      ?{firstName:p0.firstName,lastName:p0.lastName,birthYear:p0.birthYear,notes:p0.notes,number:entry0?entry0.number:""}
-      :{firstName:"",lastName:"",birthYear:"",notes:"",number:""});
+      ?{firstName:p0.firstName,lastName:p0.lastName,birth:fmtBirth(p0),notes:p0.notes,number:entry0?entry0.number:""}
+      :{firstName:"",lastName:"",birth:"",notes:"",number:""});
     function fld(key,label,ph,attrs){
       var inp=h("input",Object.assign({placeholder:ph,value:draft[key]||""},attrs||{}));
       inp.addEventListener("input",function(e){draft[key]=e.target.value});
@@ -7222,11 +7311,13 @@ function renderModal(){
       if(num&&season&&numberTaken(season,num,p0?p0.id:null)){
         showToast("⚠️ Le numéro "+num+" est déjà pris dans cette saison");return;
       }
+      var b=parseBirth(draft.birth);
+      if(!b){showToast("⚠️ Date de naissance illisible — 26/10/2011, ou 2011");return}
       if(p0){
-        Object.assign(p0,{firstName:f,lastName:l,birthYear:cleanNum(draft.birthYear).slice(0,4),notes:draft.notes||""});
+        Object.assign(p0,{firstName:f,lastName:l,birthDate:b.date,birthYear:b.year,notes:draft.notes||""});
         if(entry0)entry0.number=num;
       } else {
-        var np=mkDbPlayer({firstName:f,lastName:l,birthYear:cleanNum(draft.birthYear).slice(0,4),notes:draft.notes||""});
+        var np=mkDbPlayer({firstName:f,lastName:l,birthDate:b.date,birthYear:b.year,notes:draft.notes||""});
         DB.players.push(np);
         if(season)season.roster.push(mkRosterEntry(np.id,num,""));
       }
@@ -7245,7 +7336,7 @@ function renderModal(){
     }
     return modalShell(p0?"Fiche joueuse":"Nouvelle joueuse",
       h("div",null,fld("firstName","Prénom","Prénom"),fld("lastName","Nom","Nom de famille"),
-        fld("birthYear","Année de naissance","Ex. 2011",{inputmode:"numeric",maxlength:"4"}),
+        fld("birth","Date de naissance","26/10/2011 — ou 2011",{maxlength:"10"}),
         (season&&(!p0||entry0))?fld("number","Numéro d'athlète","À saisir",{inputmode:"numeric",maxlength:"3"}):null,
         (season&&(!p0||entry0))?h("div",{className:"muted",style:{margin:"-4px 0 10px"}},
           "Vous pouvez le laisser vide et le renseigner plus tard dans le tableau de sélection."):null,
@@ -7254,25 +7345,38 @@ function renderModal(){
       btns);
   }
   if(T==="bulkplayers"){
-    var ta=h("textarea",{placeholder:"Une joueuse par ligne :\nLéa Tremblay 7\nSofia Nguyen 12\nMaya Roy",rows:"8"});
+    var ta=h("textarea",{placeholder:"Une joueuse par ligne :\nLéa Tremblay 26/10/2011 7\nSofia Nguyen 2009 12\nMaya Roy",rows:"8"});
     ta.value=state.modalInput;
     ta.addEventListener("input",function(e){state.modalInput=e.target.value});
     return modalShell("Ajout en lot",
       h("div",null,h("div",{className:"muted",style:{marginBottom:"8px"}},
-        "Format : Prénom Nom [numéro]. Le numéro est facultatif — laissé vide, il reste à saisir dans le tableau de sélection. Aucun numéro n'est attribué automatiquement."),ta),
+        "Format : Prénom Nom [naissance] [dossard]. La naissance s'écrit ",
+        h("b",null,"26/10/2011"),", ou ",h("b",null,"2011")," si le jour n'est pas connu ; ",
+        "le dossard est le nombre de fin de ligne, un à trois chiffres. Les deux sont facultatifs, et ",
+        "aucun numéro n'est attribué automatiquement."),ta),
       [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
         var lines=(state.modalInput||"").split("\n").map(function(x){return x.trim()}).filter(Boolean);
         if(!lines.length){showToast("⚠️ Aucune ligne");return}
-        var n=0;
+        /* Tout se lit avant que rien ne soit écrit : une date de travers
+           à la ligne 14 ne doit pas laisser treize fiches derrière elle. */
+        var lues=[],mauvaise=null;
         lines.forEach(function(line){
-          var num="",m=line.match(/\s(\d{1,3})$/);
-          if(m){num=m[1];line=line.slice(0,m.index).trim()}
-          var parts=line.split(/\s+/);
-          var np=mkDbPlayer({firstName:parts.shift()||"",lastName:parts.join(" ")});
-          DB.players.push(np);n++;
-          if(season)season.roster.push(mkRosterEntry(np.id,num,""));
+          if(mauvaise)return;
+          var r=parseBulkLine(line);
+          if(!r){mauvaise=line;return}
+          lues.push(r);
         });
-        closeModal();saveNow();showToast("✅ "+plural(n,"joueuse")+" ajoutée(s)");
+        if(mauvaise){showToast("⚠️ Date illisible : « "+mauvaise+" »",4000);return}
+        lues.forEach(function(r){
+          var np=mkDbPlayer({firstName:r.firstName,lastName:r.lastName,
+            birthDate:r.birthDate,birthYear:r.birthYear});
+          DB.players.push(np);
+          if(season)season.roster.push(mkRosterEntry(np.id,r.number,""));
+        });
+        var avecDate=lues.filter(function(r){return r.birthDate}).length;
+        closeModal();saveNow();
+        showToast("✅ "+plural(lues.length,"joueuse")+" ajoutée(s)"+
+          (avecDate?" · "+avecDate+" avec date de naissance":""));
       }},"Ajouter")],"440px");
   }
 

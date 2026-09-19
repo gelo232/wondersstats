@@ -30,22 +30,37 @@ en **« Sélection U14 — sept. 2026 »** et donnez-lui le type 🎯 *Sélectio
 
 ### Les athlètes et les dossards
 
-`👥 Joueuses → ⚡ Ajout en lot`. Une athlète par ligne, le dossard en fin de ligne :
+`👥 Joueuses → ⚡ Ajout en lot`. Une athlète par ligne :
+**`Prénom Nom [naissance] [dossard]`**
 
 ```
-Rosalie Béland 1
-Maëva Côté 2
+Rosalie Béland 26/10/2011 1
+Maëva Côté 2010 2
 Anaïs Lavoie 3
-…
+Léa Tremblay
 ```
 
-Le numéro est facultatif dans ce champ, mais **c'est la seule chose que verront vos
+**Rien n'est deviné à la position.** La naissance se reconnaît à sa forme —
+`26/10/2011`, ou `2011` si le jour n'est pas connu — et le dossard à la sienne, un à
+trois chiffres en fin de ligne. Quatre chiffres ne peuvent pas être un dossard, un
+dossard ne peut pas être une année : les deux ne se confondent jamais. Ce qui reste
+est le nom.
+
+Les deux sont facultatifs. Une **date impossible** (`31/02/2011`) fait refuser le lot
+entier, en nommant la ligne fautive : mieux vaut corriger une ligne que retrouver
+treize fiches à moitié saisies.
+
+Le numéro est facultatif ici, mais **c'est la seule chose que verront vos
 évaluateurs**. Un numéro manquant ou en double s'affiche en rouge dans
 `🗓️ Saison → 🎯 Sélection`, avec un bandeau d'avertissement. Corrigez-les là,
 directement dans la case de gauche, avant de composer les vues.
 
 L'ajout en lot n'interdit pas les doublons — il les signale après coup. Sur 28
 dossards, vérifiez le bandeau avant de partir.
+
+> **La fiche accepte les deux formes elle aussi.** `Date de naissance` dans
+> `+ Nouvelle joueuse` et dans la fiche : `26/10/2011`, ou `2011`. Une date illisible
+> est refusée sur place, jamais devinée.
 
 ### Agir sur plusieurs athlètes à la fois
 
@@ -77,16 +92,17 @@ La barre affiche aussi, **à chaque coche**, ce que la sélection engage :
 | Bouton | Ce qu'il donne |
 |---|---|
 | `A → Z` | l'ordre alphabétique — pour retrouver un nom qu'on connaît |
-| `🎂 Plus âgées d'abord` | l'année de naissance de la fiche ; **un second clic inverse le sens** et le bouton se relit `🎂 Plus jeunes d'abord` |
+| `🎂 Plus âgées d'abord` | la date de naissance, **jour compris** ; un second clic inverse le sens et le bouton se relit `🎂 Plus jeunes d'abord` |
 
-La base ne retient que **l'année** de naissance, et c'est suffisant : une catégorie
-se décide sur l'année, jamais sur le jour. Triez par naissance, passez en
-`☑️ Sélectionner`, cochez la cohorte, `📋 Convoquer` — c'est ainsi qu'on compose un
-U14 sans se tromper d'une année.
+Triez par naissance, passez en `☑️ Sélectionner`, cochez la cohorte,
+`📋 Convoquer` — c'est ainsi qu'on compose un U14 sans se tromper d'une année.
 
-> **Les fiches sans année restent en fin de liste, dans les deux sens.** Les mettre
-> en tête des plus âgées reviendrait à leur inventer un âge. Si une athlète vous
-> manque à l'appel d'une tranche, son année n'est pas saisie : ouvrez sa fiche.
+> **Une fiche qui ne porte que l'année se range avec son année**, après celles dont
+> on connaît le jour ; **celles qui n'ont ni l'une ni l'autre restent en fin de
+> liste**, dans les deux sens. Lui prêter un premier janvier la ferait passer devant
+> des athlètes réellement plus âgées, et mettre une fiche vide en tête reviendrait à
+> lui inventer un âge. Si une athlète vous manque à l'appel d'une tranche, sa
+> naissance n'est pas saisie : ouvrez sa fiche.
 
 ### Changer un numéro en cours de route
 
