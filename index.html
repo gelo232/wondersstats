@@ -156,6 +156,13 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .list-row .body{flex:1;min-width:0}
 .list-row .pname{font-size:14px;font-weight:600;color:#F8FAFC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .list-row .psub{font-size:11px;color:#64748B;margin-top:2px}
+.list-row.picked{border-color:#3B82F6;background:#1E3A5F}
+.pick-box{width:22px;height:22px;border-radius:6px;border:1.5px solid #475569;background:#0F172A;color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.pick-box.on{background:#3B82F6;border-color:#3B82F6}
+.pick-bar{padding:10px 12px;background:#0F172A;border-top:1px solid #1E293B;flex-shrink:0}
+@media(min-width:600px){.pick-bar{padding:12px 24px}}
+.pick-bar .pick-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.pick-bar .pick-warn{font-size:11px;color:#FCD34D;margin-bottom:8px;line-height:1.35}
 .num-badge{width:44px;height:38px;border-radius:8px;background:#0F172A;border:1.5px solid #334155;color:#F8FAFC;font-weight:800;font-size:15px;text-align:center;flex-shrink:0;outline:none}
 .num-badge:focus{border-color:#60A5FA}
 .num-badge.dup{border-color:#EF4444;color:#FCA5A5}
@@ -548,6 +555,7 @@ var LOG_KINDS={
   status:{icon:"⚖️",label:"Sélection",color:"#60A5FA"},
   membership:{icon:"🩹",label:"Effectif",color:"#F59E0B"},
   roster:{icon:"👥",label:"Convocation",color:"#34D399"},
+  player:{icon:"🗂️",label:"Fiches",color:"#F472B6"},
   number:{icon:"🔢",label:"Numéros",color:"#A5B4FC"},
   submission:{icon:"📥",label:"Soumissions",color:"#F87171"},
   campaign:{icon:"📅",label:"Campagnes",color:"#C084FC"},
@@ -789,6 +797,7 @@ var state={
   inputMode:"quick", quickPlayer:null, courtPanelOpen:false,
   statusFilter:"all", search:"", logFilter:"all",
   dbSort:"name", dbSortDir:"old",   // base de données : A→Z, ou par naissance
+  pickMode:null, picked:[],         // sélection multiple : "db" | "roster"
   toast:null, modalType:null, modalInput:"", modalInput2:"", modalSel:[], modalCtx:null, modalDraft:null,
   editingSubteamId:null, editViewId:null,
   svViewId:null, svPlayerId:null, svGroupIdx:0,
@@ -3271,7 +3280,10 @@ function renderTabBar(){
   var tabs=tabsForCtx(),sel=isSelectorCtx();
   return h("div",{className:"tab-bar"},tabs.map(function(t){
     return h("button",{className:"tab-btn"+(sel?" sel":"")+(state.tab===t.key?" active":""),onclick:function(){
-      state.tab=t.key;state.sortBy=null;saveNow();render();
+      /* Une sélection en cours appartient à l'écran où elle a commencé :
+         on ne la retrouve pas trois onglets plus loin. */
+      state.tab=t.key;state.sortBy=null;state.pickMode=null;state.picked=[];
+      saveNow();render();
     }},h("span",{className:"ico"},t.icon),h("span",{className:"lbl"},t.label));
   }));
 }
@@ -3822,6 +3834,243 @@ function pertesRetrait(squad,pids){
   });
   return out;
 }
+/* Le texte qu'on lit avant de retirer : ce que le geste emporte, dit
+   d'avance. Le même pour un vidage complet et pour douze coches. */
+function texteRetrait(squad,pids,tout){
+  var d=pertesRetrait(squad,pids);
+  return (tout?"Vider la convocation de « "+squad.name+" » ?"
+              :"Retirer "+plural(pids.length,"joueuse")+" de « "+squad.name+" » ?")+
+    (d.retenues?"\n\n• "+(d.retenues===1?"1 retenue sort":d.retenues+" retenues sortent")+" de l'effectif de la saison":"")+
+    (d.matchs?"\n• "+(d.matchs===1?"1 joueuse a déjà joué":d.matchs+" joueuses ont déjà joué")+
+      " cette saison — leurs matchs restent au cumul, mais leur fiche de saison s'en va":"")+
+    (d.compteurs?"\n• "+(d.compteurs===1?"1 joueuse perd ses compteurs":d.compteurs+" joueuses perdent leurs compteurs")+" en cours de saisie":"")+
+    (d.vues?"\n• "+(d.vues===1?"1 joueuse figure":d.vues+" joueuses figurent")+" dans une vue déjà distribuée":"")+
+    "\n\nLes fiches restent dans la base du club et les matchs enregistrés ne bougent pas.";
+}
+
+/* ── La base du club : convoquer, archiver, supprimer en lot ──
+   Convoquer ne touche pas aux archivées : une fiche rangée l'a été pour
+   ne plus apparaître, la reprendre est un geste à part. */
+function convokeMany(squad,pids){
+  if(!squad)return 0;
+  var n=0;
+  (pids||[]).forEach(function(pid){
+    var p=playerById(pid);
+    if(!p||p.archived||rosterEntry(squad,pid))return;
+    squad.roster.push(mkRosterEntry(pid,"",""));n++;
+  });
+  if(!n)return 0;
+  logAct("roster",plural(n,"joueuse")+(n>1?" convoquées":" convoquée"),
+    {teamId:squad.teamId,seasonId:squad.seasonId});
+  scheduleAutoSave();
+  return n;
+}
+/* Archiver est le filet de la suppression : réversible, et sans toucher
+   à rien d'autre — une archivée reste dans les saisons où elle a joué. */
+function setArchivedMany(pids,flag){
+  var n=0;
+  (pids||[]).forEach(function(pid){
+    var p=playerById(pid);
+    if(!p||!!p.archived===flag)return;
+    p.archived=flag;n++;
+  });
+  if(!n)return 0;
+  logAct("player",plural(n,"fiche")+(n>1?(flag?" archivées":" réactivées"):(flag?" archivée":" réactivée")),{});
+  scheduleAutoSave();
+  return n;
+}
+/* Ce qu'une suppression détruit, compté avant de la faire : on ne
+   supprime pas une fiche vide comme une athlète qui a joué la saison. */
+function pertesSuppression(pids){
+  var out={fiches:0,noms:[],squads:0,historique:0,convoquees:0};
+  var vus={};
+  (pids||[]).forEach(function(pid){
+    var p=playerById(pid);if(!p)return;
+    out.fiches++;out.noms.push(fullName(p));
+    var hist=false,convoquee=false;
+    DB.squads.forEach(function(sq){
+      var touche=!!rosterEntry(sq,pid);
+      if(touche)convoquee=true;
+      (sq.sessions||[]).forEach(function(se){
+        (se.entries||[]).forEach(function(en){
+          if(en.playerId===pid&&en.stats&&hasStats(en.stats)){hist=true;touche=true}
+        });
+      });
+      (sq.submissions||[]).forEach(function(sub){
+        (sub.entries||[]).forEach(function(en){
+          if(en.playerId===pid){hist=true;touche=true}
+        });
+      });
+      if(touche&&!vus[sq.id]){vus[sq.id]=true;out.squads++}
+    });
+    if(hist)out.historique++;
+    if(convoquee)out.convoquees++;
+  });
+  return out;
+}
+/* Supprimer une athlète du club, pour de bon : la fiche, ses convocations
+   dans toutes les saisons, ses lignes de match et les relevés que les
+   évaluateurs ont faits d'elle.
+
+   Ce dernier passage manquait à la suppression d'une fiche isolée, qui
+   promettait pourtant que « tout son historique sera perdu » : les lignes
+   de match survivaient, et le cumul de la saison continuait d'afficher
+   une « Joueuse » sans nom que plus rien ne permettait d'identifier.
+   Supprimer efface maintenant ce que la phrase annonçait — et pour garder
+   l'historique, il y a Archiver. */
+function deletePlayersFromDb(pids){
+  var ids={},noms=[];
+  (pids||[]).forEach(function(pid){
+    var p=playerById(pid);if(!p||ids[pid])return;
+    ids[pid]=true;noms.push(fullName(p));
+  });
+  if(!noms.length)return 0;
+  DB.squads.forEach(function(sq){
+    Object.keys(ids).forEach(function(pid){detachRosterEntry(sq,pid)});
+    (sq.sessions||[]).forEach(function(se){
+      se.entries=(se.entries||[]).filter(function(en){return !ids[en.playerId]});
+    });
+    (sq.submissions||[]).forEach(function(sub){
+      sub.entries=(sub.entries||[]).filter(function(en){return !ids[en.playerId]});
+    });
+  });
+  DB.players=DB.players.filter(function(p){return !ids[p.id]});
+  var liste=noms.slice(0,8).join(", ")+(noms.length>8?", et "+plural(noms.length-8,"autre"):"");
+  logAct("player",plural(noms.length,"fiche")+(noms.length>1?" supprimées":" supprimée")+
+    " de la base : "+liste,{});
+  state.expandedPlayerId=null;
+  scheduleAutoSave();
+  return noms.length;
+}
+/* Le texte qu'on lit avant de supprimer. Il nomme les fiches tant qu'on
+   peut les lire, et rappelle qu'Archiver existe : c'est presque toujours
+   ce qu'un club veut faire d'une athlète qui s'en va. */
+function texteSuppression(pids){
+  var d=pertesSuppression(pids);
+  var noms=d.noms.slice(0,6).join(", ")+(d.noms.length>6?", et "+plural(d.noms.length-6,"autre"):"");
+  return "Supprimer définitivement "+plural(d.fiches,"fiche")+" de la base du club ?"+
+    "\n\n• "+noms+
+    (d.convoquees?"\n• "+(d.convoquees===1?"1 est convoquée":d.convoquees+" sont convoquées")+
+      " dans "+plural(d.squads,"équipe-saison"):"")+
+    (d.historique?"\n• "+(d.historique===1?"1 a un historique":d.historique+" ont un historique")+
+      " : matchs joués ou évaluations reçues, qui seront effacés eux aussi":"")+
+    "\n\nRien ne se récupère. Pour conserver l'historique sans encombrer la liste, archivez plutôt.";
+}
+
+/* ── Sélection multiple ───────────────────────────────────────
+   Le même geste dans les deux volets : on entre en sélection, on coche
+   des lignes, une barre basse dit ce qu'on peut en faire. Les deux
+   modales de lot ont disparu avec : elles demandaient un second écran
+   pour choisir dans une liste qu'on avait déjà sous les yeux, en perdant
+   au passage la recherche et le tri qu'on venait d'y régler. */
+function pickStart(pane){state.pickMode=pane;state.picked=[];render()}
+function pickStop(){state.pickMode=null;state.picked=[];render()}
+function pickIsOn(pane){return state.pickMode===pane}
+function pickHas(id){return state.picked.indexOf(id)!==-1}
+function pickSet(ids){state.picked=(ids||[]).slice();render()}
+/* Une ligne cochable. La case se met à jour sur place : un rendu complet
+   à chaque coche ferait clignoter une liste de cinquante fiches, et
+   cocher vite est précisément ce qu'on vient faire ici. */
+function pickRow(row,id){
+  var on=pickHas(id);
+  var box=h("span",{className:"pick-box"+(on?" on":"")},on?"✓":"");
+  if(on)row.classList.add("picked");
+  row.insertBefore(box,row.firstChild);
+  row.addEventListener("click",function(){
+    var i=state.picked.indexOf(id);
+    if(i!==-1)state.picked.splice(i,1);else state.picked.push(id);
+    var now=pickHas(id);
+    row.classList.toggle("picked",now);
+    box.className="pick-box"+(now?" on":"");
+    box.textContent=now?"✓":"";
+    refreshPickUI();
+  });
+  return row;
+}
+function avertissementPick(){
+  if(!state.picked.length)return "";
+  var bits=[];
+  if(state.pickMode==="roster"){
+    var d=pertesRetrait(curSquad(),state.picked);
+    if(d.retenues)bits.push(d.retenues+(d.retenues>1?" retenues":" retenue"));
+    if(d.matchs)bits.push(d.matchs+" ayant déjà joué cette saison");
+    if(d.compteurs)bits.push(d.compteurs+" avec des compteurs en cours de saisie");
+    if(d.vues)bits.push(d.vues+" dans une vue déjà distribuée");
+  } else {
+    var s=pertesSuppression(state.picked);
+    if(s.historique)bits.push(s.historique+" avec un historique (matchs ou évaluations)");
+    if(s.convoquees)bits.push(s.convoquees+(s.convoquees>1?" convoquées":" convoquée")+
+      " dans "+plural(s.squads,"équipe-saison"));
+  }
+  return bits.length?("⚠️ Dont "+bits.join(" · ")+"."):"";
+}
+function refreshPickUI(){
+  var n=state.picked.length;
+  var c=document.getElementById("pickCount");
+  if(c)c.textContent=n?plural(n,"sélectionnée"):"Aucune sélectionnée";
+  var bs=document.querySelectorAll(".pick-act");
+  for(var i=0;i<bs.length;i++)bs[i].disabled=!n;
+  var w=document.getElementById("pickWarn");
+  if(w){var t=avertissementPick();w.textContent=t;w.style.display=t?"":"none"}
+}
+/* La barre basse. Elle vit à côté du contenu défilant, comme celle de la
+   saisie : on coche en haut, on agit en bas, sans jamais remonter. */
+function renderPickBar(season){
+  var pane=state.pickMode;
+  if(pane!=="db"&&pane!=="roster")return null;
+  if(pane==="roster"&&(!season||!season.roster.length))return null;
+  var n=state.picked.length,acts=[];
+  function act(cls,label,fn){
+    return h("button",{className:"btn "+cls+" sm pick-act",disabled:!n,onclick:fn},label);
+  }
+  if(pane==="db"){
+    if(season)acts.push(act("btn-save","📋 Convoquer",function(){
+      var pids=state.picked.slice();
+      var archivees=pids.filter(function(pid){var p=playerById(pid);return p&&p.archived}).length;
+      var ajoutees=convokeMany(season,pids);
+      pickStop();saveNow();
+      showToast(ajoutees
+        ? "✅ "+plural(ajoutees,"joueuse")+(ajoutees>1?" convoquées":" convoquée")+" — saisissez les numéros dans 📋 Convoquées"
+        : (archivees?"⚠️ Fiches archivées : réactivez-les d'abord":"Déjà convoquées"),4000);
+    }));
+    acts.push(act("btn-ghost","📦 Archiver",function(){
+      var n2=setArchivedMany(state.picked.slice(),true);
+      pickStop();saveNow();showToast(n2?("📦 "+plural(n2,"fiche")+(n2>1?" archivées":" archivée")):"Déjà archivées");
+    }));
+    if(DB.players.some(function(p){return p.archived}))acts.push(act("btn-ghost","↩ Réactiver",function(){
+      var n2=setArchivedMany(state.picked.slice(),false);
+      pickStop();saveNow();showToast(n2?("↩ "+plural(n2,"fiche")+(n2>1?" réactivées":" réactivée")):"Déjà actives");
+    }));
+    acts.push(act("btn-danger-o","🗑️ Supprimer",function(){
+      var pids=state.picked.slice();
+      if(!confirmAct(texteSuppression(pids)))return;
+      var n2=deletePlayersFromDb(pids);
+      pickStop();saveNow();
+      showToast("🗑️ "+plural(n2,"fiche")+(n2>1?" supprimées":" supprimée"));
+    }));
+  } else {
+    acts.push(act("btn-danger-o","✕ Retirer de la convocation",function(){
+      var pids=state.picked.slice();
+      if(!confirmAct(texteRetrait(season,pids,pids.length>=season.roster.length)))return;
+      var n2=removeManyFromSquad(season,pids);
+      pickStop();saveNow();
+      showToast(season.roster.length
+        ? "✅ "+plural(n2,"joueuse")+(n2>1?" retirées":" retirée")+" de la convocation"
+        : "🗑️ Convocation vidée — "+plural(n2,"joueuse")+(n2>1?" retirées":" retirée"));
+    }));
+  }
+  var warn=h("div",{id:"pickWarn",className:"pick-warn"});
+  var t=avertissementPick();
+  warn.textContent=t;if(!t)warn.style.display="none";
+  return h("div",{className:"pick-bar"},
+    h("div",{className:"pick-head"},
+      h("span",{id:"pickCount",style:{fontSize:"13px",fontWeight:"700",color:"#F8FAFC"}},
+        n?plural(n,"sélectionnée"):"Aucune sélectionnée"),
+      h("span",{style:{flex:"1"}}),
+      h("button",{className:"btn btn-ghost xs",onclick:pickStop},"Quitter")),
+    warn,h("div",{className:"btn-row"},acts));
+}
+
 function promoteSelectedToTeam(squad){
   if(!squad){showToast("⚠️ Aucune équipe");return}
   var added=0;
@@ -4429,13 +4678,16 @@ function renderPlayersTab(){
   var season=curSquad();
   var panes=[{k:"db",l:"🗂️ Base de données"},{k:"roster",l:"📋 Convoquées"}];
   var row=h("div",{className:"pill-row"},panes.map(function(p){
-    var b=h("button",{className:"pill"+(state.playersPane===p.k?" active":""),onclick:function(){state.playersPane=p.k;render()}},p.l);
+    var b=h("button",{className:"pill"+(state.playersPane===p.k?" active":""),onclick:function(){
+      state.playersPane=p.k;state.pickMode=null;state.picked=[];render();
+    }},p.l);
     if(state.playersPane===p.k)b.style.background="#3B82F6";
     return b;
   }));
   var body=state.playersPane==="roster"?renderRosterPane(season):renderDbPane(season);
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},row,
-    h("div",{className:"content pad","data-scroll-key":"players-"+state.playersPane},body));
+    h("div",{className:"content pad","data-scroll-key":"players-"+state.playersPane},body),
+    renderPickBar(season));
 }
 
 /* Ordre de la base. « Par date de naissance » se lit ici année par année :
@@ -4459,8 +4711,12 @@ function sortDbPlayers(list,mode,dir){
 function renderDbPane(squad){
   var q=(state.search||"").trim().toLowerCase();
   var players=sortDbPlayers(DB.players,state.dbSort,state.dbSortDir);
-  var shown=players.filter(function(p){return !p.archived&&(!q||fullName(p).toLowerCase().indexOf(q)!==-1)});
-  var archived=players.filter(function(p){return p.archived});
+  function correspond(p){return !q||fullName(p).toLowerCase().indexOf(q)!==-1}
+  var shown=players.filter(function(p){return !p.archived&&correspond(p)});
+  /* La recherche vaut aussi pour les archivées : sans quoi « Tout
+     sélectionner » emporterait des fiches que le filtre ne montrait pas. */
+  var archived=players.filter(function(p){return p.archived&&correspond(p)});
+  var picking=pickIsOn("db");
 
   var searchInp=h("input",{className:"txt",placeholder:"Rechercher…",value:state.search,style:{marginBottom:"10px"}});
   searchInp.addEventListener("input",function(e){state.search=e.target.value;render()});
@@ -4468,10 +4724,16 @@ function renderDbPane(squad){
   function card(p){
     var inSeason=squad?!!rosterEntry(squad,p.id):false;
     var seasons=squadsOf(p.id).length;
+    var sous=(p.birthYear?p.birthYear+" · ":"")+plural(seasons,"équipe-saison")+
+      (p.archived?" · archivée":"")+(picking&&inSeason?" · convoquée":"");
+    if(picking)return pickRow(h("div",{className:"list-row"},
+      h("div",{className:"body"},
+        h("div",{className:"pname"},fullName(p)),
+        h("div",{className:"psub"},sous))),p.id);
     return h("div",{className:"list-row"},
       h("div",{className:"body",onclick:function(){openModal("editplayer",p.id)}},
         h("div",{className:"pname"},fullName(p)),
-        h("div",{className:"psub"},(p.birthYear?p.birthYear+" · ":"")+plural(seasons,"équipe-saison")+(p.archived?" · archivée":""))),
+        h("div",{className:"psub"},sous)),
       squad?h("button",{className:"btn "+(inSeason?"btn-ghost":"btn-save")+" xs",onclick:function(){
         if(inSeason){
           if(!confirmAct("Retirer "+fullName(p)+" de « "+squad.name+" » ?"))return;
@@ -4486,12 +4748,23 @@ function renderDbPane(squad){
       }},inSeason?"✓ Convoquée":"+ Convoquer"):null);
   }
 
+  var tous=shown.concat(archived).map(function(p){return p.id});
+  var barre=picking
+    ? h("div",{className:"btn-row",style:{marginBottom:"12px"}},
+        h("button",{className:"btn btn-ghost sm",onclick:function(){pickSet(tous)}},"Tout ("+tous.length+")"),
+        h("button",{className:"btn btn-ghost sm",onclick:function(){pickSet([])}},"Aucune"))
+    : h("div",{className:"btn-row",style:{marginBottom:"12px"}},
+        h("button",{className:"btn btn-primary sm",onclick:function(){openModal("newplayer")}},"+ Nouvelle joueuse"),
+        h("button",{className:"btn btn-ghost sm",onclick:function(){openModal("bulkplayers")}},"⚡ Ajout en lot"),
+        DB.players.length?h("button",{className:"btn btn-ghost sm",onclick:function(){pickStart("db")}},"☑️ Sélectionner"):null);
+
   var wrap=h("div",null,
-    h("div",{className:"hint"},"La base de données est ",h("b",null,"partagée entre toutes les saisons"),". Une joueuse conserve son historique même si son numéro ou son équipe change."),
-    h("div",{className:"btn-row",style:{marginBottom:"12px"}},
-      h("button",{className:"btn btn-primary sm",onclick:function(){openModal("newplayer")}},"+ Nouvelle joueuse"),
-      h("button",{className:"btn btn-ghost sm",onclick:function(){openModal("bulkplayers")}},"⚡ Ajout en lot"),
-      squad?h("button",{className:"btn btn-ghost sm",onclick:function(){openModal("convoke")}},"📋 Convoquer en lot"):null),
+    picking
+      ? h("div",{className:"hint"},"Cochez des athlètes, puis choisissez en bas : ",
+          h("b",null,"convoquer"),", ",h("b",null,"archiver")," ou ",h("b",null,"supprimer"),
+          ". La recherche et le tri restent actifs — ",h("b",null,"Tout")," ne prend que ce qui est affiché.")
+      : h("div",{className:"hint"},"La base de données est ",h("b",null,"partagée entre toutes les saisons"),". Une joueuse conserve son historique même si son numéro ou son équipe change."),
+    barre,
     triBase(),
     state.dbSort==="birth"?h("div",{className:"muted",style:{marginBottom:"8px"}},
       "Tri sur l'année de naissance de la fiche — celle qui décide des catégories. Les fiches sans année restent en fin de liste."):null,
@@ -4540,18 +4813,58 @@ function renderRosterPane(squad){
     h("div",{className:"hint"},"Aucune joueuse convoquée pour « "+squad.name+" »."),
     h("button",{className:"btn btn-primary full",onclick:function(){state.playersPane="db";render()}},"Choisir dans la base de données"));
   var dup=dupNumbers(squad);
-  var wrap=h("div",null,h("div",{className:"hint"},
-    "Le ",h("b",null,"numéro d'athlète")," est la seule information transmise aux sélectionneurs. Il doit être unique dans la saison. Glissez ☰ pour réordonner."));
+  var picking=pickIsOn("roster");
+  var wrap=h("div",null,picking
+    ? h("div",{className:"hint"},"Cochez les athlètes à retirer de la convocation. ",
+        "Les raccourcis prennent un statut entier — ",h("b",null,"⛔ Non retenue")," après un tryout.")
+    : h("div",{className:"hint"},
+        "Le ",h("b",null,"numéro d'athlète")," est la seule information transmise aux sélectionneurs. Il doit être unique dans la saison. Glissez ☰ pour réordonner."));
   /* Défaire se fait en lot comme faire : on convoque vingt-huit athlètes
-     d'un geste, on doit pouvoir en retirer douze du même. */
-  wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
-    h("button",{className:"btn btn-ghost sm",onclick:function(){
-      state.modalSel=[];openModal("unconvoke");
-    }},"✕ Retirer en lot"),
-    h("button",{className:"btn btn-danger-o sm",onclick:function(){
-      state.modalSel=squad.roster.map(function(e){return e.playerId});
-      openModal("unconvoke");
-    }},"🗑️ Vider la convocation")));
+     d'un geste, on doit pouvoir en retirer douze du même. Vider, lui,
+     reste à un seul bouton : c'est le geste de la liste montée sur la
+     mauvaise saison, et il n'y a rien à y choisir. */
+  if(picking){
+    var comptes={};squad.roster.forEach(function(e){comptes[e.status]=(comptes[e.status]||0)+1});
+    function lot(label,pids){
+      return h("button",{className:"pill sm",onclick:function(){pickSet(pids)}},label);
+    }
+    wrap.appendChild(h("div",{className:"sub-pills",style:{marginBottom:"12px"}},
+      lot("Toutes ("+squad.roster.length+")",squad.roster.map(function(e){return e.playerId})),
+      /* Non retenues en tête : c'est le lot qu'on retire au lendemain d'un
+         tryout, et le seul qu'on ne veut pas aller chercher en défilant. */
+      ["cut","candidate","recalled","selected"].filter(function(st){return comptes[st]}).map(function(st){
+        return lot(STATUSES[st].icon+" "+STATUSES[st].label+" ("+comptes[st]+")",
+          squad.roster.filter(function(e){return e.status===st}).map(function(e){return e.playerId}));
+      }),
+      lot("Aucune",[])));
+  } else {
+    wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
+      h("button",{className:"btn btn-ghost sm",onclick:function(){pickStart("roster")}},"☑️ Sélectionner"),
+      h("button",{className:"btn btn-danger-o sm",onclick:function(){
+        var pids=squad.roster.map(function(e){return e.playerId});
+        if(!confirmAct(texteRetrait(squad,pids,true)))return;
+        var n=removeManyFromSquad(squad,pids);
+        saveNow();render();
+        showToast("🗑️ Convocation vidée — "+plural(n,"joueuse")+(n>1?" retirées":" retirée"));
+      }},"🗑️ Vider la convocation")));
+  }
+  /* En sélection, la ligne n'est plus qu'une cible : ni glisser-déposer,
+     ni numéro modifiable, ni poste — un doigt qui coche ne doit pas
+     renuméroter au passage. */
+  if(picking){
+    squad.roster.forEach(function(e){
+      var p=playerById(e.playerId);if(!p)return;
+      wrap.appendChild(pickRow(h("div",{className:"list-row"},
+        h("span",{className:"num-badge"+(e.number&&dup[e.number]?" dup":""),
+          style:{display:"inline-flex",alignItems:"center",justifyContent:"center"}},e.number||"—"),
+        h("div",{className:"body"},
+          h("div",{className:"pname"},fullName(p)),
+          h("div",{className:"psub"},(e.position?e.position+" · ":"")+
+            (STATUSES[e.status]||STATUSES.candidate).label)),
+        statusBadge(e.status)),e.playerId));
+    });
+    return wrap;
+  }
   squad.roster.forEach(function(e,i){
     var p=playerById(e.playerId);if(!p)return;
     var row=h("div",{className:"list-row","data-idx":String(i),draggable:"true"});
@@ -6925,10 +7238,8 @@ function renderModal(){
         showToast(p0.archived?"📦 Archivée":"↩ Réactivée");
       }},p0.archived?"Réactiver":"📦 Archiver"));
       btns.push(h("button",{className:"btn btn-danger-o full",onclick:function(){
-        var used=squadsOf(p0.id).length;
-        if(!confirmAct("Supprimer définitivement "+fullName(p0)+" ?\nElle sera retirée de "+plural(used,"équipe-saison")+" et tout son historique sera perdu."))return;
-        squadsOf(p0.id).forEach(function(sq){removeFromSquad(sq,p0.id)});
-        DB.players=DB.players.filter(function(x){return x.id!==p0.id});
+        if(!confirmAct(texteSuppression([p0.id])))return;
+        deletePlayersFromDb([p0.id]);
         state.modalDraft=null;closeModal();saveNow();showToast("🗑️ Supprimée");
       }},"Supprimer"));
     }
@@ -6963,100 +7274,6 @@ function renderModal(){
         });
         closeModal();saveNow();showToast("✅ "+plural(n,"joueuse")+" ajoutée(s)");
       }},"Ajouter")],"440px");
-  }
-  if(T==="convoke"){
-    if(!season)return null;
-    var free=sortDbPlayers(DB.players,state.dbSort,state.dbSortDir)
-      .filter(function(p){return !p.archived&&!rosterEntry(season,p.id)});
-    if(!free.length)return modalShell("Convoquer",h("div",{className:"muted"},"Toutes les joueuses actives de la base sont déjà convoquées."),[cancel]);
-    var items2=free.map(function(p){return {id:p.id,label:fullName(p)+(p.birthYear?" ("+p.birthYear+")":"")}});
-    return modalShell("Convoquer dans « "+season.name+" »",
-      h("div",null,selCount(),toggleGrid(items2,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){toggleSel(it.id)}),
-        h("div",{className:"muted",style:{marginTop:"10px"}},"Les numéros d'athlète ne sont pas attribués automatiquement : vous les saisirez dans le tableau de sélection.")),
-      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
-        if(!state.modalSel.length){showToast("⚠️ Sélectionnez au moins une joueuse");return}
-        var n=state.modalSel.length;
-        state.modalSel.forEach(function(pid){
-          if(!rosterEntry(season,pid))season.roster.push(mkRosterEntry(pid,"",""));
-        });
-        logAct("roster",plural(n,"joueuse")+" convoquée(s)",
-          {teamId:season.teamId,seasonId:season.seasonId});
-        state.tab="season";state.seasonPane="selection";state.statusFilter="all";
-        closeModal();saveNow();showToast("✅ "+plural(n,"joueuse")+" convoquée(s) — saisissez les numéros");
-      }},"Convoquer")],"460px");
-  }
-  /* Le pendant de « Convoquer en lot » : on se trompe de saison, un groupe
-     entier ne revient pas, et la liste doit se défaire aussi vite qu'elle
-     s'est faite. La modale dit avant d'agir ce que le retrait emporte —
-     c'est la seule différence entre une correction et une perte. */
-  if(T==="unconvoke"){
-    if(!season)return null;
-    if(!season.roster.length)return modalShell("Retirer de la convocation",
-      h("div",{className:"muted"},"La convocation est déjà vide."),[cancel]);
-    var ros=season.roster.slice();
-    var itemsU=ros.map(function(e){
-      var p=playerById(e.playerId);
-      var st=STATUSES[e.status]||STATUSES.candidate;
-      return {id:e.playerId,label:st.icon+" "+numLabel(e.number)+" "+(p?fullName(p):"joueuse inconnue")};
-    });
-    var comptes={};ros.forEach(function(e){comptes[e.status]=(comptes[e.status]||0)+1});
-    function lot(label,pids){
-      return h("button",{className:"pill sm",onclick:function(){state.modalSel=pids;render()}},label);
-    }
-    var lots=h("div",{className:"sub-pills",style:{marginBottom:"8px"}},
-      lot("Toutes ("+ros.length+")",ros.map(function(e){return e.playerId})),
-      STATUS_ORDER.filter(function(st){return comptes[st]}).map(function(st){
-        return lot(STATUSES[st].icon+" "+STATUSES[st].label+" ("+comptes[st]+")",
-          ros.filter(function(e){return e.status===st}).map(function(e){return e.playerId}));
-      }),
-      lot("Aucune",[]));
-    /* L'avertissement se met à jour à chaque coche : cocher une candidate
-       jamais vue et cocher une titulaire blessée n'engagent pas la même
-       chose, et on ne l'apprend pas après coup. */
-    var perteBox=h("div",{className:"hint warn",style:{marginTop:"10px",display:"none"}});
-    function majPertes(){
-      var d=pertesRetrait(season,state.modalSel),bits=[];
-      if(d.retenues)bits.push(d.retenues+(d.retenues>1?" retenues":" retenue"));
-      if(d.matchs)bits.push(d.matchs+" ayant déjà joué cette saison");
-      if(d.compteurs)bits.push(d.compteurs+" avec des compteurs en cours de saisie");
-      if(d.vues)bits.push(d.vues+" dans une vue déjà distribuée");
-      perteBox.textContent=bits.length?("⚠️ Dont "+bits.join(" · ")+"."):"";
-      perteBox.style.display=bits.length?"":"none";
-    }
-    majPertes();
-    return modalShell("Retirer de « "+season.name+" »",
-      h("div",null,
-        h("div",{className:"muted",style:{marginBottom:"8px"}},
-          "Cochez les athlètes à retirer de la convocation, ou videz-la d'un coup."),
-        lots,selCount(),
-        toggleGrid(itemsU,function(it){return state.modalSel.indexOf(it.id)!==-1},
-          function(it){toggleSel(it.id);majPertes()}),
-        perteBox,
-        h("div",{className:"muted",style:{marginTop:"10px"}},
-          "Le retrait ne touche que cette saison : le numéro, le poste, le statut, la note de l'entraîneur, ",
-          "les compteurs en cours de saisie et la place dans les vues d'évaluation. Les athlètes restent dans ",
-          "la base du club, les matchs déjà enregistrés gardent leurs statistiques, et les évaluations reçues ",
-          "réapparaissent si vous les reconvoquez.")),
-      [cancel,h("button",{id:"modalOk",className:"btn btn-danger-o full",onclick:function(){
-        var pids=state.modalSel.slice();
-        if(!pids.length){showToast("⚠️ Sélectionnez au moins une joueuse");return}
-        var tout=pids.length>=season.roster.length;
-        var d=pertesRetrait(season,pids);
-        var msg=(tout?"Vider la convocation de « "+season.name+" » ?"
-                     :"Retirer "+plural(pids.length,"joueuse")+" de « "+season.name+" » ?")+
-          (d.retenues?"\n\n• "+(d.retenues===1?"1 retenue sort":d.retenues+" retenues sortent")+" de l'effectif de la saison":"")+
-          (d.matchs?"\n• "+(d.matchs===1?"1 joueuse a déjà joué":d.matchs+" joueuses ont déjà joué")+
-            " cette saison — leurs matchs restent au cumul, mais leur fiche de saison s'en va":"")+
-          (d.compteurs?"\n• "+(d.compteurs===1?"1 joueuse perd ses compteurs":d.compteurs+" joueuses perdent leurs compteurs")+" en cours de saisie":"")+
-          (d.vues?"\n• "+(d.vues===1?"1 joueuse figure":d.vues+" joueuses figurent")+" dans une vue déjà distribuée":"")+
-          "\n\nLes fiches restent dans la base du club et les matchs enregistrés ne bougent pas.";
-        if(!confirmAct(msg))return;
-        var n=removeManyFromSquad(season,pids);
-        closeModal();saveNow();
-        var accord=n>1?" retirées":" retirée";
-        showToast(season.roster.length?("✅ "+plural(n,"joueuse")+accord+" de la convocation")
-                                      :("🗑️ Convocation vidée — "+plural(n,"joueuse")+accord));
-      }},"Retirer")],"460px");
   }
 
   /* ── Session / sous-équipe ── */

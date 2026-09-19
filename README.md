@@ -519,19 +519,32 @@ vous publiez explicitement sur votre propre relais.
   un ⚖ et la modale d'application le signale avant d'appliquer. Les notes et les
   compteurs, eux, continuent de s'additionner : ce sont des observations, pas des
   décisions.
-- **Une convocation se défait en lot.** `👥 Joueuses → 📋 Convoquées` ouvre
-  `✕ Retirer en lot` et `🗑️ Vider la convocation`. On coche, ou on prend tout un
-  statut d'un geste — `⛔ Non retenue (11)` après un tryout. La modale annonce
-  **avant d'agir** ce que le retrait emporte (retenues qui sortent de l'effectif,
-  compteurs en cours de saisie, vues déjà distribuées), et le journal n'en garde
-  qu'une ligne, avec les noms : ce fut un seul geste. Les fiches restent dans la
-  base du club, les matchs enregistrés ne bougent pas, et les évaluations reçues
-  réapparaissent si l'athlète est reconvoquée.
+- **Tout se fait en lot, dans la liste elle-même.** `☑️ Sélectionner` fait passer
+  `🗂️ Base de données` et `📋 Convoquées` en mode sélection : on coche des lignes,
+  une barre basse dit ce qu'on peut en faire — `📋 Convoquer`, `📦 Archiver`,
+  `↩ Réactiver`, `🗑️ Supprimer` dans la base ; `✕ Retirer de la convocation` dans
+  la convocation, avec des raccourcis par statut (`⛔ Non retenue (11)` après un
+  tryout). La recherche et le tri restent actifs, et `Tout` ne prend que ce qui est
+  affiché. **Les deux modales « en lot » ont disparu avec** : elles demandaient un
+  second écran pour choisir dans une liste qu'on avait déjà sous les yeux.
+- **Ce qu'un geste emporte est annoncé avant d'agir**, dans la barre à chaque coche
+  puis dans la confirmation : retenues qui sortent de l'effectif, athlètes ayant
+  déjà joué, compteurs en cours de saisie, vues déjà distribuées, fiches avec un
+  historique. Le journal garde une ligne par geste, avec les noms, sous la nature
+  🗂️ *Fiches* pour la base et 👥 *Convocation* pour la saison.
+- **⚠️ Supprimer une fiche efface désormais tout ce que la phrase annonçait** : la
+  fiche, ses convocations dans toutes les saisons, **ses lignes de match** et les
+  relevés que les évaluateurs ont faits d'elle. Auparavant les lignes de match
+  survivaient et le cumul de la saison continuait d'afficher une « Joueuse » sans
+  nom que plus rien ne permettait d'identifier. Pour conserver l'historique sans
+  encombrer la liste : `📦 Archiver`, qui se défait.
+- **`🗑️ Vider la convocation`** reste à un seul bouton, dans `📋 Convoquées` : c'est
+  le geste de la liste montée sur la mauvaise saison, il n'y a rien à y choisir.
 - **La base se trie par année de naissance.** `👥 Joueuses → 🗂️ Base de données`
   propose `A → Z` ou `🎂 Plus âgées d'abord`, un second clic inversant le sens.
-  `📋 Convoquer en lot` reprend le même ordre — c'est ainsi qu'on compose une
-  catégorie. Les fiches sans année restent en fin de liste dans les deux sens : on
-  ne leur invente pas un âge.
+  Trier, cocher, `📋 Convoquer` : c'est ainsi qu'on compose une catégorie. Les
+  fiches sans année restent en fin de liste dans les deux sens : on ne leur invente
+  pas un âge.
 - **[`GUIDE.md`](GUIDE.md)** — un guide d'utilisation qui suit une sélection puis une
   demi-saison de bout en bout.
 

@@ -47,6 +47,29 @@ directement dans la case de gauche, avant de composer les vues.
 L'ajout en lot n'interdit pas les doublons — il les signale après coup. Sur 28
 dossards, vérifiez le bandeau avant de partir.
 
+### Agir sur plusieurs athlètes à la fois
+
+Partout où il y a une liste d'athlètes — `🗂️ Base de données` et `📋 Convoquées` —
+un bouton **`☑️ Sélectionner`** fait passer la liste en mode sélection : on coche des
+lignes, et **une barre apparaît en bas** avec ce qu'on peut en faire. `Quitter` en
+sort. La recherche et le tri restent actifs pendant la sélection, et `Tout` ne prend
+que ce qui est affiché — cherchez `2011`, puis `Tout`, puis l'action.
+
+| Dans | La barre propose |
+|---|---|
+| `🗂️ Base de données` | `📋 Convoquer` · `📦 Archiver` · `↩ Réactiver` · `🗑️ Supprimer` |
+| `📋 Convoquées` | `✕ Retirer de la convocation` |
+
+La barre affiche aussi, **à chaque coche**, ce que la sélection engage :
+`⚠️ Dont 2 avec un historique (matchs ou évaluations) · 3 convoquées dans 1
+équipe-saison.` C'est ce qui distingue une correction anodine d'une perte.
+
+> **Archiver ou supprimer ?** Une athlète qui quitte le club en fin de saison
+> s'**archive** : elle sort des listes, garde tout son historique, et `↩ Réactiver`
+> la ramène. **Supprimer** efface la fiche, ses convocations dans toutes les saisons,
+> ses lignes de match et les relevés que les évaluateurs ont faits d'elle. Rien ne se
+> récupère. La confirmation nomme les fiches et rappelle l'archivage.
+
 ### Retrouver une athlète dans la base : par nom, ou par âge
 
 `👥 Joueuses → 🗂️ Base de données` porte deux ordres, sous `Trier :`
@@ -57,9 +80,9 @@ dossards, vérifiez le bandeau avant de partir.
 | `🎂 Plus âgées d'abord` | l'année de naissance de la fiche ; **un second clic inverse le sens** et le bouton se relit `🎂 Plus jeunes d'abord` |
 
 La base ne retient que **l'année** de naissance, et c'est suffisant : une catégorie
-se décide sur l'année, jamais sur le jour. `📋 Convoquer en lot` propose ensuite la
-base **dans le même ordre** — c'est ainsi qu'on compose un U14 sans se tromper d'une
-cohorte.
+se décide sur l'année, jamais sur le jour. Triez par naissance, passez en
+`☑️ Sélectionner`, cochez la cohorte, `📋 Convoquer` — c'est ainsi qu'on compose un
+U14 sans se tromper d'une année.
 
 > **Les fiches sans année restent en fin de liste, dans les deux sens.** Les mettre
 > en tête des plus âgées reviendrait à leur inventer un âge. Si une athlète vous
@@ -118,14 +141,14 @@ poste est celui de **l'entraîneur** ; l'avis des évaluateurs ne l'écrasera ja
 On convoque vingt-huit athlètes d'un geste ; on doit pouvoir en retirer douze du
 même. `👥 Joueuses → 📋 Convoquées` ouvre deux boutons :
 
-- `✕ Retirer en lot` — vous cochez. Les raccourcis du haut prennent tout un statut
-  d'un coup : `⛔ Non retenue (11)` après un tryout, `◻️ Candidate (4)` pour les
-  fiches restées vides.
-- `🗑️ Vider la convocation` — tout est coché d'avance. C'est le geste de la liste
-  montée sur la mauvaise saison.
+- `☑️ Sélectionner` — vous cochez, puis `✕ Retirer de la convocation` en bas. Les
+  raccourcis du haut prennent tout un statut d'un coup : `⛔ Non retenue (11)` après
+  un tryout, `◻️ Candidate (4)` pour les fiches restées vides.
+- `🗑️ Vider la convocation` — un seul bouton, une seule confirmation. C'est le geste
+  de la liste montée sur la mauvaise saison, et il n'y a rien à y choisir.
 
-**Ce que le retrait emporte est annoncé avant d'agir**, dans la modale puis dans la
-confirmation : les retenues qui sortent de l'effectif de la saison, celles qui ont
+**Ce que le retrait emporte est annoncé avant d'agir**, dans la barre de sélection
+puis dans la confirmation : les retenues qui sortent de l'effectif de la saison, celles qui ont
 déjà joué, les compteurs en cours de saisie qui seront effacés, les athlètes qui
 figurent dans une vue déjà distribuée. Le journal (`🗓️ Saison → 📜 Journal`) n'en
 garde **qu'une ligne**, avec les noms : ce fut un seul geste.
