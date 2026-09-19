@@ -155,7 +155,27 @@ Ce détail n'est pas décoratif : **un chiffre qui décide d'une sélection doit
 
 ## 5 · Régler la formule du score
 
-`📊 Récap → ⭐ Évaluations → ⚖️ Formule`
+### Où la trouver
+
+Deux chemins mènent au même écran :
+
+| Chemin | Quand l'utiliser |
+|---|---|
+| `🗓️ Saison → 📅 Campagnes → ⚖️ Régler` | **avant la séance**, en préparant la campagne |
+| `📊 Récap → ⭐ Évaluations → ⚖️ Formule` | une fois les évaluations reçues, pour ajuster |
+
+La carte du premier écran affiche en permanence la formule en vigueur, sans
+avoir à ouvrir quoi que ce soit :
+
+```
+Formule du score, pour toute la saison          ⚖️ Régler
+Score : critères 50 % · statistiques 50 % ·
+sévérité des sélectionneurs corrigée · amorti
+selon le nombre de regards.
+```
+
+> **Réglez-la avant la séance.** La formule décide de ce sur quoi la sélection se
+> jouera ; la découvrir une fois les notes tombées, c'est la découvrir trop tard.
 
 Le réglage vaut **pour toute la saison**, pas pour une campagne. Comparer septembre
 à décembre n'aurait aucun sens si les deux étaient mesurés autrement. Changer la

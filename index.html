@@ -3744,6 +3744,20 @@ function renderCampaignsPane(squad){
   if(seasonClosed(squad))wrap.appendChild(h("div",{className:"hint warn"},
     "🔒 Saison clôturée. Les vues n'apparaissent plus côté sélectionneur et aucune nouvelle soumission n'est acceptée."));
 
+  /* La formule appartient à la saison, comme les campagnes : c'est ici
+     qu'on prépare une sélection, donc ici qu'on décide sur quoi elle se
+     jouera — avant la séance, pas une fois les notes tombées. */
+  wrap.appendChild(h("div",{className:"card tight",style:{marginBottom:"12px"}},
+    h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{className:"muted"},"Formule du score, pour toute la saison"),
+        h("div",{style:{fontWeight:"700",color:"#F8FAFC",marginTop:"2px",fontSize:"13px",lineHeight:"1.4"}},
+          formuleEnClair(scoringOf(squad)))),
+      h("button",{className:"btn btn-ghost xs",style:{flexShrink:"0"},onclick:function(){
+        state.modalDraft=null;openModal("scoring");
+      }},"⚖️ Régler")),
+    h("div",{style:{marginTop:"2px"}},lienGuide("Chaque réglage expliqué","formule"))));
+
   squad.campaigns.forEach(function(c){
     var active=c.id===squad.activeCampaignId;
     var subs=campaignSubs(squad,c.id).length;
@@ -4843,9 +4857,19 @@ function renderStatsTable(team,modeRow){
 /* ── Évaluations compilées (vue entraîneur) ──────────────────
    Filtrées par campagne : c'est la correction du constat A1. */
 function renderEvalsPane(squad){
+  /* Sans soumission, l'écran n'a pas de classement à montrer — mais la
+     formule, elle, se règle avant la séance et non après. La laisser
+     derrière la première soumission obligeait à découvrir le calcul une
+     fois les notes tombées, c'est-à-dire trop tard. */
   if(!squad.submissions.length)return h("div",null,
     h("div",{className:"hint"},"Aucune évaluation reçue. Créez une vue sélectionneur dans l'onglet 🎯 Sélection, faites-la remplir, puis soumettez-la."),
-    h("button",{className:"btn btn-primary full",onclick:function(){state.tab="selection";state.selectionPane="views";render()}},"🎯 Créer une vue sélectionneur"));
+    h("button",{className:"btn btn-primary full",onclick:function(){state.tab="selection";state.selectionPane="views";render()}},"🎯 Créer une vue sélectionneur"),
+    h("div",{className:"section-title"},"Formule du score"),
+    h("div",{className:"muted",style:{marginBottom:"8px"}},
+      formuleEnClair(scoringOf(squad))+" Réglez-la maintenant, avant la séance : elle vaut pour toute la saison."),
+    h("div",{className:"btn-row"},
+      h("button",{className:"btn btn-ghost sm",onclick:function(){state.modalDraft=null;openModal("scoring")}},"⚖️ Régler la formule")),
+    h("div",{style:{marginTop:"4px"}},lienGuide("Comment se calcule le score","formule")));
 
   var withSubs=squad.campaigns.filter(function(c){return campaignSubs(squad,c.id).length});
   if(state.evalCampaignId&&!campaignById(squad,state.evalCampaignId))state.evalCampaignId=null;
@@ -4903,12 +4927,7 @@ function renderEvalsPane(squad){
     rows.length?h("button",{className:"btn btn-export sm",onclick:function(){exportEvalsCSV(squad,rows,camp)}},"📤 Exporter (CSV)"):null));
   var scNow=scoringOf(squad);
   wrap.appendChild(h("div",{className:"muted",style:{marginBottom:"2px"}},
-    scoringIsPlain(scNow)
-      ? "Score : moyenne simple des critères. Les compteurs relevés ne pèsent pas."
-      : "Score : critères "+(100-Math.round(scNow.statShare*100))+" % · statistiques "+Math.round(scNow.statShare*100)+" %"+
-        (scNow.severity?" · sévérité des sélectionneurs corrigée":"")+
-        (scNow.reliability>0?" · amorti selon le nombre de regards":"")+". "+
-        "Chaque ligne dépliée montre le détail."));
+    formuleEnClair(scNow)+" Chaque ligne dépliée montre le détail."));
   wrap.appendChild(h("div",{style:{marginBottom:"8px"}},
     lienGuide("Comment se calcule le score","formule")));
 
@@ -5847,6 +5866,16 @@ function modalShell(title,body,buttons,maxWidth){
       h("h3",null,title),body,
       h("div",{style:{display:"flex",gap:"8px",marginTop:"6px",flexWrap:"wrap"}},buttons)));
 }
+/* La formule en vigueur, dite en une phrase. Le même texte sert partout
+   où l'on rappelle sur quoi le classement repose. */
+function formuleEnClair(sc){
+  if(scoringIsPlain(sc))return "Score : moyenne simple des critères. Les compteurs relevés ne pèsent pas.";
+  return "Score : critères "+(100-Math.round(sc.statShare*100))+" % · statistiques "+
+    Math.round(sc.statShare*100)+" %"+
+    (sc.severity?" · sévérité des sélectionneurs corrigée":"")+
+    (sc.reliability>0?" · amorti selon le nombre de regards":"")+".";
+}
+
 /* Lien vers le guide d'utilisation. Il vit dans le dépôt plutôt que dans
    l'application : une PWA de 400 ko n'a pas à embarquer son mode d'emploi,
    et GitHub le rend lisible sur téléphone. Hors-ligne le lien ne s'ouvre
