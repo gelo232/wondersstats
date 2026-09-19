@@ -206,6 +206,35 @@ const ERRORS=[];let PASS=0;
     if(r.team!=="U15 Wonders")throw new Error("équipe="+r.team);
     if(r.squad!=="U15 Wonders")throw new Error("copie du squad non rafraîchie : "+r.squad);
   });
+  await step("la saison ne porte pas de catégorie, l'équipe oui",async()=>{
+    await page.evaluate(()=>{state.modalDraft=null;openModal("newseason")});
+    await page.waitForTimeout(160);
+    if(/Catégorie/.test(await page.textContent(".modal")))
+      throw new Error("la modale de saison propose encore une catégorie");
+    await page.evaluate(()=>closeModal());await page.waitForTimeout(120);
+    await page.evaluate(()=>{state.modalDraft=null;openModal("editteam",curTeamRecord().id)});
+    await page.waitForTimeout(160);
+    if(!/Catégorie/.test(await page.textContent(".modal")))
+      throw new Error("la modale d'équipe a perdu sa catégorie");
+    await page.evaluate(()=>closeModal());await page.waitForTimeout(120);
+    /* Le champ n'est plus écrit, et une valeur héritée d'une base
+       existante ne s'affiche plus nulle part. */
+    const r=await page.evaluate(()=>{
+      /* Une valeur que rien d'autre ne peut porter : l'équipe s'appelle
+         « U15 Wonders », son nom ne doit pas faire passer le test. */
+      curSeason().category="ZZ9";curTeamRecord().category="U16";render();
+      const barres=Array.prototype.map.call(document.querySelectorAll(".ctx-bar"),
+        function(x){return x.textContent}).join("|");
+      const neuve=mkSeason("Témoin");
+      delete curSeason().category;
+      return {ecrit:"category" in neuve,saison:barres.indexOf("ZZ9")!==-1,
+        equipe:curTeamRecord().category};
+    });
+    if(r.ecrit)throw new Error("mkSeason porte encore une catégorie");
+    if(r.saison)throw new Error("une catégorie de saison s'affiche encore");
+    if(r.equipe!=="U16")throw new Error("la catégorie de l'équipe a bougé : "+r.equipe);
+    await page.waitForTimeout(120);
+  });
   await step("nouvelle saison reprenant l'effectif précédent",async()=>{
     const teamName=await page.evaluate(()=>curTeamRecord().name);
     await page.evaluate(()=>openModal("newseason"));await page.waitForTimeout(140);

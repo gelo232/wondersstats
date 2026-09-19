@@ -127,6 +127,10 @@ Les catégories ne sont pas figées dans le code : ce sont des **données du clu
 que son administrateur remanie depuis `🛡️ Administration → 👕 Équipes → 🏷️
 Catégories` (le propriétaire y accède aussi depuis la carte du club).
 
+**La catégorie appartient à l'équipe, jamais à la saison.** Un club fait jouer ses
+U13 et ses U21 dans la même saison — celle-ci n'est que son axe de temps. Elle se
+règle donc dans `👕 Équipes`, d'où les équipes-saisons en tiennent leur copie.
+
 La liste de départ d'un club neuf est `U12 · U13 · U14 · U15 · U16 · U18 · U21 ·
 Senior`, mais chaque fédération a les siennes et elles changent : ajoutez,
 retirez, ou repartez de la liste par défaut.
@@ -540,6 +544,11 @@ vous publiez explicitement sur votre propre relais.
   encombrer la liste : `📦 Archiver`, qui se défait.
 - **`🗑️ Vider la convocation`** reste à un seul bouton, dans `📋 Convoquées` : c'est
   le geste de la liste montée sur la mauvaise saison, il n'y a rien à y choisir.
+- **La saison n'a plus de catégorie.** Le formulaire en proposait une, et la barre
+  de contexte l'affichait — mais une saison est l'axe de temps du club, où les U13
+  et les U21 jouent ensemble. Le champ appartenait déjà à l'équipe depuis la v3 : il
+  disparaît de la saison, et reste dans `👕 Équipes`. Les bases existantes gardent
+  la valeur qu'elles portaient ; elle n'est simplement plus lue ni affichée.
 - **La base se trie par date de naissance, jour compris.** `👥 Joueuses →
   🗂️ Base de données` propose `A → Z` ou `🎂 Plus âgées d'abord`, un second clic
   inversant le sens. Trier, cocher, `📋 Convoquer` : c'est ainsi qu'on compose une

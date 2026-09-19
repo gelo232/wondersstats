@@ -584,13 +584,17 @@ les U16. Une campagne *Sélection* ouverte chez les unes n'existe pas chez les a
 |---|---|
 | **Base de joueuses** | tout le club, toutes saisons |
 | **Personnes et rôles** — entraîneurs, sélectionneurs | le club |
-| **Catégories** (U12, U14…) | le club |
+| **Catégories** (U12, U14…) | le club — **portées par l'équipe**, jamais par la saison |
 | **Relais de synchronisation** | le club |
 | **Journal des décisions** | le club, filtrable par équipe |
 
 La **base de joueuses est commune** : une athlète qui passe des U14 aux U16 garde sa
 fiche, son historique et ses évaluations passées. C'est elle qu'on convoque dans
 l'une ou l'autre équipe, jamais un doublon.
+
+Une **saison n'a pas de catégorie** : elle est l'axe de temps du club, et les U13 y
+jouent en même temps que les U21. La catégorie se règle sur l'équipe, dans
+`🛡️ Administration → 👕 Équipes`, et chaque équipe-saison en tient sa copie.
 
 ### D'une saison à l'autre
 

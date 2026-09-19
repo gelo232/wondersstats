@@ -1924,6 +1924,10 @@ function migrateV3(old){
       var team=null;
       db.teams.forEach(function(t){if(t.name===(ot.name||"Équipe"))team=t});
       if(!team){
+        /* Les bases d'avant les équipes durables rangeaient la catégorie
+           sur la saison. Elle descend ici sur l'équipe, à qui elle
+           appartient — c'est le seul endroit où `os.category` se lit
+           encore, et une saison n'en porte plus. */
         team=mkTeamRecord({name:ot.name||"Équipe",category:os.category||""});
         db.teams.push(team);
         db.assignments.push(mkAssignment(admin.id,team.id,"coach"));
@@ -3381,7 +3385,6 @@ function renderSeasonBar(){
     h("button",{className:"grow",onclick:function(){state.tab="season";state.seasonPane="seasons";render()}},
       h("span",null,"🗓️"),
       h("span",{style:{fontWeight:"700",color:"#CBD5E1"}},s?s.name:"Aucune saison"),
-      s&&s.category?h("span",{className:"muted"},s.category):null,
       seasonClosed(s)?h("span",{className:"muted"},"🔒"):null,
       h("span",{style:{opacity:".6"}},"▾")),
     c?h("button",{onclick:function(){state.tab="season";state.seasonPane="campaigns";render()},
@@ -6496,27 +6499,24 @@ function renderModal(){
   if(T==="newseason"||T==="editseason"){
     var s1=T==="editseason"?seasonById(state.modalCtx):null;
     if(T==="editseason"&&!s1)return null;
+    /* Pas de catégorie ici : une saison n'en a pas. Elle est l'axe de
+       temps du club, et le club fait jouer ses U13 et ses U21 dans la
+       même. La catégorie appartient à l'équipe, où elle se règle —
+       👕 Équipes — et d'où les squads en tiennent leur copie. */
     var d=state.modalDraft||(state.modalDraft=s1
-      ?{name:s1.name,category:s1.category||"",startDate:s1.startDate||"",endDate:s1.endDate||"",notes:s1.notes||"",copyFrom:""}
-      :{name:"",category:"",startDate:"",endDate:"",notes:"",copyFrom:""});
+      ?{name:s1.name,startDate:s1.startDate||"",endDate:s1.endDate||"",notes:s1.notes||"",copyFrom:""}
+      :{name:"",startDate:"",endDate:"",notes:"",copyFrom:""});
     function sf(key,label,ph,attrs){
       var inp=h("input",Object.assign({placeholder:ph,value:d[key]||""},attrs||{}));
       inp.addEventListener("input",function(e){d[key]=e.target.value});
       return h("div",{className:"field"},h("label",null,label),inp);
     }
-    var catsS=curCategories();
-    if(d.category&&catsS.indexOf(d.category)===-1)catsS.push(d.category);
-    var catSel=h("select",null,h("option",{value:""},"Non précisée"),
-      catsS.map(function(c){return h("option",{value:c},c)}));
-    catSel.value=d.category;
-    catSel.addEventListener("change",function(e){d.category=e.target.value});
     var nts=h("textarea",{placeholder:"Objectifs, contexte, remarques…",rows:"2"});
     nts.value=d.notes;
     nts.addEventListener("input",function(e){d.notes=e.target.value});
 
     var body=h("div",null,
       sf("name","Nom de la saison","Ex. Saison 2026-2027"),
-      h("div",{className:"field"},h("label",null,"Catégorie"),catSel),
       h("div",{className:"grid2"},
         sf("startDate","Début","",{type:"date"}),
         sf("endDate","Fin","",{type:"date"})),
@@ -6537,10 +6537,10 @@ function renderModal(){
         if(!n){showToast("⚠️ Entrez un nom");return}
         if(d.startDate&&d.endDate&&d.startDate>d.endDate){showToast("⚠️ La fin précède le début");return}
         if(s1){
-          s1.name=n;s1.category=d.category;s1.startDate=d.startDate;s1.endDate=d.endDate;s1.notes=d.notes;
+          s1.name=n;s1.startDate=d.startDate;s1.endDate=d.endDate;s1.notes=d.notes;
         } else {
           var ns=mkSeason(n);
-          ns.category=d.category;ns.startDate=d.startDate;ns.endDate=d.endDate;ns.notes=d.notes;
+          ns.startDate=d.startDate;ns.endDate=d.endDate;ns.notes=d.notes;
           DB.seasons.push(ns);DB.activeSeasonId=ns.id;
           var from=d.copyFrom?seasonById(d.copyFrom):null;
           if(from){
