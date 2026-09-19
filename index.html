@@ -2183,7 +2183,7 @@ function compileSubmissions(squad,campaignId){
       reco:{select:0,recall:0,cut:0},topReco:null,
       pos:emptyPos(),posVotes:0,topPos:null,score:0,notes:[],selectors:[],
       statScore:null,critScore:null,rawScore:0,statFams:{},
-      avis:{},recoTie:false,
+      avis:{},recoTie:false,numeros:[],
       detail:{severity:0,shrink:0,statShare:0}};
     return out[pid];
   }
@@ -2197,6 +2197,12 @@ function compileSubmissions(squad,campaignId){
       if(!dataFilled(e))return;          // athlète non observée : n'entre pas dans les moyennes
       var b=bucket(e.playerId);
       b.n++;
+      /* Le numéro porté ce jour-là. En sélection c'est un dossard, que
+         l'athlète rendra en sortant du gymnase : il n'a rien à voir avec
+         le maillot qu'elle portera la saison durant. Le garder est ce qui
+         permet de relire « la 14 » dans un commentaire six mois plus tard. */
+      var num=cleanNum(e.number);
+      if(num&&b.numeros.indexOf(num)===-1)b.numeros.push(num);
       addStats(b.stats,e.stats);
       /* Une saisie n'est pas une note. Un coach de drill qui ne remplit que
          des compteurs ne doit ni gonfler le nombre de notes, ni peser sur
@@ -3576,7 +3582,9 @@ function renderPlayerSheet(squad,entry,p){
       h("span",{className:"score-pill",style:{background:scoreColor(x.c.nRatings?x.c.score:0)+"22",color:scoreColor(x.c.nRatings?x.c.score:0)}},
         x.c.nRatings?x.c.score.toFixed(1):"—"),
       h("div",{style:{flex:"1",minWidth:"0"}},
-        h("div",{style:{fontSize:"13px",fontWeight:"700",color:"#F8FAFC"}},campaignLabel(x.campaign)),
+        h("div",{style:{fontSize:"13px",fontWeight:"700",color:"#F8FAFC"}},campaignLabel(x.campaign)+
+          (function(){var a=dossardsAutres(x.c,entry);
+            return a.length?"  ·  "+(a.length===1?"dossard ":"dossards ")+a.join(", "):"";})()),
         h("div",{className:"psub"},(x.c.nRatings?plural(x.c.nRatings,"note"):"aucune note")+
           (x.c.n>x.c.nRatings?" · "+plural(x.c.n-x.c.nRatings,"relevé"):"")+" · "+x.c.selectors.join(", "))),
       delta!=null?h("span",{className:"badge",style:{background:deltaColor(delta)+"20",color:deltaColor(delta)}},fmtDelta(delta)):null));
@@ -4985,7 +4993,10 @@ function renderEvalsPane(squad){
       h("span",{className:"score-pill",style:{background:scoreColor(c.nRatings?c.score:0)+"22",color:scoreColor(c.nRatings?c.score:0)}},
         c.nRatings?c.score.toFixed(1):"—"),
       h("div",{style:{flex:"1",minWidth:"0"}},
-        h("div",{className:"pname"},(e&&e.number?"#"+e.number+" ":"")+fullName(p)),
+        h("div",{className:"pname"},(function(){
+          var t=numeroPourCampagne(c,e);
+          return (t?t+" ":"")+fullName(p);
+        })()),
         h("div",{className:"psub"},(c.nRatings?plural(c.nRatings,"note"):"aucune note")+
           (c.n>c.nRatings?" · "+plural(c.n-c.nRatings,"relevé")+" de compteurs":"")+
           " · "+c.selectors.join(", "))),
@@ -5147,7 +5158,7 @@ function exportEvalsCSV(squad,rows,camp){
      — un tableur qui recalculerait la moyenne des critères ne retrouverait
      pas le score, puisque celui-ci porte aussi les statistiques, la
      sévérité corrigée et l'amortissement. */
-  var head=["Campagne","Numero","Joueuse","Position","Statut","Effectif",
+  var head=["Campagne","Numero","Dossard_campagne","Joueuse","Position","Statut","Effectif",
             "Saisies","Notes","Avis","Score","Score_criteres","Score_stats",
             "Corr_severite","Corr_fiabilite","Part_stats"]
     .concat(CRITERIA.map(function(c){return c.label}))
@@ -5158,7 +5169,8 @@ function exportEvalsCSV(squad,rows,camp){
   var lines=[head.join(";")];
   rows.forEach(function(c){
     var p=playerById(c.playerId),e=rosterEntry(squad,c.playerId);
-    lines.push([camp?camp.name:"toutes",(e&&e.number)||"",fullName(p).replace(/;/g,","),
+    lines.push([camp?camp.name:"toutes",(e&&e.number)||"",
+      dossardsAutres(c,e).join("|"),fullName(p).replace(/;/g,","),
       (e&&e.position)||"",(e&&STATUSES[e.status].label)||"",
       (e&&e.status==="selected"&&MEMBERSHIPS[e.membership])?MEMBERSHIPS[e.membership].label:"",
       c.n,c.nRatings,c.nReco,
@@ -5909,6 +5921,25 @@ function modalShell(title,body,buttons,maxWidth){
       h("h3",null,title),body,
       h("div",{style:{display:"flex",gap:"8px",marginTop:"6px",flexWrap:"wrap"}},buttons)));
 }
+/* Le numéro d'une athlète tel qu'il faut le lire pour une campagne : celui
+   qu'elle porte aujourd'hui, et celui qu'elle portait alors s'il a changé.
+   Une retenue reçoit son maillot après la sélection ; sans ce rappel, le
+   classement du tryout afficherait des numéros que personne n'a vus ce
+   jour-là, et les commentaires des évaluateurs deviendraient illisibles. */
+function dossardsAutres(comp,entry){
+  var actuel=cleanNum(entry&&entry.number);
+  var autres=(comp&&comp.numeros||[]).filter(function(n){return n&&n!==actuel});
+  return autres;
+}
+function numeroPourCampagne(comp,entry){
+  var actuel=cleanNum(entry&&entry.number);
+  var autres=dossardsAutres(comp,entry);
+  var tete=actuel?"#"+actuel:"";
+  if(!autres.length)return tete;
+  var d=(autres.length===1?"dossard ":"dossards ")+autres.join(", ");
+  return tete?(tete+" · "+d):(d.charAt(0).toUpperCase()+d.slice(1));
+}
+
 /* La formule en vigueur, dite en une phrase. Le même texte sert partout
    où l'on rappelle sur quoi le classement repose. */
 function formuleEnClair(sc){
@@ -7304,7 +7335,8 @@ function renderModal(){
     changes.forEach(function(ch){
       var p=playerById(ch.entry.playerId);
       list.appendChild(h("div",{className:"list-row"},
-        h("div",{className:"body"},h("div",{className:"pname"},numLabel(ch.entry.number)+" "+shortName(p)),
+        h("div",{className:"body"},h("div",{className:"pname"},
+          (numeroPourCampagne(ch.c,ch.entry)||numLabel(ch.entry.number))+" "+shortName(p)),
           h("div",{className:"psub"},STATUSES[ch.entry.status].label+" → "+STATUSES[ch.target].label+
             "  ("+ch.c.reco[ch.c.topReco]+"/"+ch.c.nReco+" avis"+
             (ch.c.recoTie?", partagés — le plus récent l'emporte":"")+")"))));

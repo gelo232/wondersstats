@@ -65,6 +65,30 @@ vue ouverte sur place par `🎯 Ouvrir ici`.
 
 Corrigez donc les dossards **avant** de distribuer les vues, pendant la préparation.
 
+### Du dossard de sélection au maillot de la saison
+
+Ce sont **deux numéros différents**, et c'est normal : le dossard 1 à 28 se rend en
+sortant du gymnase, le maillot s'attribue une fois l'équipe formée. Après
+`👕 Composer l'équipe`, saisissez les numéros de saison des retenues, toujours au
+même endroit — la case de gauche de `🗓️ Saison → 🎯 Sélection`.
+
+**Le dossard porté pendant la sélection n'est pas perdu pour autant.** Les écrans
+d'évaluation affichent les deux, pour que les commentaires des évaluateurs restent
+lisibles :
+
+```
+ 3.8   #12 · dossard 1   Rosalie Béland
+       « La 1 prend le jeu à son compte. »
+```
+
+Sans ce rappel, le classement du tryout montrerait des numéros que personne n'a vus
+ce jour-là. On le retrouve dans la ligne du classement, dans la modale
+`⚡ Appliquer les avis`, sur la fiche de saison campagne par campagne, et dans
+l'export CSV sous la colonne `Dossard_campagne`.
+
+Une athlète dont le numéro n'a pas changé n'affiche rien de plus : le rappel
+n'apparaît que lorsqu'il y a vraiment deux numéros.
+
 
 ### Les postes du roster
 

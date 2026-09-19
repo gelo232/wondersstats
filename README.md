@@ -488,9 +488,14 @@ vous publiez explicitement sur votre propre relais.
   Un club qui veut retrouver exactement ses anciens scores passe par `Moyenne simple`.
 - **⚠️ Export CSV** — `Récap → ⭐ Évaluations → 📤 Exporter (CSV)` : les colonnes
   `Evaluations` et `Score` deviennent `Saisies · Notes · Avis · Score ·
-  Score_criteres · Score_stats · Corr_severite · Corr_fiabilite · Part_stats`, et une
-  colonne `Eff_<famille>` s'insère avant les compteurs bruts. Relisez par en-tête,
-  jamais par position.
+  Score_criteres · Score_stats · Corr_severite · Corr_fiabilite · Part_stats`, une
+  colonne `Dossard_campagne` s'insère après `Numero`, et une colonne `Eff_<famille>`
+  avant les compteurs bruts. Relisez par en-tête, jamais par position.
+- **Le dossard de sélection survit au maillot.** Les retenues reçoivent leur numéro
+  de saison une fois l'équipe formée ; les écrans d'évaluation affichent alors
+  `#12 · dossard 1`, sans quoi le classement du tryout montrerait des numéros que
+  personne n'a portés ce jour-là et les commentaires des évaluateurs deviendraient
+  illisibles.
 - **Une vue sans compteur est enfin possible.** Décocher tous les groupes de
   statistiques les réaffichait tous ; la liste vide est désormais respectée, ce qui
   permet la vue de notes seules que décrit un plan de sélection.
