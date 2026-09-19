@@ -47,6 +47,25 @@ directement dans la case de gauche, avant de composer les vues.
 L'ajout en lot n'interdit pas les doublons — il les signale après coup. Sur 28
 dossards, vérifiez le bandeau avant de partir.
 
+### Changer un numéro en cours de route
+
+**Oui, à tout moment, et sans rien perdre.** Une athlète est identifiée par sa fiche,
+jamais par son numéro : renuméroter conserve ses évaluations, ses avis reçus, ses
+statistiques de match, sa progression entre campagnes et sa base de sélection. Le
+changement est inscrit au journal (`🗓️ Saison → 📜 Journal`, entrée 🔢 *Numéros*).
+
+Ce qui suit le nouveau numéro : les classements, les fiches, les exports CSV, et une
+vue ouverte sur place par `🎯 Ouvrir ici`.
+
+> **Le seul piège : les vues déjà distribuées.** Un paquet publié par relais ou
+> exporté en fichier emporte les numéros du moment — c'est ce qui le rend lisible
+> hors-ligne. Renuméroter après coup ne le rattrape pas : le sélectionneur verrait
+> l'ancien numéro sur son écran et le nouveau sur le dossard. L'application vous
+> avertit alors, et il suffit de **republier la vue**.
+
+Corrigez donc les dossards **avant** de distribuer les vues, pendant la préparation.
+
+
 ### Les postes du roster
 
 Toujours dans `🎯 Sélection`, dépliez une athlète pour lui donner sa position. Ce

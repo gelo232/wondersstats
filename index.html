@@ -2767,7 +2767,18 @@ function packetToView(data){
   });
   return v;
 }
+/* Une vue partie chez quelqu'un emporte les numéros du moment. Les
+   renuméroter ensuite ne la rattrape pas : le paquet est figé, c'est ce
+   qui le rend lisible hors-ligne. On retient donc qu'elle est partie,
+   pour pouvoir prévenir. */
+function vuesDistribuees(squad,pid){
+  return (squad?squad.selectorViews:[]).filter(function(v){
+    if(v.playerIds.indexOf(pid)===-1)return false;
+    return !!(v.published||v.exportedAt);
+  });
+}
 function exportPacket(squad,view){
+  view.exportedAt=nowISO();
   var bad=viewNumberIssues(squad,view);
   if(bad.length){showToast("⚠️ "+plural(bad.length,"numéro")+" manquant(s) ou en double");return}
   if(downloadJSON(buildPacket(squad,view),"Vue_"+safeName(view.name)+"_"+stamp()+".json"))
@@ -3177,14 +3188,15 @@ function bindInput(el,cb){["input","change"].forEach(function(evt){el.addEventLi
 
 /* Toast hors cycle de rendu : ne détruit pas le DOM (donc pas le focus) */
 var toastTimer=null;
-function showToast(msg){
+function showToast(msg,duree){
   state.toast=msg;
   var app=document.getElementById("app");if(!app)return;
   var old=app.querySelector(".toast");if(old)old.remove();
   var el=h("div",{className:"toast"},msg);
   app.appendChild(el);
   if(toastTimer)clearTimeout(toastTimer);
-  toastTimer=setTimeout(function(){state.toast=null;var t=app.querySelector(".toast");if(t)t.remove();toastTimer=null},2600);
+  toastTimer=setTimeout(function(){state.toast=null;var t=app.querySelector(".toast");if(t)t.remove();toastTimer=null},
+    duree||2600);
 }
 function confirmAct(msg){return window.confirm(msg)}
 function promptAct(msg){return window.prompt(msg)}
@@ -3408,6 +3420,14 @@ function renderSelectionBoard(squad){
         var p=playerById(e.playerId);
         logAct("number",(p?fullName(p):"joueuse")+" : numéro "+(numBefore||"—")+" → "+(e.number||"—"),
           {teamId:squad.teamId,seasonId:squad.seasonId,playerId:e.playerId});
+        /* Ce que le changement ne rattrape pas : les vues déjà entre les
+           mains d'un sélectionneur. Il verrait l'ancien numéro sur son
+           écran et le nouveau sur le dossard. */
+        var parties=vuesDistribuees(squad,e.playerId);
+        if(parties.length)showToast(parties.length===1
+          ? "⚠️ Une vue déjà distribuée affiche encore #"+(numBefore||"—")+" — republiez-la"
+          : "⚠️ "+parties.length+" vues déjà distribuées affichent encore #"+(numBefore||"—")+" — republiez-les",
+          5000);
         numBefore=e.number;
       }
       refreshList();
