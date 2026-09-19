@@ -90,6 +90,30 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     const ok=await page.evaluate(()=>Object.keys(dupNumbers(curSquad())).length===0&&missingNumbers(curSquad()).length===0);
     if(!ok)throw new Error("numéros invalides");
   });
+  await step("la base se trie par année de naissance",async()=>{
+    await page.evaluate(()=>{
+      const an={"Léa":"2011","Sofia":"2009","Maya":"2012","Alice":"2010"};   // Zoé : fiche sans année
+      DB.players.forEach(p=>{p.birthYear=an[p.firstName]||""});
+      state.tab="players";state.playersPane="db";state.search="";
+      state.dbSort="name";state.dbSortDir="old";render();
+    });
+    await page.waitForTimeout(160);
+    const noms=async()=>await page.$$eval(".pname",els=>els.map(e=>e.textContent.split(" ")[0]).join(","));
+    const az=await noms();
+    if(az!=="Alice,Léa,Maya,Sofia,Zoé")throw new Error("A→Z : "+az);
+    await btn("Plus âgées d'abord");await page.waitForTimeout(160);
+    const vieilles=await noms();
+    if(vieilles!=="Sofia,Alice,Léa,Maya,Zoé")throw new Error("plus âgées d'abord : "+vieilles);
+    /* Second clic : le sens s'inverse — mais une fiche sans année ne
+       remonte jamais en tête, on ne lui invente pas un âge. */
+    await btn("Plus âgées d'abord");await page.waitForTimeout(160);
+    const jeunes=await noms();
+    if(jeunes!=="Maya,Léa,Alice,Sofia,Zoé")throw new Error("plus jeunes d'abord : "+jeunes);
+    const libelle=await page.evaluate(()=>state.dbSortDir);
+    if(libelle!=="young")throw new Error("sens du tri="+libelle);
+    await page.evaluate(()=>{state.dbSort="name";state.dbSortDir="old";render()});
+    await page.waitForTimeout(120);
+  });
 
   say("\n── 2. Vues sélectionneur (une joueuse dans deux vues)");
   await step("créer « Tryouts – groupe A » (#7 #12 #3)",async()=>{

@@ -47,6 +47,24 @@ directement dans la case de gauche, avant de composer les vues.
 L'ajout en lot n'interdit pas les doublons — il les signale après coup. Sur 28
 dossards, vérifiez le bandeau avant de partir.
 
+### Retrouver une athlète dans la base : par nom, ou par âge
+
+`👥 Joueuses → 🗂️ Base de données` porte deux ordres, sous `Trier :`
+
+| Bouton | Ce qu'il donne |
+|---|---|
+| `A → Z` | l'ordre alphabétique — pour retrouver un nom qu'on connaît |
+| `🎂 Plus âgées d'abord` | l'année de naissance de la fiche ; **un second clic inverse le sens** et le bouton se relit `🎂 Plus jeunes d'abord` |
+
+La base ne retient que **l'année** de naissance, et c'est suffisant : une catégorie
+se décide sur l'année, jamais sur le jour. `📋 Convoquer en lot` propose ensuite la
+base **dans le même ordre** — c'est ainsi qu'on compose un U14 sans se tromper d'une
+cohorte.
+
+> **Les fiches sans année restent en fin de liste, dans les deux sens.** Les mettre
+> en tête des plus âgées reviendrait à leur inventer un âge. Si une athlète vous
+> manque à l'appel d'une tranche, son année n'est pas saisie : ouvrez sa fiche.
+
 ### Changer un numéro en cours de route
 
 **Oui, à tout moment, et sans rien perdre.** Une athlète est identifiée par sa fiche,
@@ -94,6 +112,34 @@ n'apparaît que lorsqu'il y a vraiment deux numéros.
 
 Toujours dans `🎯 Sélection`, dépliez une athlète pour lui donner sa position. Ce
 poste est celui de **l'entraîneur** ; l'avis des évaluateurs ne l'écrasera jamais.
+
+### Défaire une convocation
+
+On convoque vingt-huit athlètes d'un geste ; on doit pouvoir en retirer douze du
+même. `👥 Joueuses → 📋 Convoquées` ouvre deux boutons :
+
+- `✕ Retirer en lot` — vous cochez. Les raccourcis du haut prennent tout un statut
+  d'un coup : `⛔ Non retenue (11)` après un tryout, `◻️ Candidate (4)` pour les
+  fiches restées vides.
+- `🗑️ Vider la convocation` — tout est coché d'avance. C'est le geste de la liste
+  montée sur la mauvaise saison.
+
+**Ce que le retrait emporte est annoncé avant d'agir**, dans la modale puis dans la
+confirmation : les retenues qui sortent de l'effectif de la saison, celles qui ont
+déjà joué, les compteurs en cours de saisie qui seront effacés, les athlètes qui
+figurent dans une vue déjà distribuée. Le journal (`🗓️ Saison → 📜 Journal`) n'en
+garde **qu'une ligne**, avec les noms : ce fut un seul geste.
+
+> **Ce qui ne bouge pas.** Les fiches restent dans la base du club, avec leur
+> historique. Les matchs déjà enregistrés gardent leurs statistiques et restent
+> lisibles dans `📊 Récap → Cumul`. Et les évaluations reçues restent dans les
+> soumissions : **reconvoquer une athlète les fait réapparaître**, notes et avis
+> compris.
+>
+> **Ce qui est bien perdu**, pour cette saison seulement : son numéro, son poste,
+> son statut, la note de l'entraîneur, ses compteurs en cours de saisie, sa fiche de
+> saison dans `🎯 Sélection` et sa place dans les vues d'évaluation. Une vue déjà
+> partie chez un évaluateur, elle, n'est pas rattrapée : republiez-la.
 
 ---
 

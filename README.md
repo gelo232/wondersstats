@@ -519,6 +519,19 @@ vous publiez explicitement sur votre propre relais.
   un ⚖ et la modale d'application le signale avant d'appliquer. Les notes et les
   compteurs, eux, continuent de s'additionner : ce sont des observations, pas des
   décisions.
+- **Une convocation se défait en lot.** `👥 Joueuses → 📋 Convoquées` ouvre
+  `✕ Retirer en lot` et `🗑️ Vider la convocation`. On coche, ou on prend tout un
+  statut d'un geste — `⛔ Non retenue (11)` après un tryout. La modale annonce
+  **avant d'agir** ce que le retrait emporte (retenues qui sortent de l'effectif,
+  compteurs en cours de saisie, vues déjà distribuées), et le journal n'en garde
+  qu'une ligne, avec les noms : ce fut un seul geste. Les fiches restent dans la
+  base du club, les matchs enregistrés ne bougent pas, et les évaluations reçues
+  réapparaissent si l'athlète est reconvoquée.
+- **La base se trie par année de naissance.** `👥 Joueuses → 🗂️ Base de données`
+  propose `A → Z` ou `🎂 Plus âgées d'abord`, un second clic inversant le sens.
+  `📋 Convoquer en lot` reprend le même ordre — c'est ainsi qu'on compose une
+  catégorie. Les fiches sans année restent en fin de liste dans les deux sens : on
+  ne leur invente pas un âge.
 - **[`GUIDE.md`](GUIDE.md)** — un guide d'utilisation qui suit une sélection puis une
   demi-saison de bout en bout.
 

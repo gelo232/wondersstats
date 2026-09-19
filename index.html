@@ -788,6 +788,7 @@ var state={
   sortBy:null, sortDir:"desc",
   inputMode:"quick", quickPlayer:null, courtPanelOpen:false,
   statusFilter:"all", search:"", logFilter:"all",
+  dbSort:"name", dbSortDir:"old",   // base de données : A→Z, ou par naissance
   toast:null, modalType:null, modalInput:"", modalInput2:"", modalSel:[], modalCtx:null, modalDraft:null,
   editingSubteamId:null, editViewId:null,
   svViewId:null, svPlayerId:null, svGroupIdx:0,
@@ -3759,18 +3760,67 @@ function detachFromTeam(team,pid){
   team.subteams.forEach(function(st){st.playerIds=st.playerIds.filter(function(x){return x!==pid})});
 }
 /* Retire une joueuse de l'équipe pour cette saison. Elle reste dans la
-   base du club, et ses matchs déjà joués restent dans les sessions. */
-function removeFromSquad(squad,pid){
-  logAct("roster",logWho(squad,pid)+" retirée de l'équipe pour cette saison",
-    {teamId:squad.teamId,seasonId:squad.seasonId,playerId:pid});
+   base du club, et ses matchs déjà joués restent dans les sessions.
+
+   Le geste unitaire et le retrait en lot effacent exactement la même
+   chose : ils partagent ce noyau et ne se distinguent que par la ligne
+   qu'ils écrivent au journal. */
+function detachRosterEntry(squad,pid){
   squad.roster=squad.roster.filter(function(e){return e.playerId!==pid});
   detachFromTeam(squad,pid);
   delete squad.stats[pid];
   squad.selectorViews.forEach(function(v){
     v.playerIds=v.playerIds.filter(function(x){return x!==pid});delete v.data[pid];
   });
+}
+function removeFromSquad(squad,pid){
+  logAct("roster",logWho(squad,pid)+" retirée de l'équipe pour cette saison",
+    {teamId:squad.teamId,seasonId:squad.seasonId,playerId:pid});
+  detachRosterEntry(squad,pid);
   state.expandedPlayerId=null;
   scheduleAutoSave();
+}
+/* Retrait en lot. Une convocation se corrige rarement athlète par
+   athlète : on annule le groupe B après un tryout, ou on repart de zéro
+   parce que la liste a été montée sur la mauvaise saison. Retirer
+   vingt-huit fiches d'affilée, avec une confirmation à chaque ✕, n'est
+   pas un geste — c'est une punition.
+
+   Le journal n'en garde qu'une ligne, parce que ce fut un seul geste.
+   Les noms y sont inscrits tant qu'ils restent lisibles ; au-delà, le
+   compte prend le relais. */
+function removeManyFromSquad(squad,pids){
+  if(!squad||!pids||!pids.length)return 0;
+  var qui=[];
+  pids.forEach(function(pid){
+    if(!rosterEntry(squad,pid))return;
+    qui.push(logWho(squad,pid));      /* avant le retrait : le numéro en fait partie */
+    detachRosterEntry(squad,pid);
+  });
+  if(!qui.length)return 0;
+  var liste=qui.slice(0,8).join(", ")+(qui.length>8?", et "+plural(qui.length-8,"autre"):"");
+  logAct("roster",(squad.roster.length?"":"Convocation vidée — ")+
+    plural(qui.length,"joueuse")+(qui.length>1?" retirées":" retirée")+" de la convocation : "+liste,
+    {teamId:squad.teamId,seasonId:squad.seasonId});
+  state.expandedPlayerId=null;
+  scheduleAutoSave();
+  return qui.length;
+}
+/* Ce qu'un retrait emporte vraiment, compté avant de le faire. C'est la
+   seule chose qui distingue une correction anodine d'une perte : une
+   candidate que personne n'a vue s'efface sans conséquence, une retenue
+   qui a joué douze matchs, non. */
+function pertesRetrait(squad,pids){
+  var out={retenues:0,compteurs:0,vues:0,matchs:0};
+  if(!squad)return out;
+  (pids||[]).forEach(function(pid){
+    var e=rosterEntry(squad,pid);if(!e)return;
+    if(e.status==="selected")out.retenues++;
+    if(squad.stats[pid]&&hasStats(squad.stats[pid]))out.compteurs++;
+    if(vuesDistribuees(squad,pid).length)out.vues++;
+    if(playerSeasonStats(squad,pid).sessions)out.matchs++;
+  });
+  return out;
 }
 function promoteSelectedToTeam(squad){
   if(!squad){showToast("⚠️ Aucune équipe");return}
@@ -4388,9 +4438,27 @@ function renderPlayersTab(){
     h("div",{className:"content pad","data-scroll-key":"players-"+state.playersPane},body));
 }
 
+/* Ordre de la base. « Par date de naissance » se lit ici année par année :
+   c'est tout ce que porte une fiche, et c'est aussi tout ce dont un club a
+   besoin — une catégorie se décide sur l'année, jamais sur le jour.
+
+   Les fiches sans année tombent en fin de liste dans les deux sens. Les
+   placer en tête des plus âgées reviendrait à leur inventer un âge. */
+function comparerNoms(a,b){return fullName(a).localeCompare(fullName(b),"fr")}
+function sortDbPlayers(list,mode,dir){
+  var out=list.slice();
+  if(mode!=="birth")return out.sort(comparerNoms);
+  return out.sort(function(a,b){
+    var ya=parseInt(a.birthYear,10),yb=parseInt(b.birthYear,10);
+    var oka=isFinite(ya),okb=isFinite(yb);
+    if(oka!==okb)return oka?-1:1;
+    if(oka&&ya!==yb)return dir==="young"?(yb-ya):(ya-yb);
+    return comparerNoms(a,b);
+  });
+}
 function renderDbPane(squad){
   var q=(state.search||"").trim().toLowerCase();
-  var players=DB.players.slice().sort(function(a,b){return fullName(a).localeCompare(fullName(b),"fr")});
+  var players=sortDbPlayers(DB.players,state.dbSort,state.dbSortDir);
   var shown=players.filter(function(p){return !p.archived&&(!q||fullName(p).toLowerCase().indexOf(q)!==-1)});
   var archived=players.filter(function(p){return p.archived});
 
@@ -4424,6 +4492,9 @@ function renderDbPane(squad){
       h("button",{className:"btn btn-primary sm",onclick:function(){openModal("newplayer")}},"+ Nouvelle joueuse"),
       h("button",{className:"btn btn-ghost sm",onclick:function(){openModal("bulkplayers")}},"⚡ Ajout en lot"),
       squad?h("button",{className:"btn btn-ghost sm",onclick:function(){openModal("convoke")}},"📋 Convoquer en lot"):null),
+    triBase(),
+    state.dbSort==="birth"?h("div",{className:"muted",style:{marginBottom:"8px"}},
+      "Tri sur l'année de naissance de la fiche — celle qui décide des catégories. Les fiches sans année restent en fin de liste."):null,
     searchInp);
   if(!shown.length)wrap.appendChild(h("div",{className:"empty"},DB.players.length?"Aucun résultat":"Base vide — ajoutez vos joueuses."));
   shown.forEach(function(p){wrap.appendChild(card(p))});
@@ -4432,6 +4503,25 @@ function renderDbPane(squad){
     archived.forEach(function(p){wrap.appendChild(card(p))});
   }
   return wrap;
+}
+/* Deux ordres, parce qu'on cherche deux choses : un nom qu'on connaît, ou
+   une tranche d'âge qu'on compose. Le second bouton porte le sens du tri
+   dans son propre libellé — cliquer dessus fait ce qu'il annonce. */
+function triBase(){
+  function pastille(label,actif,onclick){
+    var b=h("button",{className:"pill sm"+(actif?" active":""),onclick:onclick},label);
+    if(actif)b.style.background="#3B82F6";
+    return b;
+  }
+  var parAn=state.dbSort==="birth";
+  return h("div",{className:"sub-pills",style:{marginBottom:"8px",alignItems:"center"}},
+    h("span",{className:"muted",style:{flexShrink:"0",marginRight:"2px"}},"Trier :"),
+    pastille("A → Z",!parAn,function(){state.dbSort="name";render()}),
+    pastille("🎂 "+(state.dbSortDir==="young"?"Plus jeunes d'abord":"Plus âgées d'abord"),parAn,function(){
+      if(parAn)state.dbSortDir=state.dbSortDir==="young"?"old":"young";
+      else state.dbSort="birth";
+      render();
+    }));
 }
 /* Les numéros ne sont jamais attribués par l'application : l'entraîneur les
    saisit, et les corrige ensuite dans le tableau de sélection. On se contente
@@ -4452,6 +4542,16 @@ function renderRosterPane(squad){
   var dup=dupNumbers(squad);
   var wrap=h("div",null,h("div",{className:"hint"},
     "Le ",h("b",null,"numéro d'athlète")," est la seule information transmise aux sélectionneurs. Il doit être unique dans la saison. Glissez ☰ pour réordonner."));
+  /* Défaire se fait en lot comme faire : on convoque vingt-huit athlètes
+     d'un geste, on doit pouvoir en retirer douze du même. */
+  wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
+    h("button",{className:"btn btn-ghost sm",onclick:function(){
+      state.modalSel=[];openModal("unconvoke");
+    }},"✕ Retirer en lot"),
+    h("button",{className:"btn btn-danger-o sm",onclick:function(){
+      state.modalSel=squad.roster.map(function(e){return e.playerId});
+      openModal("unconvoke");
+    }},"🗑️ Vider la convocation")));
   squad.roster.forEach(function(e,i){
     var p=playerById(e.playerId);if(!p)return;
     var row=h("div",{className:"list-row","data-idx":String(i),draggable:"true"});
@@ -6866,7 +6966,8 @@ function renderModal(){
   }
   if(T==="convoke"){
     if(!season)return null;
-    var free=DB.players.filter(function(p){return !p.archived&&!rosterEntry(season,p.id)});
+    var free=sortDbPlayers(DB.players,state.dbSort,state.dbSortDir)
+      .filter(function(p){return !p.archived&&!rosterEntry(season,p.id)});
     if(!free.length)return modalShell("Convoquer",h("div",{className:"muted"},"Toutes les joueuses actives de la base sont déjà convoquées."),[cancel]);
     var items2=free.map(function(p){return {id:p.id,label:fullName(p)+(p.birthYear?" ("+p.birthYear+")":"")}});
     return modalShell("Convoquer dans « "+season.name+" »",
@@ -6883,6 +6984,79 @@ function renderModal(){
         state.tab="season";state.seasonPane="selection";state.statusFilter="all";
         closeModal();saveNow();showToast("✅ "+plural(n,"joueuse")+" convoquée(s) — saisissez les numéros");
       }},"Convoquer")],"460px");
+  }
+  /* Le pendant de « Convoquer en lot » : on se trompe de saison, un groupe
+     entier ne revient pas, et la liste doit se défaire aussi vite qu'elle
+     s'est faite. La modale dit avant d'agir ce que le retrait emporte —
+     c'est la seule différence entre une correction et une perte. */
+  if(T==="unconvoke"){
+    if(!season)return null;
+    if(!season.roster.length)return modalShell("Retirer de la convocation",
+      h("div",{className:"muted"},"La convocation est déjà vide."),[cancel]);
+    var ros=season.roster.slice();
+    var itemsU=ros.map(function(e){
+      var p=playerById(e.playerId);
+      var st=STATUSES[e.status]||STATUSES.candidate;
+      return {id:e.playerId,label:st.icon+" "+numLabel(e.number)+" "+(p?fullName(p):"joueuse inconnue")};
+    });
+    var comptes={};ros.forEach(function(e){comptes[e.status]=(comptes[e.status]||0)+1});
+    function lot(label,pids){
+      return h("button",{className:"pill sm",onclick:function(){state.modalSel=pids;render()}},label);
+    }
+    var lots=h("div",{className:"sub-pills",style:{marginBottom:"8px"}},
+      lot("Toutes ("+ros.length+")",ros.map(function(e){return e.playerId})),
+      STATUS_ORDER.filter(function(st){return comptes[st]}).map(function(st){
+        return lot(STATUSES[st].icon+" "+STATUSES[st].label+" ("+comptes[st]+")",
+          ros.filter(function(e){return e.status===st}).map(function(e){return e.playerId}));
+      }),
+      lot("Aucune",[]));
+    /* L'avertissement se met à jour à chaque coche : cocher une candidate
+       jamais vue et cocher une titulaire blessée n'engagent pas la même
+       chose, et on ne l'apprend pas après coup. */
+    var perteBox=h("div",{className:"hint warn",style:{marginTop:"10px",display:"none"}});
+    function majPertes(){
+      var d=pertesRetrait(season,state.modalSel),bits=[];
+      if(d.retenues)bits.push(d.retenues+(d.retenues>1?" retenues":" retenue"));
+      if(d.matchs)bits.push(d.matchs+" ayant déjà joué cette saison");
+      if(d.compteurs)bits.push(d.compteurs+" avec des compteurs en cours de saisie");
+      if(d.vues)bits.push(d.vues+" dans une vue déjà distribuée");
+      perteBox.textContent=bits.length?("⚠️ Dont "+bits.join(" · ")+"."):"";
+      perteBox.style.display=bits.length?"":"none";
+    }
+    majPertes();
+    return modalShell("Retirer de « "+season.name+" »",
+      h("div",null,
+        h("div",{className:"muted",style:{marginBottom:"8px"}},
+          "Cochez les athlètes à retirer de la convocation, ou videz-la d'un coup."),
+        lots,selCount(),
+        toggleGrid(itemsU,function(it){return state.modalSel.indexOf(it.id)!==-1},
+          function(it){toggleSel(it.id);majPertes()}),
+        perteBox,
+        h("div",{className:"muted",style:{marginTop:"10px"}},
+          "Le retrait ne touche que cette saison : le numéro, le poste, le statut, la note de l'entraîneur, ",
+          "les compteurs en cours de saisie et la place dans les vues d'évaluation. Les athlètes restent dans ",
+          "la base du club, les matchs déjà enregistrés gardent leurs statistiques, et les évaluations reçues ",
+          "réapparaissent si vous les reconvoquez.")),
+      [cancel,h("button",{id:"modalOk",className:"btn btn-danger-o full",onclick:function(){
+        var pids=state.modalSel.slice();
+        if(!pids.length){showToast("⚠️ Sélectionnez au moins une joueuse");return}
+        var tout=pids.length>=season.roster.length;
+        var d=pertesRetrait(season,pids);
+        var msg=(tout?"Vider la convocation de « "+season.name+" » ?"
+                     :"Retirer "+plural(pids.length,"joueuse")+" de « "+season.name+" » ?")+
+          (d.retenues?"\n\n• "+(d.retenues===1?"1 retenue sort":d.retenues+" retenues sortent")+" de l'effectif de la saison":"")+
+          (d.matchs?"\n• "+(d.matchs===1?"1 joueuse a déjà joué":d.matchs+" joueuses ont déjà joué")+
+            " cette saison — leurs matchs restent au cumul, mais leur fiche de saison s'en va":"")+
+          (d.compteurs?"\n• "+(d.compteurs===1?"1 joueuse perd ses compteurs":d.compteurs+" joueuses perdent leurs compteurs")+" en cours de saisie":"")+
+          (d.vues?"\n• "+(d.vues===1?"1 joueuse figure":d.vues+" joueuses figurent")+" dans une vue déjà distribuée":"")+
+          "\n\nLes fiches restent dans la base du club et les matchs enregistrés ne bougent pas.";
+        if(!confirmAct(msg))return;
+        var n=removeManyFromSquad(season,pids);
+        closeModal();saveNow();
+        var accord=n>1?" retirées":" retirée";
+        showToast(season.roster.length?("✅ "+plural(n,"joueuse")+accord+" de la convocation")
+                                      :("🗑️ Convocation vidée — "+plural(n,"joueuse")+accord));
+      }},"Retirer")],"460px");
   }
 
   /* ── Session / sous-équipe ── */

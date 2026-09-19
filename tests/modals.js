@@ -14,7 +14,8 @@ const ERRORS=[];let PASS=0;
   const page=await ctx.newPage();
   page.on("pageerror",e=>ERRORS.push("PAGEERROR: "+e.message));
   page.on("console",m=>{if(m.type()==="error")ERRORS.push("CONSOLE: "+m.text())});
-  page.on("dialog",d=>d.accept());
+  let lastDialog="";
+  page.on("dialog",d=>{lastDialog=d.message();d.accept()});
   /* v4 : les écrans entraîneur vivent dans un contexte (équipe, rôle). */
   const asCoach=async(teamName)=>{
     await page.evaluate((teamName)=>{
@@ -74,6 +75,7 @@ const ERRORS=[];let PASS=0;
     ["editplayer",  ()=>openModal("editplayer",DB.players[0].id)],
     ["bulkplayers", ()=>openModal("bulkplayers")],
     ["convoke",     ()=>{state.modalSel=[];openModal("convoke")}],
+    ["unconvoke",   ()=>{state.modalSel=[];openModal("unconvoke")}],
     ["savesession", ()=>{state.tab="input";openModal("savesession")}],
     ["subteam",     ()=>{state.tab="input";state.editingSubteamId=null;state.modalSel=[];openModal("subteam",null,"")}],
     ["editview",    ()=>{state.tab="selection";state.editViewId=null;state.modalSel=[];openModal("editview")}],
@@ -171,6 +173,79 @@ const ERRORS=[];let PASS=0;
     if(r.roster!==4)throw new Error("roster repris="+r.roster);
     if(r.statuses!=="candidate,candidate,candidate,candidate")throw new Error("statuts="+r.statuses);
     if(r.players!==4)throw new Error("base dupliquée: "+r.players);
+  });
+
+  say("\n── Retrait en lot de la convocation");
+  await step("retirer plusieurs convocations d'un coup",async()=>{
+    await page.evaluate(()=>{state.tab="players";state.playersPane="roster";state.modalSel=[];openModal("unconvoke")});
+    await page.waitForTimeout(160);
+    const n=await page.locator(".modal .court-toggle").count();
+    if(n!==4)throw new Error("athlètes proposées="+n);
+    await page.locator(".modal .court-toggle").nth(0).click();
+    await page.locator(".modal .court-toggle").nth(1).click();
+    await page.locator("#modalOk").click();await page.waitForTimeout(220);
+    const r=await page.evaluate(()=>({roster:curSquad().roster.length,base:DB.players.length,modal:state.modalType}));
+    if(r.roster!==2)throw new Error("roster="+r.roster);
+    if(r.base!==4)throw new Error("la base du club a perdu des fiches : "+r.base);
+    if(r.modal)throw new Error("modale non fermée");
+  });
+  await step("le retrait annonce ce qu'il emporte avant d'agir",async()=>{
+    /* Une retenue, des compteurs en cours de saisie, une vue : le cas où
+       le retrait n'est plus anodin. */
+    await page.evaluate(()=>{
+      const s=curSquad(),e=s.roster[0];
+      setRosterStatus(s,e,"selected");
+      statsOf(s,e.playerId).atk_kill=3;
+      const v=mkSelectorView({name:"Vue A",campaignId:s.activeCampaignId});
+      v.playerIds=s.roster.map(x=>x.playerId);
+      v.playerIds.forEach(pid=>{v.data[pid]=mkEntryData()});
+      s.selectorViews.push(v);
+      state.tab="players";state.playersPane="roster";render();
+    });
+    await page.waitForTimeout(160);
+    await page.locator("button").filter({hasText:"Vider la convocation"}).first().click();
+    await page.waitForTimeout(180);
+    const pre=await page.evaluate(()=>state.modalSel.length);
+    if(pre!==2)throw new Error("présélection du vidage="+pre);
+    const avert=await page.textContent(".modal .hint.warn");
+    if(!/retenue/.test(avert||""))throw new Error("avertissement muet : "+avert);
+    if(!/compteurs/.test(avert||""))throw new Error("compteurs non signalés : "+avert);
+  });
+  await step("vider la convocation ne laisse aucune référence orpheline",async()=>{
+    await page.locator("#modalOk").click();await page.waitForTimeout(250);
+    if(!/retenue sort de l'effectif/.test(lastDialog))throw new Error("confirmation muette : "+lastDialog);
+    const r=await page.evaluate(()=>{
+      const s=curSquad();
+      return {roster:s.roster.length,effectif:curTeam().playerIds.length,
+        stats:Object.keys(s.stats).length,
+        vue:s.selectorViews[0].playerIds.length,
+        donnees:Object.keys(s.selectorViews[0].data).length,
+        base:DB.players.length,
+        vide:DB.log.filter(l=>/Convocation vidée/.test(l.text)).length};
+    });
+    if(r.roster!==0)throw new Error("roster="+r.roster);
+    if(r.effectif!==0)throw new Error("effectif orphelin="+r.effectif);
+    if(r.stats!==0)throw new Error("compteurs orphelins="+r.stats);
+    if(r.vue!==0||r.donnees!==0)throw new Error("vue orpheline="+r.vue+"/"+r.donnees);
+    if(r.base!==4)throw new Error("la base du club a perdu des fiches : "+r.base);
+    if(r.vide!==1)throw new Error("journal : "+r.vide+" ligne(s) de vidage au lieu d'une");
+  });
+  await step("la modale le dit quand il n'y a plus rien à retirer",async()=>{
+    await page.evaluate(()=>{state.modalSel=[];openModal("unconvoke")});await page.waitForTimeout(160);
+    const t=await page.textContent(".modal");
+    if(!/déjà vide/.test(t||""))throw new Error("modale="+t);
+    await page.locator(".modal button").filter({hasText:"Annuler"}).click();await page.waitForTimeout(120);
+  });
+  await step("« Convoquer en lot » propose la base dans l'ordre choisi",async()=>{
+    await page.evaluate(()=>{
+      const an={"Léa":"2011","Sofia":"2009","Maya":"2012"};       // Alice : fiche sans année
+      DB.players.forEach(p=>{p.birthYear=an[p.firstName]||""});
+      state.dbSort="birth";state.dbSortDir="old";state.modalSel=[];openModal("convoke");
+    });
+    await page.waitForTimeout(180);
+    const ordre=await page.$$eval(".modal .court-toggle",els=>els.map(e=>e.textContent.split(" ")[0]).join(","));
+    if(ordre!=="Sofia,Léa,Maya,Alice")throw new Error("ordre de la modale : "+ordre);
+    await page.locator(".modal button").filter({hasText:"Annuler"}).click();await page.waitForTimeout(120);
   });
 
   await ctx.close();await b.close();
