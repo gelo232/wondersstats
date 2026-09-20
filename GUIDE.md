@@ -240,18 +240,14 @@ appareils, configurez le relais et utilisez `📡 Publier` ; hors-ligne,
 
 L'écran présente les dossards en tuiles.
 
-### Se faire des groupes — c'est l'évaluateur qui les compose
+### Les groupes, et qui les compose
 
 Vingt-huit numéros sur un écran de téléphone, personne ne s'y retrouve. La rangée du
-haut porte `⚙️ Créer des groupes` : **c'est vous qui les faites, sur votre écran**.
-L'entraîneure ne sait pas dans quel ordre les vagues passeront devant vous, ni si
-vous préférez regrouper par poste ; elle ne vous impose rien.
+haut porte `⚙️ Groupes`. Deux chemins dans la modale :
 
-Deux chemins dans la modale :
-
-- **Découper la vue** — `par 4 · 5 · 6 · 7 · 8 · 10`. `par 7` fait de 28 athlètes
-  **4 groupes de 7**, nommés `Groupe A` à `Groupe D`, dans l'ordre des numéros. Le
-  dernier est plus petit quand le compte ne tombe pas juste.
+- **Découper la vue** — `par 2 · 3 · 4 · 5 · 6 · 7 · 8 · 10`. `par 7` fait de 28
+  athlètes **4 groupes de 7**, nommés `Groupe A` à `Groupe D`, dans l'ordre des
+  numéros. Le dernier est plus petit quand le compte ne tombe pas juste.
 - **À la main** — `+ Groupe` en crée un, vous le renommez (« Passeuses », « 9 h »),
   puis vous touchez les numéros à y mettre. Une puce déjà prise affiche son groupe
   (`#8 · B`) ; la toucher l'y enlève et l'amène chez vous. **Un numéro n'appartient
@@ -261,6 +257,16 @@ Les deux se combinent : découpez d'un geste, puis rectifiez à la main.
 
 Une fois enregistrés, la rangée devient `Toutes 12/28 · Groupe A 7/7 · Groupe B 5/7 …`
 et vous n'avez devant vous **que la vague choisie**, avec son avancement.
+
+> **Les groupes suivent la vue.** L'entraîneure peut les préparer avant d'inviter —
+> `🎯 Ouvrir ici` sur la carte de la vue mène au même écran, au même `⚙️ Groupes` —
+> et ils partent alors dans le paquet : l'invité les retrouve sur son appareil au
+> lieu de vingt-huit numéros en vrac. La carte de la vue affiche `🧩 4 groupes`.
+>
+> **Mais ils restent à qui évalue.** Vous les recomposez comme vous voulez, ça tient
+> au rechargement, et **une republication de l'entraîneure n'y touche pas** : elle
+> recadre simplement vos groupes sur les athlètes encore dans la vue. Si vous n'en
+> aviez aucun, ceux qui arrivent avec la vue vous servent de point de départ.
 
 ### Libérer l'écran pendant la saisie
 

@@ -589,15 +589,19 @@ vous publiez explicitement sur votre propre relais.
   sélectionneur ne dépose que pour la sienne. L'équipe est maintenant estampillée à
   la réception, et à défaut celle du jeton fait foi, ce qui rattrape les vues déjà
   reçues.
-- **L'évaluateur se fait ses propres groupes.** `⚙️ Créer des groupes` sur son écran
-  de saisie : `par 7` fait de 28 athlètes **4 groupes de 7** dans l'ordre des
-  numéros, ou `+ Groupe` en crée un qu'il nomme (« Passeuses », « 9 h ») et
-  qu'il remplit en touchant les numéros — une puce déjà prise affiche son groupe
-  (`#8 · B`), et un numéro n'appartient qu'à un seul. Il ne voit ensuite que la vague
-  qui passe, avec son avancement (`Groupe B 3/7`), et les flèches du panneau restent
-  dans le groupe : « athlète 3/7 », pas 3/28. **L'entraîneur ne compose pas ces
-  groupes** — il ne sait pas dans quel ordre les vagues passeront devant l'évaluateur
-  — et ils ne voyagent pas dans le paquet : republier une vue ne les efface pas.
+- **Les groupes se composent sur l'écran de saisie, et suivent la vue.**
+  `⚙️ Groupes` : `par 7` fait de 28 athlètes **4 groupes de 7** dans l'ordre des
+  numéros, ou `+ Groupe` en crée un qu'on nomme (« Passeuses », « 9 h ») et qu'on
+  remplit en touchant les numéros — une puce déjà prise affiche son groupe (`#8 · B`),
+  et un numéro n'appartient qu'à un seul. On ne voit ensuite que la vague qui passe,
+  avec son avancement (`Groupe B 3/7`), et les flèches du panneau restent dans le
+  groupe : « athlète 3/7 », pas 3/28.
+  L'entraîneur peut les **préparer avant d'inviter** (`🎯 Ouvrir ici` mène au même
+  écran) : ils partent alors dans le paquet et l'invité les retrouve sur son appareil.
+  Mais ils **restent à qui évalue** : il les recompose à sa guise, ça tient au
+  rechargement, et **une republication n'y touche pas** — elle les recadre simplement
+  sur les athlètes encore dans la vue. Sans groupes de son côté, ceux qui arrivent
+  avec la vue servent de point de départ.
 - **La grille de numéros se replie**, et les athlètes déjà évaluées se masquent.
   Repliée, le panneau de saisie a tout l'écran : sur un téléphone, vingt-huit tuiles
   et un formulaire ne tiennent pas ensemble.

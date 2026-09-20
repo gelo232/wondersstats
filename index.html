@@ -2897,10 +2897,18 @@ function buildPacket(squad,view){
     view:{
       id:view.id,name:view.name,selectorName:view.selectorName,
       criteria:view.criteria.slice(),groups:view.groups.slice(),
-      /* Les groupes d'athlètes ne voyagent pas : ils appartiennent à qui
-         évalue. C'est lui qui sait comment il veut organiser sa séance —
-         par vagues du gymnase, par poste, par ce qu'il voit du terrain —
-         et l'entraîneur n'a pas à le décider pour lui. */
+      /* Les groupes d'athlètes voyagent avec la vue : composés une fois,
+         ils la suivent chez celui qu'on invite, au lieu de le laisser
+         devant vingt-huit numéros en vrac. Ils ne portent que des
+         identifiants déjà présents dans `players` — rien de nominatif ne
+         s'ajoute au paquet.
+
+         Ils restent malgré tout le travail de celui qui évalue : il les
+         recompose comme il veut sur son écran, et une republication ne
+         les écrase jamais (voir pullForSelector). */
+      playerGroups:(view.playerGroups||[]).map(function(g){
+        return {id:g.id,name:g.name,playerIds:g.playerIds.slice()};
+      }),
       anonymous:anon,context:view.context||"",
       players:view.playerIds.map(function(pid){
         var o={playerId:pid,number:numOf(squad,pid)};
@@ -3327,9 +3335,12 @@ function pullForSelector(){
         existing.campaignId=fresh.campaignId;existing.campaignName=fresh.campaignName;
         existing.context=fresh.context;existing.numbers=fresh.numbers;
         existing.playerIds=fresh.playerIds;
-        /* Les groupes sont le travail de l'évaluateur : on ne les
-           remplace pas, on les recadre sur les athlètes encore présentes. */
-        existing.playerGroups=normPlayerGroups(existing.playerGroups,fresh.playerIds);
+        /* Les groupes sont le travail de celui qui évalue : une vue
+           republiée ne les remplace pas, elle les recadre sur les
+           athlètes encore présentes. Mais s'il n'en avait aucun, ceux qui
+           arrivent avec la vue lui servent de point de départ. */
+        var siens=normPlayerGroups(existing.playerGroups,fresh.playerIds);
+        existing.playerGroups=siens.length?siens:fresh.playerGroups;
         existing.teamId=fresh.teamId||existing.teamId;
         fresh.playerIds.forEach(function(pid){if(!existing.data[pid])existing.data[pid]=mkEntryData()});
         updated++;
@@ -6010,6 +6021,9 @@ function renderViewCard(squad,camp,v){
             :{background:"#33415530",color:"#94A3B8"}},
             pv.token?("🔗 réservée à "+pv.name):("👤 "+pv.name+" — sans lien"));
         })(),
+        (v.playerGroups||[]).length?h("span",{className:"badge",
+          style:{background:"#6366F122",color:"#A5B4FC",borderColor:"#6366F155"}},
+          "🧩 "+plural(v.playerGroups.length,"groupe")):null,
         v.context?h("span",{className:"badge",style:{background:"#0F172A",color:"#94A3B8",borderColor:"#334155"}},v.context):null)),
     h("div",{className:"btn-row"},
       h("button",{className:"btn btn-ghost xs",onclick:function(){state.editViewId=v.id;state.modalSel=v.playerIds.slice();openModal("editview")}},"✏️"),
@@ -8018,6 +8032,10 @@ function renderModal(){
         "« ",h("b",null,vI.name)," » · ",plural(vI.playerIds.length,"athlète"),
         " · ",plural(vI.criteria.length,"critère"),
         vI.anonymous?" · numéros seuls":" · nominative"),
+      h("div",{className:"muted",style:{margin:"-4px 0 10px"}},
+        (vI.playerGroups||[]).length
+          ? "🧩 "+plural(vI.playerGroups.length,"groupe")+" partent avec la vue. L'évaluateur pourra les recomposer ; une republication ne touchera pas les siens."
+          : "Aucun groupe : l'évaluateur composera les siens sur son écran. Pour les préparer ici, ouvrez la vue avec 🎯 Ouvrir ici."),
       h("div",{className:"field"},h("label",null,"Qui évalue cette vue ?"),nomInpI),
       connus.length?h("div",{className:"muted",style:{margin:"-6px 0 4px"}},"Déjà connus de l'équipe :"):null,
       connus.length?h("div",{className:"sub-pills",style:{marginBottom:"10px"}},
@@ -8079,7 +8097,7 @@ function renderModal(){
     }
     /* Découper : on repart de zéro, dans l'ordre des numéros. */
     var decoupe=h("div",{className:"sub-pills",style:{marginBottom:"6px"}},
-      [4,5,6,7,8,10].map(function(t){
+      [2,3,4,5,6,7,8,10].map(function(t){
         return h("button",{className:"pill sm",onclick:function(){
           dG.groupes=decouperEnGroupes(ordreG,t);
           dG.sel=dG.groupes.length?dG.groupes[0].id:"";

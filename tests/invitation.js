@@ -219,7 +219,9 @@ async function serveRelay(route,request){
     await coach.page.waitForTimeout(400);
     const paquets=[...items.values()].filter(v=>v.kind==="packet");
     if(paquets.length!==1)throw new Error("paquets="+paquets.length);
-    if(paquets[0].payload.view.playerGroups)throw new Error("le paquet emporte des groupes qui ne le regardent pas");
+    /* La vue n'a pas encore de groupes : le paquet n'en porte donc aucun. */
+    if((paquets[0].payload.view.playerGroups||[]).length)
+      throw new Error("des groupes sont partis alors que la vue n'en a pas");
     const brut=JSON.stringify(paquets[0].payload);
     const fuite=NOMS.filter(n=>brut.includes(n));
     if(fuite.length)throw new Error("fuite de noms sur le relais : "+fuite.join(", "));
@@ -473,8 +475,87 @@ async function serveRelay(route,request){
       noms:INBOX.views.map(v=>v.name)}));
     if(r.n!==1)throw new Error("Marie reçoit "+r.n+" vues ("+r.noms.join(", ")+")");
     if(!/samedi/.test(r.noms[0]))throw new Error("Marie a reçu : "+r.noms[0]);
-    await karl.ctx.close();
   });
+
+  say("\n── Les groupes suivent la vue, et restent à qui évalue");
+  await step("l'entraîneure compose des groupes dans la vue, puis republie",async()=>{
+    const carte=coach.page.locator(".view-card").filter({hasText:"vague du dimanche"});
+    await carte.locator("button").filter({hasText:"Ouvrir ici"}).click();
+    await coach.page.waitForTimeout(500);
+    await coach.page.locator(".sub-pills .pill").filter({hasText:"Créer des groupes"}).click();
+    await coach.page.waitForTimeout(350);
+    await coach.page.locator(".modal .pill").filter({hasText:"par 2"}).first().click();
+    await coach.page.waitForTimeout(300);
+    await coach.page.locator("#modalOk").click();
+    await coach.page.waitForTimeout(400);
+    const r=await coach.page.evaluate(()=>{
+      const v=svFind(state.svViewId).view;
+      return {n:v.playerGroups.length,tailles:v.playerGroups.map(g=>g.playerIds.length)};
+    });
+    if(r.n!==3)throw new Error("groupes composés="+r.n);
+    if(r.tailles.join(",")!=="2,2,1")throw new Error("tailles="+r.tailles.join(","));
+    /* Retour entraîneure, et republication de la vue. */
+    await coach.page.evaluate((tid)=>{switchCtx({role:"coach",teamId:tid});
+      state.tab="selection";state.selectionPane="views";render()},teamId);
+    await coach.page.waitForTimeout(400);
+    await coach.page.locator(".view-card").filter({hasText:"vague du dimanche"})
+      .locator("button").filter({hasText:"Republier"}).click();
+    await coach.page.waitForTimeout(1000);
+    const paquet=[...items.values()].find(x=>x.kind==="packet"&&x.payload.view.name==="Tryout — vague du dimanche");
+    if(!paquet.payload.view.playerGroups||paquet.payload.view.playerGroups.length!==3)
+      throw new Error("le paquet ne porte pas les groupes");
+    /* Toujours rien de nominatif dans ce qui part. */
+    const fuite=NOMS.filter(n=>JSON.stringify(paquet.payload).includes(n));
+    if(fuite.length)throw new Error("fuite de noms : "+fuite.join(", "));
+  });
+
+  await step("Karl les reçoit sur son appareil",async()=>{
+    await karl.page.evaluate(()=>pullForSelector());
+    await karl.page.waitForTimeout(1200);
+    const r=await karl.page.evaluate(()=>{
+      const v=INBOX.views[0];
+      return {n:(v.playerGroups||[]).length,noms:(v.playerGroups||[]).map(g=>g.name)};
+    });
+    if(r.n!==3)throw new Error("groupes reçus="+r.n);
+    if(r.noms.join(",")!=="Groupe A,Groupe B,Groupe C")throw new Error("noms="+r.noms.join(","));
+    /* Et l'écran de saisie les propose. */
+    await karl.page.evaluate(()=>{state.svViewId=INBOX.views[0].id;state.svPlayerId=null;
+      state.svPlayerGroupId=null;state.tab="sv_eval";render()});
+    await karl.page.waitForTimeout(400);
+    const pastilles=await karl.page.$$eval(".sub-pills .pill",e=>e.map(x=>x.textContent).join("|"));
+    if(!/Groupe B/.test(pastilles))throw new Error("pastilles : "+pastilles);
+    await karl.page.locator(".sub-pills .pill").filter({hasText:"Groupe B"}).first().click();
+    await karl.page.waitForTimeout(300);
+    if(await karl.page.locator(".num-tile").count()!==2)throw new Error("le groupe B n'a pas 2 numéros");
+  });
+
+  await step("il les recompose, et cela survit au rechargement",async()=>{
+    await karl.page.locator(".sub-pills .pill").filter({hasText:"⚙️ Groupes"}).click();
+    await karl.page.waitForTimeout(350);
+    await karl.page.locator(".modal .pill").filter({hasText:"par 5"}).first().click();
+    await karl.page.waitForTimeout(300);
+    await karl.page.locator("#modalOk").click();
+    await karl.page.waitForTimeout(400);
+    const avant=await karl.page.evaluate(()=>INBOX.views[0].playerGroups.map(g=>g.playerIds.length));
+    if(avant.join(",")!=="5")throw new Error("recomposition="+avant.join(","));
+    await karl.page.reload();
+    await franchirGarde(karl.page,"Karl B.");
+    await karl.page.waitForTimeout(900);
+    const apres=await karl.page.evaluate(()=>INBOX.views[0].playerGroups.map(g=>g.playerIds.length));
+    if(apres.join(",")!=="5")throw new Error("après rechargement="+apres.join(","));
+  });
+
+  await step("et une republication de l'entraîneure ne les écrase pas",async()=>{
+    await coach.page.locator(".view-card").filter({hasText:"vague du dimanche"})
+      .locator("button").filter({hasText:"Republier"}).click();
+    await coach.page.waitForTimeout(1000);
+    await karl.page.evaluate(()=>{SYNC.pulled.packet="";pullForSelector()});
+    await karl.page.waitForTimeout(1200);
+    const r=await karl.page.evaluate(()=>INBOX.views[0].playerGroups.map(g=>g.playerIds.length));
+    if(r.join(",")!=="5")throw new Error("les groupes de Karl ont été écrasés : "+r.join(","));
+  });
+
+  await karl.ctx.close();
 
   /* ── Ce qui faisait échouer l'invitation dans la vraie vie ────
      Trois chemins qui menaient tous au même écran : « Je suis le
