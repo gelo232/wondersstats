@@ -272,8 +272,8 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .seq-tile.taken{background:#0F172A;color:#64748B;border-color:#1E293B}
 .seq-tile.mine{border-color:#3B82F6;background:#1E3A5F;color:#fff}
 .seq-tile.mine .who{color:#93C5FD}
-.num-head{position:sticky;top:0;z-index:2;background:#162032;border-bottom:1px solid #1E293B;padding:10px 12px;margin:-14px -12px 12px}
-@media(min-width:600px){.num-head{margin:-20px -24px 12px;padding:12px 24px}}
+.num-head{background:#162032;border-bottom:1px solid #1E293B;padding:10px 12px;flex-shrink:0}
+@media(min-width:600px){.num-head{padding:12px 24px}}
 .num-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:8px}
 .num-tile{height:62px;border-radius:12px;border:2px solid #334155;background:#1E293B;color:#94A3B8;font-weight:800;font-size:20px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:all .15s;touch-action:manipulation;padding:0}
 .num-tile.active{border-color:#F59E0B;background:#422006;color:#FDE68A}
@@ -4967,11 +4967,24 @@ function renderPlayersTab(){
     if(state.playersPane===p.k)b.style.background="#3B82F6";
     return b;
   }));
-  var body=state.playersPane==="roster"?renderRosterPane(season)
-          :state.playersPane==="numbers"?renderNumberingPane(season)
-          :renderDbPane(season);
-  return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},row,
-    h("div",{className:"content pad","data-scroll-key":"players-"+state.playersPane},body),
+  /* La barre de l'athlète ne défile pas avec la série : elle vit à côté
+     du contenu, comme la barre de saisie. Collée (`sticky`) dans un
+     conteneur qui porte du padding, elle laissait les tuiles défiler
+     dans la bande du haut — on voyait passer des demi-numéros au-dessus
+     d'elle. Le volet la rend donc à part, et l'onglet la pose ici. */
+  var head=null,body;
+  if(state.playersPane==="roster")body=renderRosterPane(season);
+  else if(state.playersPane==="numbers"){
+    var np=renderNumberingPane(season);
+    if(np&&np.head){head=np.head;body=np.body}else body=np;
+  }
+  else body=renderDbPane(season);
+  /* Deux écrans sous le même volet, deux défilements : sans clé distincte,
+     ouvrir la grille la rendait déjà défilée, à la hauteur où l'on avait
+     laissé la liste. */
+  var cle="players-"+state.playersPane+(head?"-grille":"");
+  return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},row,head,
+    h("div",{className:"content pad","data-scroll-key":cle},body),
     renderPickBar(season));
 }
 
@@ -5251,8 +5264,8 @@ function renderNumberingPane(squad){
         h("div",{style:{flex:"1",minWidth:"0"}},
           h("div",{className:"pname"},fullName(p0)),
           h("div",{className:"psub"},e0.number
-            ?"Touchez son numéro pour le retirer, ou un autre pour le changer"
-            :"Touchez un numéro de la série")),
+            ?"Touchez un numéro. Le sien le retire."
+            :"Touchez un numéro de la série.")),
         h("div",{className:"btn-row",style:{flexShrink:"0"}},
           h("button",{className:"btn btn-ghost xs",disabled:idx<=0,
             onclick:function(){allerA(liste[idx-1].playerId)}},"←"),
@@ -5275,7 +5288,7 @@ function renderNumberingPane(squad){
           render();
         }},h("span",null,t));
       if(porteur)tuile.appendChild(h("span",{className:"who"},
-        mien?"elle":shortName(playerById(porteur.playerId))));
+        shortName(playerById(porteur.playerId))));
       grille.appendChild(tuile);
     })(n);
 
@@ -5284,11 +5297,11 @@ function renderNumberingPane(squad){
         " est hors de la série ",serie.from,"–",serie.to,". Il reste valable : la série n'est qu'un jeu de chasubles.")
       :null;
 
-    return h("div",null,tete,horsSerie,grille,
+    return {head:tete,body:h("div",null,horsSerie,grille,
       h("div",{className:"muted",style:{marginTop:"12px"}},
         "Série ",serie.from,"–",serie.to,". ",
         h("button",{className:"linky",onclick:function(){state.numPlayer=null;render()}},
-          "Changer la série")));
+          "Changer la série")))};
   }
 
   /* ── La liste : qui a quoi, et qui n'a rien ───────────────── */

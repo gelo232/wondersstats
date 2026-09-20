@@ -438,6 +438,15 @@ const ERRORS=[];let PASS=0;
     if(await prise.count()!==2)throw new Error("tuiles prises="+await prise.count());
     const t=await prise.first().textContent();
     if(!/Num1/.test(t))throw new Error("la tuile ne nomme pas son porteur : "+t);
+    /* Y compris la sienne : « elle » ne disait rien à personne. */
+    const choisie=await page.evaluate(()=>state.numPlayer);
+    await page.evaluate(()=>{const s=curSquad();state.numPlayer=s.roster[0].playerId;render()});
+    await page.waitForTimeout(250);
+    const mienne=await page.locator(".seq-tile.mine").textContent();
+    if(/elle/.test(mienne)||!/Num1/.test(mienne))
+      throw new Error("sa propre tuile : "+mienne);
+    await page.evaluate((pid)=>{state.numPlayer=pid;render()},choisie);
+    await page.waitForTimeout(200);
   });
 
   await step("le lui reprendre échange les deux dossards",async()=>{
@@ -495,6 +504,45 @@ const ERRORS=[];let PASS=0;
     if(r.sans)throw new Error(r.sans+" athlète(s) sans numéro : "+r.nums);
     if(r.dup)throw new Error("doublons : "+r.nums);
   });
+
+  await step("la barre de l'athlète ne mange pas la série",async()=>{
+    /* Elle vit à côté du contenu qui défile, pas dedans : collée dans un
+       conteneur à padding, elle laissait passer des demi-tuiles au-dessus
+       d'elle. Et ouvrir la grille ne doit pas hériter du défilement de la
+       liste, sinon on tombe au milieu des numéros. */
+    await page.evaluate(()=>{
+      const s=curSquad();s.numbering={from:1,to:99};
+      state.numPlayer=null;state.numFilter="all";render();
+    });
+    await page.waitForTimeout(300);
+    await page.evaluate(()=>{document.querySelector(".content").scrollTop=300});
+    await page.waitForTimeout(200);
+    await page.locator(".list-row").first().click();
+    await page.waitForTimeout(350);
+    const r=await page.evaluate(()=>{
+      const c=document.querySelector(".content"),head=document.querySelector(".num-head");
+      const cr=c.getBoundingClientRect();
+      const t1=document.querySelectorAll(".seq-tile")[0].getBoundingClientRect();
+      return {dedans:c.contains(head),scroll:Math.round(c.scrollTop),
+        barreAuDessus:Math.round(head.getBoundingClientRect().bottom)<=Math.round(cr.top)+1,
+        premiereVisible:Math.round(t1.top)>=Math.round(cr.top)-1};
+    });
+    if(r.dedans)throw new Error("la barre défile avec la série");
+    if(r.scroll!==0)throw new Error("la grille s'ouvre déjà défilée : "+r.scroll);
+    if(!r.barreAuDessus)throw new Error("la barre chevauche le contenu");
+    if(!r.premiereVisible)throw new Error("la première tuile est coupée");
+    /* La série défile jusqu'au bout : le dernier numéro est atteignable. */
+    await page.evaluate(()=>{const c=document.querySelector(".content");c.scrollTop=c.scrollHeight});
+    await page.waitForTimeout(280);
+    const fin=await page.evaluate(()=>{
+      const cr=document.querySelector(".content").getBoundingClientRect();
+      const ts=[...document.querySelectorAll(".seq-tile")];
+      const d=ts[ts.length-1].getBoundingClientRect();
+      return d.bottom<=cr.bottom+1&&d.top>=cr.top-1;
+    });
+    if(!fin)throw new Error("le dernier numéro de la série reste hors d'atteinte");
+  });
+
 
   await ctx.close();await b.close();
   say("\n"+PASS+" contrôles réussis.");
