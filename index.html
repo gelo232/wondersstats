@@ -266,6 +266,14 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .sv-strip-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .sv-fold{flex:1;min-width:0;display:flex;align-items:center;gap:7px;background:none;border:none;color:#CBD5E1;font-size:12px;font-weight:700;cursor:pointer;padding:2px 0;text-align:left}
 .sv-fold .muted{margin-left:auto;flex-shrink:0}
+.seq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:7px}
+.seq-tile{height:54px;border-radius:10px;border:2px solid #334155;background:#1E293B;color:#CBD5E1;font-weight:800;font-size:17px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0 2px;transition:all .12s;touch-action:manipulation}
+.seq-tile .who{font-size:9px;font-weight:600;color:#64748B;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seq-tile.taken{background:#0F172A;color:#64748B;border-color:#1E293B}
+.seq-tile.mine{border-color:#3B82F6;background:#1E3A5F;color:#fff}
+.seq-tile.mine .who{color:#93C5FD}
+.num-head{position:sticky;top:0;z-index:2;background:#162032;border-bottom:1px solid #1E293B;padding:10px 12px;margin:-14px -12px 12px}
+@media(min-width:600px){.num-head{margin:-20px -24px 12px;padding:12px 24px}}
 .num-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:8px}
 .num-tile{height:62px;border-radius:12px;border:2px solid #334155;background:#1E293B;color:#94A3B8;font-weight:800;font-size:20px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:all .15s;touch-action:manipulation;padding:0}
 .num-tile.active{border-color:#F59E0B;background:#422006;color:#FDE68A}
@@ -767,6 +775,7 @@ function mkSquad(teamId,seasonId,name){
   return {id:uid(),teamId:teamId||null,seasonId:seasonId||null,
           name:name||"Équipe",category:"",freeView:false,
           roster:[],playerIds:[],lineup:[],subteams:[],stats:{},
+          numbering:null,              /* série de dossards — voir numberingOf */
           events:[],sessions:[],
           campaigns:[c],activeCampaignId:c.id,
           selectorViews:[],submissions:[]};
@@ -913,6 +922,7 @@ var state={
   inputMode:"quick", quickPlayer:null, courtPanelOpen:false,
   statusFilter:"all", search:"", logFilter:"all",
   dbSort:"name", dbSortDir:"old",   // base de données : A→Z, ou par naissance
+  numPlayer:null, numFilter:"all",  // numérotation : qui reçoit, et ce qu'on liste
   pickMode:null, picked:[],         // sélection multiple : "db" | "roster"
   toast:null, modalType:null, modalInput:"", modalInput2:"", modalSel:[], modalCtx:null, modalDraft:null,
   editingSubteamId:null, editViewId:null,
@@ -1175,6 +1185,78 @@ function dupNumbers(squad){
 }
 function missingNumbers(squad){
   return (squad?squad.roster:[]).filter(function(e){return !e.number});
+}
+
+/* ─── Série de dossards ───────────────────────────────────────
+   Un club distribue des chasubles numérotées : 1 à 28, ou 4 à 19 pour
+   celui qui garde ses maillots de l'an dernier. La série n'est pas une
+   règle — on peut toujours saisir un numéro hors d'elle dans le tableau
+   de sélection — c'est le jeu qu'on a sous la main ce jour-là.
+
+   Non réglée, elle se devine de l'effectif convoqué : c'est presque
+   toujours 1 à autant d'athlètes. */
+function numberingOf(squad){
+  var n=squad&&squad.numbering;
+  var from=n?parseInt(n.from,10):NaN,to=n?parseInt(n.to,10):NaN;
+  if(!isFinite(from)||from<0)from=1;
+  if(!isFinite(to)||to<from)to=from+Math.max((squad&&squad.roster.length)||12,1)-1;
+  if(to-from>199)to=from+199;      /* deux cents tuiles : au-delà, on ne choisit plus, on cherche */
+  return {from:from,to:to};
+}
+function setNumbering(squad,from,to){
+  if(!squad)return;
+  from=Math.max(0,parseInt(from,10)||0);
+  to=parseInt(to,10);
+  if(!isFinite(to)||to<from)to=from;
+  if(to-from>199)to=from+199;
+  squad.numbering={from:from,to:to};
+  scheduleAutoSave();
+}
+function porteurDe(squad,num){
+  num=cleanNum(num);
+  if(!num)return null;
+  var out=null;
+  (squad?squad.roster:[]).forEach(function(e){if(!out&&e.number===num)out=e});
+  return out;
+}
+/* Poser un numéro sur une athlète. Rien n'est attribué d'office : ce
+   geste vient toujours d'un doigt sur une tuile. Quand le numéro est
+   déjà porté, on échange plutôt que de laisser quelqu'un nu — et on le
+   demande, parce que deux dossards qui changent de main, ça se dit. */
+function assignNumber(squad,pid,num){
+  var e=rosterEntry(squad,pid);
+  if(!e)return false;
+  num=cleanNum(num);
+  var avant=e.number;
+  if(num&&avant===num){                     /* même tuile : on retire */
+    e.number="";
+    logAct("number",logWho(squad,pid)+" : numéro "+avant+" retiré",
+      {teamId:squad.teamId,seasonId:squad.seasonId,playerId:pid});
+    scheduleAutoSave();return true;
+  }
+  var autre=null;
+  squad.roster.forEach(function(x){if(!autre&&x.number===num&&x.playerId!==pid)autre=x});
+  if(autre){
+    var qui=fullName(playerById(autre.playerId));
+    if(avant){
+      if(!confirmAct("Le "+num+" est porté par "+qui+".\n\nÉchanger ? "+qui+" prendra le "+avant+"."))return false;
+      autre.number=avant;
+    } else {
+      if(!confirmAct("Le "+num+" est porté par "+qui+".\n\nLe lui prendre ? "+qui+" se retrouvera sans numéro."))return false;
+      autre.number="";
+    }
+  }
+  e.number=num;
+  logAct("number",logWho(squad,pid)+" : numéro "+(avant||"—")+" → "+(num||"—")+
+    (autre?" (échangé avec "+fullName(playerById(autre.playerId))+")":""),
+    {teamId:squad.teamId,seasonId:squad.seasonId,playerId:pid});
+  /* Une vue déjà partie porte l'ancien numéro : le paquet est figé. */
+  var parties=vuesDistribuees(squad,pid);
+  if(parties.length)showToast(parties.length===1
+    ? "⚠️ Une vue déjà distribuée affiche encore #"+(avant||"—")+" — republiez-la"
+    : "⚠️ "+parties.length+" vues déjà distribuées affichent encore #"+(avant||"—")+" — republiez-les",5000);
+  scheduleAutoSave();
+  return true;
 }
 
 /* Vue "joueuse" consommée par les écrans de saisie : stats par référence */
@@ -4876,7 +4958,8 @@ function renderAdminSync(){
    ══════════════════════════════════════════════════════════════ */
 function renderPlayersTab(){
   var season=curSquad();
-  var panes=[{k:"db",l:"🗂️ Base de données"},{k:"roster",l:"📋 Convoquées"}];
+  var panes=[{k:"db",l:"🗂️ Base de données"},{k:"roster",l:"📋 Convoquées"},
+             {k:"numbers",l:"🔢 Numérotation"}];
   var row=h("div",{className:"pill-row"},panes.map(function(p){
     var b=h("button",{className:"pill"+(state.playersPane===p.k?" active":""),onclick:function(){
       state.playersPane=p.k;state.pickMode=null;state.picked=[];render();
@@ -4884,7 +4967,9 @@ function renderPlayersTab(){
     if(state.playersPane===p.k)b.style.background="#3B82F6";
     return b;
   }));
-  var body=state.playersPane==="roster"?renderRosterPane(season):renderDbPane(season);
+  var body=state.playersPane==="roster"?renderRosterPane(season)
+          :state.playersPane==="numbers"?renderNumberingPane(season)
+          :renderDbPane(season);
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},row,
     h("div",{className:"content pad","data-scroll-key":"players-"+state.playersPane},body),
     renderPickBar(season));
@@ -5118,6 +5203,169 @@ function renderRosterPane(squad){
   });
   return wrap;
 }
+/* ══ NUMÉROTATION ══════════════════════════════════════════════
+   Vingt-huit dossards à poser, un par un, le soir avant le tryout.
+   Les taper à la main dans le tableau de sélection marche, mais on ne
+   voit pas ce qui reste libre, et on se retrouve à trois reprises sur le
+   même 12. Ici la série est sous les yeux : on choisit l'athlète, on
+   touche un numéro, et l'écran passe à la suivante qui n'en a pas.
+
+   Rien n'est attribué d'office : chaque numéro vient d'un doigt sur une
+   tuile. C'est la règle de l'application depuis toujours, et elle tient. */
+function renderNumberingPane(squad){
+  if(!squad)return h("div",{className:"empty"},"Aucune saison active");
+  if(!squad.roster.length)return h("div",null,
+    h("div",{className:"hint"},"Aucune joueuse convoquée pour « "+squad.name+" »."),
+    h("button",{className:"btn btn-primary full",onclick:function(){
+      state.playersPane="db";render();
+    }},"Choisir dans la base de données"));
+
+  var serie=numberingOf(squad);
+  var sans=missingNumbers(squad).length;
+  var liste=squad.roster.filter(function(e){return playerById(e.playerId)});
+  if(state.numPlayer&&!rosterEntry(squad,state.numPlayer))state.numPlayer=null;
+
+  /* ── L'athlète choisie : la série remplit l'écran ─────────── */
+  if(state.numPlayer){
+    var e0=rosterEntry(squad,state.numPlayer),p0=playerById(state.numPlayer);
+    var idx=liste.map(function(x){return x.playerId}).indexOf(state.numPlayer);
+    function allerA(pid){state.numPlayer=pid;render()}
+    /* La suivante sans numéro, en repartant du début si besoin : on ne
+       redemande pas à l'entraîneur où il en était. */
+    function suivanteSansNumero(depuis){
+      for(var i=1;i<=liste.length;i++){
+        var x=liste[(depuis+i)%liste.length];
+        if(!x.number)return x.playerId;
+      }
+      return null;
+    }
+    var tete=h("div",{className:"num-head"},
+      h("div",{className:"row-between"},
+        h("button",{className:"btn btn-ghost xs",onclick:function(){
+          state.numPlayer=null;render();
+        }},"← Liste"),
+        h("div",{className:"muted"},(liste.length-missingNumbers(squad).length)+"/"+liste.length+" numérotées")),
+      h("div",{style:{display:"flex",alignItems:"center",gap:"10px",marginTop:"8px"}},
+        h("span",{className:"num-badge",style:{display:"inline-flex",alignItems:"center",
+          justifyContent:"center",flexShrink:"0"}},e0.number||"—"),
+        h("div",{style:{flex:"1",minWidth:"0"}},
+          h("div",{className:"pname"},fullName(p0)),
+          h("div",{className:"psub"},e0.number
+            ?"Touchez son numéro pour le retirer, ou un autre pour le changer"
+            :"Touchez un numéro de la série")),
+        h("div",{className:"btn-row",style:{flexShrink:"0"}},
+          h("button",{className:"btn btn-ghost xs",disabled:idx<=0,
+            onclick:function(){allerA(liste[idx-1].playerId)}},"←"),
+          h("button",{className:"btn btn-ghost xs",disabled:idx>=liste.length-1,
+            onclick:function(){allerA(liste[idx+1].playerId)}},"→"))));
+
+    var grille=h("div",{className:"seq-grid"});
+    for(var n=serie.from;n<=serie.to;n++)(function(num){
+      var t=String(num);
+      var porteur=porteurDe(squad,t);
+      var mien=porteur&&porteur.playerId===state.numPlayer;
+      var pris=porteur&&!mien;
+      var tuile=h("button",{className:"seq-tile"+(mien?" mine":"")+(pris?" taken":""),
+        onclick:function(){
+          if(!assignNumber(squad,state.numPlayer,t))return;
+          saveNow();
+          var enc=suivanteSansNumero(liste.map(function(x){return x.playerId}).indexOf(state.numPlayer));
+          if(porteurDe(squad,t)&&porteurDe(squad,t).playerId===state.numPlayer&&enc)state.numPlayer=enc;
+          else if(!enc&&!missingNumbers(squad).length)showToast("✅ Toutes numérotées");
+          render();
+        }},h("span",null,t));
+      if(porteur)tuile.appendChild(h("span",{className:"who"},
+        mien?"elle":shortName(playerById(porteur.playerId))));
+      grille.appendChild(tuile);
+    })(n);
+
+    var horsSerie=e0.number&&(parseInt(e0.number,10)<serie.from||parseInt(e0.number,10)>serie.to)
+      ?h("div",{className:"hint warn"},"Son numéro ",h("b",null,"#"+e0.number),
+        " est hors de la série ",serie.from,"–",serie.to,". Il reste valable : la série n'est qu'un jeu de chasubles.")
+      :null;
+
+    return h("div",null,tete,horsSerie,grille,
+      h("div",{className:"muted",style:{marginTop:"12px"}},
+        "Série ",serie.from,"–",serie.to,". ",
+        h("button",{className:"linky",onclick:function(){state.numPlayer=null;render()}},
+          "Changer la série")));
+  }
+
+  /* ── La liste : qui a quoi, et qui n'a rien ───────────────── */
+  var wrap=h("div",null,
+    h("div",{className:"hint"},
+      "Le ",h("b",null,"numéro d'athlète")," est la seule information transmise aux évaluateurs. ",
+      "Posez la série de chasubles que vous avez en main, puis touchez une athlète : ",
+      "vous choisirez son numéro dans la série, et l'écran passera à la suivante."));
+
+  /* Réglage de la série */
+  var fromInp=h("input",{className:"num-badge",value:String(serie.from),
+    inputmode:"numeric",maxlength:"3",style:{width:"58px"}});
+  var toInp=h("input",{className:"num-badge",value:String(serie.to),
+    inputmode:"numeric",maxlength:"3",style:{width:"58px"}});
+  function majSerie(){
+    setNumbering(squad,cleanNum(fromInp.value),cleanNum(toInp.value));
+    render();
+  }
+  fromInp.addEventListener("blur",majSerie);
+  toInp.addEventListener("blur",majSerie);
+  var pris=0;
+  for(var k=serie.from;k<=serie.to;k++)if(porteurDe(squad,String(k)))pris++;
+  var carte=h("div",{className:"card tight",style:{marginBottom:"12px"}},
+    h("div",{style:{display:"flex",alignItems:"center",gap:"8px",flexWrap:"wrap"}},
+      h("span",{style:{fontWeight:"700",color:"#F8FAFC",fontSize:"14px"}},"Série de dossards"),
+      h("span",{style:{flex:"1"}}),
+      h("span",{className:"muted"},"du"),fromInp,
+      h("span",{className:"muted"},"au"),toInp),
+    h("div",{className:"muted",style:{marginTop:"8px"}},
+      plural(serie.to-serie.from+1,"numéro")+" · "+pris+" pris · "+
+      Math.max(0,(serie.to-serie.from+1)-pris)+" libres"),
+    h("div",{className:"btn-row",style:{marginTop:"8px"}},
+      [liste.length,20,28,99].filter(function(v,i,a){return v>0&&a.indexOf(v)===i}).map(function(v){
+        return h("button",{className:"btn btn-ghost xs",onclick:function(){
+          setNumbering(squad,1,v);render();
+        }},"1–"+v);
+      })));
+  wrap.appendChild(carte);
+
+  if(sans)wrap.appendChild(h("div",{className:"hint warn"},
+    plural(sans,"joueuse")+" sans numéro. ",
+    h("button",{className:"linky",onclick:function(){
+      var m=missingNumbers(squad)[0];
+      if(m){state.numPlayer=m.playerId;render()}
+    }},"Commencer par la première")));
+
+  var filtres=[{k:"all",l:"Toutes ("+liste.length+")"},{k:"none",l:"Sans numéro ("+sans+")"}];
+  wrap.appendChild(h("div",{className:"sub-pills",style:{marginBottom:"12px"}},
+    filtres.map(function(f){
+      var b=h("button",{className:"pill sm"+(state.numFilter===f.k?" active":""),onclick:function(){
+        state.numFilter=f.k;render();
+      }},f.l);
+      if(state.numFilter===f.k)b.style.background="#3B82F6";
+      return b;
+    })));
+
+  var dup=dupNumbers(squad);
+  var vues=liste.filter(function(e){return state.numFilter!=="none"||!e.number});
+  if(!vues.length)wrap.appendChild(h("div",{className:"empty"},"Toutes les convoquées ont leur numéro."));
+  vues.forEach(function(e){
+    var p=playerById(e.playerId);
+    wrap.appendChild(h("div",{className:"list-row",onclick:function(){
+      state.numPlayer=e.playerId;render();
+    },style:{cursor:"pointer"}},
+      h("span",{className:"num-badge"+(e.number&&dup[e.number]?" dup":""),
+        style:{display:"inline-flex",alignItems:"center",justifyContent:"center",
+          color:e.number?"#F8FAFC":"#475569"}},e.number||"—"),
+      h("div",{className:"body"},
+        h("div",{className:"pname"},fullName(p)),
+        h("div",{className:"psub"},(e.position?e.position+" · ":"")+
+          (STATUSES[e.status]||STATUSES.candidate).label+
+          (e.number&&dup[e.number]?" · ⚠️ numéro en double":""))),
+      h("span",{className:"muted"},"▸")));
+  });
+  return wrap;
+}
+
 function moveRoster(squad,fromPid,toPid){
   if(!fromPid||fromPid===toPid)return;
   var from=-1,to=-1;

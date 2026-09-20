@@ -104,6 +104,41 @@ Triez par naissance, passez en `☑️ Sélectionner`, cochez la cohorte,
 > lui inventer un âge. Si une athlète vous manque à l'appel d'une tranche, sa
 > naissance n'est pas saisie : ouvrez sa fiche.
 
+### Poser les numéros : l'onglet 🔢 Numérotation
+
+Vingt-huit dossards à attribuer, le soir avant le tryout. Les taper un par un dans le
+tableau de sélection marche, mais on ne voit pas ce qui reste libre — et on se
+retrouve à trois reprises sur le même 12.
+
+`👥 Joueuses → 🔢 Numérotation` met la série sous les yeux :
+
+1. **La série de chasubles que vous avez en main.** `du 1 au 28`, ou `du 4 au 19`
+   pour un club qui garde ses maillots. Non réglée, elle se devine de l'effectif
+   convoqué. Trois raccourcis (`1–28`, `1–20`, `1–99`) évitent la saisie.
+2. **Touchez une athlète** dans la liste — le filtre `Sans numéro (16)` ne montre que
+   celles qui en attendent un.
+3. **Touchez un numéro.** La grille montre toute la série d'un coup d'œil : les
+   numéros libres, et les numéros pris **avec le nom de qui les porte**.
+
+**L'écran passe alors à la suivante sans numéro.** C'est là qu'est le gain : une
+athlète, un doigt, la suivante. Vingt-huit dossards se posent d'une traite, sans
+revenir à la liste.
+
+| Geste | Effet |
+|---|---|
+| toucher un numéro libre | il est posé, on passe à la suivante |
+| toucher **son** numéro | il est retiré |
+| toucher un numéro **pris** | échange : l'autre reçoit celui qu'elle avait, et l'application le demande avant |
+| `←` `→` | passer d'une athlète à l'autre sans quitter la grille |
+
+> **Rien n'est jamais attribué d'office.** Chaque numéro vient d'un doigt sur une
+> tuile — c'est la règle de l'application, et cet écran ne la change pas : il la rend
+> juste supportable à vingt-huit. Et parce que l'échange remplace l'écrasement,
+> **on ne peut pas y créer de doublon**.
+>
+> La série n'est pas une contrainte : un numéro saisi hors d'elle dans
+> `🎯 Sélection` reste valable, et l'écran le signale plutôt que de l'effacer.
+
 ### Changer un numéro en cours de route
 
 **Oui, à tout moment, et sans rien perdre.** Une athlète est identifiée par sa fiche,

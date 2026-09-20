@@ -610,6 +610,15 @@ vous publiez explicitement sur votre propre relais.
   et les U21 jouent ensemble. Le champ appartenait déjà à l'équipe depuis la v3 : il
   disparaît de la saison, et reste dans `👕 Équipes`. Les bases existantes gardent
   la valeur qu'elles portaient ; elle n'est simplement plus lue ni affichée.
+- **Un onglet `🔢 Numérotation`, pour poser vingt-huit dossards d'une traite.**
+  On règle la série qu'on a en main (`du 1 au 28`, devinée de l'effectif si on ne dit
+  rien), on touche une athlète, on touche un numéro — et **l'écran passe à la
+  suivante sans numéro**. La grille montre toute la série d'un coup d'œil : ce qui
+  est libre, et ce qui est pris **avec le nom de qui le porte**. Toucher son propre
+  numéro le retire ; toucher un numéro pris **échange** les deux dossards, après
+  confirmation. Rien n'est jamais attribué d'office — chaque numéro vient d'un doigt
+  sur une tuile — et parce que l'échange remplace l'écrasement, **on ne peut pas y
+  créer de doublon**.
 - **La base se trie par date de naissance, jour compris.** `👥 Joueuses →
   🗂️ Base de données` propose `A → Z` ou `🎂 Plus âgées d'abord`, un second clic
   inversant le sens. Trier, cocher, `📋 Convoquer` : c'est ainsi qu'on compose une

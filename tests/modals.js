@@ -389,6 +389,113 @@ const ERRORS=[];let PASS=0;
     if(!r.log)throw new Error("journal sans trace de la suppression");
   });
 
+  say("\n── Numérotation : la série sous les yeux");
+  await step("la série se devine de l'effectif, et se règle",async()=>{
+    await page.evaluate(()=>{
+      const s=curSquad();
+      /* Un effectif propre à cette section : huit convoquées, sans numéro. */
+      s.roster=[];s.playerIds=[];s.numbering=null;
+      for(let i=1;i<=8;i++){
+        const p=mkDbPlayer({firstName:"Num"+i,lastName:"Test"});DB.players.push(p);
+        s.roster.push(mkRosterEntry(p.id,"",""));
+      }
+      state.tab="players";state.playersPane="numbers";state.numPlayer=null;
+      state.numFilter="all";saveNow();render();
+    });
+    await page.waitForTimeout(300);
+    const auto=await page.evaluate(()=>numberingOf(curSquad()));
+    if(auto.from!==1||auto.to!==8)throw new Error("série devinée : "+JSON.stringify(auto));
+    /* On la règle à la main : douze chasubles, de 1 à 12. */
+    await page.locator(".card input").nth(1).fill("12");
+    await page.locator(".card input").nth(1).blur();
+    await page.waitForTimeout(300);
+    const reglee=await page.evaluate(()=>curSquad().numbering);
+    if(reglee.from!==1||reglee.to!==12)throw new Error("série réglée : "+JSON.stringify(reglee));
+    const t=await page.textContent(".card");
+    if(!/12 numéros/.test(t))throw new Error("décompte : "+t);
+  });
+
+  await step("choisir une athlète, toucher un numéro, enchaîner",async()=>{
+    await page.locator(".list-row").first().click();
+    await page.waitForTimeout(300);
+    const n=await page.locator(".seq-tile").count();
+    if(n!==12)throw new Error("tuiles="+n);
+    const nom=async()=>await page.evaluate(()=>fullName(playerById(state.numPlayer)));
+    if(await nom()!=="Num1 Test")throw new Error("athlète choisie : "+await nom());
+    await page.locator(".seq-tile").filter({hasText:/^5$/}).click();
+    await page.waitForTimeout(280);
+    /* L'écran est passé à la suivante sans numéro, sans rien demander. */
+    if(await nom()!=="Num2 Test")throw new Error("pas d'enchaînement : "+await nom());
+    await page.locator(".seq-tile").filter({hasText:/^6$/}).click();
+    await page.waitForTimeout(280);
+    if(await nom()!=="Num3 Test")throw new Error("enchaînement 2 : "+await nom());
+    const r=await page.evaluate(()=>curSquad().roster.map(e=>e.number).join(","));
+    if(r!=="5,6,,,,,,")throw new Error("numéros posés : "+r);
+  });
+
+  await step("un numéro pris porte le nom de qui l'a",async()=>{
+    const prise=page.locator(".seq-tile.taken");
+    if(await prise.count()!==2)throw new Error("tuiles prises="+await prise.count());
+    const t=await prise.first().textContent();
+    if(!/Num1/.test(t))throw new Error("la tuile ne nomme pas son porteur : "+t);
+  });
+
+  await step("le lui reprendre échange les deux dossards",async()=>{
+    /* Num3 a besoin du 5, que porte Num1. Elle a le 9 : on échange. */
+    await page.locator(".seq-tile").filter({hasText:/^9$/}).click();
+    await page.waitForTimeout(280);
+    await page.evaluate(()=>{
+      const s=curSquad();state.numPlayer=s.roster[2].playerId;render();
+    });
+    await page.waitForTimeout(250);
+    await page.locator(".seq-tile").filter({hasText:/^5Num1/}).click();
+    await page.waitForTimeout(350);
+    const r=await page.evaluate(()=>{
+      const s=curSquad();
+      return s.roster.slice(0,3).map(e=>fullName(playerById(e.playerId))+"="+(e.number||"—")).join(" ");
+    });
+    if(!/Num1 Test=9/.test(r)||!/Num3 Test=5/.test(r))throw new Error("échange : "+r);
+  });
+
+  await step("toucher son propre numéro le retire",async()=>{
+    /* L'échange a fait passer l'écran à la suivante sans numéro : on
+       revient sur Num3, qui porte le 5. */
+    await page.evaluate(()=>{
+      const s=curSquad();state.numPlayer=s.roster[2].playerId;render();
+    });
+    await page.waitForTimeout(250);
+    if(!await page.locator(".seq-tile.mine").count())throw new Error("son numéro n'est pas marqué");
+    await page.locator(".seq-tile.mine").click();
+    await page.waitForTimeout(300);
+    const n=await page.evaluate(()=>{
+      const s=curSquad();return s.roster[2].number;
+    });
+    if(n!=="")throw new Error("numéro non retiré : "+n);
+  });
+
+  await step("numéroter tout l'effectif ne crée aucun doublon",async()=>{
+    await page.evaluate(()=>{state.numPlayer=null;state.numFilter="none";render()});
+    await page.waitForTimeout(250);
+    for(let i=0;i<8;i++){
+      const reste=await page.evaluate(()=>missingNumbers(curSquad()).length);
+      if(!reste)break;
+      if(!await page.locator(".list-row").count())break;
+      await page.locator(".list-row").first().click();
+      await page.waitForTimeout(220);
+      const libre=page.locator(".seq-tile:not(.taken):not(.mine)").first();
+      await libre.click();
+      await page.waitForTimeout(240);
+      await page.evaluate(()=>{state.numPlayer=null;render()});
+      await page.waitForTimeout(180);
+    }
+    const r=await page.evaluate(()=>({
+      sans:missingNumbers(curSquad()).length,
+      dup:Object.keys(dupNumbers(curSquad())).length,
+      nums:curSquad().roster.map(e=>e.number).join(",")}));
+    if(r.sans)throw new Error(r.sans+" athlète(s) sans numéro : "+r.nums);
+    if(r.dup)throw new Error("doublons : "+r.nums);
+  });
+
   await ctx.close();await b.close();
   say("\n"+PASS+" contrôles réussis.");
   say(ERRORS.length?("❌ "+ERRORS.length+" problème(s):\n"+ERRORS.join("\n")):"✅ Aucun problème");
