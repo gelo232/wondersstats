@@ -105,6 +105,7 @@ textarea{min-height:140px;resize:vertical;line-height:1.5;font-size:13px}
 .tick{display:inline-flex;align-items:center;gap:1.5mm;font-size:9pt;font-weight:700}
 .box{width:4.5mm;height:4.5mm;border:.4mm solid #111;border-radius:.8mm;display:inline-block}
 .pos-l{font-size:7pt;color:#555;font-weight:400}
+.pds-i{font-size:7pt;font-weight:700;color:#444;margin-left:1.5mm}
 /* Les lignes de commentaire se dessinent en fond : elles remplissent
    exactement la place qui reste, qu'il y en ait dix centimètres ou deux. */
 .lines{min-height:11mm;margin-top:1mm;
@@ -162,6 +163,12 @@ table.t tbody tr:nth-child(even) td.doss{background:#E4E4E4}
 table.t tbody tr:nth-child(5n) td{border-bottom:.6mm solid #111}
 table.t tbody tr:last-child td{border-bottom:.25mm solid #444}
 table.t td.doss{font-weight:800;font-size:11pt;background:#EDEDED;letter-spacing:-.02em}
+/* Un rang sans dossard n'est pas une ligne oubliée : c'est une place
+   gardée pour celle qui s'inscrira le matin même. Elle se remplit au
+   stylo, et le cadre pointillé dit où écrire. */
+table.t td.doss.neuve{background:#fff;border:.4mm dashed #666}
+table.t tbody tr:nth-child(even) td.doss.neuve{background:#FAFAFA}
+table.t th .pds{font-size:6pt;font-weight:700;color:#444;display:block;margin-top:-.4mm}
 table.t td.fait{background:#fff}
 table.t tbody tr:nth-child(even) td.fait{background:#FAFAFA}
 table.t td.nom{text-align:left;font-size:8.5pt;padding-left:1.5mm;white-space:nowrap;
@@ -229,7 +236,12 @@ table.t td.tal{background:#FCFCFC}
       <div><label class="f" for="date">Date</label><input type="date" id="date"></div>
       <div><label class="f" for="evaluateur">Évaluateur <span style="color:#475569">— vide = ligne à remplir</span></label>
         <input type="text" id="evaluateur" placeholder="(laisser vide)"></div>
+      <div><label class="f" for="atelier">Atelier ou bloc <span style="color:#475569">— facultatif</span></label>
+        <input type="text" id="atelier" placeholder="Bloc 1 · Service / réception · 11:02–11:22"></div>
     </div>
+    <div class="chips" style="margin-top:12px" id="modeles"></div>
+    <div class="hint" id="modinfo">Une pochette par évaluateur, comme une vue par personne à
+      l'écran. Ces deux modèles posent les réglages ; ajustez ensuite les familles de l'atelier.</div>
   </div>
 
   <div class="card">
@@ -238,24 +250,35 @@ table.t td.tal{background:#FCFCFC}
     <textarea id="roster" spellcheck="false"></textarea>
     <div style="display:flex;gap:8px;align-items:flex-end;margin-top:8px;flex-wrap:wrap">
       <div style="width:120px"><label class="f" for="jusqua">Dossards 1 →</label>
-        <input type="number" id="jusqua" min="1" max="200" value="14"></div>
+        <input type="number" id="jusqua" min="1" max="200" value="28"></div>
       <button class="btn" id="fill">Remplir</button>
+      <div style="width:170px"><label class="f" for="attente">Rangs en attente <span style="color:#475569">— inscriptions du jour</span></label>
+        <input type="number" id="attente" min="0" max="20"></div>
       <label class="chip" style="margin-left:auto"><input type="checkbox" id="anonyme"> Anonyme <span style="color:#64748B">(numéro seul, sans nom)</span></label>
     </div>
     <div class="count" id="rcount"></div>
     <div class="warn" id="rwarn"></div>
+    <div class="hint"><b>Celles qui s'inscrivent sur place.</b> Les rangs en attente sont des lignes
+      vides, dossard compris : on y écrit le numéro qu'on vient de donner. Ils s'ajoutent à toutes
+      les feuilles, et la feuille <b>Inscriptions du jour</b> recueille nom et naissance au format
+      de l'<code>⚡ Ajout en lot</code> — elle se retape telle quelle.</div>
   </div>
 
   <div class="card">
     <h2>Ce qui est noté — critères, de 1 à 5</h2>
     <div class="chips" id="crits"></div>
+    <div class="grid" style="margin-top:12px" id="poids"></div>
+    <div class="hint" id="qform"></div>
   </div>
 
   <div class="card">
     <h2>Ce qui est compté — familles de statistiques</h2>
     <div class="chips" id="fams"></div>
+    <div id="substats"></div>
     <div class="hint">Aucune famille cochée = une grille de notes seules, exactement comme une vue
-      dont on a décoché tous les groupes.</div>
+      dont on a décoché tous les groupes. À l'intérieur d'une famille, décochez ce que l'atelier
+      ne produit pas — sans opposition, une attaque n'a pas de <code>Kill</code>, et une défense
+      d'atelier n'a ni soutien ni erreur de soutien.</div>
   </div>
 
   <div class="card">
@@ -274,6 +297,8 @@ table.t td.tal{background:#FCFCFC}
         <input type="number" id="cases" min="5" max="60" step="5"></div>
       <div><label class="f" for="lignes">Lignes par page (tableaux)</label>
         <input type="number" id="lignes" min="5" max="40"></div>
+      <div><label class="f" for="commentaire">Colonne commentaire au comptage</label>
+        <select id="commentaire"><option value="1">Oui</option><option value="0">Non</option></select></div>
       <div><label class="f" for="format">Papier</label>
         <select id="format">
           <option value="A4P">A4 · portrait</option>
@@ -283,10 +308,11 @@ table.t td.tal{background:#FCFCFC}
         </select></div>
     </div>
     <div class="warn" id="swarn"></div>
-    <div class="hint"><b>Trente dossards sur une feuille, ou six ?</b> La grille d'ensemble se tient
-      d'une main quand tout le groupe y est : gardez-la entière. Les feuilles de comptage, elles, se
-      suivent mal à trente rangs pendant un atelier — découpez-les en groupes, comme
-      <code>⚙️ Groupes</code> le fait à l'écran, et chaque vague a sa feuille.<br>
+    <div class="hint"><b>Le découpage ne touche que le terrain.</b> Les feuilles de comptage et les
+      fiches se suivent mal à trente rangs pendant un atelier : elles se découpent en vagues, comme
+      <code>⚙️ Groupes</code> le fait à l'écran — <code>par 7</code> donne les quatre groupes de sept
+      du plan de séance. La <b>grille d'ensemble reste entière</b> : celle qui juge voit tout le
+      monde sur une page, et ne change pas de feuille entre deux vagues.<br>
       Imprimez en noir et blanc, recto simple. Une pochette par évaluateur : ses feuilles, un stylo,
       un support rigide.</div>
   </div>
@@ -325,9 +351,24 @@ var RATING_MAX=5;
 
 var SHEETS=[
   {key:"doc",label:"Mode d'emploi + report"},
+  {key:"inscriptions",label:"Inscriptions du jour"},
   {key:"recap",label:"Grille d'ensemble"},
   {key:"comptage",label:"Feuille de comptage"},
   {key:"fiche",label:"Fiche par athlète"}
+];
+/* Deux façons de tenir une pochette, et le plan de séance les sépare
+   nettement : celle qui juge porte les cinq critères et aucun compteur,
+   celles qui animent un atelier ne notent qu'une Technique et comptent
+   les gestes de leur atelier. On les prépare donc d'un geste. */
+var MODELES=[
+  {key:"juge",label:"👁️ Celle qui juge",
+   info:"5 critères pondérés · aucun compteur · nominative · grille d'ensemble et fiches",
+   cfg:{crits:CRITERIA.map(function(c){return c.key}),fams:[],anonyme:false,
+        sheets:["doc","inscriptions","recap","fiche"],parpage:"2"}},
+  {key:"compte",label:"🔢 Celle qui compte",
+   info:"Technique seule · les familles de son atelier · anonyme · feuilles de comptage",
+   cfg:{crits:["tech"],fams:["services","reception"],anonyme:true,
+        sheets:["doc","comptage"],parpage:"2"}}
 ];
 /* Les découpages de l'application : « par 7 » fait de 28 athlètes quatre
    groupes de sept, nommés Groupe A à Groupe D, dans l'ordre des numéros. */
@@ -340,13 +381,24 @@ function groupName(i){
 var PAPER={A4P:[190,277],A4L:[277,190],LTP:[195.9,259.4],LTL:[259.4,195.9]};
 var PAPER_CSS={A4P:"A4 portrait",A4L:"A4 landscape",LTP:"letter portrait",LTL:"letter landscape"};
 
+/* Les poids du plan de séance : Q = (3 Technique + Physique
+   + 2 Lecture du jeu + Attitude + Potentiel) / 8. Ils ne servent qu'à
+   rappeler sur le papier ce que ⚖️ Formule applique dans l'application —
+   rien n'est calculé ici, et une note reste une note de 1 à 5. */
+var POIDS_PLAN={tech:3,phys:1,iq:2,att:1,pot:1};
 var DEFAULTS={
-  campagne:"",equipe:"",date:"",evaluateur:"",
-  roster:"1-30",anonyme:true,
+  campagne:"",equipe:"",date:"",evaluateur:"",atelier:"",
+  roster:"1-28",anonyme:true,attente:4,
   crits:CRITERIA.map(function(c){return c.key}),
+  poids:POIDS_PLAN,
   fams:["services","reception","attaques"],
-  sheets:["doc","recap","comptage"],
-  parpage:"2",cases:20,lignes:30,groupe:0,format:"A4P"
+  offStats:["atk_kill"],
+  /* La pochette qui s'ouvre par défaut est celle de qui juge : les
+     feuilles de comptage appartiennent à une autre personne, et le
+     modèle « celle qui compte » les sort en un geste. */
+  sheets:["doc","inscriptions","recap"],
+  commentaire:true,
+  parpage:"2",cases:12,lignes:34,groupe:7,format:"A4P"
 };
 var KEY="wonderstats.grille.v1";
 var cfg=load();
@@ -414,9 +466,10 @@ function sheet(kind,body,foot,bodyCls,tag){
         (tag?'<div class="sh-tag">'+esc(tag)+'</div>':'')+
         '<div class="sh-camp">'+(cfg.campagne?esc(cfg.campagne):fill(60))+'</div></div>'+
       '<div class="sh-meta">'+
-        '<div><b>Évaluateur :</b> '+valOrFill(cfg.evaluateur,42)+'</div>'+
-        '<div><b>Date :</b> '+valOrFill(fmtDate(cfg.date),26)+'</div>'+
-        '<div><b>Équipe :</b> '+valOrFill(cfg.equipe,30)+'</div>'+
+        '<div><b>Évaluateur :</b> '+valOrFill(cfg.evaluateur,38)+'</div>'+
+        '<div><b>Date :</b> '+valOrFill(fmtDate(cfg.date),24)+'</div>'+
+        '<div><b>Équipe :</b> '+valOrFill(cfg.equipe,26)+'</div>'+
+        (cfg.atelier?'<div><b>Atelier :</b> '+esc(cfg.atelier)+'</div>':'')+
       '</div>'+
     '</header>'+
     '<div class="sh-body'+(bodyCls?' '+bodyCls:'')+'">'+body+'</div>'+
@@ -427,7 +480,7 @@ function sheet(kind,body,foot,bodyCls,tag){
 /* Un tableau de quatorze lignes sur une page de vingt-huit laisse la moitié
    de la feuille blanche et des cases trop basses pour y tracer des marques.
    On répartit donc la hauteur utile sur les lignes réellement présentes. */
-var TBL_CHROME=78,ROW_MIN=6.4,ROW_MAX=15;
+var TBL_CHROME=78,ROW_MIN=5.8,ROW_MAX=15;
 function rowH(n){
   var ph=(PAPER[cfg.format]||PAPER.A4P)[1];
   return Math.max(ROW_MIN,Math.min(ROW_MAX,(ph-TBL_CHROME)/Math.max(1,n))).toFixed(1);
@@ -447,15 +500,32 @@ function rowsPerPage(){
    noms pour que la feuille et l'écran se parlent. */
 function waves(){
   var list=roster(),n=parseInt(cfg.groupe,10)||0;
+  /* Les rangs en attente ne sont d'aucune vague tant qu'un dossard ne
+     leur est pas donné : ils forment la dernière, celle des entrantes. */
   if(!n||n>=list.length)return [{tag:"",list:list}];
+  var fixes=list.filter(function(p){return !p.neuve}),neuves=list.filter(function(p){return p.neuve});
   var out=[];
-  for(var i=0;i<list.length;i+=n){
-    var part=list.slice(i,i+n),a=part[0],b=part[part.length-1];
+  for(var i=0;i<fixes.length;i+=n){
+    var part=fixes.slice(i,i+n),a=part[0],b=part[part.length-1];
     var span=(a.num!=null&&b.num!=null)?(" · dossards "+a.num+"–"+b.num):"";
     out.push({tag:"Groupe "+groupName(out.length)+span,list:part});
   }
+  /* On ne sait pas dans quelle vague tombera celle qui s'inscrit à 10 h 40.
+     Chaque feuille de terrain porte donc ses propres rangs vides : les
+     empiler tous sur la dernière laisserait les trois autres évaluateurs
+     sans une ligne où écrire. Le papier en trop ne coûte rien. */
+  if(neuves.length){
+    if(!out.length)return [{tag:"",list:neuves}];
+    var par=Math.max(1,Math.ceil(neuves.length/out.length));
+    out.forEach(function(w){
+      for(var i=0;i<par;i++)w.list=w.list.concat([{num:null,name:"",neuve:true}]);
+    });
+  }
   return out;
 }
+/* La grille d'ensemble, elle, ne se découpe pas : celle qui juge voit tout
+   le monde sur une page et ne change pas de feuille entre deux vagues. */
+function touteLaListe(){return [{tag:"",list:roster()}]}
 /* Ce qui reste de la page une fois le tableau posé. En dessous de trois
    centimètres, on ne met rien : deux lignes coincées valent moins que du
    blanc franc. */
@@ -474,7 +544,7 @@ function chunk(arr,n){
 
 /* ─── Feuille 1 · mode d'emploi et report ───────────────────── */
 function docSheet(){
-  var crits=CRITERIA.filter(inCrits),fams=SG_KEYS.filter(inFams);
+  var crits=CRITERIA.filter(inCrits),fams=famsVives();
   var body='<div class="doc">'+
   '<p>Cette grille existe pour un seul cas : <b>l\'application n\'est pas disponible le jour de la '+
   'sélection</b> — appareil à plat, écran cassé, lien perdu, pas de relais. Elle reprend le panneau '+
@@ -490,10 +560,34 @@ function docSheet(){
   '<li>Chaque évaluateur ne reçoit que ce qu\'il saisit : celui qui juge prend la grille '+
   'd\'ensemble, celui qui compte prend les feuilles de comptage.</li>'+
   '<li><b>Au-delà d\'une vingtaine de dossards, découpez en groupes</b> — les mêmes vagues que '+
-  '<b>⚙️ Groupes</b> à l\'écran, et les mêmes noms. Chaque feuille porte son groupe en haut : '+
-  'on suit six rangs pendant un atelier, pas trente.</li>'+
+  '<b>⚙️ Groupes</b> à l\'écran, et les mêmes noms. Chaque feuille de terrain porte son groupe en '+
+  'haut ; la grille d\'ensemble, elle, reste entière.</li>'+
+  '<li><b>Prévoyez des rangs vides.</b> Il en arrive toujours le matin même, et une athlète '+
+  'qu\'aucune feuille n\'attend est une athlète qu\'on évalue de mémoire.</li>'+
   '</ol>'+
 
+  '<h3>Celles qui s\'inscrivent le matin même</h3>'+
+  '<p>Le plan a été fait sur l\'effectif de la veille ; le gymnase, lui, ne s\'y tient pas. '+
+  'Les rangs sans dossard, encadrés de pointillés, sont là pour ça — sur la grille d\'ensemble '+
+  'comme sur les feuilles de comptage.</p>'+
+  '<ol>'+
+  '<li><b>À l\'accueil, un dossard et une ligne.</b> Donnez le numéro libre suivant, inscrivez-le '+
+  'sur la feuille <b>Inscriptions du jour</b> avec le nom et la naissance, et écrivez-le sur les '+
+  'rangs vides des évaluateurs qui la verront.</li>'+
+  '<li><b>Rééquilibrez les vagues avant de commencer</b>, et recalculez les passages : un groupe '+
+  'de huit ne tient pas le même compte qu\'un groupe de sept dans le même temps.</li>'+
+  '<li><b>Dites-le aux évaluateurs.</b> Un dossard écrit à la main sur une feuille et pas sur '+
+  'l\'autre produit deux listes qui ne se recoupent plus.</li>'+
+  '<li><b>Au report, elle passe d\'abord par la base</b> : <b>⚡ Ajout en lot</b>, puis '+
+  '<b>📋 Convoquer</b>, puis <b>republier les vues</b> — un paquet déjà distribué ne la connaît '+
+  'pas. Ce n\'est qu\'ensuite qu\'on saisit ce qu\'on a relevé d\'elle.</li>'+
+  '</ol>'+
+  '<p><b>Ce qu\'on ne fait pas :</b> lui donner le dossard d\'une absente. Deux athlètes sous le '+
+  'même numéro sur la même campagne, et plus rien ne se départage au report.</p>'+
+
+  '</div>';
+
+  var body2='<div class="doc">'+
   '<h3>Pendant la séance</h3>'+
   '<dl>'+
   '<dt>Notes</dt><dd>de 1 à '+RATING_MAX+'. <b>Une case laissée vide reste « non notée » — ce n\'est pas un zéro.</b> '+
@@ -536,12 +630,25 @@ function docSheet(){
   '<h3>Ce que cette pochette contient</h3>'+
   '<ul>'+
   '<li><b>Critères notés :</b> '+(crits.length?crits.map(function(c){return esc(c.label)}).join(" · "):"aucun — notes non relevées")+'</li>'+
-  '<li><b>Familles comptées :</b> '+(fams.length?fams.map(function(k){return esc(SG[k].name)}).join(" · "):"aucune — notes seules")+'</li>'+
-  '<li><b>Athlètes :</b> '+roster().length+
-    ((parseInt(cfg.groupe,10)||0)?' — découpés en '+waves().length+' groupes de '+cfg.groupe:' — en une seule liste')+'</li>'+
+  '<li><b>Familles comptées :</b> '+(fams.length?fams.map(function(k){
+    var st=statsDe(k);
+    return esc(SG[k].name)+' ('+st.map(function(x){return esc(x.label)}).join(", ")+')';
+  }).join(" · "):"aucune — notes seules")+'</li>'+
+  ((!poidsUniformes()&&CRITERIA.filter(inCrits).length)?
+    '<li><b>Poids des critères :</b> '+esc(formuleQ())+' — à régler à l\'identique dans '+
+    '<b>⚖️ Formule</b>, sans quoi le papier et l\'écran ne pèsent pas pareil.</li>':'')+
+  ((SG_KEYS.filter(inFams).length&&(cfg.offStats||[]).length)?
+    '<li><b>Compteurs retirés :</b> '+
+    ALL_STATS_OFF().join(" · ")+' — l\'atelier ne les produit pas ; ne rien y saisir, '+
+    'pas même un zéro.</li>':'')+
+  (attente()?'<li><b>Rangs en attente :</b> '+attente()+
+    ' par feuille, pour les inscriptions du matin.</li>':'')+
+  '<li><b>Athlètes :</b> '+inscrites().length+
+    ((parseInt(cfg.groupe,10)||0)?' inscrits, en vagues de '+cfg.groupe:' inscrits, en une seule liste')+'</li>'+
   '</ul>'+
   '</div>';
-  return sheet("Mode d'emploi",body,"à lire avant de distribuer les pochettes");
+  return sheet("Mode d'emploi",body,"à lire avant de distribuer les pochettes")+
+         sheet("Mode d'emploi · saisie et report",body2,"à garder avec la pochette");
 }
 
 /* ─── Feuille 2 · la fiche par athlète ───────────────────────
@@ -554,14 +661,14 @@ var TALLY_GAP=0.8,TALLY_BLOC=1.6,BOX_MIN=2.6,BOX_MAX=3.8,ROW_H=5.6;
 function tallyGaps(n){return (n-1)*TALLY_GAP+Math.floor((n-1)/5)*TALLY_BLOC}
 function statLayout(){
   var pp=PAPER[cfg.format]||PAPER.A4P,pw=pp[0],ph=pp[1];
-  var nCrit=CRITERIA.filter(inCrits).length,fams=SG_KEYS.filter(inFams),nCnt=0;
-  fams.forEach(function(k){nCnt+=SG[k].stats.length});
+  var nCrit=CRITERIA.filter(inCrits).length,fams=famsVives(),nCnt=0;
+  fams.forEach(function(k){nCnt+=statsDe(k).length});
   /* hauteur utile : la page, moins l'en-tête, le pied, le cadre de la
      fiche, les critères, l'avis, le poste et deux lignes de commentaire */
   var avail=ph-14-9-12-(nCrit?9+nCrit*6.4:0)-9-10-16-(9+fams.length*5.2);
   var cols=(nCnt*ROW_H<=avail)?1:2,rows=0;
   if(cols===1)rows=nCnt;
-  else fams.forEach(function(k){rows+=Math.ceil(SG[k].stats.length/2)});
+  else fams.forEach(function(k){rows+=Math.ceil(statsDe(k).length/2)});
   var colW=((pw-9.3)-(cols-1)*4)/cols;
   var labW=cols===1?22:17,totW=cols===1?10:8,totLab=cols===1?7:6;
   var tallyW=colW-labW-totW-totLab-4.5;
@@ -594,20 +701,22 @@ function ficheBlock(p,withStats,L){
       var dots='<span class="dots">';
       for(var i=1;i<=RATING_MAX;i++)dots+='<span class="dot">'+i+'</span>';
       dots+='</span>';
-      h+='<div class="crit"><span class="lab">'+esc(c.label)+'</span>'+
+      var w=poidsDe(c.key);
+      h+='<div class="crit"><span class="lab">'+esc(c.label)+
+         (w>1?'<span class="pds-i">×'+w+'</span>':'')+'</span>'+
          '<span class="desc">'+esc(c.desc)+'</span>'+dots+'</div>';
     });
     h+='</div>';
   }
 
   if(withStats){
-    var fams=SG_KEYS.filter(inFams);
+    var fams=famsVives();
     if(fams.length){
       h+='<div class="fi-sec"><div class="sec-t">Statistiques observées<span>une marque par geste · reportez le total</span></div>';
       fams.forEach(function(k){
         h+='<div class="fam"><div class="fam-t">'+esc(SG[k].name)+'</div>'+
            '<div class="fam-rows'+(L.cols===2?' c2':'')+'">';
-        SG[k].stats.forEach(function(s){
+        statsDe(k).forEach(function(s){
           h+='<div class="cnt"><span class="lab" style="width:'+L.labW+'mm">'+esc(s.label)+'</span>'+
              tally(L)+'<span class="tot">Tot.</span>'+
              '<span class="totbox" style="width:'+L.totW+'mm"></span></div>';
@@ -639,7 +748,7 @@ function ficheBlock(p,withStats,L){
 }
 function ficheSheets(){
   var per=Math.max(1,parseInt(cfg.parpage,10)||1);
-  var withStats=per===1&&SG_KEYS.some(inFams);
+  var withStats=per===1&&famsVives().length>0;
   var L=statLayout(),out="",n=0,tot=0;
   waves().forEach(function(w){tot+=chunk(w.list,per).length});
   waves().forEach(function(w){
@@ -658,36 +767,52 @@ function ficheSheets(){
    d'autre à l'écran mental. Le dossard est rappelé à droite, parce qu'on
    revient du bord droit de la feuille pour écrire un total. */
 function comptageSheets(){
-  var fams=SG_KEYS.filter(inFams);
+  var fams=famsVives();
   if(!fams.length||!roster().length)return "";
   var nom=!cfg.anonyme,out="";
   fams.forEach(function(k){
-    var g=SG[k],n=g.stats.length;
-    var wDoss=nom?10:13,wNom=nom?26:0,wEcho=7;
-    var rest=100-wDoss-wNom-wEcho,per=rest/n,wTal=per*0.72,wTot=per*0.28;
+    var g=SG[k],st=statsDe(k),n=st.length;
+    var wDoss=nom?10:12,wNom=nom?24:0,wEcho=6;
+    /* Le plan de séance demande des commentaires par athlète — « avant /
+       arrière » à la passe, « 3/4 jouables » à la défense. Ils n'ont de
+       place que s'il en reste : quatre compteurs et des noms ne laissent
+       rien, et une colonne de six millimètres ne vaut pas mieux que rien. */
+    var wCom=String(cfg.commentaire)==="0"?0:Math.max(0,100-wDoss-wNom-wEcho-n*16);
+    if(wCom<14)wCom=0;
+    var rest=100-wDoss-wNom-wEcho-wCom,per=rest/n,wTal=per*0.72,wTot=per*0.28;
     waves().forEach(function(w){
       chunk(w.list,rowsPerPage()).forEach(function(grp,i,all){
         var hh=rowH(grp.length);
         var h='<div class="tbl-t">'+esc(g.name)+' <span>— une marque par geste, puis le total dans la colonne T</span></div>'+
           '<table class="t"><colgroup>'+
           '<col style="width:'+wDoss+'%">'+(nom?'<col style="width:'+wNom+'%">':'')+
-          g.stats.map(function(){return '<col style="width:'+wTal+'%"><col style="width:'+wTot+'%">'}).join("")+
+          st.map(function(){return '<col style="width:'+wTal+'%"><col style="width:'+wTot+'%">'}).join("")+
+          (wCom?'<col style="width:'+wCom+'%">':'')+
           '<col style="width:'+wEcho+'%"></colgroup><thead>'+
           '<tr><th rowspan="2">Doss.</th>'+(nom?'<th rowspan="2">Nom</th>':'')+
-          g.stats.map(function(s){return '<th colspan="2">'+esc(s.label)+'</th>'}).join("")+
+          st.map(function(s){return '<th colspan="2">'+esc(s.label)+'</th>'}).join("")+
+          (wCom?'<th rowspan="2">Commentaire</th>':'')+
           '<th rowspan="2">Doss.</th></tr>'+
-          '<tr>'+g.stats.map(function(){return '<th class="tiny">marques</th><th class="tiny">T</th>'}).join("")+'</tr>'+
+          '<tr>'+st.map(function(){return '<th class="tiny">marques</th><th class="tiny">T</th>'}).join("")+'</tr>'+
           '</thead><tbody>';
         grp.forEach(function(p){
           var d=p.num!=null?p.num:"";
-          h+='<tr style="height:'+hh+'mm"><td class="doss">'+d+'</td>'+
+          h+='<tr style="height:'+hh+'mm"><td class="doss'+(p.neuve?" neuve":"")+'">'+d+'</td>'+
              (nom?'<td class="nom">'+esc(p.name)+'</td>':'')+
-             g.stats.map(function(){return '<td class="tal"></td><td></td>'}).join("")+
-             '<td class="doss">'+d+'</td></tr>';
+             st.map(function(){return '<td class="tal"></td><td></td>'}).join("")+
+             (wCom?'<td class="tal"></td>':'')+
+             '<td class="doss'+(p.neuve?" neuve":"")+'">'+d+'</td></tr>';
         });
+        var retires=SG[k].stats.length-st.length;
         h+='</tbody></table>'+
           '<div class="legend"><b>Rappel.</b> On compte des gestes, pas de la valeur. '+
-          'Un compteur à 0 est un 0 ; une famille entièrement vide n\'est pas saisie du tout.</div>';
+          'Un compteur à 0 est un 0 ; une famille entièrement vide n\'est pas saisie du tout.'+
+          (retires?'<br><b>Retirés de cet atelier :</b> '+
+            SG[k].stats.filter(function(x){return !inStat(x.key)}).map(function(x){return esc(x.label)}).join(" · ")+
+            ' — ne rien saisir dans ces compteurs, pas même un zéro.':'')+
+          (attente()?'<br><b>Rangs sans dossard :</b> pour celles qui se sont inscrites le matin — '+
+            'écrivez le numéro que vous venez de leur donner.':'')+
+          '</div>';
         var nb=notesBlock(grp.length,hh);
         out+=sheet("Comptage · "+g.name,nb?('<div>'+h+'</div>'+nb):h,
           "comptage"+(all.length>1?" "+(i+1)+"/"+all.length:""),nb?"flexcol":"",w.tag);
@@ -711,7 +836,7 @@ function recapSheets(){
   var wRem=100-wDoss-wNom-wFait-wEcho-wAvis-wPos-wCrit*nc;
   if(wRem<9){wRem=9}
   var out="";
-  waves().forEach(function(w){
+  touteLaListe().forEach(function(w){
     chunk(w.list,rowsPerPage()).forEach(function(grp,i,all){
       var hh=rowH(grp.length);
       var h='<div class="tbl-t">Vue d\'ensemble <span>— note de 1 à '+RATING_MAX+' dans la case, vide = non notée · entourez l\'avis et le poste · cochez « fait »</span></div>'+
@@ -722,21 +847,31 @@ function recapSheets(){
         '<col style="width:'+wFait+'%"><col style="width:'+wEcho+'%">'+
         '</colgroup><thead><tr>'+
         '<th>Doss.</th>'+(nom?'<th>Nom</th>':'')+
-        crits.map(function(c){return '<th>'+esc(c.abbr)+'</th>'}).join("")+
+        crits.map(function(c){
+          var w=poidsDe(c.key);
+          return '<th>'+esc(c.abbr)+(w>1?'<span class="pds">×'+w+'</span>':'')+'</th>';
+        }).join("")+
         '<th>Avis</th><th>Poste</th><th>Remarque</th><th class="tiny">fait</th><th>Doss.</th>'+
         '</tr></thead><tbody>';
       grp.forEach(function(p){
         var d=p.num!=null?p.num:"";
-        h+='<tr style="height:'+hh+'mm"><td class="doss">'+d+'</td>'+
+        h+='<tr style="height:'+hh+'mm"><td class="doss'+(p.neuve?" neuve":"")+'">'+d+'</td>'+
            (nom?'<td class="nom">'+esc(p.name)+'</td>':'')+
            crits.map(function(){return '<td></td>'}).join("")+
            '<td><span class="mini"><b>R</b><b>Rc</b><b>NR</b></span></td>'+
            '<td><span class="mini">'+POS_KEYS.map(function(k){return '<b>'+k+'</b>'}).join("")+'</span></td>'+
-           '<td></td><td class="fait"></td><td class="doss">'+d+'</td></tr>';
+           '<td></td><td class="fait"></td><td class="doss'+(p.neuve?" neuve":"")+'">'+d+'</td></tr>';
       });
       h+='</tbody></table>'+
         '<div class="legend">'+
-        (nc?'<b>Critères.</b> '+crits.map(function(c){return c.abbr+" = "+esc(c.label)}).join(" · ")+'.<br>':'')+
+        (nc?'<b>Critères.</b> '+crits.map(function(c){
+              var w=poidsDe(c.key);
+              return c.abbr+" = "+esc(c.label)+(w>1?" (×"+w+")":"");
+            }).join(" · ")+'.<br>':'')+
+        ((nc&&!poidsUniformes())?'<b>Poids.</b> '+esc(formuleQ())+
+          ' — le poids ne change pas la note qu\'on écrit, seulement ce que la formule en fait.<br>':'')+
+        (attente()?'<b>Rangs sans dossard.</b> Pour celles qui se sont inscrites le matin : écrivez '+
+          'le numéro que vous venez de leur donner, et son nom sur la feuille d\'inscriptions.<br>':'')+
         '<b>Avis.</b> R = Retenir · Rc = Recaller · NR = Non retenue.<br>'+
         '<b>Postes.</b> '+POS_KEYS.map(function(k){return k+" = "+esc(POS_LABELS[k].toLowerCase())}).join(" · ")+'.<br>'+
         '<b>Une case vide n\'est pas un zéro</b> : le critère reste non noté et n\'entre dans aucune moyenne. '+
@@ -750,11 +885,105 @@ function recapSheets(){
   return out;
 }
 
+/* ─── Feuille 5 · les inscriptions du jour ──────────────────
+   Une sélection ne commence jamais avec la liste qu'on avait la veille :
+   il en arrive le matin même. Cette feuille recueille exactement ce que
+   l'⚡ Ajout en lot sait lire — « Prénom Nom [naissance] [dossard] » — de
+   sorte qu'on la retape ligne pour ligne, sans rien reformuler.
+
+   Elle est tenue à l'accueil, pas sur le terrain : c'est la seule feuille
+   qui porte des noms même quand les vues sont anonymes, parce que c'est
+   l'entraîneure qui la remplit et l'entraîneure seule qui la retape. */
+function inscriptionsSheet(){
+  var libres=attente(),connus=inscrites();
+  var dernier=0;
+  connus.forEach(function(p){if(p.num!=null&&p.num>dernier)dernier=p.num});
+  /* Des lignes en trop ne coûtent rien ; en manquer à l'accueil, le matin,
+     coûte une athlète notée sur un coin de feuille. On remplit donc la
+     page, quitte à ce que la moitié reste blanche. */
+  var rangs=Math.min(maxRows(),Math.max(libres+2,14));
+  var hh=rowH(rangs);
+  var h='<div class="tbl-t">Inscriptions du jour '+
+    '<span>— au format de l\'⚡ Ajout en lot : une athlète par ligne</span></div>'+
+    '<table class="t"><colgroup>'+
+    '<col style="width:11%"><col style="width:43%"><col style="width:20%">'+
+    '<col style="width:14%"><col style="width:12%"></colgroup><thead><tr>'+
+    '<th>Dossard</th><th>Prénom et nom</th><th>Naissance</th>'+
+    '<th class="tiny">convoquée</th><th class="tiny">vues à republier</th>'+
+    '</tr></thead><tbody>';
+  for(var i=0;i<rangs;i++){
+    h+='<tr style="height:'+hh+'mm"><td class="doss neuve">'+
+       (dernier?String(dernier+i+1):"")+'</td>'+
+       '<td class="nom"></td><td></td><td class="fait"></td><td class="fait"></td></tr>';
+  }
+  h+='</tbody></table>'+
+    '<div class="legend">'+
+    '<b>Les dossards proposés</b> suivent le dernier attribué'+(dernier?' ('+dernier+')':'')+
+    ' — barrez-en un s\'il est déjà pris, et n\'en donnez jamais deux fois le même.<br>'+
+    '<b>La naissance s\'écrit <code>26/10/2011</code>, ou <code>2011</code></b> si le jour est inconnu. '+
+    'Une date impossible fait refuser tout le lot : mieux vaut laisser vide que deviner.<br>'+
+    '<b>Au report</b>, une ligne par athlète dans <b>👥 Joueuses → ⚡ Ajout en lot</b> :<br>'+
+    '<code>Rosalie Béland 26/10/2011 '+(dernier?dernier+1:29)+'</code><br>'+
+    'Puis <b>📋 Convoquer</b> sur la saison, et <b>republier les vues</b> des évaluateurs : '+
+    'un paquet déjà parti chez eux ne connaît pas les arrivantes.<br>'+
+    '<b>Enfin, rééquilibrez les groupes</b> — les vagues et les passages ont été calculés '+
+    'sur l\'effectif de la veille.'+
+    '</div>';
+  var nb=notesBlock(rangs,hh);
+  return sheet("Inscriptions du jour",nb?('<div>'+h+'</div>'+nb):h,
+    "à tenir à l\'accueil",nb?"flexcol":"");
+}
+
 /* ─── Assemblage ────────────────────────────────────────────── */
+/* Le poids d'un critère ne change rien à la note qu'on écrit — il dit
+   seulement ce que ⚖️ Formule en fera. Un évaluateur qui sait que la
+   Technique compte triple ne la note pas au même rythme que le reste. */
+function poidsDe(k){
+  var v=(cfg.poids||{})[k];
+  v=parseInt(v,10);
+  return (v>0&&v<=9)?v:1;
+}
+function poidsUniformes(){
+  return CRITERIA.filter(inCrits).every(function(c){return poidsDe(c.key)===1});
+}
+function formuleQ(){
+  var cr=CRITERIA.filter(inCrits);
+  if(!cr.length)return "";
+  var som=0,termes=cr.map(function(c){
+    var w=poidsDe(c.key);som+=w;
+    return (w>1?w+" ":"")+c.label;
+  });
+  return "Q = ("+termes.join(" + ")+") / "+som;
+}
 function inCrits(c){return cfg.crits.indexOf(c.key)!==-1}
 function inFams(k){return cfg.fams.indexOf(k)!==-1}
 function inSheets(k){return cfg.sheets.indexOf(k)!==-1}
-function roster(){return parseRoster(cfg.roster)}
+/* Un compteur peut être retiré sans retirer sa famille : sans opposition
+   une attaque n'a pas de Kill, et une défense d'atelier n'a ni soutien ni
+   erreur de soutien. Imprimer ces colonnes-là, c'est inviter à compter ce
+   que personne ne peut voir. */
+function inStat(k){return (cfg.offStats||[]).indexOf(k)===-1}
+function ALL_STATS_OFF(){
+  var out=[];
+  SG_KEYS.filter(inFams).forEach(function(k){
+    SG[k].stats.forEach(function(x){if(!inStat(x.key))out.push(SG[k].name+" / "+x.label)});
+  });
+  return out;
+}
+function statsDe(fam){return SG[fam].stats.filter(function(x){return inStat(x.key)})}
+function famsVives(){
+  return SG_KEYS.filter(function(k){return inFams(k)&&statsDe(k).length});
+}
+/* Les dossards imprimés, puis les rangs laissés vides pour celles qui
+   s'inscrivent le matin même. Un rang en attente n'a pas de numéro : on
+   l'écrit au stylo au moment où on le donne. */
+function attente(){return Math.max(0,Math.min(20,parseInt(cfg.attente,10)||0))}
+function roster(){
+  var l=parseRoster(cfg.roster);
+  for(var i=0;i<attente();i++)l.push({num:null,name:"",neuve:true});
+  return l;
+}
+function inscrites(){return parseRoster(cfg.roster)}
 
 function renderPages(){
   var p=PAPER[cfg.format]||PAPER.A4P;
@@ -764,6 +993,7 @@ function renderPages(){
 
   var html="";
   if(inSheets("doc"))html+=docSheet();
+  if(inSheets("inscriptions"))html+=inscriptionsSheet();
   if(inSheets("recap"))html+=recapSheets();
   if(inSheets("comptage"))html+=comptageSheets();
   if(inSheets("fiche"))html+=ficheSheets();
@@ -834,7 +1064,7 @@ function renderWarnings(){
   $("swarn").textContent=w.join(" ");
 }
 
-function render(){renderWarnings();renderPages()}
+function render(){renderSubStats();renderPoids();renderWarnings();renderPages()}
 
 /* ─── Le formulaire ─────────────────────────────────────────── */
 function chipList(host,items,selected,onchange){
@@ -858,16 +1088,96 @@ function chipList(host,items,selected,onchange){
 }
 function bind(id,key,ev){
   var el=$(id);
-  el.value=cfg[key];
+  el.value=(typeof cfg[key]==="boolean")?(cfg[key]?"1":"0"):cfg[key];
   el.addEventListener(ev||"input",function(){
     var num=(el.type==="number"||key==="groupe");
-    cfg[key]=num?(parseInt(el.value,10)||(key==="groupe"?0:DEFAULTS[key])):el.value;
+    var zeroOk=(key==="groupe"||key==="attente");
+    cfg[key]=num?(parseInt(el.value,10)||(zeroOk?0:DEFAULTS[key])):el.value;
     save();render();
   });
 }
+/* Les sous-compteurs n'apparaissent que sous les familles cochées : une
+   liste de vingt-trois cases à décocher ne se lit pas, sept familles qui
+   s'ouvrent, si. */
+function renderSubStats(){
+  var host=$("substats");
+  host.innerHTML="";
+  var fams=SG_KEYS.filter(inFams);
+  if(!fams.length)return;
+  fams.forEach(function(k){
+    var ligne=document.createElement("div");
+    ligne.style.cssText="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap";
+    var tit=document.createElement("span");
+    tit.style.cssText="font-size:11px;color:#94A3B8;min-width:78px;font-weight:700";
+    tit.textContent=SG[k].name;
+    ligne.appendChild(tit);
+    SG[k].stats.forEach(function(st){
+      var on=inStat(st.key);
+      var lab=document.createElement("label");
+      lab.className="chip"+(on?" on":"");
+      lab.style.cssText="min-height:32px;padding:5px 9px;font-size:12px";
+      var cb=document.createElement("input");
+      cb.type="checkbox";cb.checked=on;
+      cb.onchange=function(){
+        cfg.offStats=(cfg.offStats||[]).filter(function(x){return x!==st.key});
+        if(!cb.checked)cfg.offStats.push(st.key);
+        lab.className="chip"+(cb.checked?" on":"");
+        lab.style.cssText="min-height:32px;padding:5px 9px;font-size:12px";
+        save();render();
+      };
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(st.label));
+      ligne.appendChild(lab);
+    });
+    host.appendChild(ligne);
+  });
+}
+
+/* Les poids : cinq petits champs, et la formule qu'ils composent, écrite
+   sous eux. Personne ne devrait avoir à la reconstituer de tête. */
+function renderPoids(){
+  var host=$("poids");
+  host.innerHTML="";
+  CRITERIA.filter(inCrits).forEach(function(c){
+    var d=document.createElement("div");
+    var l=document.createElement("label");
+    l.className="f";l.textContent="Poids · "+c.label;
+    var i=document.createElement("input");
+    i.type="number";i.min="1";i.max="9";i.value=String(poidsDe(c.key));
+    i.oninput=function(){
+      cfg.poids=Object.assign({},cfg.poids||{});
+      cfg.poids[c.key]=Math.max(1,Math.min(9,parseInt(i.value,10)||1));
+      save();$("qform").textContent=formuleQ();renderPages();
+    };
+    d.appendChild(l);d.appendChild(i);host.appendChild(d);
+  });
+  $("qform").textContent=formuleQ();
+}
+
+function appliqueModele(m){
+  Object.keys(m.cfg).forEach(function(k){
+    cfg[k]=Array.isArray(m.cfg[k])?m.cfg[k].slice():m.cfg[k];
+  });
+  save();
+  /* Le formulaire entier dépend de ces valeurs : on le remonte. */
+  document.querySelectorAll(".cfg input,.cfg select,.cfg textarea").forEach(function(el){
+    if(el.id&&cfg[el.id]!==undefined){
+      if(el.type==="checkbox")el.checked=!!cfg[el.id];else el.value=cfg[el.id];
+    }
+  });
+  $("anonyme").checked=!!cfg.anonyme;
+  $("parpage").value=cfg.parpage;
+  chipList($("crits"),CRITERIA.map(function(c){return {key:c.key,label:c.label}}),cfg.crits,apresChip);
+  chipList($("fams"),SG_KEYS.map(function(k){return {key:k,label:SG[k].name}}),cfg.fams,apresChip);
+  chipList($("sheets"),SHEETS,cfg.sheets,apresChip);
+  render();
+}
+function apresChip(){save();render()}
+
 function mount(){
-  ["campagne","equipe","date","evaluateur","roster"].forEach(function(k){bind(k,k)});
-  ["cases","lignes"].forEach(function(k){bind(k,k)});
+  ["campagne","equipe","date","evaluateur","roster","atelier"].forEach(function(k){bind(k,k)});
+  ["cases","lignes","attente"].forEach(function(k){bind(k,k)});
+  bind("commentaire","commentaire","change");
   var gsel=$("groupe");
   GROUPINGS.forEach(function(n){
     var o=document.createElement("option");
@@ -879,9 +1189,18 @@ function mount(){
   $("anonyme").checked=!!cfg.anonyme;
   $("anonyme").addEventListener("change",function(){cfg.anonyme=$("anonyme").checked;save();render()});
 
-  chipList($("crits"),CRITERIA.map(function(c){return {key:c.key,label:c.label}}),cfg.crits,function(){save();render()});
-  chipList($("fams"),SG_KEYS.map(function(k){return {key:k,label:SG[k].name}}),cfg.fams,function(){save();render()});
-  chipList($("sheets"),SHEETS,cfg.sheets,function(){save();render()});
+  chipList($("crits"),CRITERIA.map(function(c){return {key:c.key,label:c.label}}),cfg.crits,apresChip);
+  chipList($("fams"),SG_KEYS.map(function(k){return {key:k,label:SG[k].name}}),cfg.fams,apresChip);
+  chipList($("sheets"),SHEETS,cfg.sheets,apresChip);
+
+  var host=$("modeles");
+  MODELES.forEach(function(m){
+    var b=document.createElement("button");
+    b.className="btn";b.textContent=m.label;b.title=m.info;
+    b.onmouseover=function(){$("modinfo").textContent=m.info};
+    b.onclick=function(){appliqueModele(m)};
+    host.appendChild(b);
+  });
 
   $("fill").addEventListener("click",function(){
     var n=Math.max(1,Math.min(200,parseInt($("jusqua").value,10)||14));

@@ -58,30 +58,70 @@ const PAPIER={A4P:277,A4L:190,LTP:259.4,LTL:195.9};
   await page.reload();
   await page.waitForTimeout(400);
 
-  await etape("la grille s'ouvre sur trente dossards, sans réglage",async()=>{
-    const n=await page.evaluate(()=>roster().length);
-    if(n!==30)throw new Error("roster par défaut à "+n+" et non 30 — c'est la taille d'une sélection");
-    const f=await page.$$eval(".sheet",s=>s.length);
-    if(f<3)throw new Error("seulement "+f+" feuille(s) produites");
+  /* La grille d'ensemble, quels que soient les autres réglages. */
+  const ensemble=async()=>page.evaluate(()=>{
+    const g=[...document.querySelectorAll(".sheet")]
+      .filter(s=>s.querySelector(".sh-kind").textContent.indexOf("Grille")===0);
+    return {feuilles:g.length,
+      rangs:g.length?g[0].querySelectorAll("tbody tr").length:0,
+      attente:g.length?g[0].querySelectorAll("tbody td.doss.neuve").length:0,
+      entete:g.length?g[0].querySelector("thead").textContent:""};
   });
 
-  await etape("les trente athlètes tiennent sur une seule grille d'ensemble",async()=>{
-    const r=await page.evaluate(()=>{
-      const g=[...document.querySelectorAll(".sheet")]
-        .filter(s=>s.querySelector(".sh-kind").textContent.indexOf("Grille")===0);
-      return {feuilles:g.length,rangs:g.length?g[0].querySelectorAll("tbody tr").length:0};
-    });
+  await etape("la grille s'ouvre sur l'effectif du plan : 28 dossards et des rangs en attente",async()=>{
+    const r=await page.evaluate(()=>({inscrits:inscrites().length,total:roster().length,
+      attente:attente(),groupe:cfg.groupe}));
+    if(r.inscrits!==28)throw new Error(r.inscrits+" dossards imprimés au lieu des 28 du plan");
+    if(r.attente<1)throw new Error("aucun rang en attente : rien ne reçoit une inscription du matin");
+    if(r.total!==r.inscrits+r.attente)throw new Error("les rangs en attente ne s'ajoutent pas à la liste");
+    if(r.groupe!==7)throw new Error("le découpage par défaut est "+r.groupe+" et non les groupes de 7 du plan");
+  });
+
+  await etape("les 28 et leurs rangs en attente tiennent sur une seule grille d'ensemble",async()=>{
+    const r=await ensemble();
     if(r.feuilles!==1)throw new Error(r.feuilles+" feuilles d'ensemble : le groupe se coupe en deux");
-    if(r.rangs!==30)throw new Error(r.rangs+" rangs au lieu de 30");
+    const att=await page.evaluate(()=>attente());
+    if(r.rangs!==28+att)throw new Error(r.rangs+" rangs au lieu de "+(28+att));
+    /* deux cellules de dossard par rang en attente : à gauche et à droite */
+    if(r.attente!==att*2)throw new Error("rangs en attente non marqués : "+r.attente);
+  });
+
+  await etape("le découpage en vagues ne touche pas la grille d'ensemble",async()=>{
+    await regle(()=>{cfg.sheets=["recap","comptage"];cfg.groupe=7;render()});
+    const r=await ensemble();
+    if(r.feuilles!==1)throw new Error("la grille d'ensemble s'est découpée en "+r.feuilles+" feuilles");
+    const comptage=await page.evaluate(()=>[...document.querySelectorAll(".sheet")]
+      .filter(s=>s.querySelector(".sh-kind").textContent.indexOf("Comptage")===0)
+      .map(s=>s.querySelector("tbody").rows.length));
+    if(!comptage.length)throw new Error("aucune feuille de comptage");
+    if(Math.max.apply(null,comptage)>7+await page.evaluate(()=>attente()))
+      throw new Error("une vague de comptage porte "+Math.max.apply(null,comptage)+" rangs");
   });
 
   await etape("chaque rang porte son dossard aux deux bords",async()=>{
     const r=await page.evaluate(()=>{
-      const tr=document.querySelector(".sheet tbody tr");
-      const d=[...tr.querySelectorAll("td.doss")].map(td=>td.textContent);
-      return d;
+      const g=[...document.querySelectorAll(".sheet")]
+        .find(s=>s.querySelector(".sh-kind").textContent.indexOf("Grille")===0);
+      return [...g.querySelector("tbody tr").querySelectorAll("td.doss")].map(td=>td.textContent);
     });
     if(r.length!==2||r[0]!==r[1])throw new Error("rappel du dossard absent ou incohérent : "+JSON.stringify(r));
+  });
+
+  await etape("les poids des critères sont écrits sur la grille, sans changer la note",async()=>{
+    await regle(()=>{cfg.sheets=["recap"];cfg.anonyme=false;render()});
+    const r=await ensemble();
+    if(r.entete.indexOf("×3")===-1)
+      throw new Error("le poids de la Technique n'apparaît pas en tête : « "+r.entete.replace(/\s+/g," ")+" »");
+    const q=await page.evaluate(()=>formuleQ());
+    if(q.indexOf("3 Technique")===-1||q.indexOf("2 Lecture du jeu")===-1)
+      throw new Error("la formule Q du plan n'est pas reconstituée : "+q);
+    /* Les cases de note restent des cases vides : un poids ne se saisit pas. */
+    const cases=await page.evaluate(()=>{
+      const g=[...document.querySelectorAll(".sheet")]
+        .find(s=>s.querySelector(".sh-kind").textContent.indexOf("Grille")===0);
+      return [...g.querySelector("tbody tr").cells].filter(td=>td.textContent==="").length;
+    });
+    if(cases<5)throw new Error("les cases de note ne sont plus vides");
   });
 
   await etape("aucune feuille ne déborde de sa page — réglage par défaut",async()=>{
@@ -105,7 +145,7 @@ const PAPIER={A4P:277,A4L:190,LTP:259.4,LTL:195.9};
   });
 
   await etape("aucune feuille ne déborde — découpé en groupes de six",async()=>{
-    await regle(()=>{cfg.groupe=6;cfg.parpage="2";render()});
+    await regle(()=>{cfg.roster="1-30";cfg.attente=0;cfg.groupe=6;cfg.parpage="2";render()});
     const d=await debordements();
     if(d.length)throw new Error(JSON.stringify(d.slice(0,3)));
   });
@@ -118,10 +158,11 @@ const PAPIER={A4P:277,A4L:190,LTP:259.4,LTL:195.9};
     attendus.forEach(a=>{if(tags.indexOf(a)===-1)throw new Error("« "+a+" » manque")});
     const rangs=await page.evaluate(()=>{
       const g=[...document.querySelectorAll(".sheet")]
-        .find(s=>s.querySelector(".sh-kind").textContent.indexOf("Grille")===0);
+        .find(s=>s.querySelector(".sh-kind").textContent.indexOf("Comptage")===0);
       return g.querySelectorAll("tbody tr").length;
     });
-    if(rangs!==6)throw new Error("une vague de "+rangs+" rangs au lieu de six");
+    if(rangs!==6)throw new Error("une vague de comptage de "+rangs+" rangs au lieu de six");
+    await regle(()=>{cfg.roster=DEFAULTS.roster;cfg.attente=DEFAULTS.attente;render()});
   });
   await shot("grille-groupes");
 
@@ -238,6 +279,74 @@ const PAPIER={A4P:277,A4L:190,LTP:259.4,LTL:195.9};
     if(r.c!=="Sélection U14 — sept. 2026"||r.champ!==r.c)
       throw new Error("la campagne ne revient pas : "+JSON.stringify(r));
     if(+r.g!==6||+r.sel!==6)throw new Error("le découpage ne revient pas : "+JSON.stringify(r));
+  });
+
+  await etape("un compteur retiré disparaît du papier, sa famille restant",async()=>{
+    await regle(()=>{cfg.sheets=["comptage"];cfg.fams=["attaques"];
+      cfg.offStats=["atk_kill"];cfg.groupe=0;render()});
+    const r=await page.evaluate(()=>{
+      const g=[...document.querySelectorAll(".sheet")]
+        .find(s=>s.querySelector(".sh-kind").textContent.indexOf("Comptage")===0);
+      return {tete:g.querySelector("thead").textContent,legende:g.querySelector(".legend").textContent};
+    });
+    if(/\bKill\b/.test(r.tete))
+      throw new Error("la colonne Kill reste alors qu'elle est retirée : « "+r.tete.replace(/\s+/g," ")+" »");
+    if(r.tete.indexOf("Réussie")===-1||r.tete.indexOf("Erreur")===-1)
+      throw new Error("la famille Attaques a perdu ses autres compteurs");
+    if(r.legende.indexOf("Retirés de cet atelier")===-1)
+      throw new Error("la feuille ne dit pas ce qui a été retiré");
+  });
+
+  await etape("retirer tous les compteurs d'une famille la retire du papier",async()=>{
+    await regle(()=>{cfg.fams=["passes"];cfg.offStats=["pas_att","pas_out"];render()});
+    /* `#pages` garde un carton « rien à imprimer » : ce n'est pas une feuille. */
+    const n=await page.$$eval(".sheet .sh-kind",s=>s.length);
+    if(n!==0)throw new Error(n+" feuille(s) de comptage sans aucun compteur à relever");
+    const vide=await page.$eval("#pages",e=>e.textContent);
+    if(vide.indexOf("Aucune feuille")===-1)
+      throw new Error("l'écran ne dit pas qu'il n'y a plus rien à imprimer");
+    await regle(()=>{cfg.offStats=DEFAULTS.offStats.slice();cfg.fams=DEFAULTS.fams.slice();render()});
+  });
+
+  await etape("la feuille d'inscriptions reprend le format de l'ajout en lot",async()=>{
+    await regle(()=>{cfg.sheets=["inscriptions"];cfg.roster="1-28";cfg.attente=4;render()});
+    const r=await page.evaluate(()=>{
+      const g=document.querySelector(".sheet");
+      return {tete:g.querySelector("thead").textContent,
+              rangs:g.querySelectorAll("tbody tr").length,
+              propose:[...g.querySelectorAll("tbody td.doss")].map(x=>x.textContent),
+              legende:g.querySelector(".legend").textContent};
+    });
+    ["Dossard","Prénom et nom","Naissance"].forEach(c=>{
+      if(r.tete.indexOf(c)===-1)throw new Error("colonne « "+c+" » absente");
+    });
+    if(r.propose[0]!=="29")
+      throw new Error("le premier dossard proposé est « "+r.propose[0]+" » et non 29, après les 28 du plan");
+    if(r.legende.indexOf("Ajout en lot")===-1&&r.legende.indexOf("ajout en lot")===-1)
+      throw new Error("la feuille ne renvoie pas à l'ajout en lot");
+    if(r.legende.indexOf("republier")===-1)
+      throw new Error("rien ne rappelle de republier les vues : une arrivante ne serait dans aucune");
+  });
+
+  await etape("les deux modèles posent des pochettes différentes",async()=>{
+    const juge=await page.evaluate(()=>{
+      appliqueModele(MODELES[0]);
+      return {crits:cfg.crits.length,fams:cfg.fams.length,anonyme:cfg.anonyme,
+              feuilles:cfg.sheets.slice()};
+    });
+    if(juge.crits!==5||juge.fams!==0||juge.anonyme)
+      throw new Error("le modèle du juge : "+JSON.stringify(juge));
+    if(juge.feuilles.indexOf("recap")===-1)throw new Error("le juge n'a pas sa grille d'ensemble");
+    const compte=await page.evaluate(()=>{
+      appliqueModele(MODELES[1]);
+      return {crits:cfg.crits.slice(),anonyme:cfg.anonyme,feuilles:cfg.sheets.slice()};
+    });
+    if(compte.crits.join()!=="tech"||!compte.anonyme)
+      throw new Error("le modèle du coach de drill : "+JSON.stringify(compte));
+    if(compte.feuilles.indexOf("comptage")===-1)throw new Error("le coach n'a pas ses feuilles de comptage");
+    await page.waitForTimeout(250);
+    const d=await debordements();
+    if(d.length)throw new Error("le modèle produit des feuilles qui débordent : "+JSON.stringify(d.slice(0,2)));
   });
 
   await etape("aucune erreur JS sur tout le parcours",async()=>{

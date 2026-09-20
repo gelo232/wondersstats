@@ -411,20 +411,43 @@ cela arrive, et trente athlètes attendent déjà dans le gymnase. Ouvrez alors
 lui aussi — réglez la campagne, les dossards, ce qui est noté et ce qui est compté, et
 imprimez. **Préparez-la la veille, avec le reste de la pochette.**
 
-Elle sort trois feuilles, et un mode d'emploi qui dit où retaper chaque case :
+Elle sort quatre feuilles, et un mode d'emploi qui dit où retaper chaque case :
 
 | Feuille | Pour qui | Ce qu'elle porte |
 |---|---|---|
-| **Grille d'ensemble** | qui juge | trente dossards sur une page — les cinq critères, l'avis, le poste, une remarque, et une colonne *fait* qui remplace le « 12/28 évaluées » de l'écran |
-| **Feuille de comptage** | qui compte | une famille par feuille, une marque par geste, un total par compteur |
+| **Grille d'ensemble** | qui juge | tout le groupe sur une page — les cinq critères **avec leur poids**, l'avis, le poste, une remarque, et une colonne *fait* qui remplace le « 12/28 évaluées » de l'écran |
+| **Feuille de comptage** | qui compte | une famille par feuille et par vague, une marque par geste, un total par compteur, une colonne de commentaire |
+| **Inscriptions du jour** | l'accueil | dossard, nom, naissance — **au format de l'`⚡ Ajout en lot`**, qui se retape ligne pour ligne |
 | **Fiche par athlète** | le second regard | le panneau de saisie entier sur une page : critères, compteurs, avis, poste, commentaire |
+
+**Une pochette par évaluateur**, comme une vue par personne à l'écran. Deux modèles les
+posent d'un geste : `👁️ Celle qui juge` (les cinq critères pondérés, aucun compteur,
+nominative) et `🔢 Celle qui compte` (Technique seule, les familles de son atelier,
+anonyme). À l'intérieur d'une famille, on décoche ce que l'atelier ne produit pas —
+sans opposition, une attaque n'a pas de `Kill`, et la colonne ne s'imprime pas.
+
+### Celles qui s'inscrivent le matin même
+
+Le plan est fait sur l'effectif de la veille ; le gymnase ne s'y tient pas. La grille
+réserve donc des **rangs sans dossard**, encadrés de pointillés, sur la grille d'ensemble
+*et sur chaque vague de comptage* — on ne sait pas dans laquelle tombera celle qui arrive
+à 10 h 40. À l'accueil, on donne le numéro libre suivant, on l'écrit sur ces rangs, et la
+feuille **Inscriptions du jour** recueille son nom et sa naissance. Au report, elle passe
+d'abord par `⚡ Ajout en lot`, puis `📋 Convoquer`, puis **republication des vues** — un
+paquet déjà distribué ne la connaît pas.
 
 La grille reprend **les libellés de l'application, dans l'ordre du panneau de
 saisie** : Évaluation → Statistiques observées → Recommandation → Poste proposé →
 Commentaire. Le report se fait case pour case, sans rien réinterpréter. Elle reprend
-aussi son découpage en **groupes** — `par 6` donne les mêmes *Groupe A* à *Groupe E*
-que `⚙️ Groupes` à l'écran, une feuille par vague : on suit six rangs pendant un
-atelier, pas trente.
+aussi son découpage en **groupes** — `par 7` donne les mêmes *Groupe A* à *Groupe D*
+que `⚙️ Groupes` à l'écran, une feuille par vague. **Le découpage ne touche que le
+terrain** : les feuilles de comptage et les fiches suivent les vagues, la grille
+d'ensemble reste entière, pour que celle qui juge ne change pas de feuille entre deux
+groupes.
+
+Les **poids des critères** s'écrivent en tête de colonne (`TEC ×3`) et la formule est
+rappelée en légende. Ils ne changent rien à la note qu'on écrit — seulement à ce que
+`⚖️ Formule` en fera, et c'est là qu'il faut les régler à l'identique.
 
 > **Ce qu'elle rappelle sur chaque feuille, parce que c'est là qu'on se trompe.** Une
 > case laissée vide reste *non notée* — ce n'est pas un zéro, et elle n'entre dans
