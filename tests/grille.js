@@ -224,28 +224,70 @@ const PAPIER={A4P:277,A4L:190,LTP:259.4,LTL:195.9};
       };
       const critApp=eval(bloc("CRITERIA","[","]"));
       const sgApp=eval("("+bloc("SG","{","}")+")");
-      const recoApp=eval(bloc("RECOS","[","]"));
-      const posApp=eval("("+bloc("POS_LABELS","{","}")+")");
       return {
         crit:critApp.map(c=>c.key+"|"+c.label+"|"+c.desc).join("§"),
         critIci:CRITERIA.map(c=>c.key+"|"+c.label+"|"+c.desc).join("§"),
         sg:Object.keys(sgApp).map(k=>k+":"+sgApp[k].name+"="+
              sgApp[k].stats.map(s=>s.key+"/"+s.label).join(",")).join("§"),
         sgIci:SG_KEYS.map(k=>k+":"+SG[k].name+"="+
-             SG[k].stats.map(s=>s.key+"/"+s.label).join(",")).join("§"),
-        reco:recoApp.map(r=>r.key+"|"+r.label).join("§"),
-        recoIci:RECOS.map(r=>r.key+"|"+r.label).join("§"),
-        pos:JSON.stringify(posApp),posIci:JSON.stringify(POS_LABELS)
+             SG[k].stats.map(s=>s.key+"/"+s.label).join(",")).join("§")
       };
     });
     if(r.crit!==r.critIci)
       throw new Error("les critères ont divergé.\n    app    : "+r.crit+"\n    grille : "+r.critIci);
     if(r.sg!==r.sgIci)
       throw new Error("les familles de compteurs ont divergé.\n    app    : "+r.sg+"\n    grille : "+r.sgIci);
-    if(r.reco!==r.recoIci)
-      throw new Error("les avis ont divergé : "+r.reco+" ≠ "+r.recoIci);
-    if(r.pos!==r.posIci)
-      throw new Error("les postes ont divergé : "+r.pos+" ≠ "+r.posIci);
+  });
+
+  /* Ce que le papier ne doit PAS demander : la décision se prend dans
+     l'application, une fois tous les relevés saisis et le score calculé. */
+  await etape("aucune feuille ne demande un avis ni un poste",async()=>{
+    await regle(()=>{cfg.sheets=["doc","inscriptions","recap","comptage","fiche"];
+      cfg.fams=DEFAULTS.fams.slice();cfg.offStats=DEFAULTS.offStats.slice();
+      cfg.crits=CRITERIA.map(c=>c.key);cfg.anonyme=false;cfg.parpage="1";render()});
+    const r=await page.evaluate(()=>{
+      const out={entetes:[],cellules:0};
+      document.querySelectorAll(".sheet").forEach(s=>{
+        const t=s.querySelector(".sh-kind").textContent;
+        s.querySelectorAll("thead th").forEach(th=>{
+          if(/avis|poste/i.test(th.textContent))out.entetes.push(t+" → "+th.textContent);
+        });
+        /* les pastilles à entourer de l'ancienne grille, et les cases à
+           cocher de l'ancienne fiche */
+        out.cellules+=s.querySelectorAll(".mini,.reco,.tick,.box").length;
+      });
+      return out;
+    });
+    if(r.entetes.length)
+      throw new Error("colonnes d'avis ou de poste encore présentes : "+r.entetes.join(", "));
+    if(r.cellules)throw new Error(r.cellules+" case(s) d'avis ou de poste encore imprimées");
+    /* Les textes eux-mêmes ne doivent plus rien demander sur les feuilles
+       de terrain — le mode d'emploi, lui, explique où cela se décide. */
+    const terrain=await page.evaluate(()=>{
+      return [...document.querySelectorAll(".sheet")]
+        .filter(s=>s.querySelector(".sh-kind").textContent.indexOf("Mode d'emploi")!==0)
+        .map(s=>s.textContent).join(" ");
+    });
+    ["Recaller","Non retenue","Réceptionneuse-attaquante","Libéro"].forEach(m=>{
+      if(terrain.indexOf(m)!==-1&&!/Ni avis ni poste/.test(terrain))
+        throw new Error("« "+m+" » figure encore sur une feuille de terrain");
+    });
+  });
+
+  await etape("la largeur rendue va aux notes et à la remarque",async()=>{
+    await regle(()=>{cfg.sheets=["recap"];cfg.anonyme=false;render()});
+    const r=await page.evaluate(()=>{
+      const g=[...document.querySelectorAll(".sheet")]
+        .find(s=>s.querySelector(".sh-kind").textContent.indexOf("Grille")===0);
+      const cols=[...g.querySelectorAll("colgroup col")].map(c=>parseFloat(c.style.width));
+      const tetes=[...g.querySelectorAll("thead th")].map(t=>t.textContent.trim());
+      return {cols,tetes,rem:cols[cols.length-3]};
+    });
+    if(r.tetes[r.tetes.length-3].indexOf("Remarque")!==0)
+      throw new Error("la colonne Remarque n'est plus à sa place : "+JSON.stringify(r.tetes));
+    if(!(r.rem>=12))throw new Error("la remarque ne fait que "+r.rem+" % : on n'y écrit pas une phrase");
+    const tec=r.cols[2];
+    if(!(tec>=5))throw new Error("les cases de note sont retombées à "+tec+" %");
   });
 
   await etape("chaque compteur de chaque famille a sa colonne au comptage",async()=>{

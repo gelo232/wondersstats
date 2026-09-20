@@ -415,10 +415,10 @@ Elle sort quatre feuilles, et un mode d'emploi qui dit où retaper chaque case :
 
 | Feuille | Pour qui | Ce qu'elle porte |
 |---|---|---|
-| **Grille d'ensemble** | qui juge | tout le groupe sur une page — les cinq critères **avec leur poids**, l'avis, le poste, une remarque, et une colonne *fait* qui remplace le « 12/28 évaluées » de l'écran |
+| **Grille d'ensemble** | qui juge | tout le groupe sur une page — les cinq critères **avec leur poids**, une large colonne de remarque, et une colonne *fait* qui remplace le « 12/28 évaluées » de l'écran |
 | **Feuille de comptage** | qui compte | une famille par feuille et par vague, une marque par geste, un total par compteur, une colonne de commentaire |
 | **Inscriptions du jour** | l'accueil | dossard, nom, naissance — **au format de l'`⚡ Ajout en lot`**, qui se retape ligne pour ligne |
-| **Fiche par athlète** | le second regard | le panneau de saisie entier sur une page : critères, compteurs, avis, poste, commentaire |
+| **Fiche par athlète** | le second regard | critères, compteurs et commentaire sur une page |
 
 **Une pochette par évaluateur**, comme une vue par personne à l'écran. Deux modèles les
 posent d'un geste : `👁️ Celle qui juge` (les cinq critères pondérés, aucun compteur,
@@ -437,8 +437,14 @@ d'abord par `⚡ Ajout en lot`, puis `📋 Convoquer`, puis **republication des 
 paquet déjà distribué ne la connaît pas.
 
 La grille reprend **les libellés de l'application, dans l'ordre du panneau de
-saisie** : Évaluation → Statistiques observées → Recommandation → Poste proposé →
-Commentaire. Le report se fait case pour case, sans rien réinterpréter. Elle reprend
+saisie** : Évaluation → Statistiques observées → Commentaire. Le report se fait case
+pour case, sans rien réinterpréter.
+
+**Ni avis ni poste proposé sur le papier.** La feuille relève ce qui se voit dans le
+gymnase ; elle ne tranche pas. *Retenir · Recaller · Non retenue* et le poste se
+décident dans l'application, une fois tous les relevés saisis et le score calculé —
+pas sur une feuille, avant d'avoir vu les autres. Un avis qui vient pendant la séance
+va dans le commentaire : c'est une observation, pas encore une décision. Elle reprend
 aussi son découpage en **groupes** — `par 7` donne les mêmes *Groupe A* à *Groupe D*
 que `⚙️ Groupes` à l'écran, une feuille par vague. **Le découpage ne touche que le
 terrain** : les feuilles de comptage et les fiches suivent les vagues, la grille

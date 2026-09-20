@@ -15,7 +15,7 @@
      stylo se retape ensuite sans rien réinterpréter.
 
      Les constantes métier ci-dessous sont recopiées de `index.html`
-     (CRITERIA, SG, RECOS, POS_LABELS). Si elles y changent, elles
+     (CRITERIA, SG). Si elles y changent, elles
      changent ici : c'est le prix d'un fichier qui doit s'imprimer sans
      l'application.
      ══════════════════════════════════════════════════════════════ -->
@@ -101,10 +101,6 @@ textarea{min-height:140px;resize:vertical;line-height:1.5;font-size:13px}
 .dots{display:flex;gap:1.6mm;flex:0 0 auto}
 .dot{width:6mm;height:6mm;border:.35mm solid #111;border-radius:50%;
   display:flex;align-items:center;justify-content:center;font-size:8pt;font-weight:700;color:#444}
-.reco{display:flex;gap:4mm;align-items:center;flex-wrap:wrap}
-.tick{display:inline-flex;align-items:center;gap:1.5mm;font-size:9pt;font-weight:700}
-.box{width:4.5mm;height:4.5mm;border:.4mm solid #111;border-radius:.8mm;display:inline-block}
-.pos-l{font-size:7pt;color:#555;font-weight:400}
 .pds-i{font-size:7pt;font-weight:700;color:#444;margin-left:1.5mm}
 /* Les lignes de commentaire se dessinent en fond : elles remplissent
    exactement la place qui reste, qu'il y en ait dix centimètres ou deux. */
@@ -124,9 +120,6 @@ textarea{min-height:140px;resize:vertical;line-height:1.5;font-size:13px}
 .dense .crit .desc{font-size:7pt}
 .dense .dot{width:5.2mm;height:5.2mm;font-size:7pt}
 .dense .dots{gap:1.3mm}
-.dense .tick{font-size:8.5pt}
-.dense .box{width:4mm;height:4mm}
-.dense .pos-l{display:none}
 .dense .lines{min-height:8mm}
 .sh-body.flexcol.dense{gap:2.5mm}
 
@@ -137,13 +130,16 @@ textarea{min-height:140px;resize:vertical;line-height:1.5;font-size:13px}
 .fam-rows.c2{grid-template-columns:1fr 1fr;column-gap:4mm}
 .fam-t{font-size:7.5pt;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
   border-left:1mm solid #111;padding-left:1.5mm;margin-bottom:.8mm}
-.cnt{display:flex;align-items:center;gap:1.5mm;padding:.5mm 0 .5mm 2.5mm}
+/* La hauteur d'un rang de compteur se règle depuis la feuille : le
+   calcul qui choisit une ou deux colonnes vise juste à quelques
+   millimètres près, et c'est la mesure après rendu qui tranche. */
+.cnt{display:flex;align-items:center;gap:1.5mm;padding:0 0 0 2.5mm;height:var(--cnth,5.6mm)}
 .cnt .lab{flex:0 0 auto;font-size:8pt;overflow:hidden;white-space:nowrap}
 .tally{display:flex;gap:.8mm;flex:1}
 .tally i{display:block;border:.2mm solid #666;border-radius:.4mm}
 .tally i.gap{border:0;width:1.6mm}
 .cnt .tot{font-size:7pt;color:#555}
-.totbox{height:4.6mm;border:.4mm solid #111;border-radius:.8mm;flex:0 0 auto}
+.totbox{height:calc(var(--cnth,5.6mm) - 1mm);border:.4mm solid #111;border-radius:.8mm;flex:0 0 auto}
 
 /* ─── Tableaux (comptage, récapitulatif) ────────────────────── */
 table.t{width:100%;border-collapse:collapse;table-layout:fixed}
@@ -342,11 +338,12 @@ var SG={
   habiletes:{name:"Habiletés",stats:[{key:"hab_ctrl",label:"Contrôlée"},{key:"hab_appel",label:"Avec appel"},{key:"hab_couv",label:"Couverture"},{key:"hab_free",label:"Gratuite"}]}
 };
 var SG_KEYS=Object.keys(SG);
-/* Les libellés d'avis de l'application, sans emoji : une imprimante noir et
-   blanc rend ✅ et ⛔ en pavés illisibles. */
-var RECOS=[{key:"select",label:"Retenir"},{key:"recall",label:"Recaller"},{key:"cut",label:"Non retenue"}];
-var POS_KEYS=["S","OH","OPP","MB","L"];
-var POS_LABELS={S:"Passeuse",OH:"Réceptionneuse-attaquante",OPP:"Pointue",MB:"Centrale",L:"Libéro"};
+/* Ni avis ni poste proposé sur le papier. La feuille relève ce qui se voit
+   dans le gymnase — des notes, des gestes comptés, une phrase — et rien de
+   plus : Retenir, Recaller, Non retenue et le poste se décident dans
+   l'application, une fois les relevés de tout le monde saisis et le score
+   calculé. Les porter au stylo reviendrait à trancher sur une feuille,
+   avant d'avoir vu les autres. */
 var RATING_MAX=5;
 
 var SHEETS=[
@@ -398,7 +395,7 @@ var DEFAULTS={
      modèle « celle qui compte » les sort en un geste. */
   sheets:["doc","inscriptions","recap"],
   commentaire:true,
-  parpage:"2",cases:12,lignes:34,groupe:7,format:"A4P"
+  parpage:"2",cases:10,lignes:34,groupe:7,format:"A4P"
 };
 var KEY="wonderstats.grille.v1";
 var cfg=load();
@@ -593,25 +590,29 @@ function docSheet(){
   '<dt>Notes</dt><dd>de 1 à '+RATING_MAX+'. <b>Une case laissée vide reste « non notée » — ce n\'est pas un zéro.</b> '+
   'Elle n\'entre dans aucune moyenne. Ne remplissez jamais par défaut.</dd>'+
   '<dt>Compteurs</dt><dd>une marque par geste observé. On compte des gestes, pas de la valeur.</dd>'+
-  '<dt>Avis</dt><dd>Retenir · Recaller · Non retenue. Un seul, ou aucun.</dd>'+
-  '<dt>Poste</dt><dd>facultatif, et c\'est un avis : il n\'écrase jamais le poste de l\'entraîneur.</dd>'+
   '<dt>Commentaire</dt><dd>une phrase, écrite pour pouvoir être lue telle quelle à l\'athlète ou à ses parents.</dd>'+
   '<dt>Fait</dt><dd>dernière colonne de la grille d\'ensemble. Elle ne se reporte nulle part : '+
   'elle remplace le « 12/28 évaluées » de l\'écran, et c\'est elle qui dit qui reste à voir avant '+
   'que le groupe ne sorte du gymnase.</dd>'+
   '</dl>'+
+  '<p><b>Ni avis ni poste proposé sur le papier.</b> Retenir, Recaller, Non retenue et le poste se '+
+  'décident dans l\'application, une fois tous les relevés saisis et le score calculé. La feuille '+
+  'relève ce qui se voit dans le gymnase ; elle ne tranche pas. Si un avis vous vient pendant la '+
+  'séance, il va dans le commentaire — c\'est une observation, pas encore une décision.</p>'+
 
   '<h3>Après la séance — le report dans l\'application</h3>'+
   '<p>Ouvrez la vue de l\'évaluateur (<b>🎯 Sélection → 🎯 Ouvrir ici</b>), puis, athlète par athlète, '+
-  'dans l\'ordre du panneau. Les cinq blocs du panneau sont les cinq blocs de la fiche papier :</p>'+
+  'dans l\'ordre du panneau. Les trois blocs de la feuille sont les trois premiers du panneau ; '+
+  'les deux derniers se remplissent plus tard, au moment de décider :</p>'+
   '<div class="key"><p class="flow">'+
-  'FICHE PAPIER                 PANNEAU DE L\'APPLICATION\n'+
+  'FEUILLE PAPIER               PANNEAU DE L\'APPLICATION\n'+
   '  Évaluation  (1 à 5)   ──▶  1. Évaluation\n'+
   '  Compteurs   (totaux)  ──▶  2. Statistiques observées\n'+
-  '  Avis                  ──▶  3. Recommandation\n'+
-  '  Poste proposé         ──▶  4. Poste proposé\n'+
   '  Commentaire           ──▶  5. Commentaire\n'+
-  '                             puis 📤 Soumettre la vue'+
+  '                             puis 📤 Soumettre la vue\n'+
+  '\n'+
+  '  (rien sur le papier)  ──▶  3. Recommandation   ┐ une fois tout\n'+
+  '  (rien sur le papier)  ──▶  4. Poste proposé    ┘ saisi'+
   '</p></div>'+
   '<ul>'+
   '<li><b>Reportez les totaux, pas les marques.</b> Comptez la ligne de cases, écrivez le total dans '+
@@ -623,6 +624,9 @@ function docSheet(){
   'seule vue : la correction de sévérité et le compte des avis se font par personne.</li>'+
   '<li>Si l\'application a tourné pour une partie du groupe, <b>ne ressaisissez pas ces athlètes</b> : '+
   'le report écraserait une saisie faite en direct.</li>'+
+  '<li><b>La décision vient après, et dans l\'application.</b> Une fois toutes les vues soumises, '+
+  '<b>📊 Récap → ⭐ Évaluations</b> donne le score et son détail ; c\'est là, et dans '+
+  '<b>🗓️ Saison → 🎯 Sélection</b>, que se posent Retenir, Recaller, Non retenue et le poste.</li>'+
   '<li><b>Gardez les feuilles papier jusqu\'à la fin de la saison.</b> C\'est ce qui défend le chiffre '+
   'devant une athlète et ses parents.</li>'+
   '</ul>'+
@@ -664,8 +668,8 @@ function statLayout(){
   var nCrit=CRITERIA.filter(inCrits).length,fams=famsVives(),nCnt=0;
   fams.forEach(function(k){nCnt+=statsDe(k).length});
   /* hauteur utile : la page, moins l'en-tête, le pied, le cadre de la
-     fiche, les critères, l'avis, le poste et deux lignes de commentaire */
-  var avail=ph-14-9-12-(nCrit?9+nCrit*6.4:0)-9-10-16-(9+fams.length*5.2);
+     fiche, les critères et deux lignes de commentaire */
+  var avail=ph-14-9-12-(nCrit?9+nCrit*6.4:0)-16-(9+fams.length*5.2);
   var cols=(nCnt*ROW_H<=avail)?1:2,rows=0;
   if(cols===1)rows=nCnt;
   else fams.forEach(function(k){rows+=Math.ceil(statsDe(k).length/2)});
@@ -726,20 +730,6 @@ function ficheBlock(p,withStats,L){
       h+='</div>';
     }
   }
-
-  h+='<div class="fi-sec"><div class="reco">'+
-     '<span class="sec-t" style="margin:0;min-width:28mm">Recommandation</span>'+
-     RECOS.map(function(r){return '<span class="tick"><span class="box"></span>'+esc(r.label)+'</span>'}).join("")+
-     '</div></div>';
-
-  h+='<div class="fi-sec"><div class="reco">'+
-     '<span class="sec-t" style="margin:0;min-width:28mm">Poste proposé</span>'+
-     '<span class="tick"><span class="box"></span>—</span>'+
-     POS_KEYS.map(function(k){
-       return '<span class="tick"><span class="box"></span>'+k+
-              ' <span class="pos-l">'+esc(POS_LABELS[k].toLowerCase())+'</span></span>';
-     }).join("")+
-     '</div></div>';
 
   h+='<div class="fi-sec grow"><div class="sec-t">Commentaire<span>une phrase, lisible telle quelle par l\'athlète ou ses parents</span></div>'+
      '<div class="lines"></div></div>';
@@ -830,20 +820,26 @@ function recapSheets(){
   var crits=CRITERIA.filter(inCrits);
   if(!roster().length)return "";
   var nom=!cfg.anonyme,nc=crits.length;
-  var wDoss=7,wNom=nom?17:0,wFait=5,wEcho=6;
-  var wAvis=12,wPos=nom?16:17;
-  var wCrit=nc?Math.max(5,(100-wDoss-wNom-wFait-wEcho-wAvis-wPos-(nom?13:19))/nc):0;
-  var wRem=100-wDoss-wNom-wFait-wEcho-wAvis-wPos-wCrit*nc;
-  if(wRem<9){wRem=9}
+  var wDoss=7,wNom=nom?20:0,wFait=5,wEcho=6;
+  /* L'avis et le poste sont partis : leur largeur revient aux cases de
+     note, qu'on remplit au stylo, et à la remarque, qui n'avait jamais
+     eu de quoi tenir une phrase. */
+  var reste=100-wDoss-wNom-wFait-wEcho;
+  /* Une case de note ne reçoit qu'un chiffre : au-delà d'une douzaine de
+     millimètres, la largeur est perdue. Tout ce qui reste va donc à la
+     remarque, seul endroit de cette feuille où l'on écrit des mots. */
+  var wCrit=nc?Math.max(5,Math.min(7,reste*0.62/nc)):0;
+  var wRem=reste-wCrit*nc;
+  if(wRem<12){wRem=12;wCrit=nc?(reste-wRem)/nc:0}
   var out="";
   touteLaListe().forEach(function(w){
     chunk(w.list,rowsPerPage()).forEach(function(grp,i,all){
       var hh=rowH(grp.length);
-      var h='<div class="tbl-t">Vue d\'ensemble <span>— note de 1 à '+RATING_MAX+' dans la case, vide = non notée · entourez l\'avis et le poste · cochez « fait »</span></div>'+
+      var h='<div class="tbl-t">Vue d\'ensemble <span>— note de 1 à '+RATING_MAX+' dans la case, vide = non notée · cochez « fait » quand l\'athlète est vue</span></div>'+
         '<table class="t"><colgroup>'+
         '<col style="width:'+wDoss+'%">'+(nom?'<col style="width:'+wNom+'%">':'')+
         crits.map(function(){return '<col style="width:'+wCrit+'%">'}).join("")+
-        '<col style="width:'+wAvis+'%"><col style="width:'+wPos+'%"><col style="width:'+wRem+'%">'+
+        '<col style="width:'+wRem+'%">'+
         '<col style="width:'+wFait+'%"><col style="width:'+wEcho+'%">'+
         '</colgroup><thead><tr>'+
         '<th>Doss.</th>'+(nom?'<th>Nom</th>':'')+
@@ -851,15 +847,13 @@ function recapSheets(){
           var w=poidsDe(c.key);
           return '<th>'+esc(c.abbr)+(w>1?'<span class="pds">×'+w+'</span>':'')+'</th>';
         }).join("")+
-        '<th>Avis</th><th>Poste</th><th>Remarque</th><th class="tiny">fait</th><th>Doss.</th>'+
+        '<th>Remarque</th><th class="tiny">fait</th><th>Doss.</th>'+
         '</tr></thead><tbody>';
       grp.forEach(function(p){
         var d=p.num!=null?p.num:"";
         h+='<tr style="height:'+hh+'mm"><td class="doss'+(p.neuve?" neuve":"")+'">'+d+'</td>'+
            (nom?'<td class="nom">'+esc(p.name)+'</td>':'')+
            crits.map(function(){return '<td></td>'}).join("")+
-           '<td><span class="mini"><b>R</b><b>Rc</b><b>NR</b></span></td>'+
-           '<td><span class="mini">'+POS_KEYS.map(function(k){return '<b>'+k+'</b>'}).join("")+'</span></td>'+
            '<td></td><td class="fait"></td><td class="doss'+(p.neuve?" neuve":"")+'">'+d+'</td></tr>';
       });
       h+='</tbody></table>'+
@@ -872,8 +866,9 @@ function recapSheets(){
           ' — le poids ne change pas la note qu\'on écrit, seulement ce que la formule en fait.<br>':'')+
         (attente()?'<b>Rangs sans dossard.</b> Pour celles qui se sont inscrites le matin : écrivez '+
           'le numéro que vous venez de leur donner, et son nom sur la feuille d\'inscriptions.<br>':'')+
-        '<b>Avis.</b> R = Retenir · Rc = Recaller · NR = Non retenue.<br>'+
-        '<b>Postes.</b> '+POS_KEYS.map(function(k){return k+" = "+esc(POS_LABELS[k].toLowerCase())}).join(" · ")+'.<br>'+
+        '<b>Ni avis ni poste ici.</b> Retenir, Recaller, Non retenue et le poste se décident dans '+
+        'l\'application, une fois tous les relevés saisis et le score calculé — pas sur une feuille, '+
+        'avant d\'avoir vu les autres.<br>'+
         '<b>Une case vide n\'est pas un zéro</b> : le critère reste non noté et n\'entre dans aucune moyenne. '+
         'La colonne <b>fait</b> ne se reporte pas : elle vous dit seulement qui reste à voir.'+
         '</div>';
@@ -1020,16 +1015,37 @@ function fitTables(){
   var pxmm=probe.getBoundingClientRect().height/100;
   document.body.removeChild(probe);
   if(!(pxmm>0))return;
+  var trop=function(sh){return sh.getBoundingClientRect().height/pxmm-ph};
   Array.prototype.forEach.call($("pages").querySelectorAll(".sheet"),function(sh){
     var tb=sh.querySelector("table.t tbody");
-    if(!tb||!tb.rows.length)return;
-    for(var pass=0;pass<12;pass++){
-      var over=sh.getBoundingClientRect().height/pxmm-ph;
-      if(over<=0.3)return;
-      var cur=parseFloat(tb.rows[0].style.height)||8;
-      var next=Math.max(5.5,cur-Math.max(0.15,over/tb.rows.length));
-      if(next>=cur)return;
-      for(var i=0;i<tb.rows.length;i++)tb.rows[i].style.height=next.toFixed(2)+"mm";
+    if(tb&&tb.rows.length){
+      for(var pass=0;pass<12;pass++){
+        var over=trop(sh);
+        if(over<=0.3)break;
+        var cur=parseFloat(tb.rows[0].style.height)||8;
+        var next=Math.max(5.5,cur-Math.max(0.15,over/tb.rows.length));
+        if(next>=cur)break;
+        for(var i=0;i<tb.rows.length;i++)tb.rows[i].style.height=next.toFixed(2)+"mm";
+      }
+    }
+    /* Une fiche qui déborde : on resserre les rangs de compteurs, puis, si
+       cela ne suffit pas, on les met sur deux colonnes. */
+    var cnts=sh.querySelectorAll(".cnt");
+    if(!cnts.length)return;
+    var h=5.6;
+    while(trop(sh)>0.3&&h>4.2){
+      h=Math.max(4.2,h-0.2);
+      sh.style.setProperty("--cnth",h.toFixed(2)+"mm");
+    }
+    if(trop(sh)>0.3){
+      Array.prototype.forEach.call(sh.querySelectorAll(".fam-rows"),function(r){
+        r.className="fam-rows c2";
+      });
+      sh.style.setProperty("--cnth","5.6mm");
+      while(trop(sh)>0.3&&h>4.2){
+        h=Math.max(4.2,h-0.2);
+        sh.style.setProperty("--cnth",h.toFixed(2)+"mm");
+      }
     }
   });
 }
