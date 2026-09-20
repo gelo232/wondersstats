@@ -367,6 +367,45 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(!/S 1\/1/.test(t))throw new Error("le badge du poste proposé n'apparaît pas");
   });
 
+  await step("une soumission s'emporte avant la corbeille, et revient à l'identique",async()=>{
+    /* Supprimer est sans retour : ni le relevé, qui ne redemande que du
+       plus récent, ni une sauvegarde, qui n'écrase pas une équipe-saison
+       déjà là. Le fichier est le seul filet — il doit être exact. */
+    await tab("Sélection");
+    await page.evaluate(()=>{state.selectionPane="submissions";render()});
+    await page.waitForTimeout(250);
+    const boutons=await page.locator(".card .btn-export").count();
+    if(!boutons)throw new Error("aucun bouton d'export sur les soumissions");
+    const r=await page.evaluate(()=>{
+      const sq=curSquad();
+      const avant=sq.submissions.length;
+      const sub=sq.submissions[0];
+      const scoreDe=()=>{
+        const c=compileSubmissions(sq);
+        return Object.keys(c).sort().map(k=>k.slice(-4)+":"+(c[k].nRatings?c[k].score.toFixed(3):"—")).join(",");
+      };
+      const avantScores=scoreDe();
+      const fichier=JSON.parse(JSON.stringify(submissionFile(sq,sub)));   // ce qui part sur le disque
+      sq.submissions=sq.submissions.filter(x=>x.id!==sub.id);
+      const apresSuppr=scoreDe();
+      const reprise=integrateSubmission(sq,fichier);
+      return {avant:avant,type:fichier.type,
+        compte:sq.submissions.length,
+        changeApresSuppression:apresSuppr!==avantScores,
+        identique:scoreDe()===avantScores,
+        reprise:!!reprise,
+        qui:reprise?reprise.selectorName:"",
+        entrees:reprise?reprise.entries.length:0,
+        entreesOrigine:sub.entries.length};
+    });
+    if(r.type!=="wonderstats-submission")throw new Error("format du fichier : "+r.type);
+    if(!r.changeApresSuppression)throw new Error("la suppression n'a rien changé : le test ne prouve rien");
+    if(!r.reprise)throw new Error("le fichier exporté n'est pas réimportable");
+    if(r.compte!==r.avant)throw new Error("compte après réimport="+r.compte+" (avant "+r.avant+")");
+    if(r.entrees!==r.entreesOrigine)throw new Error("entrées perdues : "+r.entrees+"/"+r.entreesOrigine);
+    if(!r.identique)throw new Error("les scores compilés ne reviennent pas à l'identique");
+  });
+
   say("\n── 7. Équipe de la saison & saisie de match");
   await step("composer l'équipe à partir des retenues",async()=>{
     await tab("Saison");

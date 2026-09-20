@@ -3091,6 +3091,29 @@ function exportSubmission(view){
     saveNow();showToast("📤 Soumission exportée");
   }
 }
+/* Une soumission reçue, remise au format du fichier d'échange. C'est le
+   seul filet contre la corbeille : l'application ne sait pas défaire une
+   suppression, le relevé ne redemande jamais ce qu'il a déjà relevé, et
+   une sauvegarde restaurée n'écrase pas une équipe-saison déjà là. Avant
+   de jeter, on peut donc emporter. */
+function submissionFile(squad,sub){
+  return {type:"wonderstats-submission",version:3,
+    id:sub.id,viewId:sub.viewId||"",viewName:sub.viewName||"Vue",
+    selectorName:sub.selectorName||"",selectorToken:sub.selectorToken||"",
+    seasonId:squad?squad.seasonId:null,
+    campaignId:sub.campaignId||null,campaignName:sub.campaignName||"",
+    context:sub.context||"",submittedAt:sub.submittedAt||nowISO(),
+    criteria:(sub.criteria||CRITERIA.map(function(c){return c.key})).slice(),
+    entries:(sub.entries||[]).map(function(e){
+      return {playerId:e.playerId,number:e.number||"",stats:normStats(e.stats),
+        ratings:e.ratings||{},reco:e.reco||"",pos:e.pos||"",note:e.note||""};
+    })};
+}
+function exportReceivedSubmission(squad,sub){
+  if(downloadJSON(submissionFile(squad,sub),
+      "Soumission_"+safeName(sub.viewName)+"_"+safeName(sub.selectorName)+"_"+stamp()+".json"))
+    showToast("📤 Soumission exportée — réimportable telle quelle");
+}
 /* Intégration d'une soumission dans la saison — chemin commun au fichier
    et au relais réseau. Retourne null si elle est refusée. */
 function integrateSubmission(squad,data){
@@ -6381,13 +6404,23 @@ function renderSubmissionsPane(squad){
             h("div",{style:{color:"#F8FAFC",fontWeight:"700",fontSize:"14px"}},sub.viewName),
             h("div",{className:"muted",style:{marginTop:"2px"}},"👤 "+(sub.selectorName||"Anonyme")+" · "+fmtDate(sub.submittedAt)),
             h("div",{className:"muted",style:{marginTop:"2px"}},evaluated+"/"+sub.entries.length+" joueuses évaluées")),
-          h("button",{className:"btn btn-danger-o xs",onclick:function(){
-            if(!confirmAct("Supprimer cette soumission ?\nLes moyennes compilées seront recalculées."))return;
-            logAct("submission","Soumission de "+(sub.selectorName||"—")+" sur « "+sub.viewName+" » supprimée",
-              {teamId:squad.teamId,seasonId:squad.seasonId});
-            squad.submissions=squad.submissions.filter(function(x){return x.id!==sub.id});
-            saveNow();render();
-          }},"🗑️")),
+          h("div",{className:"btn-row",style:{flexShrink:"0"}},
+            h("button",{className:"btn btn-export xs",title:"Exporter en fichier",onclick:function(){
+              exportReceivedSubmission(squad,sub);
+            }},"📤"),
+            h("button",{className:"btn btn-danger-o xs",onclick:function(){
+              if(!confirmAct("Supprimer la soumission de "+(sub.selectorName||"—")+
+                " sur « "+sub.viewName+" » ?\n\n"+
+                "⚠️ Rien ne la ramènera : ni un nouveau relevé, qui ne redemande que ce qui est plus "+
+                "récent, ni une sauvegarde restaurée, qui n'écrase pas une équipe-saison déjà là.\n\n"+
+                "Pour pouvoir la réimporter plus tard, annulez et exportez-la d'abord avec 📤. "+
+                "Sinon il faudra demander à "+(sub.selectorName||"l'évaluateur")+" de soumettre à nouveau.\n\n"+
+                "Les moyennes compilées seront recalculées."))return;
+              logAct("submission","Soumission de "+(sub.selectorName||"—")+" sur « "+sub.viewName+" » supprimée",
+                {teamId:squad.teamId,seasonId:squad.seasonId});
+              squad.submissions=squad.submissions.filter(function(x){return x.id!==sub.id});
+              saveNow();render();
+            }},"🗑️"))),
         h("div",{style:{display:"flex",gap:"4px",flexWrap:"wrap",marginTop:"8px"}},sub.entries.map(function(e){
           var r=e.reco?RECO_BY_KEY[e.reco]:null,seen=dataFilled(e);
           return h("span",{className:"badge",style:{background:(r?r.color:"#334155")+"20",color:r?r.color:(seen?"#94A3B8":"#475569"),fontSize:"11px",padding:"3px 7px",opacity:seen?"1":".55"}},

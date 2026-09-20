@@ -610,6 +610,13 @@ vous publiez explicitement sur votre propre relais.
   et les U21 jouent ensemble. Le champ appartenait déjà à l'équipe depuis la v3 : il
   disparaît de la saison, et reste dans `👕 Équipes`. Les bases existantes gardent
   la valeur qu'elles portaient ; elle n'est simplement plus lue ni affichée.
+- **Une soumission s'emporte avant la corbeille.** Un bouton `📤` sur chaque carte de
+  `🎯 Sélection → 📥 Soumissions` l'enregistre dans un fichier que l'import reprend
+  telle quelle, scores compris. La confirmation de suppression dit maintenant ce
+  qu'elle fait vraiment : **rien ne ramène une soumission supprimée** — ni un nouveau
+  relevé, qui ne redemande que ce qui est plus récent, ni une sauvegarde restaurée,
+  qui n'écrase pas une équipe-saison déjà là. Elle nomme le seul recours restant :
+  demander à l'évaluateur de soumettre à nouveau.
 - **Un onglet `🔢 Numérotation`, pour poser vingt-huit dossards d'une traite.**
   On règle la série qu'on a en main (`du 1 au 28`, devinée de l'effectif si on ne dit
   rien), on touche une athlète, on touche un numéro — et **l'écran passe à la

@@ -844,6 +844,29 @@ d'abord, puis émettez le jeton.
 
 ---
 
+### Supprimer une soumission : sans retour
+
+`🎯 Sélection → 📥 Soumissions`, la corbeille sur la carte. **Rien ne la ramènera :**
+
+- le bouton ↩ ne couvre pas ce geste ;
+- `📥 Relever les soumissions` ne redemande au relais que ce qui est **plus récent**
+  que le dernier relevé — la supprimée est plus ancienne, elle ne revient jamais ;
+- `📥 Restaurer / fusionner` **n'écrase pas** une équipe-saison déjà présente sur
+  l'appareil : le squad entier est ignoré, et la soumission avec.
+
+D'où le bouton **`📤`** à côté de la corbeille : il enregistre la soumission dans un
+fichier que `📥 Importer un fichier de soumission` reprend telle quelle, scores
+compris. Exportez avant de jeter, et vous gardez le choix.
+
+Sans fichier, il reste une porte : **demander à l'évaluateur de soumettre à
+nouveau**. Son application garde sa vue et toutes ses saisies, et chaque envoi porte
+un identifiant neuf.
+
+Le journal (`🗓️ Saison → 📜 Journal`, nature 📥 *Soumissions*) garde la trace de la
+suppression — qui, quelle vue, quand — mais pas le contenu.
+
+---
+
 ## 10 · Ce qui se passe mal, et ce qu'il faut savoir
 
 **Les statuts et l'effectif sont deux axes distincts.** Une joueuse blessée ou partie
