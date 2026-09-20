@@ -1,0 +1,900 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grille de sélection à imprimer — WonderStats</title>
+<!-- ══════════════════════════════════════════════════════════════
+     WonderStats — grille de secours, à imprimer
+     Fichier unique, sans dépendance, hors-ligne, comme l'application.
+
+     Raison d'être : le jour de la sélection, l'application peut ne pas
+     être là — appareil à plat, écran cassé, lien perdu, pas de relais.
+     Cette grille reprend le panneau de saisie de l'évaluateur dans le
+     MÊME ORDRE et avec les MÊMES LIBELLÉS, pour que ce qui est écrit au
+     stylo se retape ensuite sans rien réinterpréter.
+
+     Les constantes métier ci-dessous sont recopiées de `index.html`
+     (CRITERIA, SG, RECOS, POS_LABELS). Si elles y changent, elles
+     changent ici : c'est le prix d'un fichier qui doit s'imprimer sans
+     l'application.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+:root{--pw:190mm;--ph:277mm}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#0F172A;color:#F8FAFC;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+/* ─── Écran : la barre et le formulaire ─────────────────────── */
+.bar{position:sticky;top:0;z-index:20;background:#1E293B;border-bottom:1px solid #334155;
+  padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.bar h1{font-size:16px;margin:0;font-weight:800;flex:1;min-width:200px}
+.bar .sub{font-size:11px;color:#64748B;font-weight:400;display:block;margin-top:2px}
+.btn{border:1px solid #334155;background:#0F172A;color:#F8FAFC;border-radius:9px;
+  padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;min-height:40px}
+.btn:hover{border-color:#60A5FA}
+.btn-go{background:#3B82F6;border-color:#3B82F6;color:#fff}
+.btn-go:hover{background:#2563EB}
+.cfg{max-width:1000px;margin:16px auto;padding:0 16px}
+.card{background:#1E293B;border:1px solid #334155;border-radius:12px;padding:14px;margin-bottom:12px}
+.card h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#94A3B8;margin:0 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+label.f{display:block;font-size:11px;color:#94A3B8;margin-bottom:4px}
+input[type=text],input[type=date],input[type=number],select,textarea{
+  width:100%;background:#0F172A;border:1px solid #334155;border-radius:8px;color:#F8FAFC;
+  padding:9px 10px;font-size:14px;font-family:inherit;outline:none}
+input:focus,select:focus,textarea:focus{border-color:#60A5FA}
+textarea{min-height:140px;resize:vertical;line-height:1.5;font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:#0F172A;border:1px solid #334155;
+  border-radius:8px;padding:8px 11px;font-size:13px;cursor:pointer;min-height:40px;user-select:none}
+.chip.on{border-color:#3B82F6;background:#3B82F615;color:#fff}
+.chip input{margin:0;accent-color:#3B82F6}
+.hint{font-size:11px;color:#64748B;margin-top:8px;line-height:1.5}
+.warn{font-size:12px;color:#FCD34D;background:#F59E0B14;border:1px solid #F59E0B44;
+  border-radius:8px;padding:9px 11px;margin-top:10px;line-height:1.5}
+.warn:empty{display:none}
+.count{font-size:12px;color:#64748B;margin-top:8px}
+
+/* ─── Les feuilles : blanches à l'écran comme à l'impression ── */
+#pages{padding:10px 0 40px}
+.sheet{width:var(--pw);min-height:var(--ph);background:#fff;color:#111;margin:0 auto;
+  display:flex;flex-direction:column;font-size:9.5pt;line-height:1.35}
+@media screen{.sheet{box-shadow:0 0 0 10mm #fff,0 8px 30px rgba(0,0,0,.55);margin:0 auto 38px}}
+.sh-head{border-bottom:.6mm solid #111;padding-bottom:2mm;margin-bottom:3mm;flex:0 0 auto}
+.sh-t{display:flex;align-items:baseline;gap:3mm}
+.sh-kind{font-size:12pt;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
+.sh-tag{font-size:9pt;font-weight:800;border:.4mm solid #111;border-radius:1.2mm;
+  padding:.3mm 2mm;white-space:nowrap}
+.sh-camp{font-size:10pt;font-weight:600;flex:1;text-align:right}
+.sh-meta{display:flex;gap:6mm;font-size:8pt;margin-top:1.5mm;color:#333}
+.sh-meta b{font-weight:700;color:#111}
+.fill{display:inline-block;border-bottom:.25mm solid #111;min-width:32mm;height:3.4mm}
+.sh-body{flex:1 1 auto}
+.sh-body.flexcol{display:flex;flex-direction:column;gap:4mm}
+.sh-foot{flex:0 0 auto;border-top:.25mm solid #999;margin-top:3mm;padding-top:1.5mm;
+  font-size:7pt;color:#555;display:flex;justify-content:space-between}
+
+/* ─── Fiche athlète ─────────────────────────────────────────── */
+.fiche{border:.4mm solid #111;border-radius:1.5mm;overflow:hidden;
+  break-inside:avoid;page-break-inside:avoid}
+.flexcol .fiche{flex:1 1 auto;display:flex;flex-direction:column}
+.flexcol .fiche .fi-sec.grow{flex:1 1 auto;display:flex;flex-direction:column}
+.flexcol .fiche .fi-sec.grow .lines{flex:1 1 auto}
+.fi-head{display:flex;align-items:center;gap:3mm;padding:2mm 3mm;border-bottom:.4mm solid #111;
+  background:#EEE}
+.fi-doss{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.fi-num{font-size:17pt;font-weight:800;min-width:13mm;text-align:center;
+  border:.4mm solid #111;border-radius:1.5mm;padding:0 2mm;background:#fff}
+.fi-name{font-size:11pt;font-weight:700;flex:1}
+.fi-name .fill{min-width:60mm}
+.fi-sec{padding:2mm 3mm;border-bottom:.25mm dashed #999}
+.fiche .fi-sec:last-child{border-bottom:0}
+.sec-t{font-size:7.5pt;font-weight:800;text-transform:uppercase;letter-spacing:.07em;
+  color:#111;margin-bottom:1.5mm}
+.sec-t span{font-weight:400;text-transform:none;letter-spacing:0;color:#555;margin-left:2mm}
+.crit{display:flex;align-items:center;gap:2mm;padding:.9mm 0}
+.crit .lab{font-weight:700;width:32mm;flex:0 0 auto;font-size:9pt}
+.crit .desc{flex:1;font-size:7.5pt;color:#555}
+.dots{display:flex;gap:1.6mm;flex:0 0 auto}
+.dot{width:6mm;height:6mm;border:.35mm solid #111;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:8pt;font-weight:700;color:#444}
+.reco{display:flex;gap:4mm;align-items:center;flex-wrap:wrap}
+.tick{display:inline-flex;align-items:center;gap:1.5mm;font-size:9pt;font-weight:700}
+.box{width:4.5mm;height:4.5mm;border:.4mm solid #111;border-radius:.8mm;display:inline-block}
+.pos-l{font-size:7pt;color:#555;font-weight:400}
+/* Les lignes de commentaire se dessinent en fond : elles remplissent
+   exactement la place qui reste, qu'il y en ait dix centimètres ou deux. */
+.lines{min-height:11mm;margin-top:1mm;
+  background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 4.95mm,#111 4.95mm,#111 5.2mm)}
+
+/* Trois fiches sur une page ne tiennent qu'en rognant partout un peu :
+   des pastilles plus petites, des marges plus fines, deux lignes de
+   commentaire au lieu de la place qui reste. Rien ne disparaît — on
+   n'écrit pas moins, on écrit plus serré. */
+.dense .fi-head{padding:1.2mm 3mm}
+.dense .fi-num{font-size:14pt;min-width:11mm}
+.dense .fi-sec{padding:1.2mm 3mm}
+.dense .sec-t{margin-bottom:.8mm}
+.dense .crit{padding:.35mm 0}
+.dense .crit .lab{font-size:8.5pt;width:28mm}
+.dense .crit .desc{font-size:7pt}
+.dense .dot{width:5.2mm;height:5.2mm;font-size:7pt}
+.dense .dots{gap:1.3mm}
+.dense .tick{font-size:8.5pt}
+.dense .box{width:4mm;height:4mm}
+.dense .pos-l{display:none}
+.dense .lines{min-height:8mm}
+.sh-body.flexcol.dense{gap:2.5mm}
+
+/* ─── Compteurs sur la fiche ────────────────────────────────── */
+.fam{margin-bottom:1.5mm}
+.fam:last-child{margin-bottom:0}
+.fam-rows{display:grid;grid-template-columns:1fr}
+.fam-rows.c2{grid-template-columns:1fr 1fr;column-gap:4mm}
+.fam-t{font-size:7.5pt;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+  border-left:1mm solid #111;padding-left:1.5mm;margin-bottom:.8mm}
+.cnt{display:flex;align-items:center;gap:1.5mm;padding:.5mm 0 .5mm 2.5mm}
+.cnt .lab{flex:0 0 auto;font-size:8pt;overflow:hidden;white-space:nowrap}
+.tally{display:flex;gap:.8mm;flex:1}
+.tally i{display:block;border:.2mm solid #666;border-radius:.4mm}
+.tally i.gap{border:0;width:1.6mm}
+.cnt .tot{font-size:7pt;color:#555}
+.totbox{height:4.6mm;border:.4mm solid #111;border-radius:.8mm;flex:0 0 auto}
+
+/* ─── Tableaux (comptage, récapitulatif) ────────────────────── */
+table.t{width:100%;border-collapse:collapse;table-layout:fixed}
+table.t th,table.t td{border:.25mm solid #444;padding:0 1mm;text-align:center}
+table.t th{background:#EEE;font-size:7pt;font-weight:800;text-transform:uppercase;
+  letter-spacing:.03em;padding:1mm .5mm;line-height:1.15}
+table.t th.tiny{font-size:6pt;font-weight:400;text-transform:none;letter-spacing:0;color:#555}
+/* La hauteur des rangs est posée ligne par ligne, en millimètres, par
+   rowH() : une hauteur en feuille de style ici servirait de plancher et
+   empêcherait le resserrement quand la page déborde. */
+/* Trente lignes, c'est le rang qu'on perd en glissant l'œil de la
+   colonne du dossard à celle du poste. Une ligne sur deux est grisée,
+   un trait plus épais tous les cinq rangs, et le dossard est rappelé à
+   droite : on retrouve toujours sa ligne sans suivre du doigt. */
+table.t tbody tr:nth-child(even) td{background:#F2F2F2}
+table.t tbody tr:nth-child(even) td.doss{background:#E4E4E4}
+table.t tbody tr:nth-child(5n) td{border-bottom:.6mm solid #111}
+table.t tbody tr:last-child td{border-bottom:.25mm solid #444}
+table.t td.doss{font-weight:800;font-size:11pt;background:#EDEDED;letter-spacing:-.02em}
+table.t td.fait{background:#fff}
+table.t tbody tr:nth-child(even) td.fait{background:#FAFAFA}
+table.t td.nom{text-align:left;font-size:8.5pt;padding-left:1.5mm;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+table.t td.tal{background:#FCFCFC}
+.tbl-t{font-size:9pt;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+  margin:0 0 1.5mm;border-left:1.2mm solid #111;padding-left:2mm}
+.tbl-t span{font-weight:400;text-transform:none;letter-spacing:0;color:#555;font-size:7.5pt}
+.mini{display:flex;gap:.8mm;justify-content:center;align-items:center}
+.mini b{font-weight:700;font-size:7pt;border:.25mm solid #666;border-radius:2.3mm;
+  min-width:4.6mm;height:4.6mm;padding:0 .7mm;display:flex;align-items:center;
+  justify-content:center;color:#333}
+.legend{font-size:7pt;color:#444;margin-top:2.5mm;line-height:1.5}
+.legend b{color:#111}
+
+/* ─── Bloc de notes libres ──────────────────────────────────
+   Un groupe de six sur une page de trente laisse les deux tiers de la
+   feuille en blanc. Ce blanc-là, on s'en sert : c'est là qu'on écrit ce
+   qui ne rentre dans aucune colonne, et qui fait souvent la décision. */
+.notes-b{flex:1 1 auto;display:flex;flex-direction:column;
+  border:.4mm solid #111;border-radius:1.5mm;padding:2mm 3mm;min-height:24mm}
+.notes-b .lines{flex:1 1 auto;min-height:10mm}
+
+/* ─── Mode d'emploi ─────────────────────────────────────────── */
+.doc h3{font-size:9pt;font-weight:800;text-transform:uppercase;letter-spacing:.07em;
+  margin:4mm 0 1.5mm;border-bottom:.25mm solid #111;padding-bottom:1mm}
+.doc h3:first-child{margin-top:0}
+.doc p{margin:0 0 2mm;font-size:9pt}
+.doc ol,.doc ul{margin:0 0 2mm;padding-left:5mm;font-size:9pt}
+.doc li{margin-bottom:1mm}
+.doc dl{margin:0 0 2mm;display:grid;grid-template-columns:26mm 1fr;gap:1mm 2mm;font-size:9pt}
+.doc dt{font-weight:800}
+.doc dd{margin:0}
+.doc .key{border:.35mm solid #111;border-radius:1.5mm;padding:2mm 3mm;margin:0 0 3mm;background:#F4F4F4}
+.doc .flow{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:8pt;
+  white-space:pre;line-height:1.5;margin:0}
+
+@media print{
+  .noprint{display:none!important}
+  body{background:#fff}
+  #pages{padding:0}
+  .sheet{box-shadow:none;margin:0;break-after:page;page-break-after:always}
+  .sheet:last-child{break-after:auto;page-break-after:auto}
+}
+</style>
+</head>
+<body>
+
+<div class="bar noprint">
+  <h1>Grille de sélection à imprimer
+    <span class="sub">La grille de secours de WonderStats — quand l'application n'est pas là, le papier l'est.</span></h1>
+  <button class="btn" id="reset">↺ Valeurs par défaut</button>
+  <button class="btn btn-go" id="print">🖨️ Imprimer</button>
+</div>
+
+<div class="cfg noprint">
+
+  <div class="card">
+    <h2>La séance</h2>
+    <div class="grid">
+      <div><label class="f" for="campagne">Campagne</label>
+        <input type="text" id="campagne" placeholder="Sélection U14 — sept. 2026"></div>
+      <div><label class="f" for="equipe">Équipe</label>
+        <input type="text" id="equipe" placeholder="U14 féminin"></div>
+      <div><label class="f" for="date">Date</label><input type="date" id="date"></div>
+      <div><label class="f" for="evaluateur">Évaluateur <span style="color:#475569">— vide = ligne à remplir</span></label>
+        <input type="text" id="evaluateur" placeholder="(laisser vide)"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Les athlètes</h2>
+    <label class="f" for="roster">Un dossard par ligne — <code>1</code>, <code>1 Rosalie Béland</code>, ou une plage <code>1-28</code></label>
+    <textarea id="roster" spellcheck="false"></textarea>
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-top:8px;flex-wrap:wrap">
+      <div style="width:120px"><label class="f" for="jusqua">Dossards 1 →</label>
+        <input type="number" id="jusqua" min="1" max="200" value="14"></div>
+      <button class="btn" id="fill">Remplir</button>
+      <label class="chip" style="margin-left:auto"><input type="checkbox" id="anonyme"> Anonyme <span style="color:#64748B">(numéro seul, sans nom)</span></label>
+    </div>
+    <div class="count" id="rcount"></div>
+    <div class="warn" id="rwarn"></div>
+  </div>
+
+  <div class="card">
+    <h2>Ce qui est noté — critères, de 1 à 5</h2>
+    <div class="chips" id="crits"></div>
+  </div>
+
+  <div class="card">
+    <h2>Ce qui est compté — familles de statistiques</h2>
+    <div class="chips" id="fams"></div>
+    <div class="hint">Aucune famille cochée = une grille de notes seules, exactement comme une vue
+      dont on a décoché tous les groupes.</div>
+  </div>
+
+  <div class="card">
+    <h2>Les feuilles à sortir</h2>
+    <div class="chips" id="sheets"></div>
+    <div class="grid" style="margin-top:12px">
+      <div><label class="f" for="groupe">Découper en groupes</label>
+        <select id="groupe"></select></div>
+      <div><label class="f" for="parpage">Fiches athlète par page</label>
+        <select id="parpage">
+          <option value="1">1 — avec les compteurs</option>
+          <option value="2">2 — demi-page</option>
+          <option value="3">3 — tiers de page</option>
+        </select></div>
+      <div><label class="f" for="cases">Cases par compteur</label>
+        <input type="number" id="cases" min="5" max="60" step="5"></div>
+      <div><label class="f" for="lignes">Lignes par page (tableaux)</label>
+        <input type="number" id="lignes" min="5" max="40"></div>
+      <div><label class="f" for="format">Papier</label>
+        <select id="format">
+          <option value="A4P">A4 · portrait</option>
+          <option value="A4L">A4 · paysage</option>
+          <option value="LTP">Lettre · portrait</option>
+          <option value="LTL">Lettre · paysage</option>
+        </select></div>
+    </div>
+    <div class="warn" id="swarn"></div>
+    <div class="hint"><b>Trente dossards sur une feuille, ou six ?</b> La grille d'ensemble se tient
+      d'une main quand tout le groupe y est : gardez-la entière. Les feuilles de comptage, elles, se
+      suivent mal à trente rangs pendant un atelier — découpez-les en groupes, comme
+      <code>⚙️ Groupes</code> le fait à l'écran, et chaque vague a sa feuille.<br>
+      Imprimez en noir et blanc, recto simple. Une pochette par évaluateur : ses feuilles, un stylo,
+      un support rigide.</div>
+  </div>
+</div>
+
+<style id="pagecss"></style>
+<div id="pages"></div>
+
+<script>
+"use strict";
+
+/* ─── Constantes métier — recopiées de index.html ───────────── */
+var CRITERIA=[
+  {key:"tech",label:"Technique",abbr:"TEC",desc:"Qualité et constance des gestes"},
+  {key:"phys",label:"Physique",abbr:"PHY",desc:"Détente, vitesse, endurance"},
+  {key:"iq",label:"Lecture du jeu",abbr:"LEC",desc:"Anticipation, décisions"},
+  {key:"att",label:"Attitude",abbr:"ATT",desc:"Coachabilité, énergie, esprit d'équipe"},
+  {key:"pot",label:"Potentiel",abbr:"POT",desc:"Marge de progression"}
+];
+var SG={
+  services:{name:"Services",stats:[{key:"srv_ace",label:"Ace"},{key:"srv_in",label:"En jeu"},{key:"srv_err",label:"Erreur"}]},
+  reception:{name:"Réception",stats:[{key:"rec_in",label:"En jeu"},{key:"rec_out",label:"Hors sys."},{key:"rec_err",label:"Erreur"}]},
+  passes:{name:"Passes",stats:[{key:"pas_att",label:"Attaquable"},{key:"pas_out",label:"Hors sys."}]},
+  attaques:{name:"Attaques",stats:[{key:"atk_kill",label:"Kill"},{key:"atk_ok",label:"Réussie"},{key:"atk_err",label:"Erreur"}]},
+  blocs:{name:"Blocs",stats:[{key:"blk_kill",label:"Kill"},{key:"blk_solo",label:"Solo"},{key:"blk_aid",label:"Aide"},{key:"blk_err",label:"Erreur"}]},
+  defense:{name:"Défense",stats:[{key:"def_ok",label:"Réussie"},{key:"def_out",label:"Hors sys."},{key:"sup_in",label:"Soutien"},{key:"sup_err",label:"Sout. err."}]},
+  habiletes:{name:"Habiletés",stats:[{key:"hab_ctrl",label:"Contrôlée"},{key:"hab_appel",label:"Avec appel"},{key:"hab_couv",label:"Couverture"},{key:"hab_free",label:"Gratuite"}]}
+};
+var SG_KEYS=Object.keys(SG);
+/* Les libellés d'avis de l'application, sans emoji : une imprimante noir et
+   blanc rend ✅ et ⛔ en pavés illisibles. */
+var RECOS=[{key:"select",label:"Retenir"},{key:"recall",label:"Recaller"},{key:"cut",label:"Non retenue"}];
+var POS_KEYS=["S","OH","OPP","MB","L"];
+var POS_LABELS={S:"Passeuse",OH:"Réceptionneuse-attaquante",OPP:"Pointue",MB:"Centrale",L:"Libéro"};
+var RATING_MAX=5;
+
+var SHEETS=[
+  {key:"doc",label:"Mode d'emploi + report"},
+  {key:"recap",label:"Grille d'ensemble"},
+  {key:"comptage",label:"Feuille de comptage"},
+  {key:"fiche",label:"Fiche par athlète"}
+];
+/* Les découpages de l'application : « par 7 » fait de 28 athlètes quatre
+   groupes de sept, nommés Groupe A à Groupe D, dans l'ordre des numéros. */
+var GROUPINGS=[0,4,5,6,7,8,10,12,15];
+function groupName(i){
+  var n="",x=i;
+  do{n=String.fromCharCode(65+x%26)+n;x=Math.floor(x/26)-1}while(x>=0);
+  return n;
+}
+var PAPER={A4P:[190,277],A4L:[277,190],LTP:[195.9,259.4],LTL:[259.4,195.9]};
+var PAPER_CSS={A4P:"A4 portrait",A4L:"A4 landscape",LTP:"letter portrait",LTL:"letter landscape"};
+
+var DEFAULTS={
+  campagne:"",equipe:"",date:"",evaluateur:"",
+  roster:"1-30",anonyme:true,
+  crits:CRITERIA.map(function(c){return c.key}),
+  fams:["services","reception","attaques"],
+  sheets:["doc","recap","comptage"],
+  parpage:"2",cases:20,lignes:30,groupe:0,format:"A4P"
+};
+var KEY="wonderstats.grille.v1";
+var cfg=load();
+
+function load(){
+  try{
+    var raw=localStorage.getItem(KEY);
+    if(!raw)return clone(DEFAULTS);
+    var v=JSON.parse(raw),out=clone(DEFAULTS);
+    Object.keys(DEFAULTS).forEach(function(k){if(v[k]!==undefined)out[k]=v[k]});
+    return out;
+  }catch(e){return clone(DEFAULTS)}
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(cfg))}catch(e){}}
+function clone(o){return JSON.parse(JSON.stringify(o))}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]})}
+function $(id){return document.getElementById(id)}
+
+/* ─── Les dossards ───────────────────────────────────────────
+   Rien n'est deviné à la position, comme dans l'ajout en lot de
+   l'application : un nombre d'un à trois chiffres EN TÊTE de ligne est un
+   dossard, le reste est un nom. Une ligne sans nombre est un nom sans
+   dossard — la case reste à remplir au stylo. */
+function parseRoster(txt){
+  var out=[];
+  String(txt||"").split(/\r?\n/).forEach(function(line){
+    var s=line.trim();if(!s)return;
+    var m=s.match(/^(\d{1,3})\s*[-–—]\s*(\d{1,3})$/);
+    if(m){
+      var a=+m[1],b=+m[2];
+      if(a<=b&&b-a<200){for(var i=a;i<=b;i++)out.push({num:i,name:""});return}
+    }
+    m=s.match(/^(\d{1,3})(?:\s*[.·:)\-–]?\s+(.*))?$/);
+    if(m)out.push({num:+m[1],name:(m[2]||"").trim()});
+    else out.push({num:null,name:s});
+  });
+  return out;
+}
+function rosterWarning(list){
+  var seen={},dup=[],noNum=0;
+  list.forEach(function(p){
+    if(p.num==null){noNum++;return}
+    if(seen[p.num])dup.push(p.num);else seen[p.num]=1;
+  });
+  var w=[];
+  if(dup.length)w.push("⚠️ Dossard en double : "+dup.filter(function(v,i,a){return a.indexOf(v)===i}).join(", ")+
+    " — au report, deux lignes identiques ne se départagent plus. Corrigez avant d'imprimer.");
+  if(noNum)w.push("⚠️ "+noNum+" ligne(s) sans dossard : la case du numéro restera vide.");
+  return w.join(" ");
+}
+
+/* ─── Briques de feuille ────────────────────────────────────── */
+function fill(w){return '<span class="fill" style="min-width:'+w+'mm"></span>'}
+function valOrFill(v,w){return v?esc(v):fill(w)}
+function fmtDate(d){
+  if(!d)return "";
+  var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+  return m?(m[3]+"/"+m[2]+"/"+m[1]):d;
+}
+function sheet(kind,body,foot,bodyCls,tag){
+  return '<section class="sheet">'+
+    '<header class="sh-head">'+
+      '<div class="sh-t"><div class="sh-kind">'+esc(kind)+'</div>'+
+        (tag?'<div class="sh-tag">'+esc(tag)+'</div>':'')+
+        '<div class="sh-camp">'+(cfg.campagne?esc(cfg.campagne):fill(60))+'</div></div>'+
+      '<div class="sh-meta">'+
+        '<div><b>Évaluateur :</b> '+valOrFill(cfg.evaluateur,42)+'</div>'+
+        '<div><b>Date :</b> '+valOrFill(fmtDate(cfg.date),26)+'</div>'+
+        '<div><b>Équipe :</b> '+valOrFill(cfg.equipe,30)+'</div>'+
+      '</div>'+
+    '</header>'+
+    '<div class="sh-body'+(bodyCls?' '+bodyCls:'')+'">'+body+'</div>'+
+    '<footer class="sh-foot"><span>WonderStats · grille de secours'+
+      (foot?' · '+esc(foot):'')+'</span><span class="pgn"></span></footer>'+
+  '</section>';
+}
+/* Un tableau de quatorze lignes sur une page de vingt-huit laisse la moitié
+   de la feuille blanche et des cases trop basses pour y tracer des marques.
+   On répartit donc la hauteur utile sur les lignes réellement présentes. */
+var TBL_CHROME=78,ROW_MIN=6.4,ROW_MAX=15;
+function rowH(n){
+  var ph=(PAPER[cfg.format]||PAPER.A4P)[1];
+  return Math.max(ROW_MIN,Math.min(ROW_MAX,(ph-TBL_CHROME)/Math.max(1,n))).toFixed(1);
+}
+/* Ce que la page peut porter au plus, une fois la ligne ramenée à sa
+   hauteur minimale. En paysage, trente rangs ne tiennent pas : on coupe
+   plutôt que de déborder d'un centimètre sur une feuille de plus. */
+function maxRows(){
+  var ph=(PAPER[cfg.format]||PAPER.A4P)[1];
+  return Math.max(4,Math.floor((ph-TBL_CHROME)/ROW_MIN));
+}
+function rowsPerPage(){
+  return Math.min(Math.max(5,parseInt(cfg.lignes,10)||30),maxRows());
+}
+/* Les vagues de passage. Sans découpage, une seule vague : tout le monde.
+   Avec, on obtient les groupes de l'application, à qui l'on donne les mêmes
+   noms pour que la feuille et l'écran se parlent. */
+function waves(){
+  var list=roster(),n=parseInt(cfg.groupe,10)||0;
+  if(!n||n>=list.length)return [{tag:"",list:list}];
+  var out=[];
+  for(var i=0;i<list.length;i+=n){
+    var part=list.slice(i,i+n),a=part[0],b=part[part.length-1];
+    var span=(a.num!=null&&b.num!=null)?(" · dossards "+a.num+"–"+b.num):"";
+    out.push({tag:"Groupe "+groupName(out.length)+span,list:part});
+  }
+  return out;
+}
+/* Ce qui reste de la page une fois le tableau posé. En dessous de trois
+   centimètres, on ne met rien : deux lignes coincées valent moins que du
+   blanc franc. */
+function notesBlock(rows,h){
+  var ph=(PAPER[cfg.format]||PAPER.A4P)[1];
+  var reste=ph-rows*parseFloat(h)-TBL_CHROME-4;
+  if(reste<30)return "";
+  return '<div class="notes-b"><div class="sec-t">Notes libres'+
+    '<span>ce qui ne rentre dans aucune colonne — et qui fait souvent la décision</span></div>'+
+    '<div class="lines"></div></div>';
+}
+function chunk(arr,n){
+  var out=[];for(var i=0;i<arr.length;i+=n)out.push(arr.slice(i,i+n));
+  return out.length?out:[[]];
+}
+
+/* ─── Feuille 1 · mode d'emploi et report ───────────────────── */
+function docSheet(){
+  var crits=CRITERIA.filter(inCrits),fams=SG_KEYS.filter(inFams);
+  var body='<div class="doc">'+
+  '<p>Cette grille existe pour un seul cas : <b>l\'application n\'est pas disponible le jour de la '+
+  'sélection</b> — appareil à plat, écran cassé, lien perdu, pas de relais. Elle reprend le panneau '+
+  'de saisie de l\'évaluateur dans le même ordre et avec les mêmes libellés, pour que ce qui est '+
+  'écrit au stylo se retape ensuite sans rien réinterpréter.</p>'+
+
+  '<h3>La veille — préparer les pochettes</h3>'+
+  '<ol>'+
+  '<li><b>Une pochette par évaluateur</b> : ses feuilles, un stylo, un support rigide.</li>'+
+  '<li><b>Vérifiez les dossards.</b> Un numéro en double rend la feuille indéfendable au report : '+
+  'deux lignes identiques ne se départagent plus.</li>'+
+  '<li><b>Écrivez le nom de l\'évaluateur et la date</b> en haut de chaque feuille, avant de la donner.</li>'+
+  '<li>Chaque évaluateur ne reçoit que ce qu\'il saisit : celui qui juge prend la grille '+
+  'd\'ensemble, celui qui compte prend les feuilles de comptage.</li>'+
+  '<li><b>Au-delà d\'une vingtaine de dossards, découpez en groupes</b> — les mêmes vagues que '+
+  '<b>⚙️ Groupes</b> à l\'écran, et les mêmes noms. Chaque feuille porte son groupe en haut : '+
+  'on suit six rangs pendant un atelier, pas trente.</li>'+
+  '</ol>'+
+
+  '<h3>Pendant la séance</h3>'+
+  '<dl>'+
+  '<dt>Notes</dt><dd>de 1 à '+RATING_MAX+'. <b>Une case laissée vide reste « non notée » — ce n\'est pas un zéro.</b> '+
+  'Elle n\'entre dans aucune moyenne. Ne remplissez jamais par défaut.</dd>'+
+  '<dt>Compteurs</dt><dd>une marque par geste observé. On compte des gestes, pas de la valeur.</dd>'+
+  '<dt>Avis</dt><dd>Retenir · Recaller · Non retenue. Un seul, ou aucun.</dd>'+
+  '<dt>Poste</dt><dd>facultatif, et c\'est un avis : il n\'écrase jamais le poste de l\'entraîneur.</dd>'+
+  '<dt>Commentaire</dt><dd>une phrase, écrite pour pouvoir être lue telle quelle à l\'athlète ou à ses parents.</dd>'+
+  '<dt>Fait</dt><dd>dernière colonne de la grille d\'ensemble. Elle ne se reporte nulle part : '+
+  'elle remplace le « 12/28 évaluées » de l\'écran, et c\'est elle qui dit qui reste à voir avant '+
+  'que le groupe ne sorte du gymnase.</dd>'+
+  '</dl>'+
+
+  '<h3>Après la séance — le report dans l\'application</h3>'+
+  '<p>Ouvrez la vue de l\'évaluateur (<b>🎯 Sélection → 🎯 Ouvrir ici</b>), puis, athlète par athlète, '+
+  'dans l\'ordre du panneau. Les cinq blocs du panneau sont les cinq blocs de la fiche papier :</p>'+
+  '<div class="key"><p class="flow">'+
+  'FICHE PAPIER                 PANNEAU DE L\'APPLICATION\n'+
+  '  Évaluation  (1 à 5)   ──▶  1. Évaluation\n'+
+  '  Compteurs   (totaux)  ──▶  2. Statistiques observées\n'+
+  '  Avis                  ──▶  3. Recommandation\n'+
+  '  Poste proposé         ──▶  4. Poste proposé\n'+
+  '  Commentaire           ──▶  5. Commentaire\n'+
+  '                             puis 📤 Soumettre la vue'+
+  '</p></div>'+
+  '<ul>'+
+  '<li><b>Reportez les totaux, pas les marques.</b> Comptez la ligne de cases, écrivez le total dans '+
+  'la case de droite sur le terrain, et ne retapez ensuite que celui-là.</li>'+
+  '<li><b>Une famille entièrement à zéro ne pèse pas sur le score</b> : elle est simplement absente. '+
+  'Ne saisissez donc pas une famille que l\'évaluateur n\'a pas observée — la laisser vide et la '+
+  'mettre à zéro ne disent pas la même chose.</li>'+
+  '<li><b>Une vue par évaluateur</b>, comme sur le terrain. Ne fusionnez pas deux feuilles dans une '+
+  'seule vue : la correction de sévérité et le compte des avis se font par personne.</li>'+
+  '<li>Si l\'application a tourné pour une partie du groupe, <b>ne ressaisissez pas ces athlètes</b> : '+
+  'le report écraserait une saisie faite en direct.</li>'+
+  '<li><b>Gardez les feuilles papier jusqu\'à la fin de la saison.</b> C\'est ce qui défend le chiffre '+
+  'devant une athlète et ses parents.</li>'+
+  '</ul>'+
+
+  '<h3>Ce que cette pochette contient</h3>'+
+  '<ul>'+
+  '<li><b>Critères notés :</b> '+(crits.length?crits.map(function(c){return esc(c.label)}).join(" · "):"aucun — notes non relevées")+'</li>'+
+  '<li><b>Familles comptées :</b> '+(fams.length?fams.map(function(k){return esc(SG[k].name)}).join(" · "):"aucune — notes seules")+'</li>'+
+  '<li><b>Athlètes :</b> '+roster().length+
+    ((parseInt(cfg.groupe,10)||0)?' — découpés en '+waves().length+' groupes de '+cfg.groupe:' — en une seule liste')+'</li>'+
+  '</ul>'+
+  '</div>';
+  return sheet("Mode d'emploi",body,"à lire avant de distribuer les pochettes");
+}
+
+/* ─── Feuille 2 · la fiche par athlète ───────────────────────
+   Une fiche qui déborde de deux centimètres sort sur deux pages, et la
+   seconde ne porte qu'un commentaire orphelin. La place prise par les
+   compteurs se calcule donc AVANT de dessiner : sept familles tiennent
+   sur deux colonnes ce que trois tiennent sur une, et les cases se
+   rétrécissent jusqu'au seuil où l'on peut encore les cocher. */
+var TALLY_GAP=0.8,TALLY_BLOC=1.6,BOX_MIN=2.6,BOX_MAX=3.8,ROW_H=5.6;
+function tallyGaps(n){return (n-1)*TALLY_GAP+Math.floor((n-1)/5)*TALLY_BLOC}
+function statLayout(){
+  var pp=PAPER[cfg.format]||PAPER.A4P,pw=pp[0],ph=pp[1];
+  var nCrit=CRITERIA.filter(inCrits).length,fams=SG_KEYS.filter(inFams),nCnt=0;
+  fams.forEach(function(k){nCnt+=SG[k].stats.length});
+  /* hauteur utile : la page, moins l'en-tête, le pied, le cadre de la
+     fiche, les critères, l'avis, le poste et deux lignes de commentaire */
+  var avail=ph-14-9-12-(nCrit?9+nCrit*6.4:0)-9-10-16-(9+fams.length*5.2);
+  var cols=(nCnt*ROW_H<=avail)?1:2,rows=0;
+  if(cols===1)rows=nCnt;
+  else fams.forEach(function(k){rows+=Math.ceil(SG[k].stats.length/2)});
+  var colW=((pw-9.3)-(cols-1)*4)/cols;
+  var labW=cols===1?22:17,totW=cols===1?10:8,totLab=cols===1?7:6;
+  var tallyW=colW-labW-totW-totLab-4.5;
+  var asked=Math.max(5,Math.min(parseInt(cfg.cases,10)||20,60)),n=asked,box=0;
+  while(n>4){box=(tallyW-tallyGaps(n))/n;if(box>=BOX_MIN)break;n--}
+  return {cols:cols,cases:n,asked:asked,labW:labW,totW:totW,
+    box:+Math.max(BOX_MIN,Math.min(BOX_MAX,box)).toFixed(2),
+    fits:rows*ROW_H<=avail};
+}
+function tally(L){
+  var s='<span class="tally">',g='width:'+L.box+'mm;height:'+L.box+'mm';
+  for(var i=0;i<L.cases;i++){
+    if(i&&i%5===0)s+='<i class="gap"></i>';
+    s+='<i style="'+g+'"></i>';
+  }
+  return s+'</span>';
+}
+function ficheBlock(p,withStats,L){
+  var crits=CRITERIA.filter(inCrits);
+  var h='<div class="fiche">'+
+    '<div class="fi-head">'+
+      '<span class="fi-doss">Dossard</span>'+
+      '<span class="fi-num">'+(p.num!=null?p.num:"&nbsp;")+'</span>'+
+      '<span class="fi-name">'+(cfg.anonyme?'':(p.name?esc(p.name):fill(60)))+'</span>'+
+    '</div>';
+
+  if(crits.length){
+    h+='<div class="fi-sec"><div class="sec-t">Évaluation<span>entourez la note — une ligne non entourée reste non notée, ce n\'est pas un zéro</span></div>';
+    crits.forEach(function(c){
+      var dots='<span class="dots">';
+      for(var i=1;i<=RATING_MAX;i++)dots+='<span class="dot">'+i+'</span>';
+      dots+='</span>';
+      h+='<div class="crit"><span class="lab">'+esc(c.label)+'</span>'+
+         '<span class="desc">'+esc(c.desc)+'</span>'+dots+'</div>';
+    });
+    h+='</div>';
+  }
+
+  if(withStats){
+    var fams=SG_KEYS.filter(inFams);
+    if(fams.length){
+      h+='<div class="fi-sec"><div class="sec-t">Statistiques observées<span>une marque par geste · reportez le total</span></div>';
+      fams.forEach(function(k){
+        h+='<div class="fam"><div class="fam-t">'+esc(SG[k].name)+'</div>'+
+           '<div class="fam-rows'+(L.cols===2?' c2':'')+'">';
+        SG[k].stats.forEach(function(s){
+          h+='<div class="cnt"><span class="lab" style="width:'+L.labW+'mm">'+esc(s.label)+'</span>'+
+             tally(L)+'<span class="tot">Tot.</span>'+
+             '<span class="totbox" style="width:'+L.totW+'mm"></span></div>';
+        });
+        h+='</div></div>';
+      });
+      h+='</div>';
+    }
+  }
+
+  h+='<div class="fi-sec"><div class="reco">'+
+     '<span class="sec-t" style="margin:0;min-width:28mm">Recommandation</span>'+
+     RECOS.map(function(r){return '<span class="tick"><span class="box"></span>'+esc(r.label)+'</span>'}).join("")+
+     '</div></div>';
+
+  h+='<div class="fi-sec"><div class="reco">'+
+     '<span class="sec-t" style="margin:0;min-width:28mm">Poste proposé</span>'+
+     '<span class="tick"><span class="box"></span>—</span>'+
+     POS_KEYS.map(function(k){
+       return '<span class="tick"><span class="box"></span>'+k+
+              ' <span class="pos-l">'+esc(POS_LABELS[k].toLowerCase())+'</span></span>';
+     }).join("")+
+     '</div></div>';
+
+  h+='<div class="fi-sec grow"><div class="sec-t">Commentaire<span>une phrase, lisible telle quelle par l\'athlète ou ses parents</span></div>'+
+     '<div class="lines"></div></div>';
+
+  return h+'</div>';
+}
+function ficheSheets(){
+  var per=Math.max(1,parseInt(cfg.parpage,10)||1);
+  var withStats=per===1&&SG_KEYS.some(inFams);
+  var L=statLayout(),out="",n=0,tot=0;
+  waves().forEach(function(w){tot+=chunk(w.list,per).length});
+  waves().forEach(function(w){
+    chunk(w.list,per).forEach(function(grp){
+      n++;
+      out+=sheet("Fiche d'évaluation",
+        grp.map(function(p){return ficheBlock(p,withStats,L)}).join(""),
+        "fiche "+n+"/"+tot,"flexcol"+(per>=3?" dense":""),w.tag);
+    });
+  });
+  return out;
+}
+
+/* ─── Feuille 3 · le comptage, une famille par tableau ────────
+   C'est la feuille de qui compte : trente rangs, une famille, et rien
+   d'autre à l'écran mental. Le dossard est rappelé à droite, parce qu'on
+   revient du bord droit de la feuille pour écrire un total. */
+function comptageSheets(){
+  var fams=SG_KEYS.filter(inFams);
+  if(!fams.length||!roster().length)return "";
+  var nom=!cfg.anonyme,out="";
+  fams.forEach(function(k){
+    var g=SG[k],n=g.stats.length;
+    var wDoss=nom?10:13,wNom=nom?26:0,wEcho=7;
+    var rest=100-wDoss-wNom-wEcho,per=rest/n,wTal=per*0.72,wTot=per*0.28;
+    waves().forEach(function(w){
+      chunk(w.list,rowsPerPage()).forEach(function(grp,i,all){
+        var hh=rowH(grp.length);
+        var h='<div class="tbl-t">'+esc(g.name)+' <span>— une marque par geste, puis le total dans la colonne T</span></div>'+
+          '<table class="t"><colgroup>'+
+          '<col style="width:'+wDoss+'%">'+(nom?'<col style="width:'+wNom+'%">':'')+
+          g.stats.map(function(){return '<col style="width:'+wTal+'%"><col style="width:'+wTot+'%">'}).join("")+
+          '<col style="width:'+wEcho+'%"></colgroup><thead>'+
+          '<tr><th rowspan="2">Doss.</th>'+(nom?'<th rowspan="2">Nom</th>':'')+
+          g.stats.map(function(s){return '<th colspan="2">'+esc(s.label)+'</th>'}).join("")+
+          '<th rowspan="2">Doss.</th></tr>'+
+          '<tr>'+g.stats.map(function(){return '<th class="tiny">marques</th><th class="tiny">T</th>'}).join("")+'</tr>'+
+          '</thead><tbody>';
+        grp.forEach(function(p){
+          var d=p.num!=null?p.num:"";
+          h+='<tr style="height:'+hh+'mm"><td class="doss">'+d+'</td>'+
+             (nom?'<td class="nom">'+esc(p.name)+'</td>':'')+
+             g.stats.map(function(){return '<td class="tal"></td><td></td>'}).join("")+
+             '<td class="doss">'+d+'</td></tr>';
+        });
+        h+='</tbody></table>'+
+          '<div class="legend"><b>Rappel.</b> On compte des gestes, pas de la valeur. '+
+          'Un compteur à 0 est un 0 ; une famille entièrement vide n\'est pas saisie du tout.</div>';
+        var nb=notesBlock(grp.length,hh);
+        out+=sheet("Comptage · "+g.name,nb?('<div>'+h+'</div>'+nb):h,
+          "comptage"+(all.length>1?" "+(i+1)+"/"+all.length:""),nb?"flexcol":"",w.tag);
+      });
+    });
+  });
+  return out;
+}
+
+/* ─── Feuille 4 · la grille d'ensemble ───────────────────────
+   La feuille maîtresse quand il y a trente dossards : tout le groupe tient
+   sous les yeux, une ligne par athlète, et la colonne « fait » remplace le
+   « 12/28 évaluées » de l'écran — sans elle, on ne sait plus qui reste. */
+function recapSheets(){
+  var crits=CRITERIA.filter(inCrits);
+  if(!roster().length)return "";
+  var nom=!cfg.anonyme,nc=crits.length;
+  var wDoss=7,wNom=nom?17:0,wFait=5,wEcho=6;
+  var wAvis=12,wPos=nom?16:17;
+  var wCrit=nc?Math.max(5,(100-wDoss-wNom-wFait-wEcho-wAvis-wPos-(nom?13:19))/nc):0;
+  var wRem=100-wDoss-wNom-wFait-wEcho-wAvis-wPos-wCrit*nc;
+  if(wRem<9){wRem=9}
+  var out="";
+  waves().forEach(function(w){
+    chunk(w.list,rowsPerPage()).forEach(function(grp,i,all){
+      var hh=rowH(grp.length);
+      var h='<div class="tbl-t">Vue d\'ensemble <span>— note de 1 à '+RATING_MAX+' dans la case, vide = non notée · entourez l\'avis et le poste · cochez « fait »</span></div>'+
+        '<table class="t"><colgroup>'+
+        '<col style="width:'+wDoss+'%">'+(nom?'<col style="width:'+wNom+'%">':'')+
+        crits.map(function(){return '<col style="width:'+wCrit+'%">'}).join("")+
+        '<col style="width:'+wAvis+'%"><col style="width:'+wPos+'%"><col style="width:'+wRem+'%">'+
+        '<col style="width:'+wFait+'%"><col style="width:'+wEcho+'%">'+
+        '</colgroup><thead><tr>'+
+        '<th>Doss.</th>'+(nom?'<th>Nom</th>':'')+
+        crits.map(function(c){return '<th>'+esc(c.abbr)+'</th>'}).join("")+
+        '<th>Avis</th><th>Poste</th><th>Remarque</th><th class="tiny">fait</th><th>Doss.</th>'+
+        '</tr></thead><tbody>';
+      grp.forEach(function(p){
+        var d=p.num!=null?p.num:"";
+        h+='<tr style="height:'+hh+'mm"><td class="doss">'+d+'</td>'+
+           (nom?'<td class="nom">'+esc(p.name)+'</td>':'')+
+           crits.map(function(){return '<td></td>'}).join("")+
+           '<td><span class="mini"><b>R</b><b>Rc</b><b>NR</b></span></td>'+
+           '<td><span class="mini">'+POS_KEYS.map(function(k){return '<b>'+k+'</b>'}).join("")+'</span></td>'+
+           '<td></td><td class="fait"></td><td class="doss">'+d+'</td></tr>';
+      });
+      h+='</tbody></table>'+
+        '<div class="legend">'+
+        (nc?'<b>Critères.</b> '+crits.map(function(c){return c.abbr+" = "+esc(c.label)}).join(" · ")+'.<br>':'')+
+        '<b>Avis.</b> R = Retenir · Rc = Recaller · NR = Non retenue.<br>'+
+        '<b>Postes.</b> '+POS_KEYS.map(function(k){return k+" = "+esc(POS_LABELS[k].toLowerCase())}).join(" · ")+'.<br>'+
+        '<b>Une case vide n\'est pas un zéro</b> : le critère reste non noté et n\'entre dans aucune moyenne. '+
+        'La colonne <b>fait</b> ne se reporte pas : elle vous dit seulement qui reste à voir.'+
+        '</div>';
+      var nb=notesBlock(grp.length,hh);
+      out+=sheet("Grille d'ensemble",nb?('<div>'+h+'</div>'+nb):h,
+        "ensemble"+(all.length>1?" "+(i+1)+"/"+all.length:""),nb?"flexcol":"",w.tag);
+    });
+  });
+  return out;
+}
+
+/* ─── Assemblage ────────────────────────────────────────────── */
+function inCrits(c){return cfg.crits.indexOf(c.key)!==-1}
+function inFams(k){return cfg.fams.indexOf(k)!==-1}
+function inSheets(k){return cfg.sheets.indexOf(k)!==-1}
+function roster(){return parseRoster(cfg.roster)}
+
+function renderPages(){
+  var p=PAPER[cfg.format]||PAPER.A4P;
+  document.documentElement.style.setProperty("--pw",p[0]+"mm");
+  document.documentElement.style.setProperty("--ph",p[1]+"mm");
+  $("pagecss").textContent="@page{size:"+(PAPER_CSS[cfg.format]||"A4 portrait")+";margin:10mm}";
+
+  var html="";
+  if(inSheets("doc"))html+=docSheet();
+  if(inSheets("recap"))html+=recapSheets();
+  if(inSheets("comptage"))html+=comptageSheets();
+  if(inSheets("fiche"))html+=ficheSheets();
+  $("pages").innerHTML=html||
+    '<div class="sheet"><div class="sh-body" style="display:flex;align-items:center;justify-content:center;color:#666">'+
+    'Aucune feuille à imprimer — choisissez au moins une feuille et un dossard.</div></div>';
+
+  fitTables();
+  var pg=$("pages").querySelectorAll(".pgn");
+  Array.prototype.forEach.call(pg,function(el,i){el.textContent="feuille "+(i+1)+" / "+pg.length});
+}
+
+/* Le calcul ci-dessus vise juste à un millimètre près, mais une police
+   système plus grasse ou un libellé plus long le prennent en défaut, et
+   une feuille qui déborde de deux millimètres en sort une seconde, vide.
+   On mesure donc ce qui est réellement dessiné, et on resserre les rangs
+   jusqu'à ce que la page rentre — jamais en dessous de cinq millimètres
+   et demi, où l'on n'écrit plus rien. */
+function fitTables(){
+  var ph=(PAPER[cfg.format]||PAPER.A4P)[1];
+  var probe=document.createElement("div");
+  probe.style.cssText="position:absolute;visibility:hidden;height:100mm";
+  document.body.appendChild(probe);
+  var pxmm=probe.getBoundingClientRect().height/100;
+  document.body.removeChild(probe);
+  if(!(pxmm>0))return;
+  Array.prototype.forEach.call($("pages").querySelectorAll(".sheet"),function(sh){
+    var tb=sh.querySelector("table.t tbody");
+    if(!tb||!tb.rows.length)return;
+    for(var pass=0;pass<12;pass++){
+      var over=sh.getBoundingClientRect().height/pxmm-ph;
+      if(over<=0.3)return;
+      var cur=parseFloat(tb.rows[0].style.height)||8;
+      var next=Math.max(5.5,cur-Math.max(0.15,over/tb.rows.length));
+      if(next>=cur)return;
+      for(var i=0;i<tb.rows.length;i++)tb.rows[i].style.height=next.toFixed(2)+"mm";
+    }
+  });
+}
+function renderWarnings(){
+  var list=roster();
+  $("rcount").textContent=list.length?(list.length+" athlète"+(list.length>1?"s":"")+" sur la grille"):"Aucun dossard saisi";
+  $("rwarn").textContent=rosterWarning(list);
+
+  var w=[],per=parseInt(cfg.parpage,10)||1,nFam=SG_KEYS.filter(inFams).length;
+  var n=list.length,lignes=rowsPerPage(),demande=Math.max(5,parseInt(cfg.lignes,10)||30);
+  var g=parseInt(cfg.groupe,10)||0;
+  if(lignes<demande)
+    w.push("Ce papier ne porte que "+lignes+" lignes lisibles : les "+demande+" demandées ne tiendraient pas. Passez en portrait pour en mettre davantage.");
+  if(n>lignes&&!g&&(inSheets("recap")||inSheets("comptage")))
+    w.push(n+" athlètes pour "+lignes+" lignes par page : les tableaux se coupent en plusieurs feuilles. Découpez en groupes, ou acceptez la coupe.");
+  if(per>1&&nFam&&inSheets("fiche"))
+    w.push("À "+per+" fiches par page, les compteurs sortent de la fiche athlète : ils restent sur la feuille de comptage. Passez à 1 fiche par page pour les avoir sur la fiche.");
+  if(cfg.format.charAt(2)==="L"&&(inSheets("fiche")||inSheets("doc")))
+    w.push("En paysage, la fiche par athlète et le mode d'emploi débordent sur une seconde feuille : le paysage est fait pour les tableaux. Imprimez-les en portrait, à part.");
+  if(inSheets("fiche")&&n>12)
+    w.push("Une fiche par athlète fait "+Math.ceil(n/per)+" feuilles pour "+n+" athlètes. Avec un groupe de cette taille, la grille d'ensemble se tient mieux en main.");
+  if(!cfg.crits.length&&inSheets("fiche"))
+    w.push("Aucun critère coché : la fiche athlète ne portera que l'avis, le poste et le commentaire.");
+  if(inSheets("comptage")&&!nFam)
+    w.push("Aucune famille cochée : la feuille de comptage ne sera pas produite.");
+  if(per===1&&nFam&&inSheets("fiche")){
+    var L=statLayout();
+    if(L.cols===2)w.push("Beaucoup de familles : les compteurs passent sur deux colonnes pour tenir sur une page.");
+    if(L.cases<L.asked)w.push("Cases ramenées de "+L.asked+" à "+L.cases+" par compteur, faute de largeur. Reportez le total, pas les marques.");
+    if(!L.fits)w.push("⚠️ La fiche déborde : retirez des familles, ou laissez le comptage à la feuille dédiée.");
+  }
+  $("swarn").textContent=w.join(" ");
+}
+
+function render(){renderWarnings();renderPages()}
+
+/* ─── Le formulaire ─────────────────────────────────────────── */
+function chipList(host,items,selected,onchange){
+  host.innerHTML="";
+  items.forEach(function(it){
+    var on=selected.indexOf(it.key)!==-1;
+    var lab=document.createElement("label");
+    lab.className="chip"+(on?" on":"");
+    var cb=document.createElement("input");
+    cb.type="checkbox";cb.checked=on;
+    cb.onchange=function(){
+      var i=selected.indexOf(it.key);
+      if(cb.checked){if(i===-1)selected.push(it.key)}else if(i!==-1)selected.splice(i,1);
+      lab.className="chip"+(cb.checked?" on":"");
+      onchange();
+    };
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(it.label));
+    host.appendChild(lab);
+  });
+}
+function bind(id,key,ev){
+  var el=$(id);
+  el.value=cfg[key];
+  el.addEventListener(ev||"input",function(){
+    var num=(el.type==="number"||key==="groupe");
+    cfg[key]=num?(parseInt(el.value,10)||(key==="groupe"?0:DEFAULTS[key])):el.value;
+    save();render();
+  });
+}
+function mount(){
+  ["campagne","equipe","date","evaluateur","roster"].forEach(function(k){bind(k,k)});
+  ["cases","lignes"].forEach(function(k){bind(k,k)});
+  var gsel=$("groupe");
+  GROUPINGS.forEach(function(n){
+    var o=document.createElement("option");
+    o.value=String(n);
+    o.textContent=n?("par "+n+" — Groupe A, B, C…"):"Non — une seule liste";
+    gsel.appendChild(o);
+  });
+  ["parpage","format","groupe"].forEach(function(k){bind(k,k,"change")});
+  $("anonyme").checked=!!cfg.anonyme;
+  $("anonyme").addEventListener("change",function(){cfg.anonyme=$("anonyme").checked;save();render()});
+
+  chipList($("crits"),CRITERIA.map(function(c){return {key:c.key,label:c.label}}),cfg.crits,function(){save();render()});
+  chipList($("fams"),SG_KEYS.map(function(k){return {key:k,label:SG[k].name}}),cfg.fams,function(){save();render()});
+  chipList($("sheets"),SHEETS,cfg.sheets,function(){save();render()});
+
+  $("fill").addEventListener("click",function(){
+    var n=Math.max(1,Math.min(200,parseInt($("jusqua").value,10)||14));
+    cfg.roster="1-"+n;$("roster").value=cfg.roster;save();render();
+  });
+  $("print").addEventListener("click",function(){window.print()});
+  $("reset").addEventListener("click",function(){
+    if(!confirm("Revenir aux valeurs par défaut ? Les champs saisis seront effacés."))return;
+    cfg=clone(DEFAULTS);save();location.reload();
+  });
+  render();
+}
+mount();
+</script>
+</body>
+</html>

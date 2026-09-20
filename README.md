@@ -5,6 +5,7 @@ Fichier unique, sans dépendance, installable et **fonctionnelle hors-ligne** (P
 
 ```
 index.html      application complète (HTML + CSS + JS vanilla)
+grille-selection.html   la grille de secours, à imprimer
 manifest.json   métadonnées PWA
 sw.js           service worker (app-shell en cache-first)
 server/         relais de synchronisation optionnel (deux implémentations)
@@ -401,6 +402,35 @@ relais, il récupère ses vues, évalue, et `📡 Téléverse` sa soumission.
 
 **Par fichier, hors-ligne** — `📤 Fichier` produit un paquet JSON ; le sélectionneur
 l'importe, évalue, et renvoie un fichier de soumission. Aucun réseau requis.
+
+### Quand l'application n'est pas là — la grille de secours
+
+Un appareil à plat, un écran cassé, un lien perdu : le jour de la sélection, tout
+cela arrive, et trente athlètes attendent déjà dans le gymnase. Ouvrez alors
+[`grille-selection.html`](grille-selection.html) — un second fichier autonome, hors-ligne
+lui aussi — réglez la campagne, les dossards, ce qui est noté et ce qui est compté, et
+imprimez. **Préparez-la la veille, avec le reste de la pochette.**
+
+Elle sort trois feuilles, et un mode d'emploi qui dit où retaper chaque case :
+
+| Feuille | Pour qui | Ce qu'elle porte |
+|---|---|---|
+| **Grille d'ensemble** | qui juge | trente dossards sur une page — les cinq critères, l'avis, le poste, une remarque, et une colonne *fait* qui remplace le « 12/28 évaluées » de l'écran |
+| **Feuille de comptage** | qui compte | une famille par feuille, une marque par geste, un total par compteur |
+| **Fiche par athlète** | le second regard | le panneau de saisie entier sur une page : critères, compteurs, avis, poste, commentaire |
+
+La grille reprend **les libellés de l'application, dans l'ordre du panneau de
+saisie** : Évaluation → Statistiques observées → Recommandation → Poste proposé →
+Commentaire. Le report se fait case pour case, sans rien réinterpréter. Elle reprend
+aussi son découpage en **groupes** — `par 6` donne les mêmes *Groupe A* à *Groupe E*
+que `⚙️ Groupes` à l'écran, une feuille par vague : on suit six rangs pendant un
+atelier, pas trente.
+
+> **Ce qu'elle rappelle sur chaque feuille, parce que c'est là qu'on se trompe.** Une
+> case laissée vide reste *non notée* — ce n'est pas un zéro, et elle n'entre dans
+> aucune moyenne. Une famille de compteurs entièrement vide ne pèse pas sur le score :
+> ne la saisissez pas du tout. Et une vue par évaluateur, comme sur le terrain — la
+> correction de sévérité se mesure par personne.
 
 ### Anonymat
 
