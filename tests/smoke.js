@@ -189,7 +189,7 @@ const ERRORS=[];
         lavalDate:laval?laval.date:null,
         adversaires:sq.events.map(ev=>ev.opponent).filter(Boolean).sort()};
     });
-    if(r.version!==6)throw new Error("version="+r.version);
+    if(r.version!==7)throw new Error("version="+r.version);
     if(r.orphelines)throw new Error("sessions sans rencontre="+r.orphelines);
     /* Les trois matchs de Laval sont reconnus comme un seul tournoi. */
     if(r.lavalMatchs!==3)throw new Error("matchs regroupés sous Laval="+r.lavalMatchs);

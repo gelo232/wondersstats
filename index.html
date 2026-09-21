@@ -369,7 +369,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "6.3";
+var APP_VERSION = "7.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -558,6 +558,63 @@ var EVENT_KEYS=["league","tournament","friendly","training"];
 /* Un tournoi porte plusieurs matchs ; les autres natures, un seul en général. */
 function kindIsMulti(k){return k==="tournament"}
 
+/* Inverse de RECO_TO_STATUS : un statut de saison redit en décision.
+   Sert la montée v7, qui relit les statuts déjà tranchés comme les
+   décisions de campagne qu'ils étaient. */
+var STATUS_TO_RECO={};
+Object.keys(RECO_TO_STATUS).forEach(function(r){STATUS_TO_RECO[RECO_TO_STATUS[r]]=r});
+
+/* ─── Offres ─────────────────────────────────────────────────────────
+   Retenir une athlète n'est pas l'avoir dans l'équipe : c'est lui
+   proposer d'en être. Tant qu'elle n'a pas répondu, l'offre est en
+   attente — et l'équipe n'est pas constituée. Cette distinction est ce
+   qui empêche un effectif de paraître complet alors que trois joueuses
+   n'ont pas encore dit oui. */
+var OFFER_STATUS={
+  pending:{key:"pending",label:"En attente",short:"Attente",icon:"⏳",color:"#F59E0B"},
+  accepted:{key:"accepted",label:"Acceptée",short:"Acceptée",icon:"🤝",color:"#10B981"},
+  declined:{key:"declined",label:"Refusée",short:"Refusée",icon:"✖️",color:"#94A3B8"}
+};
+var OFFER_KEYS=["pending","accepted","declined"];
+
+/* ─── Les six parties de la saison ───────────────────────────────────
+   Elles ne sont pas six collections : ce sont six lectures des mêmes
+   events[] et sessions[]. Une rencontre mal classée se corrige donc en
+   changeant sa nature, jamais en la déplaçant d'une partie à l'autre.
+
+   Le championnat n'a pas de partie à lui : il se compte et s'affiche
+   exactement comme un amical — un match, des sets, un adversaire — et
+   lui donner son propre écran en aurait fait le jumeau de celui des
+   amicaux. Il vit donc dans « Matchs », derrière un sélecteur qui ne
+   paraît que si la saison en contient. */
+var SEASON_SECTIONS=[
+  {key:"selection",   label:"Sélection",     icon:"🎯", kinds:null},
+  {key:"training",    label:"Entraînements", icon:"🎽", kinds:["training"]},
+  {key:"matches",     label:"Matchs",        icon:"🤝", kinds:["friendly","league"], defaultKind:"friendly"},
+  {key:"tournaments", label:"Tournois",      icon:"🎪", kinds:["tournament"]},
+  {key:"goals",       label:"Objectifs",     icon:"📈", kinds:null},
+  {key:"recap",       label:"Récap global",  icon:"📊", kinds:EVENT_KEYS.slice()}
+];
+var SECTION_BY_KEY={};SEASON_SECTIONS.forEach(function(s){SECTION_BY_KEY[s.key]=s});
+var SECTION_KEYS=SEASON_SECTIONS.map(function(s){return s.key});
+
+/* ─── Objectifs ──────────────────────────────────────────────────────
+   Un objectif est une décision de l'entraîneur, jamais un effet de bord.
+   L'historique est borné : un recalcul « à chaque modification de
+   données » produirait sinon des milliers de lignes par saison, et le
+   coffre les porterait toutes. */
+var GOAL_HISTORY_MAX=60;
+var GOAL_EVENTS={
+  set:{label:"Fixé",icon:"🎯",color:"#60A5FA"},
+  progress:{label:"Mesure",icon:"·",color:"#94A3B8"},
+  achieved:{label:"Atteint",icon:"🏅",color:"#10B981"},
+  regressed:{label:"Régression",icon:"⚠️",color:"#F59E0B"},
+  readjusted:{label:"Réajusté",icon:"🔁",color:"#A78BFA"},
+  reopened:{label:"Rouvert",icon:"🔓",color:"#60A5FA"},
+  closed:{label:"Clos",icon:"🔒",color:"#64748B"}
+};
+
+
 /* ─── Journal des décisions ──────────────────────────────────────────
    On enregistre ce qui engage — un statut tranché, une soumission
    supprimée, une saison close — et rien d'autre. Un journal qui note
@@ -730,9 +787,45 @@ function mkRosterEntry(playerId,number,position){
   return {playerId:playerId,number:cleanNum(number),position:position||"",
           status:"candidate",membership:"active",note:""};
 }
+/* Convocation à une campagne, et décision qui s'ensuit.
+
+   Le statut de saison ne pouvait porter qu'une décision, alors qu'une
+   même athlète est recallée à la journée 1, revue à la journée 2 et
+   retenue à l'extra. Une ligne par campagne, donc — et le statut de
+   saison se déduit de la dernière campagne qui l'a vue. */
+function mkCampaignRosterEntry(campaignId,playerId,o){
+  return Object.assign({id:uid(),campaignId:campaignId||"",playerId:playerId||"",
+    convokedAt:nowISO(),convokedBy:null,
+    decision:"",decidedAt:null,decidedBy:null,
+    note:"",number:""},o||{});
+}
+/* Une offre de rejoindre l'équipe. Elle naît en attente dès qu'une
+   athlète est retenue, et ne se réécrit pas une fois tranchée : une
+   acceptation est un fait daté, pas un état courant. */
+function mkOffer(campaignId,playerId,o){
+  return Object.assign({id:uid(),playerId:playerId||"",campaignId:campaignId||"",
+    status:"pending",createdAt:nowISO(),decidedAt:null,decidedBy:null,
+    voidedAt:null,note:""},o||{});
+}
+/* Objectif de progression. `metric` dit quoi mesurer, `context` sur quoi,
+   et `history` garde la trace de chaque recalcul — bornée à
+   GOAL_HISTORY_MAX, sans quoi une saison de saisie la ferait enfler sans
+   fin dans un coffre qu'on rechiffre à chaque écriture. */
+function mkGoal(o){
+  return Object.assign({id:uid(),createdAt:nowISO(),updatedAt:nowISO(),
+    scope:"player",playerId:"",
+    metric:{kind:"familyEff",family:"attaques",statKey:"",perMatch:false},
+    context:{sections:["matches","tournaments"],eventKinds:[],window:"last5"},
+    baseline:0,baselineAt:"",target:0,targetAt:"",minVolume:0,
+    achievedAt:null,regressedAt:null,active:true,auto:true,
+    history:[]},o||{});
+}
+
 function mkEvent(o){
   return Object.assign({id:uid(),kind:"league",name:"",opponent:"",
-    date:todayISO(),location:"",note:"",createdAt:nowISO()},o||{});
+    date:todayISO(),location:"",note:"",createdAt:nowISO(),
+    endDate:"",   /* tournoi sur deux jours ; "" = un seul */
+    rank:""},o||{});
 }
 /* Un résultat est une suite de sets. L'issue s'en déduit — on ne stocke
    pas une victoire qu'on pourrait contredire en corrigeant un score. */
@@ -764,7 +857,10 @@ var OUTCOMES={win:{label:"Victoire",short:"V",color:"#34D399"},
 function mkCampaign(o){
   var kind=(o&&o.kind)||"custom";
   return Object.assign({id:uid(),kind:kind,name:(KIND_BY_KEY[kind]||{}).label||"Campagne",
-    createdAt:nowISO(),closedAt:null},o||{});
+    createdAt:nowISO(),closedAt:null,
+    /* seq : le rang voulu par l'entraîneur — « journée 1 », « journée 2 ».
+       0 veut dire « pas encore rangée » ; la normalisation le renumérote. */
+    seq:0,date:"",note:"",decisionsClosedAt:null},o||{});
 }
 /* Squad = équipe × saison. Porte tout ce qui vit une saison : la
    convocation, l'effectif, les statistiques, les campagnes, les vues
@@ -778,7 +874,9 @@ function mkSquad(teamId,seasonId,name){
           numbering:null,              /* série de dossards — voir numberingOf */
           events:[],sessions:[],
           campaigns:[c],activeCampaignId:c.id,
-          selectorViews:[],submissions:[]};
+          selectorViews:[],submissions:[],
+          /* v7 — convocation par campagne, offres, objectifs, bornes de set */
+          campaignRoster:[],offers:[],goals:[],setMarks:[],schemaAt:""};
 }
 function mkSeason(name){
   return {id:uid(),name:name||("Saison "+new Date().getFullYear()),createdAt:nowISO(),
@@ -1376,6 +1474,13 @@ function vaultDecrypt(box,pass){
   });
 }
 
+/* Déchiffrer avec la clé déjà en mémoire, sans redemander la phrase :
+   le journal d'opérations est relu au chargement, coffre déjà ouvert. */
+function vaultDecryptWithKey(box){
+  if(!VAULT.key)return Promise.reject(new Error("Coffre verrouillé"));
+  return Promise.resolve(subtle().decrypt({name:"AES-GCM",iv:unb64(box.iv)},VAULT.key,unb64(box.ct)))
+    .then(function(plain){return JSON.parse(new TextDecoder().decode(plain))});
+}
 function readVaultBox(){
   try{var d=localStorage.getItem(SK_VAULT);return d?JSON.parse(d):null}catch(e){return null}
 }
@@ -1801,12 +1906,293 @@ function updateIndicators(saving){
     else{el.classList.remove("saving");if(txt)txt.textContent=saveFailed?"Non sauvegardé":"Sauvegardé"}
   }
 }
+/* Sauvegarde progressive, à deux vitesses : le journal d'opérations
+   part vite parce qu'il est petit, le bloc complet suit. Une fermeture
+   brutale ne coûte donc plus qu'une fraction de seconde de frappe. */
 function scheduleAutoSave(){
   if(autoSaveTimer)clearTimeout(autoSaveTimer);
   updateIndicators(true);
-  autoSaveTimer=setTimeout(function(){saveAll();autoSaveTimer=null;updateIndicators(false)},1200);
+  scheduleOpsJournal();
+  autoSaveTimer=setTimeout(function(){
+    saveAll();autoSaveTimer=null;updateIndicators(false);clearOpsJournal();
+  },1200);
 }
-function saveNow(){if(autoSaveTimer){clearTimeout(autoSaveTimer);autoSaveTimer=null}saveAll();updateIndicators(false)}
+function saveNow(){if(autoSaveTimer){clearTimeout(autoSaveTimer);autoSaveTimer=null}saveAll();updateIndicators(false);clearOpsJournal()}
+/* ══════════════════════════════════════════════════════════════
+   STORE — une collection, un identifiant, une opération
+
+   Le reste de l'application ignore où les données dorment : coffre
+   local aujourd'hui, table SQL sur un serveur demain. Ce qui
+   voyagera alors n'est pas la base — c'est le journal des
+   opérations que cette couche tient au passage.
+
+   Règle pour tout le code appelant, et elle tient en une phrase :
+   LIRE `DB` librement, N'ÉCRIRE que dans un `Store.tx`, par
+   `Store.put` / `Store.patch` / `Store.del`. La lecture reste un
+   accès mémoire direct parce que neuf mille lignes en dépendent et
+   que ce n'est pas elle qui empêche de passer à un serveur : ce qui
+   l'empêche, c'est de ne pas savoir ce qui a changé.
+   ══════════════════════════════════════════════════════════════ */
+var SK_OPS="wonderstats_ops_v1", SK_DEV="wonderstats_dev_v1";
+
+/* Le modèle, décrit une fois. C'est cette table qui permet au Store de
+   travailler sur les objets imbriqués existants sans les réécrire, et
+   c'est elle qui engendrera la projection SQL. `owner:"squad"` dit que
+   l'objet porte un squadId implicite — une colonne, en base. */
+var COLLECTIONS={
+  clubs:{path:"clubs",key:"id"},
+  people:{path:"people",key:"id"},
+  teams:{path:"teams",key:"id"},
+  players:{path:"players",key:"id"},
+  seasons:{path:"seasons",key:"id"},
+  squads:{path:"squads",key:"id"},
+  assignments:{path:"assignments",key:"id"},
+  clubAssignments:{path:"clubAssignments",key:"id"},
+  roster:{owner:"squad",path:"roster",key:"playerId"},
+  campaigns:{owner:"squad",path:"campaigns",key:"id"},
+  campaignRoster:{owner:"squad",path:"campaignRoster",key:"id"},
+  offers:{owner:"squad",path:"offers",key:"id"},
+  events:{owner:"squad",path:"events",key:"id"},
+  sessions:{owner:"squad",path:"sessions",key:"id"},
+  goals:{owner:"squad",path:"goals",key:"id"},
+  views:{owner:"squad",path:"selectorViews",key:"id"},
+  submissions:{owner:"squad",path:"submissions",key:"id"}
+};
+/* `session.sets[]` et `goal.history[]` ne sont pas des collections : ce
+   sont des agrégats, écrits et lus avec leur parent. On ne modifie
+   jamais un set sans toucher au total de sa session. */
+
+var OPLOG=[],OPS_MAX=2000,opsTimer=null,opsWriting=false,opsPending=false;
+var TX={depth:0,gid:null,before:[],ops:[],seen:{}};
+
+function devId(){
+  try{
+    var d=localStorage.getItem(SK_DEV);
+    if(!d){d=uid();localStorage.setItem(SK_DEV,d)}
+    return d;
+  }catch(e){return "local"}
+}
+function collArray(coll,sq){
+  var d=COLLECTIONS[coll];
+  if(!d)return null;
+  if(d.owner==="squad"){
+    if(!sq)return null;
+    if(!Array.isArray(sq[d.path]))sq[d.path]=[];
+    return sq[d.path];
+  }
+  if(!Array.isArray(DB[d.path]))DB[d.path]=[];
+  return DB[d.path];
+}
+function collFind(coll,id,sq){
+  var arr=collArray(coll,sq),d=COLLECTIONS[coll];
+  if(!arr)return -1;
+  for(var i=0;i<arr.length;i++)if(arr[i]&&arr[i][d.key]===id)return i;
+  return -1;
+}
+function squadById(id){
+  for(var i=0;i<DB.squads.length;i++)if(DB.squads[i].id===id)return DB.squads[i];
+  return null;
+}
+
+/* Instantané pris à la PREMIÈRE écriture de chaque entité, une seule
+   fois : cloner toute la base à chaque incrément de compteur coûterait
+   plus cher que la sauvegarde qu'on cherche à alléger. */
+function snapshotEntity(coll,id,sq){
+  var k=coll+"|"+((sq&&sq.id)||"")+"|"+id;
+  if(TX.seen[k])return;
+  TX.seen[k]=1;
+  var i=collFind(coll,id,sq),arr=collArray(coll,sq);
+  TX.before.push({coll:coll,id:id,squadId:(sq&&sq.id)||null,
+                  value:(i===-1)?null:clone(arr[i]),index:i});
+}
+function restoreSnapshot(s){
+  var sq=s.squadId?squadById(s.squadId):null;
+  if(s.squadId&&!sq)return;
+  var arr=collArray(s.coll,sq);
+  if(!arr)return;
+  var i=collFind(s.coll,s.id,sq);
+  if(s.value===null){if(i!==-1)arr.splice(i,1);return}
+  if(i===-1){
+    if(s.index>=0&&s.index<=arr.length)arr.splice(s.index,0,s.value);
+    else arr.push(s.value);
+  } else arr[i]=s.value;
+}
+function pushOp(coll,id,op,payload,sq){
+  TX.ops.push({id:uid(),at:nowISO(),gid:TX.gid,by:state.meId||null,dev:devId(),
+    entity:coll,entityId:id,squadId:(sq&&sq.id)||null,op:op,payload:payload||null});
+}
+
+/* Une transaction : un instantané des seules entités touchées, la
+   mutation, puis soit la validation, soit la remise en état. Une
+   transaction qui lève ne laisse rien à moitié écrit, et ne pousse
+   rien sur la pile d'annulation — il n'y a rien à annuler. */
+function storeTx(fn,label){
+  if(TX.depth>0){TX.depth++;try{return fn()}finally{TX.depth--}}
+  TX.depth=1;TX.gid=uid();TX.before=[];TX.ops=[];TX.seen={};
+  var before=TX.before,ops=TX.ops;
+  try{
+    var r=fn();
+    OPLOG.push.apply(OPLOG,ops);
+    if(OPLOG.length>OPS_MAX)OPLOG.splice(0,OPLOG.length-OPS_MAX);
+    if(before.length){
+      undoStack.push({kind:"snapshot",label:label||"Modification",
+                      gid:TX.gid,before:before});
+      trimUndo();
+    }
+    TX.depth=0;TX.gid=null;
+    if(ops.length)scheduleAutoSave();
+    return r;
+  }catch(e){
+    /* Du plus récent au plus ancien : une entité touchée deux fois
+       retrouve bien sa valeur d'AVANT la transaction. */
+    before.slice().reverse().forEach(function(s){
+      try{restoreSnapshot(s)}catch(e2){}
+    });
+    TX.depth=0;TX.gid=null;
+    showToast("⚠️ Opération annulée");
+    throw e;
+  }
+}
+function inTx(fn,label){return TX.depth>0?fn():storeTx(fn,label)}
+
+var Store={
+  get:function(coll,id,sq){
+    var i=collFind(coll,id,sq);
+    return i===-1?null:collArray(coll,sq)[i];
+  },
+  query:function(coll,filtre,sq){
+    var arr=collArray(coll,sq)||[];
+    if(!filtre)return arr.slice();
+    if(typeof filtre==="function")return arr.filter(filtre);
+    return arr.filter(function(o){
+      for(var k in filtre)if(filtre.hasOwnProperty(k)&&o[k]!==filtre[k])return false;
+      return true;
+    });
+  },
+  put:function(coll,obj,sq){
+    var d=COLLECTIONS[coll];
+    if(!d||!obj)return null;
+    var id=obj[d.key];
+    return inTx(function(){
+      snapshotEntity(coll,id,sq);
+      var arr=collArray(coll,sq),i=collFind(coll,id,sq);
+      if(i===-1)arr.push(obj);else arr[i]=obj;
+      pushOp(coll,id,"put",clone(obj),sq);
+      return obj;
+    },"Enregistrement");
+  },
+  patch:function(coll,id,champs,sq){
+    return inTx(function(){
+      var o=Store.get(coll,id,sq);
+      if(!o)return null;
+      snapshotEntity(coll,id,sq);
+      Object.keys(champs||{}).forEach(function(k){o[k]=champs[k]});
+      pushOp(coll,id,"patch",clone(champs||{}),sq);
+      return o;
+    },"Modification");
+  },
+  del:function(coll,id,sq){
+    return inTx(function(){
+      var i=collFind(coll,id,sq);
+      if(i===-1)return false;
+      snapshotEntity(coll,id,sq);
+      collArray(coll,sq).splice(i,1);
+      pushOp(coll,id,"del",null,sq);
+      return true;
+    },"Suppression");
+  },
+  tx:storeTx,
+  /* Ce que le serveur de demain viendra drainer. */
+  ops:function(){return OPLOG.slice()},
+  opsSince:function(mark){
+    if(!mark)return OPLOG.slice();
+    return OPLOG.filter(function(o){return o.at>mark});
+  },
+  flush:function(mode){
+    if(mode==="full")saveNow();else scheduleAutoSave();
+  }
+};
+
+/* ── Journal sur disque ────────────────────────────────────────
+   Le blob complet reste la vérité ; le journal n'est qu'un
+   accélérateur, écrit bien plus souvent parce qu'il est petit. S'il
+   est absent, illisible ou en retard, il est simplement ignoré :
+   aucune donnée ne repose sur lui seul. */
+function writeOpsJournal(){
+  if(opsWriting){opsPending=true;return}
+  var pend=OPLOG.slice(-200);
+  if(!pend.length){try{localStorage.removeItem(SK_OPS)}catch(e){}return}
+  opsWriting=true;
+  var done=function(){
+    opsWriting=false;
+    if(opsPending){opsPending=false;writeOpsJournal()}
+  };
+  if(VAULT.unlocked){
+    vaultEncrypt({ops:pend}).then(function(box){
+      try{localStorage.setItem(SK_OPS,JSON.stringify(box))}catch(e){}
+    }).catch(function(){}).then(done);
+  } else {
+    try{localStorage.setItem(SK_OPS,JSON.stringify({plain:true,ops:pend}))}catch(e){}
+    done();
+  }
+}
+function scheduleOpsJournal(){
+  if(opsTimer)clearTimeout(opsTimer);
+  opsTimer=setTimeout(function(){opsTimer=null;writeOpsJournal()},400);
+}
+function clearOpsJournal(){
+  OPLOG=[];
+  if(opsTimer){clearTimeout(opsTimer);opsTimer=null}
+  try{localStorage.removeItem(SK_OPS)}catch(e){}
+}
+/* Rejeu au chargement : les opérations postérieures au blob, et elles
+   seules. Chaque opération est idempotente par construction — un `put`
+   remplace, un `del` supprime, un `patch` fusionne — donc rejouer deux
+   fois donne le même état. Au moindre doute, on abandonne l'opération
+   plutôt que de deviner. */
+function applyOp(op){
+  if(!op||!COLLECTIONS[op.entity])return;
+  var sq=op.squadId?squadById(op.squadId):null;
+  if(op.squadId&&!sq)return;
+  var arr=collArray(op.entity,sq);
+  if(!arr)return;
+  var i=collFind(op.entity,op.entityId,sq);
+  if(op.op==="put"){if(i===-1)arr.push(op.payload);else arr[i]=op.payload}
+  else if(op.op==="patch"){
+    if(i===-1)return;
+    Object.keys(op.payload||{}).forEach(function(k){arr[i][k]=op.payload[k]});
+  }
+  else if(op.op==="del"){if(i!==-1)arr.splice(i,1)}
+}
+function replayOps(ops,boxAt){
+  var n=0;
+  (ops||[]).forEach(function(op){
+    if(boxAt&&!(String(op.at||"")>String(boxAt)))return;
+    try{applyOp(op);n++}catch(e){}
+  });
+  return n;
+}
+/* Appelée après loadAll. Asynchrone quand le coffre est en service —
+   le déchiffrement l'est — d'où le rappel `apres`. */
+function replayPendingOps(boxAt,apres){
+  var raw=null;
+  try{raw=localStorage.getItem(SK_OPS)}catch(e){}
+  var fini=function(n){
+    if(n>0){DB=normalizeDB(DB);saveNow()}
+    clearOpsJournal();
+    if(apres)apres(n);
+  };
+  if(!raw){if(apres)apres(0);return}
+  var box=null;
+  try{box=JSON.parse(raw)}catch(e){}
+  if(!box){clearOpsJournal();if(apres)apres(0);return}
+  if(box.plain){fini(replayOps(box.ops,boxAt));return}
+  if(!VAULT.unlocked||!VAULT.key){clearOpsJournal();if(apres)apres(0);return}
+  vaultDecryptWithKey(box).then(function(data){
+    fini(replayOps(data&&data.ops,boxAt));
+  }).catch(function(){clearOpsJournal();if(apres)apres(0)});
+}
+
 
 /* ── Normalisation défensive (import & rechargement) ───────── */
 /* Migration v4 → v5 : les sessions antérieures n'ont pas d'événement.
@@ -1887,7 +2273,12 @@ function normalizeSquad(sq,knownPlayers){
         return x&&isFinite(x.us)&&isFinite(x.them)}).map(function(x){
         return {us:Math.max(0,Math.round(x.us)),them:Math.max(0,Math.round(x.them))}})}:mkResult(),
       entries:(se.entries||[]).map(function(en){return {playerId:en.playerId,name:en.name||"",
-        number:cleanNum(en.number),position:en.position||"",stats:normStats(en.stats)}})};
+        number:cleanNum(en.number),position:en.position||"",stats:normStats(en.stats)}}),
+      /* ⚠ Ce littéral DÉTRUIT toute clé qu'il ne nomme pas. Sans ces deux
+         lignes, la ventilation par set disparaîtrait à chaque chargement,
+         en silence. */
+      sets:Array.isArray(se.sets)?se.sets:[],
+      splitAt:se.splitAt||null};
   });
   attachOrphanSessions(sq);
   /* Les réglages du score : normalisés une fois ici, pour qu'une sauvegarde
@@ -1921,12 +2312,225 @@ function normalizeSquad(sq,knownPlayers){
           ratings:e.ratings||{},reco:RECO_BY_KEY[e.reco]?e.reco:"",pos:normPos(e.pos),note:e.note||""};
       })};
   });
+
+  /* ── Collections v7 ──────────────────────────────────────────
+     Une ligne qui désigne une campagne ou une athlète disparue tombe :
+     c'est une arête, exactement comme les affectations de normalizeDB. */
+  sq.campaignRoster=(sq.campaignRoster||[]).filter(function(e){
+      return e&&campKnown[e.campaignId]&&inRoster[e.playerId];
+    }).map(function(e){
+      return Object.assign(mkCampaignRosterEntry(e.campaignId,e.playerId),e,{
+        decision:RECO_BY_KEY[e.decision]?e.decision:"",
+        number:cleanNum(e.number)});
+    });
+  /* Unicité (campagne, athlète) : la décision la plus récente l'emporte. */
+  var vusCR={},crOut=[];
+  sq.campaignRoster.forEach(function(e){
+    var k=e.campaignId+"|"+e.playerId,prec=vusCR[k];
+    if(!prec){vusCR[k]=e;crOut.push(e);return}
+    if(String(e.decidedAt||"")>String(prec.decidedAt||"")){
+      crOut[crOut.indexOf(prec)]=e;vusCR[k]=e;
+    }
+  });
+  sq.campaignRoster=crOut;
+
+  sq.offers=(sq.offers||[]).filter(function(o){
+      return o&&campKnown[o.campaignId]&&inRoster[o.playerId];
+    }).map(function(o){
+      return Object.assign(mkOffer(o.campaignId,o.playerId),o,{
+        status:OFFER_STATUS[o.status]?o.status:"pending"});
+    });
+  /* Au plus une offre VIVANTE par couple. Les doublons sont annulés,
+     jamais supprimés — une offre est un acte, même en double. Une offre
+     acceptée l'emporte sur une offre en attente : elle engage, l'autre
+     non. */
+  var vive={};
+  sq.offers.slice().sort(function(a,b){
+    var pa=(a.status==="accepted")?1:0,pb=(b.status==="accepted")?1:0;
+    if(pa!==pb)return pa-pb;
+    return String(a.createdAt||"")<String(b.createdAt||"")?-1:1;
+  }).forEach(function(o){
+    if(o.voidedAt)return;
+    var k=o.campaignId+"|"+o.playerId;
+    if(vive[k])vive[k].voidedAt=vive[k].voidedAt||nowISO();
+    vive[k]=o;
+  });
+
+  /* Un objectif d'athlète sortie du roster est DÉSACTIVÉ, pas supprimé :
+     son historique documente une progression qui a bien eu lieu. */
+  sq.goals=(sq.goals||[]).map(normalizeGoal).map(function(g){
+    if(g.scope==="player"&&!inRoster[g.playerId])g.active=false;
+    return g;
+  });
+
+  /* Bornes de set : données d'une saisie en cours, nettoyées comme
+     sq.stats l'est juste au-dessus. */
+  sq.setMarks=(sq.setMarks||[]).map(function(m){
+    var mst={};
+    Object.keys((m&&m.stats)||{}).forEach(function(pid){
+      if(inRoster[pid])mst[pid]=normStats(m.stats[pid]);
+    });
+    return {at:(m&&m.at)||nowISO(),stats:mst};
+  });
+
+  migrateSquadV6(sq);
   return sq;
+}
+
+/* ── v6 → v7 ──────────────────────────────────────────────────────
+   Trois ajouts, aucun retrait :
+     · la convocation devient datée, campagne par campagne ;
+     · les décisions déjà prises deviennent des décisions de campagne ;
+     · une athlète déjà dans l'équipe reçoit l'offre acceptée qui l'y a mise.
+
+   Idempotente : chaque étape teste l'existence avant de créer et
+   n'écrit jamais sur une ligne qu'elle n'a pas créée. Elle n'est donc
+   pas conditionnée à un numéro de version — elle tourne à chaque
+   chargement et ne produit aucune différence sur une base déjà montée. */
+function normalizeGoal(g){
+  g=Object.assign(mkGoal(),g||{});
+  g.scope=(g.scope==="team")?"team":"player";
+  if(g.scope==="team")g.playerId="";
+  g.metric=Object.assign({kind:"familyEff",family:"attaques",statKey:"",perMatch:false},g.metric||{});
+  g.context=Object.assign({sections:["matches","tournaments"],eventKinds:[],window:"last5"},g.context||{});
+  g.context.sections=(g.context.sections||[]).filter(function(s){return SECTION_BY_KEY[s]});
+  g.context.eventKinds=(g.context.eventKinds||[]).filter(function(k){return EVENT_KINDS[k]});
+  g.history=(g.history||[]).filter(function(h){return h&&h.at}).slice(-GOAL_HISTORY_MAX);
+  g.active=g.active!==false;
+  g.auto=g.auto!==false;
+  return g;
+}
+function migrateSquadV6(sq){
+  if(!Array.isArray(sq.campaignRoster))sq.campaignRoster=[];
+  if(!Array.isArray(sq.offers))sq.offers=[];
+  if(!Array.isArray(sq.goals))sq.goals=[];
+  if(!Array.isArray(sq.setMarks))sq.setMarks=[];
+
+  /* Champs neufs des campagnes. `seq` suit l'ordre existant : il ne
+     fabrique aucune hiérarchie qui n'était pas là. */
+  var ordre=campaignOrder(sq);
+  ordre.forEach(function(c,i){
+    if(!(c.seq>0))c.seq=i+1;
+    if(c.date===undefined||c.date===null)c.date=dayOf(c.createdAt)||"";
+    if(c.note===undefined)c.note="";
+    if(c.decisionsClosedAt===undefined)c.decisionsClosedAt=c.closedAt||null;
+  });
+
+  /* La campagne d'accueil des décisions héritées : la PREMIÈRE de la
+     saison dans l'ordre métier. C'est elle qui a produit l'effectif
+     d'aujourd'hui — les porter sur la dernière ferait croire qu'on a
+     tranché hier ce qu'on avait tranché en août. */
+  var c0=campaignOrder(sq)[0];
+  if(!c0)return;
+
+  /* Convocation : toute ligne de roster devient une convoquée de c0,
+     avec sa décision si elle en porte une. `candidate` est l'absence
+     de décision — on n'en fabrique pas. */
+  sq.roster.forEach(function(r){
+    if(hasCampaignEntry(sq,c0.id,r.playerId))return;
+    var tranche=(r.status&&r.status!=="candidate");
+    sq.campaignRoster.push(mkCampaignRosterEntry(c0.id,r.playerId,{
+      convokedAt:c0.date||c0.createdAt||nowISO(),
+      decision:STATUS_TO_RECO[r.status]||"",
+      decidedAt:tranche?(c0.closedAt||c0.createdAt||nowISO()):null
+    }));
+  });
+
+  /* Offres : une athlète DANS l'équipe a forcément accepté. On date
+     l'acceptation de la clôture de la campagne, ou de sa création —
+     une date approchée vaut mieux qu'une date absente, et l'ordre
+     relatif reste juste.
+
+     Une athlète coupée ou recallée ne reçoit PAS d'offre refusée :
+     ne pas avoir été retenue n'est pas avoir refusé une offre, et on
+     ne fabrique pas un fait qui n'a pas eu lieu. */
+  sq.playerIds.forEach(function(pid){
+    if(liveOffer(sq,c0.id,pid))return;
+    sq.offers.push(mkOffer(c0.id,pid,{
+      status:"accepted",
+      createdAt:c0.createdAt||nowISO(),
+      decidedAt:c0.closedAt||c0.createdAt||nowISO(),
+      note:"Reprise v7 — athlète déjà dans l'équipe"}));
+  });
+
+  /* Sessions : la ventilation naît vide. On ne DEVINE pas les sets —
+     répartir quarante attaques sur trois manches serait inventer de
+     la donnée. `sets:[]` veut dire « non ventilé », et setsOfSession
+     sait le lire. */
+  sq.sessions.forEach(function(se){
+    if(!Array.isArray(se.sets))se.sets=[];
+    if(se.splitAt===undefined)se.splitAt=null;
+    se.sets.forEach(function(s,i){
+      var sc=((se.result&&se.result.sets)||[])[i]||{us:0,them:0};
+      s.index=i;s.us=sc.us||0;s.them=sc.them||0;
+      s.entries=(s.entries||[]).filter(function(x){return x&&x.playerId})
+        .map(function(x){return {playerId:x.playerId,stats:normStats(x.stats)}});
+    });
+    if(sessionIsSplit(se))reconcileSessionTotals(se);
+  });
+
+  /* Aucun objectif n'est créé : un objectif est une décision de
+     l'entraîneur, pas un effet de bord d'une migration. */
+
+  recomputeRosterStatus(sq);
+  if(!sq.schemaAt)sq.schemaAt=nowISO();
+}
+
+/* ══ CONTRÔLE D'INTÉGRITÉ ══════════════════════════════════════
+   Appelé par les tests, jamais en production. Rend la liste des
+   invariants violés — vide quand tout va bien. */
+function checkV7(db){
+  var pb=[];
+  (db||DB).squads.forEach(function(sq){
+    var camp={},ros={};
+    (sq.campaigns||[]).forEach(function(c){camp[c.id]=true});
+    (sq.roster||[]).forEach(function(r){ros[r.playerId]=true});
+    var vus={};
+    (sq.campaignRoster||[]).forEach(function(e){
+      if(!camp[e.campaignId])pb.push("I8 campagne inconnue "+e.campaignId);
+      if(!ros[e.playerId])pb.push("I8 athlète hors roster "+e.playerId);
+      var k=e.campaignId+"|"+e.playerId;
+      if(vus[k])pb.push("I9 convocation en double "+k);
+      vus[k]=1;
+    });
+    var vivantes={};
+    (sq.offers||[]).forEach(function(o){
+      if(!camp[o.campaignId])pb.push("I8 offre sur campagne inconnue "+o.campaignId);
+      if(!OFFER_STATUS[o.status])pb.push("I8 statut d'offre inconnu "+o.status);
+      if(o.voidedAt)return;
+      var k=o.campaignId+"|"+o.playerId;
+      if(vivantes[k])pb.push("I9 deux offres vivantes "+k);
+      vivantes[k]=1;
+    });
+    (sq.sessions||[]).forEach(function(se){
+      if(!sessionIsSplit(se))return;
+      var somme=sumBySet(se);
+      (se.entries||[]).forEach(function(en){
+        var s=somme[en.playerId]||emptyS();
+        for(var i=0;i<ALL_STATS.length;i++){
+          var k=ALL_STATS[i].key;
+          if((en.stats[k]||0)!==(s[k]||0)){
+            pb.push("I6 ventilation ≠ total, session "+se.id+" "+k);break;
+          }
+        }
+      });
+      se.sets.forEach(function(s,i){
+        var sc=((se.result&&se.result.sets)||[])[i]||{us:0,them:0};
+        if(s.us!==(sc.us||0)||s.them!==(sc.them||0))
+          pb.push("I11 score dédoublé, session "+se.id+" set "+(i+1));
+      });
+    });
+    (sq.roster||[]).forEach(function(r){
+      if(r.status!==derivedStatus(sq,r.playerId,r.status))
+        pb.push("I4 statut non dérivé "+r.playerId);
+    });
+  });
+  return pb;
 }
 
 function normalizeDB(db){
   db=Object.assign(emptyDB(),db);
-  db.version=6;
+  db.version=7;
   db.enrolledId=db.enrolledId||null;
   db.superId=db.superId||null;
   db.rootFile=db.rootFile||null;
@@ -2169,7 +2773,7 @@ function loadAll(fromVault){
       /* v4 → v5 se fait dans normalizeDB : les sessions orphelines y sont
          rattachées à une rencontre déduite de leur nom. */
       DB=normalizeDB((parsed.version>=4)?parsed:migrateV3(parsed));
-      if(parsed.version<6)setTimeout(function(){showToast("✅ Données migrées vers la v6")},400);
+      if(parsed.version<7)setTimeout(function(){showToast("✅ Données migrées vers la v7")},400);
     } else {
       var legacy=null;
       for(var i=0;i<LEGACY_KEYS.length&&!legacy;i++){
@@ -2178,7 +2782,7 @@ function loadAll(fromVault){
       }
       if(!legacy)legacy=readLegacyV1();
       DB=legacy?normalizeDB(migrateV3(migrateV2(legacy))):emptyDB();
-      if(legacy)setTimeout(function(){showToast("✅ Données migrées vers la v6")},400);
+      if(legacy)setTimeout(function(){showToast("✅ Données migrées vers la v7")},400);
     }
   }catch(e){DB=emptyDB()}
 
@@ -2247,6 +2851,12 @@ function doUndo(){
   } else if(snap.kind==="viewData"){
     var v=findViewAnywhere(snap.viewId);
     if(v)v.data=snap.data;
+  } else if(snap.kind==="snapshot"){
+    /* Du plus récent au plus ancien : une entité touchée deux fois
+       retrouve sa valeur d'avant la transaction. */
+    snap.before.slice().reverse().forEach(function(x){
+      try{restoreSnapshot(x)}catch(e){}
+    });
   }
   scheduleAutoSave();showToast("↩ Annulé : "+snap.label);render();
 }
@@ -2381,6 +2991,385 @@ function squadRecord(squad,kind){
 function squadsOf(pid){return DB.squads.filter(function(sq){return !!rosterEntry(sq,pid)})}
 
 /* Une entrée ne porte de l'information que si le sélectionneur y a réellement touché */
+
+/* ══════════════════════════════════════════════════════════════
+   CAMPAGNES · DÉCISIONS · OFFRES · SECTIONS · SETS        (v7)
+
+   Tout ce qui suit est dérivé : aucune de ces fonctions n'invente
+   de donnée, elles relisent campaignRoster, offers, events et
+   sessions. Les quatre mutateurs de fin (convoquer, décider,
+   accepter, archiver) sont les SEULS chemins autorisés pour
+   toucher à une décision ou à une offre.
+   ══════════════════════════════════════════════════════════════ */
+
+/* L'ordre métier des campagnes : celui que l'entraîneur a voulu (seq),
+   puis la date, puis la création. Ce n'est pas l'ordre des clics — une
+   campagne créée après coup pour rattraper la journée 1 se lit avant
+   la journée 2, sans quoi « la dernière décision » désignerait la
+   mauvaise. */
+function campaignOrder(sq){
+  if(!sq||!sq.campaigns)return [];
+  return sq.campaigns.slice().sort(function(a,b){
+    var sa=(a.seq>0)?a.seq:9999,sb=(b.seq>0)?b.seq:9999;
+    if(sa!==sb)return sa-sb;
+    var da=a.date||dayOf(a.createdAt)||"",db=b.date||dayOf(b.createdAt)||"";
+    if(da!==db)return da<db?-1:1;
+    return String(a.createdAt||"")<String(b.createdAt||"")?-1:1;
+  });
+}
+function campaignEntry(sq,campaignId,pid){
+  if(!sq)return null;
+  var l=sq.campaignRoster||[];
+  for(var i=0;i<l.length;i++)if(l[i].campaignId===campaignId&&l[i].playerId===pid)return l[i];
+  return null;
+}
+function hasCampaignEntry(sq,campaignId,pid){return !!campaignEntry(sq,campaignId,pid)}
+function rosterOfCampaign(sq,campaignId){
+  if(!sq)return [];
+  return (sq.campaignRoster||[]).filter(function(e){return e.campaignId===campaignId});
+}
+/* Les campagnes qui ont vu cette athlète, dans l'ordre métier. */
+function campaignsOfPlayer(sq,pid){
+  return campaignOrder(sq).filter(function(c){return hasCampaignEntry(sq,c.id,pid)});
+}
+function ensureCampaignRosterEntry(sq,campaignId,pid,who){
+  var e=campaignEntry(sq,campaignId,pid);
+  if(e)return e;
+  e=mkCampaignRosterEntry(campaignId,pid,{convokedBy:who||null});
+  sq.campaignRoster.push(e);
+  return e;
+}
+
+/* ── Offres ────────────────────────────────────────────────── */
+function offerById(sq,id){
+  if(!sq)return null;
+  var l=sq.offers||[];
+  for(var i=0;i<l.length;i++)if(l[i].id===id)return l[i];
+  return null;
+}
+function offerIsLive(o){return !!o&&!o.voidedAt}
+function offersOfCampaign(sq,campaignId){
+  if(!sq)return [];
+  return (sq.offers||[]).filter(function(o){return o.campaignId===campaignId&&offerIsLive(o)});
+}
+function offersOfPlayer(sq,pid){
+  if(!sq)return [];
+  return (sq.offers||[]).filter(function(o){return o.playerId===pid});
+}
+/* L'offre vivante d'un couple (campagne, athlète) — la plus récente s'il
+   en traînait plusieurs, ce que normalizeSquad empêche déjà. */
+function liveOffer(sq,campaignId,pid){
+  var best=null;
+  (sq&&sq.offers||[]).forEach(function(o){
+    if(o.campaignId!==campaignId||o.playerId!==pid||!offerIsLive(o))return;
+    if(!best||String(o.createdAt||"")>String(best.createdAt||""))best=o;
+  });
+  return best;
+}
+/* L'offre qui engage une athlète aujourd'hui, toutes campagnes confondues.
+   Une acceptation prime : elle est dans l'équipe, la question est close.
+   Sinon l'offre vivante la plus récente. */
+function currentOffer(sq,pid){
+  var acc=null,other=null;
+  offersOfPlayer(sq,pid).forEach(function(o){
+    if(!offerIsLive(o))return;
+    if(o.status==="accepted"){if(!acc||String(o.decidedAt||"")>String(acc.decidedAt||""))acc=o;return}
+    if(!other||String(o.createdAt||"")>String(other.createdAt||""))other=o;
+  });
+  return acc||other;
+}
+function offerStatusOf(sq,pid){var o=currentOffer(sq,pid);return o?o.status:""}
+
+/* ── Le statut de saison, dérivé ────────────────────────────────
+   Une athlète dont l'offre a été acceptée est retenue, point final :
+   elle joue, et une campagne ultérieure où elle n'est pas convoquée
+   ne la renvoie pas au rang de candidate. C'est la seule
+   irréversibilité du modèle, et elle se défait en archivant l'offre.
+
+   Sinon, c'est la DERNIÈRE campagne qui l'a vue qui dit où elle en
+   est : convoquée sans décision, elle est candidate — une nouvelle
+   campagne rouvre la question, c'est précisément son objet.
+
+   Faute de toute convocation — une base d'avant la v7 dont la
+   migration n'aurait pas tourné — le statut déjà inscrit est
+   conservé : on ne reclasse jamais une saison sur une absence. */
+function derivedStatus(sq,pid,fallback){
+  var offers=(sq&&sq.offers)||[];
+  for(var i=0;i<offers.length;i++)
+    if(offers[i].playerId===pid&&offers[i].status==="accepted"&&offerIsLive(offers[i]))
+      return "selected";
+  var vues=campaignsOfPlayer(sq,pid);
+  if(!vues.length)return STATUSES[fallback]?fallback:"candidate";
+  var e=campaignEntry(sq,vues[vues.length-1].id,pid);
+  if(e&&e.decision&&RECO_TO_STATUS[e.decision])return RECO_TO_STATUS[e.decision];
+  return "candidate";
+}
+/* Réécrit roster[].status. Appelée par normalizeSquad et par tout
+   mutateur de décision ou d'offre : le champ reste donc exact pour la
+   quarantaine de lecteurs qui l'interrogent sans rien savoir des
+   campagnes. */
+function recomputeRosterStatus(sq,pid){
+  if(!sq)return;
+  (sq.roster||[]).forEach(function(r){
+    if(pid&&r.playerId!==pid)return;
+    r.status=derivedStatus(sq,r.playerId,r.status);
+  });
+}
+
+/* ── Sections de saison ────────────────────────────────────── */
+function sectionByKey(k){return SECTION_BY_KEY[k]||null}
+function sectionKinds(k){
+  var s=SECTION_BY_KEY[k];
+  return (s&&s.kinds)?s.kinds.slice():null;
+}
+function eventsOfSection(sq,k){
+  var ks=sectionKinds(k);
+  if(!sq||!ks)return [];
+  return (sq.events||[]).filter(function(ev){return ks.indexOf(ev.kind)!==-1});
+}
+function sessionsOfSection(sq,k){
+  var ks=sectionKinds(k);
+  if(!sq||!ks)return [];
+  return (sq.sessions||[]).filter(function(se){
+    var ev=eventOf(sq,se);
+    return ev&&ks.indexOf(ev.kind)!==-1;
+  });
+}
+/* Les natures réellement présentes dans la saison. Sert à n'afficher le
+   sélecteur « Amicaux · Championnat » que là où il a un sens. */
+function kindsPresent(sq){
+  var seen={};
+  (sq&&sq.events||[]).forEach(function(ev){seen[ev.kind]=true});
+  return EVENT_KEYS.filter(function(k){return seen[k]});
+}
+
+/* ── Ventilation par set ───────────────────────────────────────
+   Une session d'avant la v7 n'est pas ventilée, et on ne devine pas
+   ses sets : répartir quarante attaques sur trois manches serait
+   inventer de la donnée. Elle rend donc un bloc unique marqué
+   `whole`, que l'interface doit nommer « Match (non ventilé) » et
+   jamais « Set 1 ». */
+function sessionIsSplit(se){return !!(se&&se.sets&&se.sets.length)}
+function setsOfSession(se){
+  if(!se)return [];
+  if(sessionIsSplit(se))
+    return se.sets.map(function(s,i){
+      var sc=((se.result&&se.result.sets)||[])[i]||{us:0,them:0};
+      return {index:i,us:sc.us||0,them:sc.them||0,entries:s.entries||[],
+              whole:false,reconciled:!!s.reconciled,
+              label:"Set "+(i+1)};
+    });
+  return [{index:0,us:0,them:0,entries:se.entries||[],whole:true,reconciled:false,
+           label:"Match (non ventilé)"}];
+}
+function statsOfSessionSet(se,i,pid){
+  var blocs=setsOfSession(se),b=blocs[i];
+  if(!b)return emptyS();
+  for(var j=0;j<b.entries.length;j++)
+    if(b.entries[j].playerId===pid)return b.entries[j].stats||emptyS();
+  return emptyS();
+}
+/* Somme des sets d'une session, par athlète. */
+function sumBySet(se){
+  var out={};
+  ((se&&se.sets)||[]).forEach(function(s){
+    (s.entries||[]).forEach(function(x){
+      if(!x||!x.playerId)return;
+      if(!out[x.playerId])out[x.playerId]=emptyS();
+      addStats(out[x.playerId],x.stats);
+    });
+  });
+  return out;
+}
+/* Les scores portés par les sets ne sont que des MIROIRS de
+   result.sets : une seule source, sinon un 25-23 corrigé dans un écran
+   contredirait l'autre et rien ne dirait lequel a raison. À rafraîchir
+   dès qu'un set naît ou qu'un score change — pas seulement au
+   chargement, sans quoi un set créé en séance porterait un score vide
+   jusqu'au prochain démarrage. */
+function refreshSetMirrors(se){
+  if(!se||!se.sets)return;
+  se.sets.forEach(function(sst,i){
+    var sc=((se.result&&se.result.sets)||[])[i]||{us:0,them:0};
+    sst.index=i;sst.us=sc.us||0;sst.them=sc.them||0;
+  });
+}
+/* L'unique fonction autorisée à réécrire session.entries[].stats, et
+   seulement sur une session déjà ventilée : le total d'un match est
+   une donnée historique, il ne se recalcule pas à la légère. */
+function recomputeSessionTotals(se){
+  if(!sessionIsSplit(se))return;
+  refreshSetMirrors(se);
+  var somme=sumBySet(se),vus={};
+  se.entries.forEach(function(en){
+    en.stats=normStats(somme[en.playerId]);
+    vus[en.playerId]=true;
+  });
+  Object.keys(somme).forEach(function(pid){
+    if(vus[pid])return;
+    var p=playerById(pid);
+    se.entries.push({playerId:pid,name:p?fullName(p):"",number:"",position:"",
+                     stats:normStats(somme[pid])});
+  });
+}
+/* Garde-fou : une session ventilée dont les sets ne totalisent pas les
+   entries est corrompue (import bricolé, fusion, défaut). `entries`
+   fait foi — c'est le total historiquement affiché — et l'écart est
+   versé dans un set de correction plutôt que jeté. */
+function reconcileSessionTotals(se){
+  if(!sessionIsSplit(se))return;
+  var somme=sumBySet(se),ecart={},reste=false;
+  (se.entries||[]).forEach(function(en){
+    var d=emptyS(),diff=false,s=somme[en.playerId]||emptyS();
+    for(var i=0;i<ALL_STATS.length;i++){
+      var k=ALL_STATS[i].key,v=(en.stats[k]||0)-(s[k]||0);
+      if(v!==0){d[k]=Math.max(0,v);if(v>0)diff=true}
+    }
+    if(diff){ecart[en.playerId]=d;reste=true}
+  });
+  if(!reste)return;
+  var entries=[];
+  Object.keys(ecart).forEach(function(pid){entries.push({playerId:pid,stats:ecart[pid]})});
+  se.sets.push({index:se.sets.length,entries:entries,reconciled:true});
+}
+
+/* ── Les quatre gestes qui engagent ────────────────────────────
+   Convoquer, décider, confirmer, archiver. Tout passe par une
+   transaction : si quoi que ce soit échoue en chemin, rien n'est
+   écrit à moitié, et le geste reste annulable. */
+
+/* Convoquer des athlètes à une campagne. Idempotent : une athlète déjà
+   convoquée n'est pas convoquée deux fois, et sa décision est intacte. */
+function convokeToCampaign(sq,campaignId,pids,who){
+  if(!sq||!campaignId||!pids||!pids.length)return 0;
+  var n=0;
+  Store.tx(function(){
+    pids.forEach(function(pid){
+      if(!rosterEntry(sq,pid))return;          // pas au roster : rien à convoquer
+      if(hasCampaignEntry(sq,campaignId,pid))return;
+      Store.put("campaignRoster",mkCampaignRosterEntry(campaignId,pid,{convokedBy:who||null}),sq);
+      n++;
+    });
+    if(n){
+      var c=campaignById(sq,campaignId);
+      logAct("roster",plural(n,"athlète")+" convoquée(s) — "+(c?campaignLabel(c):"campagne"),
+        {teamId:sq.teamId,seasonId:sq.seasonId});
+    }
+  },"Convocation");
+  return n;
+}
+/* Retirer une convocation. La décision part avec elle — une athlète qui
+   n'était pas là n'a pas été jugée. L'offre en attente qu'elle aurait
+   values est annulée ; une offre déjà tranchée ne bouge pas. */
+function unconvokeFromCampaign(sq,campaignId,pid){
+  Store.tx(function(){
+    var e=campaignEntry(sq,campaignId,pid);
+    if(!e)return;
+    voidPendingOffer(sq,campaignId,pid);
+    Store.del("campaignRoster",e.id,sq);
+    recomputeRosterStatus(sq,pid);
+  },"Retrait de convocation");
+}
+
+/* Trancher le sort d'une athlète dans une campagne. C'est ici, et
+   nulle part ailleurs, qu'une offre naît. */
+function setCampaignDecision(sq,campaignId,pid,reco,who){
+  if(!sq||!campaignId||!pid)return;
+  if(reco&&!RECO_BY_KEY[reco])return;
+  Store.tx(function(){
+    var e=ensureCampaignRosterEntry(sq,campaignId,pid,who);
+    if(e.decision===(reco||""))return;         // idempotent
+    /* Le journal dit la transition, pas l'état d'arrivée seul : « Candidate
+       → Retenue » se relit six mois plus tard, « Retenue » ne dit rien. Le
+       numéro est celui du jour des faits — logWho s'en charge. */
+    var r=rosterEntry(sq,pid),avant=(r&&r.status)||"candidate";
+    var qui=logWho(sq,pid);
+    Store.patch("campaignRoster",e.id,{decision:reco||"",
+      decidedAt:reco?nowISO():null,decidedBy:reco?(who||null):null},sq);
+    if(reco==="select")ensureOffer(sq,campaignId,pid);
+    else voidPendingOffer(sq,campaignId,pid);
+    recomputeRosterStatus(sq,pid);
+    var apres=(rosterEntry(sq,pid)||{}).status||"candidate",c=campaignById(sq,campaignId);
+    if(avant!==apres||reco)logAct("status",
+      qui+" : "+STATUSES[avant].label+" → "+STATUSES[apres].label+
+      (c?" · "+campaignLabel(c):"")+
+      (reco==="select"?" · offre envoyée":""),
+      {teamId:sq.teamId,seasonId:sq.seasonId,playerId:pid});
+  },"Décision de sélection");
+}
+
+/* Une athlète retenue reçoit une offre en attente. Reconfirmer la même
+   décision n'en produit pas une seconde. */
+function ensureOffer(sq,campaignId,pid){
+  var o=liveOffer(sq,campaignId,pid);
+  if(o)return o;
+  o=mkOffer(campaignId,pid);
+  Store.put("offers",o,sq);
+  /* Pas d'entrée de journal ici : la décision qui vient de l'engendrer en
+     porte la mention. Deux lignes pour un seul geste rendraient le journal
+     illisible — c'est le travers que l'audit reprochait déjà. */
+  return o;
+}
+/* Décision retirée : l'offre encore en attente n'a engagé personne, on
+   la retire des listes. Elle reste en base, datée — trois octets et une
+   trace. Une offre acceptée ou refusée, elle, ne se réécrit jamais. */
+function voidPendingOffer(sq,campaignId,pid){
+  var o=liveOffer(sq,campaignId,pid);
+  if(!o||o.status!=="pending")return;
+  Store.patch("offers",o.id,{voidedAt:nowISO()},sq);
+}
+
+/* « Confirmer » : l'athlète accepte, elle entre dans l'équipe. */
+function acceptOffer(sq,offerId,who){
+  Store.tx(function(){
+    var o=offerById(sq,offerId);
+    if(!o||o.status!=="pending"||!offerIsLive(o))return;
+    Store.patch("offers",o.id,{status:"accepted",decidedAt:nowISO(),decidedBy:who||null},sq);
+    if(sq.playerIds.indexOf(o.playerId)===-1)sq.playerIds.push(o.playerId);
+    var r=rosterEntry(sq,o.playerId);
+    if(r&&r.membership==="left")r.membership="active";
+    recomputeRosterStatus(sq,o.playerId);
+    var p=playerById(o.playerId);
+    logAct("roster",(p?fullName(p):"Athlète")+" rejoint l'équipe — offre acceptée",
+      {teamId:sq.teamId,seasonId:sq.seasonId});
+  },"Offre acceptée");
+}
+/* « Archiver » : l'offre est refusée. L'athlète sort de l'équipe, mais
+   ni sa fiche, ni ses statistiques, ni ses matchs ne sont touchés — elle
+   a joué, cela reste vrai. */
+function declineOffer(sq,offerId,who){
+  Store.tx(function(){
+    var o=offerById(sq,offerId);
+    /* En attente ou déjà acceptée : dans les deux cas archiver la sort de
+       l'équipe. C'est le seul geste qui défait une acceptation, et il est
+       tracé. Une offre déjà refusée, elle, n'a rien à refaire. */
+    if(!o||o.status==="declined"||!offerIsLive(o))return;
+    Store.patch("offers",o.id,{status:"declined",decidedAt:nowISO(),decidedBy:who||null},sq);
+    var pid=o.playerId;
+    sq.playerIds=sq.playerIds.filter(function(x){return x!==pid});
+    sq.lineup=(sq.lineup||[]).filter(function(x){return x!==pid});
+    (sq.subteams||[]).forEach(function(st){
+      st.playerIds=(st.playerIds||[]).filter(function(x){return x!==pid});
+    });
+    recomputeRosterStatus(sq,pid);
+    var p=playerById(pid);
+    logAct("roster",(p?fullName(p):"Athlète")+" — offre archivée",
+      {teamId:sq.teamId,seasonId:sq.seasonId});
+  },"Offre archivée");
+}
+/* Rouvrir une offre tranchée : le seul moyen de défaire une acceptation,
+   et il est explicite et tracé. */
+function reopenOffer(sq,offerId){
+  Store.tx(function(){
+    var o=offerById(sq,offerId);
+    if(!o||o.status==="pending")return;
+    var pid=o.playerId;
+    if(o.status==="accepted")sq.playerIds=sq.playerIds.filter(function(x){return x!==pid});
+    Store.patch("offers",o.id,{status:"pending",decidedAt:null,decidedBy:null},sq);
+    recomputeRosterStatus(sq,pid);
+  },"Offre rouverte");
+}
+
 function dataFilled(d){
   if(!d)return false;
   if(d.reco)return true;
@@ -4056,18 +5045,25 @@ function renderStatMini(stats){
   return wrap;
 }
 
+/* Trancher depuis le tableau de sélection, c'est trancher dans la
+   campagne active : même geste, et le statut de saison s'en déduit.
+
+   Une athlète retenue ne rejoint plus l'équipe sur-le-champ : elle
+   reçoit une OFFRE en attente, et n'entre dans l'effectif qu'une fois
+   cette offre confirmée (voir « Constituer l'équipe »). C'est le seul
+   changement de comportement de la v7 par rapport à la v6, et il est
+   voulu : un effectif ne se remplit pas de joueuses qui n'ont pas dit
+   oui. */
 function setRosterStatus(squad,entry,status){
-  var from=entry.status;
-  entry.status=status;
-  if(from!==status)logAct("status",
-    logWho(squad,entry.playerId)+" : "+STATUSES[from].label+" → "+STATUSES[status].label,
-    {teamId:squad.teamId,seasonId:squad.seasonId,playerId:entry.playerId});
-  if(status==="selected"){
-    if(!MEMBERSHIPS[entry.membership])entry.membership="active";
-    if(squad.playerIds.indexOf(entry.playerId)===-1)squad.playerIds.push(entry.playerId);
-  } else {
-    /* Jamais retenue : elle n'a rien joué, on peut la détacher sans perte. */
-    detachFromTeam(squad,entry.playerId);
+  var pid=entry.playerId;
+  if(!MEMBERSHIPS[entry.membership])entry.membership="active";
+  setCampaignDecision(squad,squad.activeCampaignId,pid,STATUS_TO_RECO[status]||"",state.meId||null);
+  if(status!=="selected"){
+    /* Écarter quelqu'un qui avait accepté demande d'archiver son offre :
+       c'est le seul chemin qui la sorte de l'équipe, et il est tracé. */
+    var o=currentOffer(squad,pid);
+    if(o&&o.status==="accepted")declineOffer(squad,o.id,state.meId||null);
+    else detachFromTeam(squad,pid);
   }
   scheduleAutoSave();
 }
@@ -9285,6 +10281,12 @@ function readAnyLegacy(){
 /* Ce qui suit le déverrouillage : lien d'invitation, service worker,
    tout ce qui suppose une base chargée. */
 function bootRest(){
+  /* Le journal d'opérations d'une session interrompue : rejoué s'il est
+     en avance sur le bloc, ignoré au moindre doute. */
+  try{
+    var box=readVaultBox();
+    replayPendingOps(box&&box.at,function(n){if(n)render()});
+  }catch(e){}
   var cfg=readShareLink();
   if(!cfg)return;
   SYNC.url=cfg.url;SYNC.room=cfg.room;SYNC.token=cfg.token;

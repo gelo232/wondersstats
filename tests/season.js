@@ -625,7 +625,7 @@ const ERRORS=[];const FINDINGS=[];let PASS=0;
         resultats:sq.sessions.filter(se=>hasResult(se.result)).length,
         jours:new Set(sq.sessions.map(se=>se.day)).size};
     });
-    if(r.v!==6)throw new Error("version="+r.v);
+    if(r.v!==7)throw new Error("version="+r.v);
     if(r.sessions!==19)throw new Error("matchs="+r.sessions);
     if(r.orphelines)throw new Error("sessions sans rencontre="+r.orphelines);
     if(r.resultats!==19)throw new Error("résultats conservés="+r.resultats);

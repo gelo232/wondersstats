@@ -346,7 +346,7 @@ const ERRORS=[];let PASS=0;
     await page.reload(); await franchirGarde(page);await page.waitForTimeout(500);
     const r=await page.evaluate(()=>({v:DB.version,people:DB.people.length,
       teams:DB.teams.length,squads:DB.squads.length,me:(me()||{}).name}));
-    if(r.v!==6)throw new Error("version="+r.v);
+    if(r.v!==7)throw new Error("version="+r.v);
     if(r.people!==3||r.teams!==1||r.squads!==1)throw new Error(JSON.stringify(r));
   });
 
