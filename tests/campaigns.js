@@ -202,8 +202,10 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
   await step("la fiche affiche le cumul de match ET les campagnes",async()=>{
     await page.evaluate(()=>{
       state.ctx={role:'coach',teamId:(curTeamRecord()||DB.teams[0]).id};
-      state.tab="season";state.seasonSection="selection";state.selPane="board";state.statusFilter="all";
-      state.expandedPlayerId=curSquad().roster[0].playerId;render();
+      state.tab="season";state.seasonSection="selection";state.selPane="recap";
+      /* v7 : la fiche de l'athlète est une FEUILLE, ouverte depuis le récap
+         de la campagne, et non plus un dépli sous sa ligne de liste. */
+      openModal("selathlete",curSquad().roster[0].playerId);
     });
     await page.waitForTimeout(300);
     const t=await page.textContent("#app");

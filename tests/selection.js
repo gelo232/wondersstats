@@ -75,13 +75,24 @@ const ERRORS=[];let PASS=0;
   });
 
   say("\n── La partie Sélection et ses volets");
-  await step("la partie s'ouvre sur les décisions, et porte ses quatre volets",async()=>{
+  /* v7 : les quatre volets sont ceux du DÉROULEMENT d'une campagne —
+     convoquées, récap, vues, soumissions. Le volet « Campagnes » n'en est
+     plus un : la liste des campagnes vit dans la feuille qu'ouvre la barre
+     de campagne, parce qu'on y va une fois par soirée et non vingt. */
+  await step("la partie s'ouvre sur le récap, et porte ses quatre volets",async()=>{
     await ouvrirPartie("Sélection");
     const t=await txt();
-    for(const v of ["Décisions","Campagnes","Vues","Soumissions"])
+    for(const v of ["Convoquées","Récap","Vues","Soumissions"])
       if(!t.includes(v))throw new Error("volet absent : "+v);
     if(!t.includes("Constituer l'équipe"))
       throw new Error("le bouton de constitution n'est pas en barre du bas");
+  });
+  await step("la campagne ouverte est visible, avec son avancement",async()=>{
+    const n=await page.locator(".campBar").count();
+    if(n!==1)throw new Error("barre de campagne="+n);
+    const t=await page.locator(".campBar").first().innerText();
+    if(!/convoquée/.test(t))throw new Error("l'avancement n'est pas dit : "+t);
+    if(!/tranchée/.test(t))throw new Error("ce qui reste à trancher n'est pas dit : "+t);
   });
   await step("le retour porte le nom de son parent",async()=>{
     const t=await page.locator(".ph-back").first().textContent();
@@ -191,6 +202,31 @@ const ERRORS=[];let PASS=0;
     const t=await page.textContent(".bt-count");
     if(!/1 athlète dans l'équipe/.test(t))throw new Error("compte=" +t);
   });
+  await step("une offre archivée se rouvre — l'écran n'est pas une impasse",async()=>{
+    /* Retenir une athlète dont l'offre a été archivée ne lui en fabrique
+       pas une seconde : l'épisode reste ouvert en base. Sans « Rouvrir »,
+       les deux boutons restaient grisés à jamais et elle ne pouvait plus
+       entrer dans l'équipe. */
+    const ligne=page.locator(".bt-row").filter({hasText:"Maya"});
+    const t=await ligne.first().innerText();
+    if(!/Rouvrir/.test(t))throw new Error("aucun geste offert sur une offre archivée : "+t);
+    await ligne.locator("button").filter({hasText:"Rouvrir"}).first().click();
+    await accepterDialogue(page);
+    await page.waitForTimeout(350);
+    const r=await page.evaluate(()=>{
+      var sq=curSquad(),p=DB.players.filter(function(x){return x.firstName==="Maya"})[0];
+      var o=currentOffer(sq,p.id);
+      return {statut:o?o.status:null,dedans:sq.playerIds.indexOf(p.id)!==-1,
+              probs:checkV7(DB)};
+    });
+    if(r.statut!=="pending")throw new Error("offre rouverte="+r.statut);
+    if(r.dedans)throw new Error("rouvrir l'a fait entrer dans l'équipe sans confirmation");
+    if(r.probs.length)throw new Error(r.probs.join(" / "));
+    /* On la réarchive, pour laisser le montage tel que la suite l'attend. */
+    await ligne.locator("button").filter({hasText:"Archiver"}).first().click();
+    await accepterDialogue(page);
+    await page.waitForTimeout(350);
+  });
 
   say("\n── Ce que l'écran dit après coup");
   await step("la tuile Sélection signale les offres encore en attente",async()=>{
@@ -263,6 +299,410 @@ const ERRORS=[];let PASS=0;
         .filter(function(x){return x!==null}).slice(0,5));
     for(let i=1;i<ages.length;i++)
       if(ages[i]<ages[i-1])throw new Error("ordre d'âge faux : "+ages.join(","));
+  });
+
+
+  /* ════════════════════════════════════════════════════════════
+     LA CAMPAGNE EST LE CENTRE DE LA PARTIE
+
+     Ce qui suit éprouve la demande de l'utilisateur mot pour mot :
+     chaque campagne porte SON déroulement — ses convoquées, ses vues,
+     ses soumissions, son récap — et rien de ce qui appartient à l'une
+     ne paraît dans l'autre.
+     ════════════════════════════════════════════════════════════ */
+  const fermerFeuille=async()=>{
+    await page.evaluate(()=>{if(state.modalType)closeModal()});
+    await page.waitForTimeout(200);
+  };
+  const volet=async(nom)=>{
+    await page.locator(".pill-row .pill").filter({hasText:nom}).first().click();
+    await page.waitForTimeout(300);
+  };
+  /* La barre de filtres est repliée par défaut dès qu'il y a deux groupes :
+     on l'ouvre. Son absence est une ERREUR, pas un saut — sans cela un
+     écran qui aurait perdu sa barre passerait le contrôle en silence. */
+  const ouvrirFiltres=async()=>{
+    const t=await page.locator(".listToolbar .fb-head").count();
+    if(!t)throw new Error("aucune barre de filtres sur cette liste");
+    const ouvert=await page.locator(".listToolbar .fb-head").first()
+      .getAttribute("aria-expanded");
+    if(ouvert!=="true"){
+      await page.locator(".listToolbar .fb-head").first().click();
+      await page.waitForTimeout(250);
+    }
+  };
+
+  say("\n── Chaque campagne porte son propre déroulement");
+  await fermerFeuille();
+  await step("une seconde campagne s'ouvre, et n'a convoqué personne",async()=>{
+    const r=await page.evaluate(()=>{
+      var sq=curSquad();
+      sq.campaigns[0].name="Journée 1";
+      var c=mkCampaign({kind:"custom",name:"Journée 2"});
+      sq.campaigns.push(c);
+      setActiveCampaign(sq,c.id);
+      return {campagnes:sq.campaigns.length,
+              j1:rosterOfCampaign(sq,sq.campaigns[0].id).length,
+              j2:rosterOfCampaign(sq,c.id).length,
+              ouverte:(curCampaign(sq)||{}).name};
+    });
+    await page.waitForTimeout(250);
+    if(r.campagnes!==2)throw new Error("campagnes="+r.campagnes);
+    if(!r.j1)throw new Error("la journée 1 a perdu ses convoquées : "+r.j1);
+    if(r.j2!==0)throw new Error("la journée 2 naît avec "+r.j2+" convoquée(s)");
+    if(r.ouverte!=="Journée 2")throw new Error("campagne ouverte="+r.ouverte);
+  });
+  await step("la barre de campagne nomme la campagne ouverte",async()=>{
+    const t=await page.locator(".campBar").first().innerText();
+    if(!/Journée 2/.test(t))throw new Error("la barre ne dit pas où l'on est : "+t);
+  });
+  await step("le récap de la journée 2 est vide, et dit quoi faire",async()=>{
+    await volet("Récap");
+    const t=await txt();
+    if(!/Aucune athlète convoquée/.test(t))
+      throw new Error("le récap montre des athlètes d'une autre campagne");
+    if(!/Convoquez vos joueuses/.test(t))
+      throw new Error("l'écran vide ne dit pas le premier geste");
+  });
+  await step("convoquer en lot ne remplit que la campagne ouverte",async()=>{
+    await volet("Convoquées");
+    await page.locator(".actionBar button").filter({hasText:"Convoquer des athlètes"})
+      .first().click();
+    await page.waitForTimeout(400);
+    /* On cohe trois athlètes dans la feuille, par leur case de gauche. */
+    const lignes=page.locator(".modal .listRow");
+    const n=await lignes.count();
+    if(n<3)throw new Error("la feuille ne propose que "+n+" athlète(s)");
+    for(let i=0;i<3;i++){
+      await lignes.nth(i).locator(".lead.pick").click();
+      await page.waitForTimeout(80);
+    }
+    await page.locator(".modal .m-foot button").filter({hasText:"Convoquer"}).first().click();
+    await page.waitForTimeout(400);
+    const r=await page.evaluate(()=>{
+      var sq=curSquad(),c2=sq.campaigns[1];
+      return {j1:rosterOfCampaign(sq,sq.campaigns[0].id).length,
+              j2:rosterOfCampaign(sq,c2.id).length,
+              probs:checkV7(DB)};
+    });
+    if(r.j2!==3)throw new Error("convoquées à la journée 2 = "+r.j2);
+    if(r.j1===r.j2)throw new Error("les deux campagnes ont la même liste — elles se mélangent");
+    if(r.probs.length)throw new Error(r.probs.join(" / "));
+  });
+  await step("la liste des convoquées ne montre que les trois",async()=>{
+    await page.waitForTimeout(200);
+    const n=await page.locator(".content .listRow").count();
+    if(n!==3)throw new Error("lignes affichées="+n);
+  });
+  await step("la convocation par campagne survit au rechargement",async()=>{
+    await page.reload();await franchirGarde(page);await page.waitForTimeout(350);
+    await asCoach();
+    const r=await page.evaluate(()=>{
+      var sq=curSquad();
+      return {j1:rosterOfCampaign(sq,sq.campaigns[0].id).length,
+              j2:rosterOfCampaign(sq,sq.campaigns[1].id).length,
+              probs:checkV7(DB)};
+    });
+    /* Le point le plus fragile du modèle : la migration reversait toute
+       ligne de roster dans la PREMIÈRE campagne à chaque chargement, ce
+       qui aurait fait grossir la journée 1 des convoquées de la 2. */
+    if(r.j2!==3)throw new Error("journée 2 après rechargement="+r.j2);
+    if(r.probs.length)throw new Error(r.probs.join(" / "));
+  });
+
+  say("\n── Le volet Convoquées : filtres, tris, retrait en lot");
+  await step("convoquer tout le monde à la journée 2, pour éprouver les listes",async()=>{
+    await ouvrirPartie("Sélection");          /* le rechargement retombe sur le tableau de bord */
+    await page.evaluate(()=>{
+      var sq=curSquad(),c2=sq.campaigns[1];
+      convokeToCampaign(sq,c2.id,sq.roster.map(function(r){return r.playerId}),null);
+      /* Trois décisions, dont une retenue : de quoi filtrer par décision
+         et par statut d'offre sur la même liste. */
+      var noms=["Léa","Sofia","Jade"],recos=["select","recall","cut"];
+      noms.forEach(function(f,i){
+        var p=DB.players.filter(function(x){return x.firstName===f})[0];
+        if(p)setCampaignDecision(sq,c2.id,p.id,recos[i],null);
+      });
+      saveNow();render();
+    });
+    await page.waitForTimeout(250);
+    await volet("Convoquées");
+    const r=await page.evaluate(()=>{
+      var sq=curSquad(),c2=sq.campaigns[1];
+      return {n:rosterOfCampaign(sq,c2.id).length,
+              attente:offersOfCampaign(sq,c2.id).filter(function(o){return o.status==="pending"}).length};
+    });
+    if(r.n<12)throw new Error("convoquées="+r.n);
+    if(r.attente!==1)throw new Error("offres en attente sur la journée 2 = "+r.attente);
+  });
+  await step("la liste porte les deux filtres et les quatre tris",async()=>{
+    await ouvrirFiltres();
+    /* textContent, et non innerText : le libellé d'un groupe est en
+       capitales par CSS, et innerText rendrait « DÉCISION ». */
+    const f=await page.textContent(".listToolbar .fb-body");
+    if(!/Décision/.test(f))throw new Error("filtre de décision absent");
+    if(!/Offre/.test(f))throw new Error("filtre d'offre absent");
+    for(const o of ["En attente","Acceptée","Refusée"])
+      if(!f.includes(o))throw new Error("statut d'offre absent du filtre : "+o);
+    const s=await page.locator(".listToolbar .sortBar").first().innerText();
+    for(const k of ["Numéro","Nom","Âge","Résultat"])
+      if(!s.includes(k))throw new Error("tri absent : "+k);
+  });
+  await step("filtrer par statut d'offre ne garde que celles qui l'ont",async()=>{
+    const attendu=await page.evaluate(()=>{
+      var sq=curSquad(),c2=sq.campaigns[1],out={pending:0,accepted:0,total:0};
+      rosterOfCampaign(sq,c2.id).forEach(function(e){
+        out.total++;
+        var st=offerStatusOf(sq,e.playerId);
+        if(out[st]!=null)out[st]++;
+      });
+      return out;
+    });
+    if(!attendu.pending||!attendu.accepted)
+      throw new Error("le montage n'a pas d'offre en attente ET d'offre acceptée : "+
+        JSON.stringify(attendu));
+    for(const [cle,libelle] of [["pending","En attente"],["accepted","Acceptée"]]){
+      await ouvrirFiltres();
+      await page.locator(".listToolbar .fb-body button").filter({hasText:libelle})
+        .first().click();
+      await page.waitForTimeout(300);
+      const n=await page.locator(".content .listRow").count();
+      if(n!==attendu[cle])
+        throw new Error("filtre « "+libelle+" » : "+n+" ligne(s) pour "+attendu[cle]+" attendue(s)");
+      if(n>=attendu.total)
+        throw new Error("filtre « "+libelle+" » ne réduit rien : "+n+"/"+attendu.total);
+      await page.locator(".listToolbar .fb-reset").first().click();
+      await page.waitForTimeout(300);
+    }
+  });
+  await step("filtrer par décision « À trancher » écarte les trois tranchées",async()=>{
+    /* Pas de « Tout effacer » ici : le bouton ne paraît que si un filtre
+       est actif, et l'étape précédente a rendu la liste entière. */
+    const total=await page.locator(".content .listRow").count();
+    await ouvrirFiltres();
+    await page.locator(".listToolbar .fb-body button").filter({hasText:"À trancher"})
+      .first().click();
+    await page.waitForTimeout(300);
+    const n=await page.locator(".content .listRow").count();
+    if(n!==total-3)throw new Error("à trancher="+n+" sur "+total);
+    await page.locator(".listToolbar .fb-reset").first().click();
+    await page.waitForTimeout(300);
+  });
+  await step("trier par numéro range vraiment, et le sens s'inverse",async()=>{
+    const nums=async()=>await page.evaluate(()=>
+      Array.prototype.slice.call(document.querySelectorAll(".content .listRow .lead"))
+        .map(function(e){return e.value!=null&&e.value!==""?e.value:e.textContent})
+        .slice(0,5).join(","));
+    await page.locator(".listToolbar .sortBtn").filter({hasText:"Numéro"}).first().click();
+    await page.waitForTimeout(300);
+    const croissant=await nums();
+    const a=croissant.split(",").map(Number);
+    for(let i=1;i<a.length;i++)
+      if(a[i]<a[i-1])throw new Error("ordre croissant faux : "+croissant);
+    await page.locator(".listToolbar .sortBtn").filter({hasText:"Numéro"}).first().click();
+    await page.waitForTimeout(300);
+    if(await nums()===croissant)throw new Error("le sens ne s'inverse pas : "+croissant);
+  });
+  await step("retirer une convocation en lot ne touche que cette campagne",async()=>{
+    const avant=await page.evaluate(()=>{
+      var sq=curSquad();
+      return {j1:rosterOfCampaign(sq,sq.campaigns[0].id).length,
+              j2:rosterOfCampaign(sq,sq.campaigns[1].id).length,
+              fiches:DB.players.length,roster:sq.roster.length};
+    });
+    await page.locator(".actionBar button").filter({hasText:"Choisir"}).first().click();
+    await page.waitForTimeout(300);
+    const lignes=page.locator(".content .listRow");
+    for(let i=0;i<2;i++){
+      await lignes.nth(i).locator(".lead.pick").click();
+      await page.waitForTimeout(120);
+    }
+    await page.locator(".actionBar button").filter({hasText:"Retirer la convocation"})
+      .first().click();
+    const dit=await accepterDialogue(page);
+    if(!/ne bougent pas|ne bouge pas/.test(dit))
+      throw new Error("la confirmation ne dit pas ce qu'elle ne touche PAS : "+dit);
+    await page.waitForTimeout(400);
+    const apres=await page.evaluate(()=>{
+      var sq=curSquad();
+      return {j1:rosterOfCampaign(sq,sq.campaigns[0].id).length,
+              j2:rosterOfCampaign(sq,sq.campaigns[1].id).length,
+              fiches:DB.players.length,roster:sq.roster.length,probs:checkV7(DB)};
+    });
+    if(apres.j2!==avant.j2-2)throw new Error("journée 2 après retrait="+apres.j2);
+    if(apres.j1!==avant.j1)throw new Error("la journée 1 a bougé : "+apres.j1);
+    if(apres.fiches!==avant.fiches)throw new Error("une fiche a disparu");
+    if(apres.roster!==avant.roster)
+      throw new Error("la convocation de SAISON a bougé : "+apres.roster+" (avant "+avant.roster+")");
+    if(apres.probs.length)throw new Error(apres.probs.join(" / "));
+  });
+
+  say("\n── Le récap : lire une soumission, puis trancher");
+  await step("une soumission arrive sur la journée 2",async()=>{
+    const n=await page.evaluate(()=>{
+      var sq=curSquad(),c2=sq.campaigns[1];
+      var v=mkSelectorView({name:"Vue J2",selectorName:"Marie T.",
+        campaignId:c2.id,campaignName:c2.name,seasonId:sq.id});
+      v.playerIds=rosterOfCampaign(sq,c2.id).map(function(e){return e.playerId});
+      v.playerIds.forEach(function(pid,i){
+        v.data[pid]=mkEntryData();
+        CRITERIA.forEach(function(cr){v.data[pid].ratings[cr.key]=(i%3)+3});
+        v.data[pid].reco="select";
+        v.data[pid].pos="OH";
+        v.data[pid].note="Belle lecture de jeu, à confirmer au service.";
+        v.data[pid].stats.srv_ace=2;
+      });
+      sq.selectorViews.push(v);
+      submitLocalView(sq,v);
+      saveNow();render();
+      return sq.submissions.length;
+    });
+    await page.waitForTimeout(300);
+    if(!n)throw new Error("aucune soumission déposée");
+  });
+  await step("le récap compile, et la liste montre un score",async()=>{
+    await volet("Récap");
+    const t=await page.locator(".content").first().innerText();
+    if(!/★/.test(t))throw new Error("aucun score compilé dans la liste : "+t.slice(0,200));
+  });
+  await step("la feuille d'une athlète porte le récap ET ses soumissions",async()=>{
+    await page.locator(".content .listRow .body").first().click();
+    await page.waitForTimeout(450);
+    const t=await page.locator(".modal").first().innerText();
+    for(const m of ["Décision","Récap compilé","soumission","L'ATHLÈTE, TOUTE LA SAISON"])
+      if(t.toUpperCase().indexOf(m.toUpperCase())===-1)
+        throw new Error("section absente de la feuille : "+m);
+    if(!/D'OÙ VIENT LE SCORE/.test(t.toUpperCase()))
+      throw new Error("le score est asséné sans être expliqué");
+  });
+  await step("la feuille s'ouvre sur la décision, pas sur la note du bas",async()=>{
+    /* openModal donne le focus au premier champ trouvé ; la fiche de
+       saison en porte un tout en bas, et le navigateur déroulait la
+       feuille jusqu'à lui. On ouvrait une athlète sur la note de
+       l'entraîneur au lieu de la décision à prendre. */
+    const haut=await page.evaluate(()=>{
+      var b=document.querySelector(".modal .m-body");
+      return b?b.scrollTop:-1;
+    });
+    if(haut!==0)throw new Error("la feuille s'ouvre déjà déroulée : "+haut);
+    const boutons=await page.locator(".modal .sel-decision button").count();
+    if(boutons!==3)throw new Error("boutons de décision="+boutons);
+  });
+  await step("le contenu d'une soumission se relit en LECTURE SEULE",async()=>{
+    const n=await page.locator(".modal .subRO").count();
+    if(n!==1)throw new Error("blocs de soumission="+n);
+    const t=await page.locator(".modal .subRO").first().innerText();
+    if(!/Marie T\./.test(t))throw new Error("l'évaluateur n'est pas nommé : "+t);
+    if(!/Lecture seule/.test(t))throw new Error("rien ne dit que c'est figé");
+    if(!/Belle lecture de jeu/.test(t))throw new Error("le commentaire n'est pas montré");
+    if(!/ \/ 5/.test(t))throw new Error("les notes par critère ne sont pas montrées : "+t);
+    if(!/Poste proposé/.test(t))throw new Error("le poste proposé n'est pas montré");
+    /* La règle dure : pas UN champ modifiable dans le bloc, et pas un
+       bouton qui écrive. Une soumission est un instantané figé. */
+    const mod=await page.evaluate(()=>{
+      var b=document.querySelector(".modal .subRO");
+      if(!b)return -1;
+      return b.querySelectorAll("input,textarea,select,[contenteditable=true],button").length;
+    });
+    if(mod!==0)throw new Error(mod+" élément(s) modifiable(s) dans une soumission relue");
+  });
+  await step("la décision se prend depuis le récap, et engendre l'offre",async()=>{
+    const avant=await page.evaluate(()=>{
+      var sq=curSquad(),pid=state.modalCtx,c1=sq.campaigns[0];
+      var e1=campaignEntry(sq,c1.id,pid);
+      return {pid:pid,equipe:sq.playerIds.length,j1:e1?e1.decision:null};
+    });
+    await page.locator(".modal .sel-decision button").filter({hasText:"Retenir"}).first().click();
+    await page.waitForTimeout(400);
+    const r=await page.evaluate((pid)=>{
+      var sq=curSquad(),c1=sq.campaigns[0],c2=sq.campaigns[1];
+      var e2=campaignEntry(sq,c2.id,pid),e1=campaignEntry(sq,c1.id,pid);
+      var o=liveOffer(sq,c2.id,pid);
+      return {j2:e2?e2.decision:null,j1:e1?e1.decision:null,
+              offre:o?o.status:null,equipe:sq.playerIds.length,
+              statut:(rosterEntry(sq,pid)||{}).status,probs:checkV7(DB)};
+    },avant.pid);
+    if(r.j2!=="select")throw new Error("décision de la journée 2 = "+r.j2);
+    if(r.offre!=="pending")throw new Error("offre de la journée 2 = "+r.offre);
+    /* Retenir n'ajoute personne à l'effectif : c'est « Constituer
+       l'équipe » qui l'y fait entrer, en acceptant son offre. */
+    if(r.equipe!==avant.equipe)
+      throw new Error("l'effectif a bougé sans confirmation : "+avant.equipe+" → "+r.equipe);
+    if(r.statut!=="selected")throw new Error("statut dérivé="+r.statut);
+    /* Et la journée 1 n'a pas bougé : on ne tranche jamais deux campagnes
+       d'un seul geste. */
+    if(r.j1!==avant.j1)
+      throw new Error("la décision de la journée 1 a changé : "+avant.j1+" → "+r.j1);
+    if(r.probs.length)throw new Error(r.probs.join(" / "));
+  });
+  await step("retirer la décision annule l'offre encore en attente",async()=>{
+    const pid=await page.evaluate(()=>state.modalCtx);
+    await page.locator(".modal button").filter({hasText:"Retirer la décision"}).first().click();
+    await page.waitForTimeout(400);
+    const r=await page.evaluate((pid)=>{
+      var sq=curSquad(),c2=sq.campaigns[1];
+      var e=campaignEntry(sq,c2.id,pid);
+      return {decision:e?e.decision:null,offre:liveOffer(sq,c2.id,pid),
+              probs:checkV7(DB)};
+    },pid);
+    if(r.decision)throw new Error("décision="+r.decision);
+    if(r.offre)throw new Error("l'offre en attente a survécu à la décision retirée");
+    if(r.probs.length)throw new Error(r.probs.join(" / "));
+  });
+  await step("une soumission entière se relit depuis le volet Soumissions",async()=>{
+    await fermerFeuille();
+    await volet("Soumissions");
+    await page.locator(".content .card button").filter({hasText:"👁"}).first().click();
+    await page.waitForTimeout(450);
+    const t=await page.locator(".modal").first().innerText();
+    if(!/Marie T\./.test(t))throw new Error("l'évaluateur n'est pas nommé : "+t.slice(0,200));
+    const mod=await page.evaluate(()=>{
+      var l=document.querySelectorAll(".modal .subRO");
+      var n=0;
+      for(var i=0;i<l.length;i++)
+        n+=l[i].querySelectorAll("input,textarea,select,button").length;
+      return {blocs:l.length,modifiables:n};
+    });
+    if(!mod.blocs)throw new Error("aucune athlète relue");
+    if(mod.modifiables)throw new Error(mod.modifiables+" élément(s) modifiable(s) en lecture seule");
+    await fermerFeuille();
+  });
+  await step("les vues et les soumissions suivent la campagne ouverte",async()=>{
+    /* On revient sur la journée 1 : la soumission de la journée 2 ne doit
+       pas y paraître, et sa vue non plus. */
+    await page.evaluate(()=>{var sq=curSquad();setActiveCampaign(sq,sq.campaigns[0].id)});
+    await page.waitForTimeout(350);
+    await volet("Soumissions");
+    const t=await page.locator(".content").first().innerText();
+    if(/Vue J2/.test(t))throw new Error("une soumission d'une autre campagne fuit dans l'écran");
+    await volet("Vues");
+    const v=await page.locator(".content").first().innerText();
+    if(/Vue J2/.test(v))throw new Error("une vue d'une autre campagne fuit dans l'écran");
+  });
+  await step("supprimer une campagne emporte ses convocations et ses offres",async()=>{
+    await page.locator(".cb-pick").first().click();
+    await page.waitForTimeout(400);
+    await page.locator(".modal .card").filter({hasText:"Journée 2"})
+      .locator("button").filter({hasText:"🗑️"}).first().click();
+    const dit=await accepterDialogue(page);
+    if(!/convocation/.test(dit))
+      throw new Error("la confirmation ne dit pas ce qu'elle emporte : "+dit);
+    await page.waitForTimeout(450);
+    const r=await page.evaluate(()=>{
+      var sq=curSquad();
+      return {campagnes:sq.campaigns.length,
+              cr:(sq.campaignRoster||[]).length,
+              orphelines:(sq.campaignRoster||[]).filter(function(e){
+                return !campaignById(sq,e.campaignId)}).length,
+              offresOrphelines:(sq.offers||[]).filter(function(o){
+                return !campaignById(sq,o.campaignId)}).length,
+              probs:checkV7(DB)};
+    });
+    if(r.campagnes!==1)throw new Error("campagnes="+r.campagnes);
+    if(r.orphelines)throw new Error(r.orphelines+" convocation(s) orpheline(s)");
+    if(r.offresOrphelines)throw new Error(r.offresOrphelines+" offre(s) orpheline(s)");
+    if(r.probs.length)throw new Error(r.probs.join(" / "));
+    await fermerFeuille();
   });
 
   say("\n"+PASS+" contrôles réussis.");

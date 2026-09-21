@@ -53,6 +53,10 @@ const ERRORS=[];let PASS=0;
         const e=mkRosterEntry(p.id,n,"OH");e.status="selected";
         sq.roster.push(e);sq.playerIds.push(p.id);
       });
+      /* v7 : une athlète est convoquée à une CAMPAGNE, et c'est cette
+         convocation que la partie Sélection liste. Le montage écrivait le
+         roster à la main ; normalizeDB fait le reste, comme au chargement. */
+      DB=normalizeDB(DB);
       saveNow();render();
     });
     const r=await page.evaluate(()=>({teams:DB.teams.length,people:DB.people.length,
@@ -235,7 +239,17 @@ const ERRORS=[];let PASS=0;
       saveNow();
     });
     const rows=await page.evaluate(()=>DB.log.map(l=>({k:l.kind,by:l.byName,role:l.byRole,t:l.text})));
-    if(rows.length!==2)throw new Error("entrées="+rows.length);
+    /* v7 : écarter une athlète qui avait ACCEPTÉ son offre archive cette
+       offre, et c'est le seul chemin qui la sorte de l'effectif — il est
+       donc tracé lui aussi. Trois entrées pour deux gestes : la décision,
+       l'offre archivée qu'elle entraîne, puis la décision suivante. */
+    if(rows.length!==3)throw new Error("entrées="+rows.length+" : "+
+      rows.map(r=>r.k+"/"+r.t).join(" | "));
+    if(!rows.some(r=>/offre archivée/.test(r.t)))
+      throw new Error("l'archivage de l'offre n'est pas tracé : "+
+        rows.map(r=>r.t).join(" | "));
+    if(rows.filter(r=>r.kind!=="roster").some(r=>r.by!=="Sofia"))
+      throw new Error("une entrée n'est pas signée");
     if(rows[0].by!=="Sofia")throw new Error("auteur="+rows[0].by);
     if(rows[0].role!=="coach")throw new Error("rôle="+rows[0].role);
     if(rows[0].t.indexOf("Retenue")===-1&&rows[0].t.indexOf("Recallée")===-1)

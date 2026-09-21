@@ -764,6 +764,51 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .bt-count{font-size:var(--fs-xs);font-weight:700;color:var(--txt-dim);
   margin:var(--s2) 0;font-variant-numeric:tabular-nums}
 
+/* ── §14 · la campagne, toujours sous les yeux ────────────────
+   Tout ce que montre la partie appartient à UNE campagne. La barre le
+   dit en permanence, hors du contenu qui défile, et c'est par elle
+   qu'on en change : sans elle on trancherait la journée 1 en croyant
+   trancher la 2, et aucun écran ne rattrape cette erreur après coup. */
+.campBar{display:flex;align-items:center;gap:var(--s2);flex-shrink:0;
+  padding:var(--s1) var(--gutter) var(--s2);background:var(--surface);border-bottom:1px solid var(--line)}
+.campBar .cb-pick{flex:1;min-width:0;display:flex;align-items:center;gap:var(--s2);
+  min-height:var(--tap);background:var(--sunken);border:1.5px solid var(--line-strong);
+  border-radius:var(--r-md);padding:var(--s1) var(--s3);cursor:pointer;color:inherit;
+  text-align:left;font:inherit}
+.campBar .cb-ico{font-size:var(--fs-lg);flex-shrink:0;line-height:1}
+.campBar .cb-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.campBar .cb-name{font-size:var(--fs-md);font-weight:800;color:var(--txt-strong);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.campBar .cb-sub{font-size:var(--fs-2xs);color:var(--txt-faint);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.campBar .cb-arw{flex-shrink:0;color:var(--txt-dim);font-size:var(--fs-md)}
+
+/* ── §14 · cocher dans une liste d'athlètes ───────────────────
+   La case remplace le numéro dans le pavé de gauche : deux cibles de
+   44 px côte à côte ne tiennent pas dans le budget de la ligne. */
+.listRow .lead.pick{cursor:pointer;font-family:inherit;font-weight:800;font-size:var(--fs-lg)}
+.listRow .lead.pick.on{background:var(--accent-solid);border-color:var(--accent);color:var(--on-light)}
+
+/* ── §14 · une soumission relue, en lecture seule ─────────────
+   Aucun champ, aucun bouton qui écrive : le liseré violet — la teinte
+   de tout ce qui vient de l'évaluation — et le jeton « Lecture seule »
+   le disent avant qu'on ait cherché où taper. */
+.subRO{background:var(--surface);border:1px solid var(--line);
+  border-left:3px solid var(--eval);border-radius:var(--r-md);
+  padding:var(--s3);margin-bottom:var(--s2)}
+.subRO .sr-head{display:flex;align-items:flex-start;gap:var(--s2);margin-bottom:var(--s2)}
+.subRO .sr-head .grow{flex:1;min-width:0}
+.subRO .sr-who{font-size:var(--fs-sm);font-weight:800;color:var(--txt-strong);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.subRO .sr-when{font-size:var(--fs-xs);color:var(--txt-dim);margin-top:2px;line-height:1.35}
+.subRO .sr-grid{display:grid;grid-template-columns:1fr;gap:var(--s1);margin-bottom:var(--s2)}
+@media(min-width:430px){.subRO .sr-grid{grid-template-columns:repeat(2,1fr);gap:var(--s1) var(--s2)}}
+.subRO .sr-cell{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2);
+  background:var(--sunken);border-radius:var(--r-xs);padding:5px var(--s2)}
+.subRO .sr-lbl{font-size:var(--fs-xs);color:var(--txt-dim);min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.subRO .sr-val{font-size:var(--fs-sm);font-weight:800;flex-shrink:0;font-variant-numeric:tabular-nums}
+.subRO .sr-toks{display:flex;gap:var(--s1);flex-wrap:wrap;margin-bottom:var(--s2)}
 
 /* ══ fin §12 ══════════════════════════════════════════════════════════ */
 </style>
@@ -1475,7 +1520,7 @@ var state={
   tab:"season",                 // onglet actif (rôle courant)
   seasonPane:"selection",       // conservé : volets hérités
   seasonSection:null,           // la partie ouverte, ou null pour le tableau de bord
-  selPane:"board",              // volet de la partie Sélection
+  selPane:"recap",              // volet de la partie Sélection (§14)
   setPane:"seasons",            // volet des Réglages
   lists:{},                     // état des listes, par clé (voir §12)
   evalCampaignId:null,          // filtre de campagne dans Récap → Évaluations
@@ -2916,9 +2961,16 @@ function migrateSquadV6(sq){
 
   /* Convocation : toute ligne de roster devient une convoquée de c0,
      avec sa décision si elle en porte une. `candidate` est l'absence
-     de décision — on n'en fabrique pas. */
+     de décision — on n'en fabrique pas.
+
+     La garde porte sur TOUTES les campagnes, et non sur c0 seule : une
+     athlète convoquée à la seule journée 2 a bien une convocation, et
+     la migration n'a rien à reprendre pour elle. Avec une garde sur c0,
+     elle serait versée à la journée 1 au rechargement suivant — la
+     campagne d'août gagnerait en silence des athlètes qui n'y étaient
+     pas, ce qui est exactement ce que la lecture par campagne interdit. */
   sq.roster.forEach(function(r){
-    if(hasCampaignEntry(sq,c0.id,r.playerId))return;
+    if(campaignsOfPlayer(sq,r.playerId).length)return;
     var tranche=(r.status&&r.status!=="candidate");
     sq.campaignRoster.push(mkCampaignRosterEntry(c0.id,r.playerId,{
       convokedAt:c0.date||c0.createdAt||nowISO(),
@@ -2934,9 +2986,14 @@ function migrateSquadV6(sq){
 
      Une athlète coupée ou recallée ne reçoit PAS d'offre refusée :
      ne pas avoir été retenue n'est pas avoir refusé une offre, et on
-     ne fabrique pas un fait qui n'a pas eu lieu. */
+     ne fabrique pas un fait qui n'a pas eu lieu.
+
+     Là encore la garde couvre toutes les campagnes : une athlète entrée
+     dans l'équipe par une offre acceptée en journée 2 en a déjà une.
+     Lui en fabriquer une seconde sur c0 lui donnerait deux offres
+     vivantes, dont « Constituer l'équipe » ne saurait laquelle trancher. */
   sq.playerIds.forEach(function(pid){
-    if(liveOffer(sq,c0.id,pid))return;
+    if(offersOfPlayer(sq,pid).some(offerIsLive))return;
     sq.offers.push(mkOffer(c0.id,pid,{
       status:"accepted",
       createdAt:c0.createdAt||nowISO(),
@@ -3740,6 +3797,13 @@ function convokeToCampaign(sq,campaignId,pids,who){
       if(!rosterEntry(sq,pid))return;          // pas au roster : rien à convoquer
       if(hasCampaignEntry(sq,campaignId,pid))return;
       Store.put("campaignRoster",mkCampaignRosterEntry(campaignId,pid,{convokedBy:who||null}),sq);
+      /* Convoquer DÉPLACE le statut de saison : c'est désormais cette
+         campagne-ci qui a vu l'athlète en dernier, et une convocation
+         sans décision la remet candidate — rouvrir la question est
+         précisément l'objet d'une nouvelle campagne. Sans ce recalcul
+         `roster[].status` resterait sur la décision de la campagne
+         précédente, et checkV7 signalerait un statut non dérivé. */
+      recomputeRosterStatus(sq,pid);
       n++;
     });
     if(n){
@@ -5732,6 +5796,30 @@ function sheetShell(opts,corps){
       (opts.buttons&&opts.buttons.length)?h("div",{className:"m-foot"},opts.buttons):null));
 }
 
+/* ── Registre de modales ────────────────────────────────────────
+   renderModal() ne connaît plus les types qu'il ne connaissait pas :
+   il les cherche. Une modale neuve se déclare à côté de l'écran qui
+   l'ouvre, au lieu d'allonger une fonction de dix-sept cents lignes
+   que tout le monde voudrait toucher en même temps. Les types
+   hérités continuent de passer par le corps historique.
+
+   Le registre vit ICI, avec les composants, et non plus à côté de
+   renderModal() : `defModal` s'appelle à l'exécution du fichier,
+   depuis la partie qui déclare sa feuille. Déclaré après elles,
+   `var MODALS={}` effaçait en silence ce qu'elles avaient inscrit
+   — et la feuille ne s'ouvrait jamais. */
+var MODALS={};
+/* Les feuilles qui s'ouvrent sur du CONTENU, et non sur un formulaire :
+   openModal() donne sinon le focus au premier champ trouvé, et un
+   navigateur qui fait défiler jusqu'à lui ouvrirait la fiche d'une
+   athlète sur la note de l'entraîneur, tout en bas, plutôt que sur la
+   décision à prendre. */
+var MODAL_NOFOCUS={};
+function defModal(type,fn,opts){
+  MODALS[type]=fn;
+  if(opts&&opts.autofocus===false)MODAL_NOFOCUS[type]=true;
+}
+
 /* ── openConfirm / openPrompt · window.confirm disparaît ─────────
    Défaut B4 de l'AUDIT, et le plus grave de l'application : la boîte
    native est ignorée par plusieurs navigateurs en mode PWA autonome,
@@ -6023,30 +6111,795 @@ function renderSeasonTab(){
    ══════════════════════════════════════════════════════════════ */
 
 /* ══ §14 PARTIE SÉLECTION ══════════════════════════════════════
-   Campagnes · convocation · vues · soumissions · récap · décisions
-   · offres · constitution de l'équipe.                          */
+   La sélection n'est pas un écran : c'est une suite de CAMPAGNES —
+   journée 1, journée 2, extra — et chacune porte SON déroulement.
+   Convoquées, vues, soumissions et récap appartiennent à la campagne
+   ouverte, et à elle seule : deux campagnes ne mélangent jamais
+   leurs listes, pas plus que leurs moyennes.
+
+   FORME RETENUE : un sélecteur de campagne en tête de partie, et non
+   une liste de campagnes dont on ouvrirait une. Trois raisons :
+     · la navigation reste à DEUX niveaux — tableau de bord, puis
+       partie. Une liste à ouvrir en ajouterait un troisième, et
+       chaque aller-retour entre le récap et les soumissions coûterait
+       deux appuis de plus, vingt fois par soirée de tryout ;
+     · la campagne active reste VISIBLE en permanence, sur les quatre
+       volets. C'est la seule garantie qu'on ne tranche pas la journée
+       1 en croyant trancher la journée 2 — une erreur qu'aucun écran
+       ne rattrape après coup ;
+     · changer de moment devient un geste : on bascule de campagne
+       sans quitter le volet où l'on travaille, et le volet se
+       recharge sous la même barre.
+   La liste des campagnes n'a pas disparu : elle vit dans la feuille
+   qu'ouvre le sélecteur, avec la création, le renommage, la clôture
+   et la formule du score. Ce sont des gestes de préparation, faits
+   une fois ; leur place n'est pas sur le chemin quotidien.
+   ══════════════════════════════════════════════════════════════ */
+
+/* Les quatre volets, dans l'ordre du déroulement d'une campagne :
+   on convoque, on fait évaluer, on reçoit, on tranche. Le récap est
+   au centre parce que c'est là qu'on passe le plus de temps — et
+   c'est lui qui s'ouvre par défaut. */
+var SEL_PANES=[{k:"roster",l:"👥 Convoquées"},{k:"recap",l:"⚖️ Récap"},
+               {k:"views",l:"🎯 Vues"},{k:"subs",l:"📥 Soumissions"}];
+function selPaneKey(){
+  for(var i=0;i<SEL_PANES.length;i++)if(SEL_PANES[i].k===state.selPane)return state.selPane;
+  return "recap";
+}
+function selGoPane(k){
+  state.selPane=k;state.pickMode=null;state.picked=[];render();
+}
+/* Changer de campagne active. `evalCampaignId` suit, parce que les
+   écrans qui compilent hors de la partie — « Appliquer les avis », le
+   récap global — le lisent : deux notions de « campagne courante »
+   finiraient par diverger, et personne ne saurait laquelle croire. */
+function setActiveCampaign(sq,cid){
+  if(!sq||!campaignById(sq,cid))return;
+  sq.activeCampaignId=cid;
+  state.evalCampaignId=cid;
+  state.pickMode=null;state.picked=[];
+  state.expandedPlayerId=null;
+  saveNow();render();
+}
+
+/* L'avancement d'une campagne, en trois chiffres et dans l'ordre du
+   travail : combien sont attendues, combien ont été vues, combien
+   sont tranchées. C'est ce qu'un entraîneur regarde avant de décider
+   s'il peut clore sa soirée. */
+function campaignProgress(sq,cid,comp){
+  var out={convoquees:0,evaluees:0,tranchees:0,attente:0};
+  if(!sq||!cid)return out;
+  comp=comp||compileSubmissions(sq,cid);
+  rosterOfCampaign(sq,cid).forEach(function(e){
+    out.convoquees++;
+    var c=comp[e.playerId];
+    if(c&&c.n)out.evaluees++;
+    if(e.decision)out.tranchees++;
+  });
+  offersOfCampaign(sq,cid).forEach(function(o){if(o.status==="pending")out.attente++});
+  return out;
+}
+function campaignProgressText(pr){
+  return plural(pr.convoquees,"convoquée")+" · "+pr.evaluees+" évaluée"+(pr.evaluees>1?"s":"")+
+         " · "+pr.tranchees+" tranchée"+(pr.tranchees>1?"s":"");
+}
+
+/* La barre de campagne. Elle n'est pas dans le contenu qui défile :
+   elle reste sous les yeux, quel que soit le volet et quelle que soit
+   la hauteur de la liste. */
+function renderCampaignBar(sq,camp){
+  var pr=camp?campaignProgress(sq,camp.id):null;
+  var k=camp?(KIND_BY_KEY[camp.kind]||KIND_BY_KEY.custom):null;
+  return h("div",{className:"campBar"},
+    h("button",{className:"cb-pick",type:"button",
+      "aria-label":"Campagne ouverte : "+(camp?camp.name:"aucune")+
+        (pr?(", "+campaignProgressText(pr)):"")+". Changer de campagne",
+      onclick:function(){openModal("campaigns")}},
+      h("span",{className:"cb-ico","aria-hidden":"true"},k?k.icon:"📅"),
+      h("span",{className:"cb-body"},
+        h("span",{className:"cb-name"},camp?camp.name:"Aucune campagne"),
+        h("span",{className:"cb-sub"},pr?campaignProgressText(pr):"à créer")),
+      h("span",{className:"cb-arw","aria-hidden":"true"},"▾")),
+    (camp&&camp.closedAt)?tok("box",{label:"Close",icon:"🔒",color:"#94A3B8"}):null);
+}
+
+/* L'aiguillage de la partie. Chaque volet rend {fixe, corps, barre} :
+   la barre de liste doit rester HORS du contenu qui défile (contrat de
+   listToolbar), et la barre d'action du bas appartient au volet, parce
+   que l'action principale n'est pas la même selon qu'on convoque ou
+   qu'on tranche. */
 function renderPartSelection(sq){
-  var panes=[{k:"board",l:"⚖️ Décisions"},{k:"campaigns",l:"📅 Campagnes"},
-             {k:"views",l:"🎯 Vues"},{k:"subs",l:"📥 Soumissions"}];
-  if(!state.selPane||!panes.some(function(p){return p.k===state.selPane}))state.selPane="board";
-  var row=h("div",{className:"pill-row tight"},panes.map(function(p){
-    return h("button",{className:"pill"+(state.selPane===p.k?" active":""),type:"button",
-      onclick:function(){state.selPane=p.k;render()}},p.l);
-  }));
-  var body;
-  if(state.selPane==="campaigns")body=renderCampaignsPane(sq);
-  else if(state.selPane==="views")body=renderViewsPane(sq);
-  else if(state.selPane==="subs")body=renderSubmissionsPane(sq);
-  else body=renderSelectionBoard(sq);
   var camp=curCampaign(sq);
+  var pane=selPaneKey();
+  state.selPane=pane;
+  var row=h("div",{className:"pill-row tight"},SEL_PANES.map(function(p){
+    return h("button",{className:"pill"+(pane===p.k?" active":""),type:"button",
+      "aria-label":p.l.replace(/^\S+\s/,"")+(pane===p.k?" (volet ouvert)":""),
+      onclick:function(){selGoPane(p.k)}},p.l);
+  }));
+  var v;
+  if(!camp){
+    v={corps:emptyState({icon:"📅",title:"Aucune campagne",
+      sub:"La sélection se déroule par campagnes : « Journée 1 », « Journée 2 », "+
+          "« Extra »… Chacune porte ses convoquées, ses vues et son récap. Ouvrez la première.",
+      action:h("button",{className:"btn btn-primary",type:"button",
+        onclick:function(){openModal("newcampaign")}},"+ Nouvelle campagne")})};
+  }
+  else if(pane==="roster")v=renderConvokedPane(sq,camp);
+  else if(pane==="views")v={corps:renderViewsPane(sq,camp.id)};
+  else if(pane==="subs")v={corps:renderSubmissionsPane(sq,camp.id)};
+  else v=renderCampaignRecapPane(sq,camp);
+
+  var n=(sq.campaigns||[]).length;
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
-    partHeader("Sélection",camp?campaignLabel(camp):null),
+    partHeader("Sélection",n?plural(n,"campagne"):null),
+    renderCampaignBar(sq,camp),
     row,
-    h("div",{className:"content pad","data-scroll-key":"part-sel-"+state.selPane},body),
-    bottomActionBar({actions:[
+    v.fixe||null,
+    h("div",{className:"content pad","data-scroll-key":"part-sel-"+pane},v.corps),
+    v.barre||bottomActionBar({actions:[
       h("button",{className:"btn btn-primary full",type:"button",
         onclick:function(){openModal("buildteam")}},"👕 Constituer l'équipe")]}));
 }
+
+/* ── Ce que les deux listes d'athlètes de la partie partagent ──
+   Convoquées et Récap montrent les mêmes athlètes sous deux angles.
+   L'assemblage des lignes, les quatre tris et les deux filtres sont
+   donc écrits UNE fois. Les CLÉS de liste, elles, restent distinctes
+   — « sel-convoquees » et « sel-recap » — sans quoi trier l'une
+   déplacerait l'autre sous le doigt de l'entraîneur. */
+function selItems(sq,camp,comp){
+  return rosterOfCampaign(sq,camp.id).map(function(ce){
+    var pid=ce.playerId,p=playerById(pid),r=rosterEntry(sq,pid);
+    var c=comp[pid]||null;
+    return {ce:ce,entry:r,player:p,pid:pid,comp:c,
+      offer:currentOffer(sq,pid),
+      score:(c&&c.nRatings)?c.score:null,
+      age:ageOf(p)};
+  }).filter(function(x){return !!x.player&&!!x.entry});
+}
+/* Les quatre tris demandés. `get` peut rendre null : listApply range
+   les absents en fin de liste, dans les deux sens. */
+function selSorts(){
+  return [
+    {key:"number",label:"Numéro",get:function(x){
+      var n=parseInt(x.entry.number,10);return isFinite(n)?n:null}},
+    {key:"name",label:"Nom",get:function(x){return fullName(x.player)}},
+    {key:"age",label:"Âge",get:function(x){return x.age}},
+    {key:"score",label:"Résultat",get:function(x){return x.score}}
+  ];
+}
+/* Les deux filtres demandés. La décision est celle de CETTE campagne —
+   « À trancher » en fait partie, et c'est même le filtre qu'on rouvre
+   trois fois par soirée. Le statut d'offre, lui, engage la saison :
+   « Aucune » y est une valeur, pas un trou. */
+function selFilters(){
+  return [
+    {key:"decision",label:"Décision",
+     get:function(x){return x.ce.decision?RECO_TO_STATUS[x.ce.decision]:"todo"},
+     options:[{k:"todo",l:"◻️ À trancher"}].concat(RECOS.map(function(r){
+       var s=RECO_TO_STATUS[r.key];
+       return {k:s,l:r.icon+" "+STATUSES[s].label,tone:toneOfStatus(s)};
+     }))},
+    {key:"offre",label:"Offre",
+     get:function(x){return x.offer?x.offer.status:"none"},
+     options:[{k:"none",l:"— Aucune"}].concat(OFFER_KEYS.map(function(k){
+       return {k:k,l:OFFER_STATUS[k].icon+" "+OFFER_STATUS[k].label,tone:toneOfOffer(k)};
+     }))}
+  ];
+}
+/* Les jetons de la ligne 2, dans l'ordre de priorité du contrat de
+   listRow : décision, offre, résultat, âge. Trois paraissent, le
+   reste se replie en « +N ». */
+function selMeta(x){
+  var m=[];
+  if(x.ce.decision&&STATUSES[RECO_TO_STATUS[x.ce.decision]])
+    m.push(tok("pill",STATUSES[RECO_TO_STATUS[x.ce.decision]]));
+  if(x.offer&&OFFER_STATUS[x.offer.status])m.push(tok("box",OFFER_STATUS[x.offer.status]));
+  if(x.score!=null)m.push(tok("dot",{label:"★ "+x.score.toFixed(1),color:scoreColor(x.score)}));
+  else if(x.comp&&x.comp.n)m.push(tok("dot",{label:plural(x.comp.n,"relevé"),color:"var(--txt-dim)"}));
+  if(x.age!=null)m.push(tok("dot",{label:x.age+" ans",color:"var(--txt-dim)"}));
+  return m;
+}
+function selSearch(){
+  return {placeholder:"Rechercher un nom ou un numéro…",
+    of:function(x){return fullName(x.player)+" "+(x.entry.number||"")}};
+}
+function selRowDecision(x){
+  return x.ce.decision?RECO_TO_STATUS[x.ce.decision]:"candidate";
+}
+
+/* Le numéro se saisit dans la liste des convoquées, et nulle part
+   ailleurs : c'est la seule information que verront les sélectionneurs,
+   et la corriger depuis un autre écran serait un détour. Le changement
+   est journalisé, et les vues DÉJÀ distribuées sont signalées — elles
+   portent encore l'ancien dossard, et aucun rendu ne les rattrape. */
+function selNumField(sq,entry,onDone){
+  var avant=entry.number;
+  return numField(entry,dupNumbers(sq),function(){
+    if(entry.number!==avant){
+      var p=playerById(entry.playerId);
+      logAct("number",(p?fullName(p):"joueuse")+" : numéro "+(avant||"—")+" → "+(entry.number||"—"),
+        {teamId:sq.teamId,seasonId:sq.seasonId,playerId:entry.playerId});
+      var parties=vuesDistribuees(sq,entry.playerId);
+      if(parties.length)showToast(parties.length===1
+        ? "⚠️ Une vue déjà distribuée affiche encore #"+(avant||"—")+" — republiez-la"
+        : "⚠️ "+parties.length+" vues déjà distribuées affichent encore #"+(avant||"—")+" — republiez-les",
+        {duree:5000});
+      avant=entry.number;
+      scheduleAutoSave();
+    }
+    if(onDone)onDone();
+  });
+}
+/* Cocher pour agir en lot. Une convocation se corrige rarement athlète
+   par athlète : on retire le groupe B après un tryout, ou on répare une
+   liste montée sur la mauvaise campagne. */
+function selTogglePick(pid){
+  if(state.pickMode!=="camp"){state.pickMode="camp";state.picked=[]}
+  var i=state.picked.indexOf(pid);
+  if(i===-1)state.picked.push(pid);else state.picked.splice(i,1);
+  render();
+}
+function selPickLead(x){
+  var coche=state.picked.indexOf(x.pid)!==-1;
+  return h("button",{className:"lead pick"+(coche?" on":""),type:"button",
+    "aria-pressed":coche?"true":"false",
+    "aria-label":(coche?"Retirer ":"Choisir ")+fullName(x.player),
+    onclick:function(){selTogglePick(x.pid)}},coche?"✓":(x.entry.number||"—"));
+}
+
+/* ══ Volet 1 · Convoquées ══════════════════════════════════════
+   Qui est attendue au gymnase pour CETTE campagne. */
+function renderConvokedPane(sq,camp){
+  var comp=compileSubmissions(sq,camp.id);
+  var items=selItems(sq,camp,comp);
+  var pr=campaignProgress(sq,camp.id,comp);
+  var ouverte=campaignOpen(sq,camp);
+  var picking=state.pickMode==="camp";
+  var corps=h("div",null);
+
+  corps.appendChild(h("div",{className:"hint"},
+    "Qui est attendue à ",h("b",null,camp.name),". Chaque campagne a sa propre liste : ",
+    "convoquer ou retirer ici ne touche à aucune autre."));
+
+  corps.appendChild(h("div",{className:"kpiGrid",style:{marginBottom:"12px"}},
+    kpi({label:"Convoquées",value:pr.convoquees,
+      hint:pr.convoquees?"attendues au gymnase":"personne pour l'instant"}),
+    kpi({label:"Évaluées",value:pr.evaluees,
+      hint:pr.convoquees?(pr.convoquees-pr.evaluees)+" sans relevé":"—"}),
+    kpi({label:"Tranchées",value:pr.tranchees,
+      hint:pr.convoquees?((pr.convoquees-pr.tranchees)+" à trancher"):"—"})));
+
+  if(!ouverte)corps.appendChild(h("div",{className:"hint warn"},
+    camp.closedAt?"🔒 Campagne close — la liste se consulte, elle ne se modifie plus."
+                 :"🔒 Saison clôturée — la liste se consulte, elle ne se modifie plus."));
+
+  if(!items.length){
+    corps.appendChild(emptyState({icon:"👥",title:"Aucune athlète convoquée",
+      sub:"Convoquez vos joueuses à « "+camp.name+" » : elles paraîtront ici, "+
+          "avec leur numéro, puis dans le récap dès la première soumission.",
+      action:h("button",{className:"btn btn-primary",type:"button",disabled:!ouverte,
+        onclick:function(){state.modalSel=[];openModal("convoke")}},"👥 Convoquer des athlètes")}));
+    return {corps:corps,barre:renderConvokedBar(sq,camp,items,ouverte)};
+  }
+
+  /* Ce qui empêche de distribuer une vue, dit là où on le corrige. */
+  var dup=dupNumbers(sq),nDup=Object.keys(dup).length;
+  var miss=items.filter(function(x){return !x.entry.number}).length;
+  if(miss||nDup)corps.appendChild(h("div",{className:"hint warn"},
+    "⚠️ "+(miss?plural(miss,"athlète")+" sans numéro. ":"")+
+    (nDup?nDup+" numéro(s) en double. ":"")+
+    "Le numéro se saisit dans la case de gauche. Chacun doit être unique : "+
+    "c'est la seule information que verront vos sélectionneurs."));
+
+  var tb=listToolbar({
+    key:"sel-convoquees",
+    items:items,
+    search:selSearch(),
+    sorts:selSorts(),
+    filters:selFilters(),
+    empty:function(){
+      return emptyState({icon:"🔍",title:"Aucune convoquée ne correspond",small:true,
+        sub:"Aucune athlète de cette campagne ne passe les filtres posés.",
+        action:h("button",{className:"btn btn-ghost sm",type:"button",
+          onclick:function(){listReset("sel-convoquees");tb.refresh()}},"Tout effacer")});
+    },
+    rows:function(res){
+      return res.map(function(x){
+        var coche=state.picked.indexOf(x.pid)!==-1;
+        return listRow({
+          lead:picking?selPickLead(x):selNumField(sq,x.entry,function(){tb.refresh()}),
+          name:fullName(x.player),
+          meta:selMeta(x),
+          decision:selRowDecision(x),
+          picked:picking&&coche,
+          dim:x.entry.membership==="left",
+          ariaLabel:picking?null:("Ouvrir la fiche de "+fullName(x.player)+" pour "+camp.name),
+          onclick:picking?function(){selTogglePick(x.pid)}
+                         :function(){openModal("selathlete",x.pid)}});
+      });
+    }
+  });
+  corps.appendChild(tb.list);
+  return {fixe:tb,corps:corps,barre:renderConvokedBar(sq,camp,items,ouverte)};
+}
+function renderConvokedBar(sq,camp,items,ouverte){
+  if(state.pickMode==="camp"){
+    var n=state.picked.length;
+    return bottomActionBar({
+      count:n,countLabel:"Athlètes cochées",
+      note:n?"Le retrait emporte la décision prise ici et annule l'offre encore en attente."
+            :"Cochez les athlètes à retirer de cette campagne.",
+      noteTone:n?"warn":null,
+      actions:[
+        h("button",{className:"btn btn-ghost",type:"button",onclick:function(){
+          state.pickMode=null;state.picked=[];render();
+        }},"Quitter"),
+        h("button",{className:"btn btn-danger primary",type:"button",disabled:!n,
+          onclick:function(){selRetirerConvocations(sq,camp)}},"Retirer la convocation")]});
+  }
+  return bottomActionBar({actions:[
+    h("button",{className:"btn btn-primary full",type:"button",disabled:!ouverte,
+      onclick:function(){state.modalSel=[];openModal("convoke")}},"👥 Convoquer des athlètes"),
+    (items.length&&ouverte)?h("button",{className:"btn btn-ghost",type:"button",
+      onclick:function(){state.pickMode="camp";state.picked=[];render()}},"Choisir"):null]});
+}
+function selRetirerConvocations(sq,camp){
+  var pids=state.picked.slice();
+  if(!pids.length)return;
+  var tranchees=0;
+  pids.forEach(function(pid){
+    var e=campaignEntry(sq,camp.id,pid);
+    if(e&&e.decision)tranchees++;
+  });
+  openConfirm({
+    title:"Retirer "+plural(pids.length,"convocation")+" de « "+camp.name+" » ?",
+    body:"Ces athlètes sortent de cette campagne"+
+      (tranchees?" — "+plural(tranchees,"décision")+" prise(s) ici s'en va(vont) avec elles, "+
+                 "et les offres encore en attente sont annulées":"")+".",
+    detail:"Leur fiche, leurs statistiques, leurs matchs et les autres campagnes où elles "+
+           "figurent ne bougent pas. Une offre déjà acceptée ou archivée reste ce qu'elle est.",
+    confirm:"Retirer",tone:"danger",
+    onconfirm:function(){
+      pids.forEach(function(pid){unconvokeFromCampaign(sq,camp.id,pid)});
+      logAct("roster",plural(pids.length,"convocation")+" retirée(s) — "+campaignLabel(camp),
+        {teamId:sq.teamId,seasonId:sq.seasonId});
+      state.pickMode=null;state.picked=[];
+      saveNow();
+      showToast("👥 "+plural(pids.length,"convocation")+" retirée(s)",{tone:"ok"});
+      render();
+    }});
+}
+
+/* ══ Volet 2 · Récap ═══════════════════════════════════════════
+   Le cœur de la partie : ce que les évaluateurs ont rendu, compilé
+   athlète par athlète, et la décision qui s'ensuit. */
+function renderCampaignRecapPane(sq,camp){
+  var comp=compileSubmissions(sq,camp.id);
+  var items=selItems(sq,camp,comp);
+  var corps=h("div",null);
+
+  corps.appendChild(h("div",{className:"hint"},
+    "Le récap de ",h("b",null,camp.name),". Ouvrez une athlète pour lire ses soumissions, ",
+    "voir d'où vient son score, et trancher."));
+
+  if(!items.length){
+    corps.appendChild(emptyState({icon:"👥",title:"Aucune athlète convoquée",
+      sub:"Convoquez vos joueuses à « "+camp.name+" » : le récap se remplit "+
+          "dès la première soumission reçue.",
+      action:h("button",{className:"btn btn-primary",type:"button",
+        onclick:function(){selGoPane("roster")}},"👥 Voir les convoquées")}));
+    return {corps:corps,barre:renderRecapBar(sq,camp,items)};
+  }
+
+  var tb=listToolbar({
+    key:"sel-recap",
+    items:items,
+    search:selSearch(),
+    sorts:selSorts(),
+    filters:selFilters(),
+    empty:function(){
+      return emptyState({icon:"🔍",title:"Aucune athlète ne correspond",small:true,
+        sub:"Aucune convoquée de cette campagne ne passe les filtres posés.",
+        action:h("button",{className:"btn btn-ghost sm",type:"button",
+          onclick:function(){listReset("sel-recap");tb.refresh()}},"Tout effacer")});
+    },
+    rows:function(res){
+      return res.map(function(x){
+        var c=x.comp;
+        return listRow({
+          lead:x.entry.number||"—",
+          name:fullName(x.player),
+          meta:selMeta(x),
+          decision:selRowDecision(x),
+          dim:x.entry.membership==="left",
+          trail:kpiInline(x.score!=null?x.score.toFixed(1):"—",
+                          (c&&c.nRatings)?plural(c.nRatings,"note"):"sans note"),
+          ariaLabel:"Ouvrir le récap de "+fullName(x.player)+" pour "+camp.name,
+          onclick:function(){openModal("selathlete",x.pid)}});
+      });
+    }
+  });
+  corps.appendChild(tb.list);
+  return {fixe:tb,corps:corps,barre:renderRecapBar(sq,camp,items)};
+}
+function renderRecapBar(sq,camp,items){
+  var aTrancher=0;
+  items.forEach(function(x){if(!x.ce.decision)aTrancher++});
+  var nSub=campaignSubs(sq,camp.id).length;
+  return bottomActionBar({
+    note:aTrancher?(plural(aTrancher,"athlète")+" de cette campagne reste"+(aTrancher>1?"nt":"")+" à trancher"):null,
+    noteTone:aTrancher?"warn":null,
+    actions:[
+      h("button",{className:"btn btn-primary full",type:"button",
+        onclick:function(){openModal("buildteam")}},"👕 Constituer l'équipe"),
+      nSub?h("button",{className:"btn btn-warn",type:"button",
+        "aria-label":"Appliquer les avis majoritaires des sélectionneurs",
+        onclick:function(){state.evalCampaignId=camp.id;openModal("applyreco")}},"⚡ Avis"):null]});
+}
+
+/* ── Qui a évalué ─────────────────────────────────────────────
+   Dit exactement comme compileSubmissions le dit — même repli, même
+   ordre. Le récap et la lecture d'une soumission ne doivent jamais se
+   contredire sur un nom : c'est sur cette signature que l'entraîneur
+   juge du poids d'un avis. L'anonymat, lui, est celui du paquet, et
+   n'est ni renforcé ni affaibli ici. */
+function submissionWho(sub){
+  return (sub&&(sub.selectorName||"").trim())||(sub&&sub.viewName)||"Sélectionneur";
+}
+/* Les soumissions d'une campagne qui portent sur cette athlète, la plus
+   récente d'abord. Celles où elle n'a pas été observée sont gardées : le
+   silence d'un évaluateur est une information, et l'entraîneur qui
+   cherche « pourquoi une seule note » doit pouvoir le constater. */
+function submissionsForPlayer(sq,cid,pid){
+  return campaignSubs(sq,cid).filter(function(sub){
+    return (sub.entries||[]).some(function(e){return e.playerId===pid});
+  }).slice().sort(function(a,b){
+    return String(b.submittedAt||"").localeCompare(String(a.submittedAt||""));
+  });
+}
+/* Le contenu d'une soumission, pour une athlète, tel qu'il a été rendu.
+   LECTURE SEULE STRICTE : aucun champ, aucun bouton qui écrive. Une
+   soumission est un instantané figé ; la retoucher reviendrait à
+   réécrire ce qu'un évaluateur a dit, et c'est justement parce qu'on
+   ne peut pas la réécrire qu'on peut s'y fier. Ce qu'on peut en faire
+   est ailleurs : l'exporter ou la supprimer dans le volet Soumissions,
+   ou demander une réévaluation depuis la vue. */
+function renderSubmissionEntryRO(sq,sub,pid){
+  var e=null;
+  (sub.entries||[]).forEach(function(x){if(x.playerId===pid)e=x});
+  var box=h("div",{className:"subRO"});
+  var dossard=e?cleanNum(e.number):"";
+  box.appendChild(h("div",{className:"sr-head"},
+    h("div",{className:"grow"},
+      h("div",{className:"sr-who"},"👤 "+submissionWho(sub)),
+      h("div",{className:"sr-when"},(sub.viewName||"Vue")+" · "+fmtDate(sub.submittedAt)+
+        (dossard?" · dossard "+numLabel(dossard):""))),
+    tok("box",{label:"Lecture seule",icon:"🔒",color:"#94A3B8"})));
+  if(!dataFilled(e)){
+    box.appendChild(h("div",{className:"muted"},
+      "Athlète non observée dans cette soumission — ni note, ni avis, ni compteur."));
+    return box;
+  }
+  var notes=CRITERIA.filter(function(cr){return (e.ratings||{})[cr.key]>0});
+  if(notes.length)box.appendChild(h("div",{className:"sr-grid"},notes.map(function(cr){
+    var v=e.ratings[cr.key];
+    return h("div",{className:"sr-cell"},
+      h("span",{className:"sr-lbl"},cr.label),
+      h("span",{className:"sr-val",style:{color:scoreColor(v)}},v+" / "+RATING_MAX));
+  })));
+  var jetons=[];
+  if(e.reco&&RECO_BY_KEY[e.reco])jetons.push(tok("pill",RECO_BY_KEY[e.reco]));
+  if(e.pos)jetons.push(tok("dot",{label:"Poste proposé : "+e.pos,color:"var(--eval-ink)"}));
+  if(jetons.length)box.appendChild(h("div",{className:"sr-toks"},jetons));
+  if(hasStats(e.stats))box.appendChild(renderStatMini(e.stats));
+  if((e.note||"").trim())box.appendChild(h("div",{className:"note-item"},
+    h("b",null,"Commentaire de "+submissionWho(sub)),e.note.trim()));
+  return box;
+}
+
+/* ── La feuille d'une athlète dans la campagne ─────────────────
+   Trois temps, dans l'ordre où l'on décide : on tranche (le geste est
+   en haut, sous le pouce), on relit le récap compilé, puis on descend
+   dans chaque soumission telle qu'elle a été rendue. La fiche de
+   saison ferme la marche : elle répond à « et le reste de l'année ? »,
+   qui est une autre question. */
+function renderSelAthleteSheet(){
+  var sq=curSquad();if(!sq)return null;
+  var camp=curCampaign(sq);if(!camp)return null;
+  var pid=state.modalCtx;
+  var p=playerById(pid),entry=rosterEntry(sq,pid);
+  if(!p||!entry)return null;
+  var ce=campaignEntry(sq,camp.id,pid);
+  var comp=compileSubmissions(sq,camp.id);
+  var c=comp[pid]||null;
+  var offre=currentOffer(sq,pid);
+  var ouverte=campaignOpen(sq,camp)&&!!ce;
+  var corps=h("div",null);
+
+  /* 1 — la décision */
+  corps.appendChild(h("div",{className:"section-title"},"Décision · "+camp.name));
+  if(!ce){
+    corps.appendChild(h("div",{className:"hint warn"},
+      "Cette athlète n'est pas convoquée à « "+camp.name+" ». On ne tranche pas le sort "+
+      "de quelqu'un qui n'était pas là : convoquez-la d'abord, ou changez de campagne."));
+  } else if(!ouverte){
+    corps.appendChild(h("div",{style:{display:"flex",gap:"6px",flexWrap:"wrap",alignItems:"center"}},
+      tok("pill",STATUSES[ce.decision?RECO_TO_STATUS[ce.decision]:"candidate"]),
+      h("span",{className:"muted"},camp.closedAt?"Campagne close — décision figée."
+                                                :"Saison clôturée — décision figée.")));
+  } else {
+    /* Trois boutons pleine largeur, et non un `segmented` de quatre :
+       « Non retenue » tronquerait à 375 px, et on ne demande pas à
+       quelqu'un de couper une athlète en lisant « Non rete… ». Le
+       quatrième choix — retirer la décision — n'est pas un choix de même
+       rang : c'est une marche arrière, et elle ne paraît que s'il y a
+       quelque chose à défaire. */
+    function trancher(k){
+      setCampaignDecision(sq,camp.id,pid,k,state.meId||null);
+      saveNow();
+      showToast(k?(RECO_BY_KEY[k].icon+" "+shortName(p)+" · "+RECO_BY_KEY[k].label+
+                   (k==="select"?" — offre en attente":""))
+                 :("Décision retirée pour "+shortName(p)),
+        {tone:k==="select"?"ok":null,action:{label:"Annuler",onclick:doUndo}});
+      render();
+    }
+    corps.appendChild(h("div",{className:"reco-row sel-decision",role:"group",
+      "aria-label":"Décision de sélection"},
+      RECOS.map(function(r){
+        var on=ce.decision===r.key;
+        var b=h("button",{className:"reco-btn"+(on?" on":""),type:"button",
+          "aria-pressed":on?"true":"false",
+          onclick:function(){if(!on)trancher(r.key)}},r.icon+" "+r.label);
+        if(on)paintOn(b,r.color);
+        return b;
+      })));
+    if(ce.decision)corps.appendChild(h("button",{className:"btn btn-ghost xs",type:"button",
+      style:{marginTop:"6px"},onclick:function(){trancher("")}},"↺ Retirer la décision"));
+    corps.appendChild(h("div",{className:"muted",style:{marginTop:"6px"}},
+      "Retenir n'ajoute personne à l'équipe sur-le-champ : l'athlète reçoit une offre, "+
+      "et n'entre dans l'effectif qu'une fois cette offre confirmée."));
+  }
+  if(offre&&OFFER_STATUS[offre.status]){
+    var campOffre=campaignById(sq,offre.campaignId);
+    corps.appendChild(h("div",{className:"card tight",style:{marginTop:"10px"}},
+      h("div",{className:"row-between"},
+        h("div",{style:{minWidth:"0"}},
+          h("div",{style:{display:"flex",gap:"6px",alignItems:"center"}},
+            tok("box",OFFER_STATUS[offre.status])),
+          h("div",{className:"muted",style:{marginTop:"4px"}},
+            "Offre ouverte le "+fmtDay(offre.createdAt)+
+            (campOffre?" · "+campOffre.name:"")+
+            (offre.decidedAt?" · tranchée le "+fmtDay(offre.decidedAt):""))),
+        (offre.status==="pending")?h("button",{className:"btn btn-save xs",type:"button",
+          onclick:function(){openModal("buildteam")}},"Constituer"):null)));
+  }
+
+  /* 2 — le récap compilé */
+  corps.appendChild(h("div",{className:"section-title"},"Récap compilé · "+camp.name));
+  if(!c||!c.n){
+    corps.appendChild(h("div",{className:"muted"},
+      "Aucune soumission ne la concerne dans cette campagne. Créez une vue qui la "+
+      "contienne, distribuez-la, puis relevez les soumissions."));
+  } else {
+    corps.appendChild(h("div",{className:"row-between",style:{marginBottom:"8px"}},
+      h("span",{className:"score-pill",
+        style:{background:scoreColor(c.nRatings?c.score:0)+"22",color:scoreColor(c.nRatings?c.score:0)}},
+        c.nRatings?c.score.toFixed(1):"—"),
+      h("div",{style:{flex:"1",minWidth:"0",marginLeft:"10px"}},
+        h("div",{className:"muted"},
+          (c.nRatings?plural(c.nRatings,"note"):"aucune note")+
+          (c.n>c.nRatings?" · "+plural(c.n-c.nRatings,"relevé"):"")+
+          " · "+c.selectors.join(", ")),
+        (function(){var a=dossardsAutres(c,entry);
+          return a.length?h("div",{className:"muted",style:{marginTop:"2px"}},
+            (a.length===1?"dossard ":"dossards ")+a.join(", ")):null})())));
+    corps.appendChild(renderCritBars(c));
+    var avis=h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"8px"}});
+    RECOS.forEach(function(r){
+      if(!c.reco[r.key])return;
+      avis.appendChild(h("span",{className:"badge",
+        style:{background:r.color+"1E",color:r.color,borderColor:r.color+"55"}},
+        r.icon+" "+r.short+" "+c.reco[r.key]+"/"+c.nReco));
+    });
+    var pv=posVoteBadge(c);if(pv)avis.appendChild(pv);
+    if(c.recoTie)avis.appendChild(h("span",{className:"badge",
+      style:{background:"#F59E0B22",color:"#FBBF24",borderColor:"#F59E0B55"}},
+      "⚖ avis partagés — le plus récent tranche"));
+    if(avis.childNodes.length)corps.appendChild(avis);
+    corps.appendChild(h("div",{className:"section-title"},"Statistiques relevées"));
+    corps.appendChild(renderStatFamilies(c));
+    corps.appendChild(h("div",{className:"section-title"},"D'où vient le score"));
+    corps.appendChild(renderScoreBreakdown(sq,c));
+  }
+
+  /* 3 — chaque soumission, telle qu'elle a été rendue */
+  var subs=submissionsForPlayer(sq,camp.id,pid);
+  corps.appendChild(h("div",{className:"section-title"},
+    subs.length?plural(subs.length,"soumission")+" la concernant":"Soumissions la concernant"));
+  if(!subs.length)corps.appendChild(h("div",{className:"muted"},
+    "Aucune soumission de cette campagne ne la porte."));
+  subs.forEach(function(sub){corps.appendChild(renderSubmissionEntryRO(sq,sub,pid))});
+
+  /* 4 — l'athlète, hors de cette campagne */
+  corps.appendChild(h("div",{className:"section-title"},"L'athlète, toute la saison"));
+  corps.appendChild(renderPlayerSheet(sq,entry,p));
+
+  return sheetShell({title:numLabel(entry.number)+" "+fullName(p),
+    buttons:[h("button",{className:"btn btn-ghost full",type:"button",
+      onclick:closeModal},"Fermer")]},corps);
+}
+defModal("selathlete",renderSelAthleteSheet,{autofocus:false});
+
+/* ── Convoquer en lot ─────────────────────────────────────────
+   On ne convoque pas une athlète à une campagne en la cherchant dans
+   la base du club : elle est déjà de la saison, la question est
+   seulement de savoir si on l'attend CE soir-là. La feuille ne
+   propose donc que celles qui manquent à cette campagne, et offre de
+   reprendre la précédente d'un geste — c'est le cas courant. */
+function renderConvokeModal(){
+  var sq=curSquad();if(!sq)return null;
+  var camp=curCampaign(sq);if(!camp)return null;
+  if(!state.modalSel)state.modalSel=[];
+  var items=(sq.roster||[]).filter(function(r){
+    return !hasCampaignEntry(sq,camp.id,r.playerId)&&!!playerById(r.playerId);
+  }).map(function(r){
+    var p=playerById(r.playerId);
+    return {entry:r,player:p,pid:r.playerId,age:ageOf(p),
+      statut:derivedStatus(sq,r.playerId,r.status),
+      offer:currentOffer(sq,r.playerId)};
+  });
+
+  var boite={};
+  var btnOk=h("button",{className:"btn btn-primary full",type:"button",id:"modalOk",
+    disabled:!state.modalSel.length,
+    onclick:function(){
+      var pids=state.modalSel.slice();
+      var n=convokeToCampaign(sq,camp.id,pids,state.meId||null);
+      closeModal();saveNow();
+      showToast(n?("👥 "+plural(n,"athlète")+" convoquée(s) à « "+camp.name+" »")
+                 :"Aucune convocation ajoutée",{tone:n?"ok":null});
+    }},"Convoquer");
+  function majBouton(){
+    var n=state.modalSel.length;
+    btnOk.textContent=n?("Convoquer ("+n+")"):"Convoquer";
+    btnOk.disabled=!n;
+  }
+  function bascule(pid){
+    var i=state.modalSel.indexOf(pid);
+    if(i===-1)state.modalSel.push(pid);else state.modalSel.splice(i,1);
+    if(boite.tb)boite.tb.refresh();
+    majBouton();
+  }
+
+  var corps=h("div",null);
+  if(!items.length){
+    corps.appendChild(emptyState({icon:"✅",title:"Tout le monde est convoqué",
+      sub:"Les "+plural((sq.roster||[]).length,"athlète")+" de la saison figurent déjà "+
+          "dans « "+camp.name+" ». Pour en ajouter d'autres, passez par la base du club.",
+      action:h("button",{className:"btn btn-ghost",type:"button",onclick:function(){
+        closeModal();state.tab="players";state.playersPane="db";render();
+      }},"Ouvrir la base de joueuses")}));
+    return sheetShell({title:"Convoquer à « "+camp.name+" »",
+      buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},
+      corps);
+  }
+
+  corps.appendChild(h("div",{className:"hint"},
+    "Cochez celles que vous attendez à ",h("b",null,camp.name),". Elles gardent leur numéro, ",
+    "et ce qu'elles ont fait dans les autres campagnes ne bouge pas."));
+
+  /* Reprendre la campagne précédente : le geste le plus fréquent
+     d'une journée 2, et celui qu'on ne veut pas faire à la main
+     vingt-huit fois. */
+  var ordre=campaignOrder(sq),prec=null;
+  for(var i=0;i<ordre.length;i++){
+    if(ordre[i].id===camp.id)break;
+    prec=ordre[i];
+  }
+  if(prec){
+    var dansPrec=items.filter(function(x){return hasCampaignEntry(sq,prec.id,x.pid)});
+    if(dansPrec.length)corps.appendChild(h("div",{className:"btn-row",style:{marginBottom:"10px"}},
+      h("button",{className:"btn btn-ghost sm",type:"button",onclick:function(){
+        dansPrec.forEach(function(x){
+          if(state.modalSel.indexOf(x.pid)===-1)state.modalSel.push(x.pid);
+        });
+        if(boite.tb)boite.tb.refresh();
+        majBouton();
+      }},"↩︎ Reprendre les "+dansPrec.length+" de « "+prec.name+" »")));
+  }
+
+  var tb=listToolbar({
+    key:"sel-convoke",
+    items:items,
+    search:{placeholder:"Rechercher un nom ou un numéro…",
+      of:function(x){return fullName(x.player)+" "+(x.entry.number||"")}},
+    sorts:[
+      {key:"number",label:"Numéro",get:function(x){
+        var n=parseInt(x.entry.number,10);return isFinite(n)?n:null}},
+      {key:"name",label:"Nom",get:function(x){return fullName(x.player)}},
+      {key:"age",label:"Âge",get:function(x){return x.age}}
+    ],
+    filters:[
+      {key:"decision",label:"Décision",get:function(x){return x.statut},
+       options:STATUS_ORDER.map(function(k){
+         return {k:k,l:STATUSES[k].icon+" "+STATUSES[k].label,tone:toneOfStatus(k)};
+       })},
+      {key:"offre",label:"Offre",get:function(x){return x.offer?x.offer.status:"none"},
+       options:[{k:"none",l:"— Aucune"}].concat(OFFER_KEYS.map(function(k){
+         return {k:k,l:OFFER_STATUS[k].icon+" "+OFFER_STATUS[k].label,tone:toneOfOffer(k)};
+       }))}
+    ],
+    rows:function(res){
+      return res.map(function(x){
+        var coche=state.modalSel.indexOf(x.pid)!==-1;
+        var meta=[];
+        if(STATUSES[x.statut])meta.push(tok("pill",STATUSES[x.statut]));
+        if(x.offer&&OFFER_STATUS[x.offer.status])meta.push(tok("box",OFFER_STATUS[x.offer.status]));
+        if(x.age!=null)meta.push(tok("dot",{label:x.age+" ans",color:"var(--txt-dim)"}));
+        return listRow({
+          lead:h("button",{className:"lead pick"+(coche?" on":""),type:"button",
+            "aria-pressed":coche?"true":"false",
+            "aria-label":(coche?"Retirer ":"Choisir ")+fullName(x.player),
+            onclick:function(){bascule(x.pid)}},coche?"✓":(x.entry.number||"—")),
+          name:fullName(x.player),meta:meta,decision:x.statut,picked:coche,
+          ariaLabel:(coche?"Retirer ":"Choisir ")+fullName(x.player),
+          onclick:function(){bascule(x.pid)}});
+      });
+    }
+  });
+  boite.tb=tb;
+  corps.appendChild(tb);
+  corps.appendChild(tb.list);
+  majBouton();
+
+  return sheetShell({title:"Convoquer à « "+camp.name+" »",
+    buttons:[
+      h("button",{className:"btn btn-ghost",type:"button",onclick:closeModal},"Annuler"),
+      btnOk]},corps);
+}
+defModal("convoke",renderConvokeModal);
+
+/* ── Une soumission entière, relue ────────────────────────────
+   Le même rendu en lecture seule, athlète après athlète. C'est la
+   porte du volet Soumissions ; celle du récap ouvre la même chose,
+   mais pour une seule athlète. */
+function renderSubmissionROModal(){
+  var sq=curSquad();if(!sq)return null;
+  var sub=null;
+  (sq.submissions||[]).forEach(function(x){if(x.id===state.modalCtx)sub=x});
+  if(!sub)return null;
+  var corps=h("div",null);
+  corps.appendChild(h("div",{className:"hint"},
+    "Ce que « ",h("b",null,submissionWho(sub))," » a rendu le ",fmtDate(sub.submittedAt),
+    ", sur la vue « ",sub.viewName||"—","». Figé : on le relit, on ne le corrige pas."));
+  var vus=(sub.entries||[]).filter(dataFilled);
+  if(!vus.length)corps.appendChild(emptyState({icon:"📄",title:"Aucune athlète évaluée",
+    small:true,sub:"Cette soumission ne porte ni note, ni avis, ni compteur."}));
+  vus.forEach(function(e){
+    var p=playerById(e.playerId);
+    corps.appendChild(h("div",{className:"section-title"},
+      numLabel(cleanNum(e.number))+" "+(p?fullName(p):"Athlète inconnue")));
+    corps.appendChild(renderSubmissionEntryRO(sq,sub,e.playerId));
+  });
+  return sheetShell({title:"Soumission de "+submissionWho(sub),
+    buttons:[h("button",{className:"btn btn-ghost full",type:"button",
+      onclick:closeModal},"Fermer")]},corps);
+}
+defModal("submissionro",renderSubmissionROModal,{autofocus:false});
+
+/* ── Les campagnes, en feuille ────────────────────────────────
+   Ouverte par la barre de campagne. Elle porte tout ce qui se décide
+   une fois : quelle campagne on ouvre, comment on en crée une, et sur
+   quoi le score se calculera. */
+function renderCampaignsModal(){
+  var sq=curSquad();if(!sq)return null;
+  return sheetShell({title:"Campagnes de la saison",
+    buttons:[h("button",{className:"btn btn-ghost full",type:"button",
+      onclick:closeModal},"Fermer")]},renderCampaignsPane(sq));
+}
+defModal("campaigns",renderCampaignsModal,{autofocus:false});
 /* ══ fin §14 ══════════════════════════════════════════════════ */
 
 /* ══ §15 PARTIE ENTRAÎNEMENTS ══════════════════════════════════
@@ -6158,144 +7011,13 @@ function renderSettingsTab(){
     h("div",{className:"content pad","data-scroll-key":"set-"+state.setPane},body));
 }
 
-/* ── Tableau de sélection : retenir / recaller / couper ─────── */
-function renderSelectionBoard(squad){
-  var camp=curCampaign(squad);
-  var compiled=compileSubmissions(squad,camp?camp.id:null);
-  var dup=dupNumbers(squad);
-  var counts={candidate:0,recalled:0,selected:0,cut:0};
-  squad.roster.forEach(function(e){counts[e.status]=(counts[e.status]||0)+1});
-
-  var filters=[{k:"all",l:"Toutes ("+squad.roster.length+")"}].concat(STATUS_ORDER.map(function(st){
-    return {k:st,l:STATUSES[st].icon+" "+STATUSES[st].label+" ("+(counts[st]||0)+")"};
-  }));
-  var fRow=h("div",{className:"sub-pills",style:{marginBottom:"12px",paddingBottom:"2px"}},filters.map(function(f){
-    var b=h("button",{className:"pill sm"+(state.statusFilter===f.k?" active":""),onclick:function(){state.statusFilter=f.k;render()}},f.l);
-    if(state.statusFilter===f.k)paintOn(b,f.k==="all"?"#2563EB":STATUSES[f.k].color);
-    return b;
-  }));
-
-  function visible(){
-    var list=squad.roster.filter(function(e){return state.statusFilter==="all"||e.status===state.statusFilter});
-    var q=(state.search||"").trim().toLowerCase();
-    if(q)list=list.filter(function(e){
-      var p=playerById(e.playerId);
-      return (fullName(p).toLowerCase().indexOf(q)!==-1)||(e.number.indexOf(q)===0);
-    });
-    return list.slice().sort(function(a,b){
-      var ca=compiled[a.playerId]||{},cb=compiled[b.playerId]||{};
-      /* Notées d'abord, par score ; puis celles dont on n'a que des
-         compteurs ; puis celles que personne n'a vues. */
-      if(!ca.nRatings!==!cb.nRatings)return ca.nRatings?-1:1;
-      var sa=ca.score||0,sb=cb.score||0;
-      if(sb!==sa)return sb-sa;
-      return (parseInt(a.number,10)||999)-(parseInt(b.number,10)||999);
-    });
-  }
-
-  var searchInp=h("input",{className:"txt",placeholder:"Rechercher une joueuse ou un numéro…",value:state.search,style:{marginBottom:"10px"}});
-  searchInp.addEventListener("input",function(e){state.search=e.target.value;refreshList()});
-
-  var listWrap=h("div",{id:"selList"});
-  function rowFor(e){
-    var p=playerById(e.playerId);if(!p)return null;
-    var c=compiled[e.playerId];
-    var numI=h("input",{className:"num-badge"+(e.number&&dup[e.number]?" dup":"")+(e.number?"":" dup"),
-      value:e.number,inputmode:"numeric",placeholder:"#",maxlength:"3"});
-    var numBefore=e.number;
-    numI.addEventListener("focus",function(){numBefore=e.number});
-    numI.addEventListener("input",function(ev){
-      e.number=cleanNum(ev.target.value);ev.target.value=e.number;scheduleAutoSave();
-    });
-    numI.addEventListener("blur",function(){
-      if(e.number!==numBefore){
-        var p=playerById(e.playerId);
-        logAct("number",(p?fullName(p):"joueuse")+" : numéro "+(numBefore||"—")+" → "+(e.number||"—"),
-          {teamId:squad.teamId,seasonId:squad.seasonId,playerId:e.playerId});
-        /* Ce que le changement ne rattrape pas : les vues déjà entre les
-           mains d'un sélectionneur. Il verrait l'ancien numéro sur son
-           écran et le nouveau sur le dossard. */
-        var parties=vuesDistribuees(squad,e.playerId);
-        if(parties.length)showToast(parties.length===1
-          ? "⚠️ Une vue déjà distribuée affiche encore #"+(numBefore||"—")+" — republiez-la"
-          : "⚠️ "+parties.length+" vues déjà distribuées affichent encore #"+(numBefore||"—")+" — republiez-les",
-          5000);
-        numBefore=e.number;
-      }
-      refreshList();
-    });
-
-    var stBtns=h("div",{className:"status-btns"},RECOS.map(function(r){
-      var target=RECO_TO_STATUS[r.key],on=e.status===target;
-      var b=h("button",{className:"st-btn"+(on?" on":""),title:r.label,onclick:function(){
-        setRosterStatus(squad,e,on?"candidate":target);render();
-      }},r.icon);
-      if(on)paintOn(b,r.color);
-      return b;
-    }));
-
-    var meta=[posBadge(e.position),statusBadge(e.status)];
-    if(isInSquad(e)===false&&e.status==="selected")meta.push(membershipBadge(e.membership));
-    else if(e.status==="selected"&&e.membership!=="active")meta.push(membershipBadge(e.membership));
-    if(c&&c.n){
-      var sc=c.nRatings?c.score:0;
-      meta.push(h("span",{className:"badge",style:{background:scoreColor(sc)+"22",color:scoreColor(sc),borderColor:scoreColor(sc)+"55"}},
-        c.nRatings?("★ "+c.score.toFixed(1)+" · "+plural(c.nRatings,"note")):("★ — · "+plural(c.n,"relevé"))));
-      if(c.topReco)meta.push(h("span",{className:"badge",style:{background:RECO_BY_KEY[c.topReco].color+"18",color:RECO_BY_KEY[c.topReco].color}},
-        "Avis : "+RECO_BY_KEY[c.topReco].short));
-      if(c.topPos)meta.push(posVoteBadge(c));
-    }
-    if(!e.number)meta.push(h("span",{className:"badge",style:{background:"#EF444422",color:"#FCA5A5",borderColor:"#EF444455"}},"numéro à saisir"));
-
-    var row=h("div",{className:"list-row"},numI,
-      h("div",{className:"body",onclick:function(){state.expandedPlayerId=state.expandedPlayerId===e.playerId?null:e.playerId;render()}},
-        h("div",{className:"pname"},fullName(p)),
-        h("div",{style:{display:"flex",gap:"4px",flexWrap:"wrap",marginTop:"4px"}},meta)),
-      stBtns);
-    if(state.expandedPlayerId!==e.playerId)return row;
-    return h("div",null,row,renderPlayerSheet(squad,e,p));
-  }
-  function refreshList(){
-    var nl=h("div",{id:"selList"});
-    var fresh=visible();
-    if(!fresh.length)nl.appendChild(h("div",{className:"empty"},"Aucun résultat"));
-    fresh.forEach(function(x){var r=rowFor(x);if(r)nl.appendChild(r)});
-    var cur=document.getElementById("selList");
-    if(cur&&cur.parentNode)cur.parentNode.replaceChild(nl,cur);
-  }
-  var list=visible();
-  if(!list.length)listWrap.appendChild(h("div",{className:"empty"},squad.roster.length?"Aucun résultat":"Aucune joueuse convoquée. Onglet Joueuses → Convoquer."));
-  list.forEach(function(e){var r=rowFor(e);if(r)listWrap.appendChild(r)});
-
-  var miss=missingNumbers(squad).length,nDup=Object.keys(dup).length;
-  var warn=(miss||nDup)?h("div",{className:"hint warn"},
-    "⚠️ "+(miss?plural(miss,"joueuse")+" sans numéro. ":"")+(nDup?nDup+" numéro(s) en double. ":"")+
-    "Les numéros se saisissent ici, directement dans la case de gauche. Chacun doit être unique : c'est la seule information que verront vos sélectionneurs."):null;
-
-  var campChip=camp?h("div",{className:"card tight",style:{marginBottom:"12px"}},
-    h("div",{className:"row-between"},
-      h("div",{style:{minWidth:"0"}},
-        h("div",{className:"muted"},"Scores affichés pour la campagne"),
-        h("div",{style:{fontWeight:"700",color:"#F8FAFC",marginTop:"2px"}},campaignLabel(camp))),
-      h("button",{className:"btn btn-ghost xs",onclick:function(){state.seasonPane="campaigns";render()}},"Changer"))):null;
-
-  var nSub=campaignSubs(squad,camp?camp.id:null).length;
-  var actions=h("div",{className:"btn-row",style:{marginTop:"14px"}},
-    h("button",{className:"btn btn-primary sm",onclick:function(){state.tab="players";state.playersPane="db";render()}},"+ Convoquer des joueuses"),
-    nSub?h("button",{className:"btn btn-warn sm",onclick:function(){openModal("applyreco")}},"⚡ Appliquer les avis ("+nSub+")"):null,
-    h("button",{className:"btn btn-save sm",onclick:function(){openModal("buildteam")}},"👕 Constituer l'équipe"));
-
-  return h("div",null,
-    h("div",{className:"hint"},"Convoquez vos joueuses, saisissez leur numéro, faites-les évaluer, puis tranchez : ",
-      h("b",null,"✅ Retenir")," (entre dans l'équipe de la saison), ",h("b",null,"🔁 Recaller")," (rappelée pour la suite), ",h("b",null,"⛔ Non retenue"),"."),
-    warn,campChip,searchInp,fRow,listWrap,actions);
-}
-
 /* ── Fiche joueuse de saison ────────────────────────────────
    Réunit ce que l'audit avait trouvé séparé : le cumul de match
    (quantitatif) et les évaluations par campagne (qualitatif). */
 function renderPlayerSheet(squad,entry,p){
-  var box=h("div",{className:"card",style:{marginTop:"-2px",marginBottom:"10px",borderTopLeftRadius:"0",borderTopRightRadius:"0"}});
+  /* Elle vit désormais dans la feuille d'une athlète (§14), et non plus
+     collée sous une ligne de liste : la carte redevient une carte. */
+  var box=h("div",{className:"card",style:{marginBottom:"10px"}});
 
   /* Position */
   box.appendChild(h("div",{className:"field"},h("label",null,"Position"),
@@ -6403,7 +7125,9 @@ function renderPlayerSheet(squad,entry,p){
         onconfirm:function(){
           removeFromSquad(squad,p.id);
           showToast("Retirée de la saison",{tone:"ok",action:{label:"Annuler",onclick:doUndo}});
-          render();
+          /* La feuille qui portait cette fiche n'a plus d'objet : la
+             laisser ouverte afficherait une athlète qui n'est plus là. */
+          if(state.modalType==="selathlete")closeModal();else render();
         }});
     }},"Retirer de la saison")));
   return box;
@@ -6570,6 +7294,16 @@ function detachRosterEntry(squad,pid){
   delete squad.stats[pid];
   squad.selectorViews.forEach(function(v){
     v.playerIds=v.playerIds.filter(function(x){return x!==pid});delete v.data[pid];
+  });
+  /* Quitter la saison, c'est quitter toutes ses campagnes. Une
+     convocation qui survit à la ligne de roster qu'elle désigne est une
+     convocation orpheline — checkV7 la signale, et le récap d'une
+     campagne afficherait une athlète dont la fiche de saison n'existe
+     plus. Les offres encore EN ATTENTE n'engageaient personne : on les
+     annule. Celles déjà tranchées restent, datées : elles ont eu lieu. */
+  squad.campaignRoster=(squad.campaignRoster||[]).filter(function(e){return e.playerId!==pid});
+  (squad.offers||[]).forEach(function(o){
+    if(o.playerId===pid&&o.status==="pending"&&!o.voidedAt)o.voidedAt=nowISO();
   });
 }
 function removeFromSquad(squad,pid){
@@ -6905,25 +7639,31 @@ function renderCampaignsPane(squad){
       }},"⚖️ Régler")),
     h("div",{style:{marginTop:"2px"}},lienGuide("Chaque réglage expliqué","formule"))));
 
-  squad.campaigns.forEach(function(c){
+  /* Dans l'ordre métier, pas dans celui des clics : une campagne créée
+     après coup pour rattraper la journée 1 se lit avant la journée 2. */
+  campaignOrder(squad).forEach(function(c){
     var active=c.id===squad.activeCampaignId;
     var subs=campaignSubs(squad,c.id).length;
     var views=campaignViews(squad,c.id).length;
-    var evaluated=Object.keys(compileSubmissions(squad,c.id)).length;
+    var pr=campaignProgress(squad,c.id);
     var open=campaignOpen(squad,c);
     var card=h("div",{className:"card"});
     card.appendChild(h("div",{className:"row-between"},
       h("div",{style:{minWidth:"0"}},
         h("div",{style:{fontSize:"16px",fontWeight:"700",color:active?"#60A5FA":"#F8FAFC"}},
           (active?"● ":"")+campaignLabel(c)+(c.closedAt?" 🔒":"")),
-        h("div",{className:"muted",style:{marginTop:"3px"}},
-          plural(views,"vue")+" · "+plural(subs,"soumission")+" · "+plural(evaluated,"joueuse")+" évaluée(s)"),
+        h("div",{className:"muted",style:{marginTop:"3px"}},campaignProgressText(pr)),
+        h("div",{className:"muted",style:{marginTop:"2px"}},
+          plural(views,"vue")+" · "+plural(subs,"soumission")),
         h("div",{className:"muted",style:{marginTop:"2px"}},
           "Ouverte le "+fmtDay(c.createdAt)+(c.closedAt?" · close le "+fmtDay(c.closedAt):""))),
       h("div",{className:"btn-row"},
         !active?h("button",{className:"btn btn-primary xs",onclick:function(){
-          squad.activeCampaignId=c.id;state.evalCampaignId=c.id;saveNow();render();
-        }},"Activer"):null,
+          /* Ouvrir une campagne depuis la feuille la referme : on y
+             venait pour changer de moment, pas pour y rester. */
+          state.modalType=null;state.modalCtx=null;
+          setActiveCampaign(squad,c.id);
+        }},"Ouvrir"):null,
         h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("renamecampaign",c.id,c.name)}},"✏️"),
         h("button",{className:"btn btn-ghost xs",onclick:function(){
           c.closedAt=c.closedAt?null:nowISO();
@@ -6932,12 +7672,43 @@ function renderCampaignsPane(squad){
           saveNow();showToast(c.closedAt?"🔒 Campagne close":"🔓 Campagne rouverte");render();
         }},c.closedAt?"🔓":"🔒"),
         squad.campaigns.length>1?h("button",{className:"btn btn-danger-o xs",onclick:function(){
-          confirmAct("Supprimer la campagne « "+c.name+" » ?\n"+plural(subs,"soumission")+" et "+plural(views,"vue")+" seront perdues.",
+          /* Ce qu'une campagne emporte : ses vues, ses soumissions, mais
+             aussi ses CONVOCATIONS et ses OFFRES. Les laisser derrière
+             ferait des convocations orphelines — checkV7 les signale — et
+             des offres rattachées à une campagne qui n'existe plus, dont
+             « Constituer l'équipe » ne saurait que faire. */
+          var entrees=rosterOfCampaign(squad,c.id).length;
+          var offres=offersOfCampaign(squad,c.id).length;
+          confirmAct("Supprimer la campagne « "+c.name+" » ?\n"+
+            plural(entrees,"convocation")+", "+plural(views,"vue")+", "+
+            plural(subs,"soumission")+" et "+plural(offres,"offre")+" seront perdues.\n"+
+            "Les athlètes entrées dans l'équipe par cette campagne en sortent — "+
+            "leur fiche, leurs compteurs et leurs matchs restent intacts.",
             function(){
               squad.selectorViews=squad.selectorViews.filter(function(v){return v.campaignId!==c.id});
               squad.submissions=squad.submissions.filter(function(x){return x.campaignId!==c.id});
+              squad.campaignRoster=(squad.campaignRoster||[]).filter(function(x){return x.campaignId!==c.id});
+              squad.offers=(squad.offers||[]).filter(function(x){return x.campaignId!==c.id});
               squad.campaigns=squad.campaigns.filter(function(x){return x.id!==c.id});
-              if(squad.activeCampaignId===c.id)squad.activeCampaignId=squad.campaigns[0].id;
+              if(squad.activeCampaignId===c.id)squad.activeCampaignId=campaignOrder(squad)[0].id;
+              /* L'effectif se relit depuis les offres qui restent : une
+                 athlète dont l'offre acceptée vient de disparaître n'a
+                 plus rien qui la retienne dans l'équipe. */
+              squad.playerIds=(squad.playerIds||[]).filter(function(pid){
+                var o=currentOffer(squad,pid);
+                return !!(o&&o.status==="accepted");
+              });
+              (squad.subteams||[]).forEach(function(st){
+                st.playerIds=(st.playerIds||[]).filter(function(pid){
+                  return squad.playerIds.indexOf(pid)!==-1;});
+              });
+              squad.lineup=(squad.lineup||[]).filter(function(pid){
+                return squad.playerIds.indexOf(pid)!==-1;});
+              recomputeRosterStatus(squad);
+              logAct("campaign","Campagne « "+c.name+" » supprimée — "+
+                plural(entrees,"convocation")+", "+plural(subs,"soumission"),
+                {teamId:squad.teamId,seasonId:squad.seasonId});
+              state.evalCampaignId=squad.activeCampaignId;
               saveNow();render();
             },{confirm:"Supprimer"});
         }},"🗑️"):null)));
@@ -7951,7 +8722,9 @@ function renderInputTab(){
   if(!season||!team)return emptyBlock("🏐","Aucune équipe","Créez une saison et une équipe pour saisir des statistiques.",null);
   if(!team.playerIds.length)return emptyBlock("👥","Équipe vide",
     "Retenez des joueuses dans l'onglet Sélection, ou composez l'équipe manuellement.",
-    h("button",{className:"btn btn-primary",onclick:function(){state.tab="season";state.seasonPane="selection";render()}},"Aller à la sélection"));
+    h("button",{className:"btn btn-primary",onclick:function(){
+      navToSection("selection");
+    }},"Aller à la sélection"));
   return state.inputMode==="quick"?renderQuickInput(team):renderGridInput(team);
 }
 
@@ -8479,8 +9252,14 @@ function renderEvalsPane(squad){
     box.appendChild(renderStatMini(c.stats));
     box.appendChild(h("div",{className:"btn-row",style:{marginTop:"12px"}},
       h("button",{className:"btn btn-ghost xs",onclick:function(){
-        state.tab="squad";state.seasonPane="selection";state.statusFilter="all";
-        state.expandedPlayerId=c.playerId;render();
+        /* On ouvre la feuille de l'athlète SUR la campagne qu'on lisait :
+           arriver sur une autre campagne que celle dont on vient de lire
+           les notes serait le meilleur moyen de trancher à côté. */
+        var sq=curSquad();
+        if(sq&&state.evalCampaignId&&state.evalCampaignId!=="__all"&&
+           campaignById(sq,state.evalCampaignId))sq.activeCampaignId=state.evalCampaignId;
+        state.tab="season";state.seasonSection="selection";state.selPane="recap";
+        openModal("selathlete",c.playerId);
       }},"📄 Fiche de saison complète")));
     wrap.appendChild(box);
   });
@@ -8771,12 +9550,19 @@ function renderSelectionTab(){
     h("div",{className:"content pad","data-scroll-key":"selection-"+state.selectionPane},body));
 }
 
-function renderViewsPane(squad){
+/* `campaignId` borne le volet à UNE campagne — c'est ainsi que la
+   partie Sélection l'appelle, parce qu'une vue appartient à un moment
+   et qu'on ne prépare pas la journée 2 en voyant les vues de la 1.
+   Sans argument, le volet garde son ancien comportement : toutes les
+   campagnes, groupées — l'écran hérité s'en sert encore. */
+function renderViewsPane(squad,campaignId){
   var wrap=h("div",null);
-  var camp=curCampaign(squad);
+  var camp=campaignId?campaignById(squad,campaignId):curCampaign(squad);
   wrap.appendChild(h("div",{className:"hint"},
-    "Une ",h("b",null,"vue sélectionneur")," regroupe les joueuses qu'un évaluateur doit observer, ",
-    "au sein d'une ",h("b",null,"campagne")," donnée. Une même joueuse peut figurer dans plusieurs vues."));
+    "Une ",h("b",null,"vue sélectionneur")," regroupe les joueuses qu'un évaluateur doit observer",
+    campaignId?[" dans ",h("b",null,camp?camp.name:"cette campagne"),". "]
+              :[", au sein d'une ",h("b",null,"campagne")," donnée. "],
+    "Une même joueuse peut figurer dans plusieurs vues."));
 
   if(seasonClosed(squad))wrap.appendChild(h("div",{className:"hint warn"},
     "🔒 Saison clôturée — les vues ne sont plus distribuées et les soumissions sont refusées."));
@@ -8787,7 +9573,7 @@ function renderViewsPane(squad){
   if(Object.keys(dup).length||miss)
     wrap.appendChild(h("div",{className:"hint warn"},"⚠️ Corrigez d'abord les numéros ("+
       (miss?plural(miss,"manquant"):"")+(miss&&Object.keys(dup).length?", ":"")+
-      (Object.keys(dup).length?Object.keys(dup).length+" en double":"")+") — onglet 🗓️ Saison → Sélection."));
+      (Object.keys(dup).length?Object.keys(dup).length+" en double":"")+") — volet 👥 Convoquées."));
 
   /* Une vue publiée sans destinataire est lisible par tout sélectionneur
      de l'équipe : c'est le mode « qui veut la prend », et il se retourne
@@ -8810,7 +9596,23 @@ function renderViewsPane(squad){
     }},"+ Nouvelle vue"),
     h("button",{className:"btn btn-import sm",onclick:function(){importSubmission(squad)}},"📥 Importer une soumission")));
 
-  /* Groupées par campagne : on ne mélange plus les moments */
+  /* Bornée à la campagne ouverte, ou groupée par campagne : dans les
+     deux cas on ne mélange jamais deux moments sous un même titre. */
+  if(campaignId){
+    var mines=campaignViews(squad,campaignId);
+    if(!mines.length)wrap.appendChild(emptyState({icon:"🎯",title:"Aucune vue pour cette campagne",
+      sub:"Une vue dit à un évaluateur qui observer ce jour-là. Créez-en une, "+
+          "puis distribuez-la par lien ou par fichier.",
+      action:h("button",{className:"btn btn-primary",type:"button",disabled:seasonClosed(squad),
+        onclick:function(){
+          if(!rosterOfCampaign(squad,campaignId).length){
+            showToast("⚠️ Convoquez d'abord des athlètes à cette campagne");return;
+          }
+          state.editViewId=null;state.modalSel=[];openModal("editview");
+        }},"+ Nouvelle vue")}));
+    mines.forEach(function(v){wrap.appendChild(renderViewCard(squad,camp,v))});
+    return wrap;
+  }
   var byCamp={};
   squad.selectorViews.forEach(function(v){(byCamp[v.campaignId]=byCamp[v.campaignId]||[]).push(v)});
   if(!squad.selectorViews.length)wrap.appendChild(h("div",{className:"empty"},"Aucune vue sélectionneur"));
@@ -8930,15 +9732,23 @@ function renderSyncPanel(squad){
 
 function entryFilled(view,pid){return dataFilled(view.data[pid])}
 
-function renderSubmissionsPane(squad){
+/* Comme le volet des vues : `campaignId` borne l'écran à la campagne
+   ouverte, son absence garde le groupement par campagne de l'écran
+   hérité. */
+function renderSubmissionsPane(squad,campaignId){
   var wrap=h("div",null);
   wrap.appendChild(h("div",{className:"hint"},"Chaque soumission est un instantané figé, rattaché à sa campagne. Plusieurs avis sur une même joueuse sont moyennés — mais uniquement à l'intérieur d'une même campagne."));
   wrap.appendChild(renderSyncPanel(squad));
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
     h("button",{className:"btn btn-import sm",onclick:function(){importSubmission(squad)}},"📥 Importer un fichier de soumission")));
-  if(!squad.submissions.length)wrap.appendChild(h("div",{className:"empty"},"Aucune soumission reçue"));
+  if(campaignId&&!campaignSubs(squad,campaignId).length)
+    wrap.appendChild(emptyState({icon:"📥",title:"Aucune soumission reçue",
+      sub:"Rien n'est encore rentré pour cette campagne. Distribuez une vue, "+
+          "puis relevez les soumissions ou importez le fichier d'un évaluateur."}));
+  else if(!campaignId&&!squad.submissions.length)
+    wrap.appendChild(h("div",{className:"empty"},"Aucune soumission reçue"));
 
-  squad.campaigns.forEach(function(c){
+  (campaignId?[campaignById(squad,campaignId)].filter(Boolean):squad.campaigns).forEach(function(c){
     var subs=campaignSubs(squad,c.id).slice().sort(function(a,b){return (b.submittedAt||"").localeCompare(a.submittedAt||"")});
     if(!subs.length)return;
     wrap.appendChild(h("div",{className:"section-title"},campaignLabel(c)+" · "+plural(subs.length,"soumission")));
@@ -8951,6 +9761,12 @@ function renderSubmissionsPane(squad){
             h("div",{className:"muted",style:{marginTop:"2px"}},"👤 "+(sub.selectorName||"Anonyme")+" · "+fmtDate(sub.submittedAt)),
             h("div",{className:"muted",style:{marginTop:"2px"}},evaluated+"/"+sub.entries.length+" joueuses évaluées")),
           h("div",{className:"btn-row",style:{flexShrink:"0"}},
+            /* Relire avant de juger : le contenu exact de ce qui a été
+               rendu, athlète par athlète, et sans un champ modifiable. */
+            h("button",{className:"btn btn-ghost xs","aria-label":"Consulter la soumission en lecture seule",
+              title:"Consulter en lecture seule",onclick:function(){
+              openModal("submissionro",sub.id);
+            }},"👁"),
             h("button",{className:"btn btn-export xs",title:"Exporter en fichier",onclick:function(){
               exportReceivedSubmission(squad,sub);
             }},"📤"),
@@ -9482,6 +10298,7 @@ function openModal(type,ctx,input,input2){
   state.modalType=type;state.modalCtx=ctx||null;
   state.modalInput=input!=null?input:"";state.modalInput2=input2!=null?input2:"";
   render();
+  if(MODAL_NOFOCUS[type])return;
   setTimeout(function(){
     var el=document.querySelector(".modal input,.modal textarea");
     if(el&&!("ontouchstart" in window))el.focus();
@@ -9559,15 +10376,6 @@ function toggleSel(id){
 }
 
 
-/* ── Registre de modales ────────────────────────────────────────
-   renderModal() ne connaît plus les types qu'il ne connaissait pas :
-   il les cherche. Une modale neuve se déclare à côté de l'écran qui
-   l'ouvre, au lieu d'allonger une fonction de dix-sept cents lignes
-   que tout le monde voudrait toucher en même temps. Les types
-   hérités continuent de passer par le corps historique. */
-var MODALS={};
-function defModal(type,fn){MODALS[type]=fn}
-
 /* L'âge d'une athlète, en années révolues. Sans naissance connue,
    rien — et surtout pas zéro, qui se trierait comme un bébé. */
 function ageOf(p){
@@ -9644,6 +10452,36 @@ function renderBuildTeamModal(){
         if(a!=null)meta.push(tok("dot",{label:a+" ans",color:"var(--txt-dim)"}));
         if(sc!=null)meta.push(tok("dot",{label:"Score "+sc.toFixed(1),color:"var(--txt-dim)"}));
         var enAttente=!!(o&&o.status==="pending");
+        /* Une offre ARCHIVÉE était une impasse : la retenir de nouveau ne
+           lui en fabrique pas une seconde — l'épisode reste ouvert en base
+           tant qu'on ne le rouvre pas — et les deux boutons restaient
+           grisés à jamais. On donne donc le geste que le modèle prévoit,
+           reopenOffer, plutôt que de laisser l'écran sans issue. */
+        if(o&&o.status==="declined"){
+          var rouvrir=h("div",{className:"bt-act"},
+            h("button",{className:"btn btn-ghost sm",type:"button",
+              "aria-label":"Rouvrir l'offre de "+fullName(x.player),
+              onclick:function(){
+                openConfirm({
+                  title:"Rouvrir l'offre de "+fullName(x.player)+" ?",
+                  body:"Son offre repasse « en attente » : elle pourra de nouveau "+
+                       "être confirmée, et entrer dans l'équipe.",
+                  detail:"Rien d'autre ne change : ni sa fiche, ni ses compteurs, "+
+                         "ni les matchs qu'elle a joués.",
+                  confirm:"Rouvrir",
+                  onconfirm:function(){
+                    reopenOffer(sq,o.id);
+                    saveNow();
+                    showToast("⏳ Offre rouverte — à confirmer",{tone:"warn"});
+                    render();
+                  }});
+              }},"↺ Rouvrir l'offre"));
+          return h("div",{className:"bt-row"},
+            listRow({lead:x.entry.number||"—",name:fullName(x.player),
+              meta:meta,decision:x.entry.status,
+              dim:x.entry.membership==="left"}),
+            rouvrir);
+        }
         var actions=h("div",{className:"bt-act"},
           h("button",{className:"btn btn-save sm",type:"button",disabled:!enAttente,
             "aria-label":"Confirmer "+fullName(x.player),
@@ -10046,7 +10884,10 @@ function renderModal(){
         if(!n){showToast("⚠️ Entrez un nom");return}
         var c=mkCampaign({kind:state.modalInput2||"final",name:n});
         season.campaigns.push(c);season.activeCampaignId=c.id;state.evalCampaignId=c.id;
-        closeModal();saveNow();showToast("✅ Campagne « "+n+" » ouverte");
+        /* Une campagne naît sans personne : le geste qui suit est toujours
+           de convoquer, et c'est donc là qu'on retombe. */
+        state.selPane="roster";state.pickMode=null;state.picked=[];
+        closeModal();saveNow();showToast("✅ Campagne « "+n+" » ouverte — convoquez vos athlètes");
       }},"Créer")]);
   }
   if(T==="renamecampaign"){
@@ -10885,6 +11726,12 @@ function renderModal(){
     };
 
     var quick=h("div",{className:"btn-row",style:{marginBottom:"8px"}},
+      /* Le raccourci du cas courant : une vue de campagne porte sur les
+         athlètes convoquées à CETTE campagne, et sur personne d'autre. */
+      h("button",{className:"btn btn-ghost xs",onclick:function(){
+        state.modalSel=rosterOfCampaign(season,draft2.campaignId).map(function(e){return e.playerId});
+        state.modalDraft=draft2;render();
+      }},"Les convoquées"),
       h("button",{className:"btn btn-ghost xs",onclick:function(){
         state.modalSel=season.roster.filter(function(e){return isInSquad(e)}).map(function(e){return e.playerId});
         state.modalDraft=draft2;render();

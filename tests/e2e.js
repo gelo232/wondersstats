@@ -423,7 +423,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     /* v7 : retenir n'ajoute plus à l'effectif — cela envoie une offre.
        L'équipe se constitue en acceptant ces offres, une à une dans la
        feuille, ou toutes d'un geste ici. */
-    await partie("Sélection");await volet("Décisions");
+    await partie("Sélection");await volet("Récap");
     const attente=await page.evaluate(()=>
       curSquad().offers.filter(o=>o.status==="pending"&&!o.voidedAt).length);
     if(!attente)throw new Error("aucune offre en attente : retenir n'a pas engendré d'offre");

@@ -145,7 +145,7 @@ const ERRORS=[];
   });
   for(const [tuile,marker] of [["Entraînements","Entraînements"],["Matchs","Matchs"],
                                ["Tournois","Tournois"],["Objectifs","Objectifs"],
-                               ["Récap global","Match"],["Sélection","Décisions"]]){
+                               ["Récap global","Match"],["Sélection","Récap"]]){
     await step("tuile "+tuile,async()=>{
       await page.locator(".tab-btn").filter({hasText:"Saison"}).first().click();
       await page.waitForTimeout(150);
