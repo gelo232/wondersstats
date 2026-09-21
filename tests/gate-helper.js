@@ -111,5 +111,60 @@ async function rechargerEtOuvrir(page, ms) {
   if (ms) await page.waitForTimeout(ms);
 }
 
+
+/* ─── Confirmations, depuis la v7 ─────────────────────────────────────
+   `window.confirm` ne donnait rien en PWA autonome : il renvoyait
+   `false` sans rien afficher, et l'action la plus destructrice de
+   l'application échouait donc en silence. Elle est remplacée par une
+   confirmation maison, qui n'émet plus l'événement `dialog` de
+   Playwright. Les suites la pilotent par le DOM.
+
+   `dialogueOuvert` attend qu'elle paraisse, `texteDialogue` rend ce
+   qu'elle dit — ce que les suites vérifiaient sur `d.message()` — et
+   `accepterDialogue` appuie sur le verbe et rend le texte lu. */
+async function dialogueOuvert(page, ms) {
+  await page.waitForSelector(".modal.confirm, .modal.prompt",
+    { timeout: ms || 4000 });
+}
+async function texteDialogue(page) {
+  return page.evaluate(() => {
+    const m = document.querySelector(".modal.confirm, .modal.prompt");
+    return m ? m.innerText : "";
+  });
+}
+/* Lit puis accepte. Rend le texte, pour que l'appelant vérifie que la
+   confirmation disait bien ce qu'elle emportait. */
+async function accepterDialogue(page) {
+  await dialogueOuvert(page);
+  const txt = await texteDialogue(page);
+  await page.click("#confirmOk");
+  await page.waitForTimeout(200);
+  return txt;
+}
+/* Certaines actions ne demandent confirmation que dans certains cas —
+   soumettre alors que des athlètes n'ont pas été vues, par exemple.
+   Accepte s'il y a une boîte, ne fait rien sinon. */
+async function accepterSiDialogue(page, ms) {
+  await page.waitForTimeout(ms || 250);
+  const ouvert = await page.evaluate(
+    () => !!document.querySelector(".modal.confirm, .modal.prompt"));
+  if (!ouvert) return "";
+  return accepterDialogue(page);
+}
+async function refuserDialogue(page) {
+  await dialogueOuvert(page);
+  await page.click(".modal.confirm .btn-ghost, .modal.prompt .btn-ghost");
+  await page.waitForTimeout(150);
+}
+/* Saisie d'une valeur : remplace window.prompt. */
+async function repondreDialogue(page, valeur) {
+  await dialogueOuvert(page);
+  await page.fill(".modal.prompt input", valeur);
+  await page.click("#promptOk");
+  await page.waitForTimeout(200);
+}
+
 module.exports = { PASS, sansRacine, franchirGarde, ouvrirClub, installerClubParDefaut,
-  deverrouiller, rechargerEtOuvrir };
+  deverrouiller, rechargerEtOuvrir,
+  dialogueOuvert, texteDialogue, accepterDialogue, accepterSiDialogue,
+  refuserDialogue, repondreDialogue };

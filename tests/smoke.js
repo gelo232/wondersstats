@@ -123,12 +123,36 @@ const ERRORS=[];
 
   say("\n── Navigation onglets coach");
   await asCoach();
-  for(const [tab,marker] of [["Saison","Sélection"],["Joueuses","Base de données"],["Saisie","Terrain"],["Récap","Match"],["Sélection","Vues"]]){
+  /* v7 : la barre du bas porte trois AXES — Saison, Athlètes, Réglages —
+     et non plus cinq contenus. Les six parties de la saison vivent dans
+     le tableau de bord de l'onglet Saison, une tuile chacune. */
+  for(const [tab,marker] of [["Saison","Sélection"],["Athlètes","Base de données"],["Réglages","Saisons"]]){
     await step("onglet "+tab,async()=>{
       await page.locator(".tab-btn").filter({hasText:tab}).first().click();
-      await page.waitForTimeout(120);
+      await page.waitForTimeout(150);
       const t=await txt();
       if(!t.includes(marker)) throw new Error("marqueur « "+marker+" » absent");
+    });
+  }
+  await step("le tableau de bord porte les six parties",async()=>{
+    await page.locator(".tab-btn").filter({hasText:"Saison"}).first().click();
+    await page.waitForTimeout(150);
+    const n=await page.locator(".hubTile").count();
+    if(n!==6)throw new Error("tuiles="+n);
+    const t=await txt();
+    for(const lbl of ["Sélection","Entraînements","Matchs","Tournois","Objectifs","Récap global"])
+      if(!t.includes(lbl))throw new Error("partie absente : "+lbl);
+  });
+  for(const [tuile,marker] of [["Entraînements","Entraînements"],["Matchs","Matchs"],
+                               ["Tournois","Tournois"],["Objectifs","Objectifs"],
+                               ["Récap global","Match"],["Sélection","Décisions"]]){
+    await step("tuile "+tuile,async()=>{
+      await page.locator(".tab-btn").filter({hasText:"Saison"}).first().click();
+      await page.waitForTimeout(150);
+      await page.locator(".hubTile").filter({hasText:tuile}).first().click();
+      await page.waitForTimeout(200);
+      const t=await txt();
+      if(!t.includes(marker))throw new Error("marqueur « "+marker+" » absent");
     });
   }
 

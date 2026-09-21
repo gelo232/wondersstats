@@ -1,5 +1,5 @@
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde}=require("./gate-helper");
+const {sansRacine,franchirGarde,accepterDialogue}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -14,8 +14,10 @@ const ERRORS=[];let PASS=0;
   const page=await ctx.newPage();
   page.on("pageerror",e=>ERRORS.push("PAGEERROR: "+e.message));
   page.on("console",m=>{if(m.type()==="error")ERRORS.push("CONSOLE: "+m.text())});
-  let lastDialog="";
-  page.on("dialog",d=>{lastDialog=d.message();d.accept()});
+  /* Depuis la v7 les confirmations sont maison : plus d'événement
+     `dialog` natif. On garde le capteur pour qu'une boîte native qui
+     reviendrait par mégarde ne bloque pas la suite. */
+  page.on("dialog",d=>d.accept());
   /* v4 : les écrans entraîneur vivent dans un contexte (équipe, rôle). */
   const asCoach=async(teamName)=>{
     await page.evaluate((teamName)=>{
@@ -267,7 +269,7 @@ const ERRORS=[];let PASS=0;
     const c=await page.textContent("#pickCount");
     if(!/2 sélectionnées/.test(c||""))throw new Error("compteur="+c);
     await page.locator(".pick-act").filter({hasText:"Retirer"}).click();
-    await page.waitForTimeout(250);
+    await accepterDialogue(page);
     const r=await page.evaluate(()=>({roster:curSquad().roster.length,base:DB.players.length,pick:state.pickMode}));
     if(r.roster!==2)throw new Error("roster="+r.roster);
     if(r.base!==4)throw new Error("la base du club a perdu des fiches : "+r.base);
@@ -295,8 +297,8 @@ const ERRORS=[];let PASS=0;
   });
   await step("vider la convocation ne laisse aucune référence orpheline",async()=>{
     await page.locator(".pick-act").filter({hasText:"Retirer"}).click();
-    await page.waitForTimeout(280);
-    if(!/retenue sort de l'effectif/.test(lastDialog))throw new Error("confirmation muette : "+lastDialog);
+    const dlg=await accepterDialogue(page);
+    if(!/retenue sort de l'effectif/.test(dlg))throw new Error("confirmation muette : "+dlg);
     const r=await page.evaluate(()=>{
       const s=curSquad();
       return {roster:s.roster.length,effectif:curTeam().playerIds.length,
@@ -370,9 +372,9 @@ const ERRORS=[];let PASS=0;
     const avert=await page.textContent("#pickWarn");
     if(!/historique/.test(avert||""))throw new Error("historique non signalé : "+avert);
     await page.locator(".pick-act").filter({hasText:"Supprimer"}).click();
-    await page.waitForTimeout(300);
-    if(!/Rien ne se récupère/.test(lastDialog))throw new Error("confirmation muette : "+lastDialog);
-    if(!/archivez plutôt/.test(lastDialog))throw new Error("l'archivage n'est pas proposé : "+lastDialog);
+    const dlg2=await accepterDialogue(page);
+    if(!/Rien ne se récupère/.test(dlg2))throw new Error("confirmation muette : "+dlg2);
+    if(!/archivez plutôt/.test(dlg2))throw new Error("l'archivage n'est pas proposé : "+dlg2);
     const r=await page.evaluate(()=>{
       const s=curSquad();
       return {base:DB.players.length,roster:s.roster.length,
@@ -458,7 +460,7 @@ const ERRORS=[];let PASS=0;
     });
     await page.waitForTimeout(250);
     await page.locator(".seq-tile").filter({hasText:/^5Num1/}).click();
-    await page.waitForTimeout(350);
+    await accepterDialogue(page);
     const r=await page.evaluate(()=>{
       const s=curSquad();
       return s.roster.slice(0,3).map(e=>fullName(playerById(e.playerId))+"="+(e.number||"—")).join(" ");

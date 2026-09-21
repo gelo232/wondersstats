@@ -113,7 +113,8 @@ const ERRORS=[];let PASS=0;
     await page.evaluate(()=>{
       const u15=DB.teams.find(t=>t.name==="U15 Wonders");
       switchCtx({role:"coach",teamId:u15.id});
-      state.tab="season";state.seasonPane="selection";render();
+      /* v7 : le tableau de convocation vit dans la partie Sélection. */
+      state.tab="season";state.seasonSection="selection";state.selPane="board";render();
     });
     await page.waitForTimeout(300);
     const t=await page.textContent("#app");
@@ -253,7 +254,8 @@ const ERRORS=[];let PASS=0;
     await page.evaluate(()=>{
       const u18=DB.teams.find(t=>t.name==="U18 Wonders");
       logAct("status","Décision sur une autre équipe",{teamId:u18.id});
-      state.tab="season";state.seasonPane="log";state.logFilter="all";render();
+      /* v7 : le journal est passé dans l'onglet Réglages. */
+      state.tab="settings";state.setPane="log";state.logFilter="all";render();
     });
     await page.waitForTimeout(300);
     const t=await page.textContent("#app");

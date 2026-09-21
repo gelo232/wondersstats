@@ -1,5 +1,5 @@
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde}=require("./gate-helper");
+const {sansRacine,franchirGarde,accepterSiDialogue}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -46,6 +46,18 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   const tab=async t=>{await page.locator(".tab-btn").filter({hasText:t}).first().click();await page.waitForTimeout(150)};
   const btn=async t=>{await page.locator("button").filter({hasText:t}).first().click();await page.waitForTimeout(150)};
   const dom=async()=>await page.innerHTML("#app");
+  /* v7 : la barre du bas porte trois axes ; les six parties de la saison
+     s'ouvrent depuis le tableau de bord de l'onglet Saison. */
+  const partie=async(nom)=>{
+    await page.locator(".tab-btn").filter({hasText:"Saison"}).first().click();
+    await page.waitForTimeout(150);
+    await page.locator(".hubTile").filter({hasText:nom}).first().click();
+    await page.waitForTimeout(250);
+  };
+  const volet=async(nom)=>{
+    await page.locator(".pill").filter({hasText:nom}).first().click();
+    await page.waitForTimeout(200);
+  };
 
   await page.goto(BASE+"/index.html");
   await franchirGarde(page);
@@ -67,7 +79,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     await asCoach();
   });
   await step("ajout en lot : nom, naissance et numéro sur la même ligne",async()=>{
-    await tab("Joueuses");
+    await tab("Athlètes");
     await btn("Ajout en lot");
     /* Trois formes sur cinq lignes : date complète, année seule, rien.
        Le dossard reste le nombre de fin de ligne. */
@@ -131,7 +143,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
 
   say("\n── 2. Vues sélectionneur (une joueuse dans deux vues)");
   await step("créer « Tryouts – groupe A » (#7 #12 #3)",async()=>{
-    await tab("Sélection");
+    await partie("Sélection");await volet("Vues");
     await btn("Nouvelle vue");
     await page.locator(".modal input").nth(0).fill("Tryouts – groupe A");
     await page.locator(".modal input").nth(1).fill("Marie T.");
@@ -233,7 +245,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     const html=await dom();
     const leak=NAMES.filter(n=>html.includes(n));
     if(leak.length)throw new Error("fuite de noms : "+leak.join(", "));
-    await btn("Soumettre les statistiques");await page.waitForTimeout(250);
+    await btn("Soumettre les statistiques");await accepterSiDialogue(page);
     const n=await page.evaluate(()=>DB.squads.filter(sq=>sq.seasonId===DB.seasons.find(x=>x.name==="Saison 2026-2027").id)[0].submissions.length);
     if(n!==1)throw new Error("submissions="+n);
   });
@@ -251,7 +263,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     await page.locator(".reco-btn").filter({hasText:"Recaller"}).click();
     await page.waitForTimeout(120);
     await tab("Soumettre");
-    await btn("Soumettre les statistiques");await page.waitForTimeout(250);
+    await btn("Soumettre les statistiques");await accepterSiDialogue(page);
     const n=await page.evaluate(()=>DB.squads.filter(sq=>sq.seasonId===DB.seasons.find(x=>x.name==="Saison 2026-2027").id)[0].submissions.length);
     if(n!==2)throw new Error("submissions="+n);
   });
@@ -326,8 +338,8 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(c.selecteurs!==2)throw new Error("sélectionneurs="+c.selecteurs);
     if(!c.tie)throw new Error("une égalité 1-1 doit être signalée, tie="+c.tie);
   });
-  await step("l'onglet Récap → Évaluations affiche les scores",async()=>{
-    await tab("Récap");
+  await step("le Récap global → Évaluations affiche les scores",async()=>{
+    await partie("Récap global");
     await page.locator(".pill").filter({hasText:"Évaluations"}).click();await page.waitForTimeout(200);
     const t=await page.textContent("#app");
     if(!t.includes("Tremblay"))throw new Error("noms absents de la vue entraîneur");
@@ -371,8 +383,8 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     /* Supprimer est sans retour : ni le relevé, qui ne redemande que du
        plus récent, ni une sauvegarde, qui n'écrase pas une équipe-saison
        déjà là. Le fichier est le seul filet — il doit être exact. */
-    await tab("Sélection");
-    await page.evaluate(()=>{state.selectionPane="submissions";render()});
+    await partie("Sélection");
+    await page.evaluate(()=>{state.selPane="subs";state.selectionPane="submissions";render()});
     await page.waitForTimeout(250);
     const boutons=await page.locator(".card .btn-export").count();
     if(!boutons)throw new Error("aucun bouton d'export sur les soumissions");
@@ -407,16 +419,32 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   });
 
   say("\n── 7. Équipe de la saison & saisie de match");
-  await step("composer l'équipe à partir des retenues",async()=>{
-    await tab("Saison");
-    await page.locator(".pill").filter({hasText:"Sélection"}).first().click();await page.waitForTimeout(150);
-    await btn("Composer l'équipe");await page.waitForTimeout(250);
-    const n=await page.evaluate(()=>curTeam().playerIds.length);
-    const sel=await page.evaluate(()=>curSquad().roster.filter(e=>e.status==="selected").length);
-    if(n!==sel||n===0)throw new Error("équipe="+n+" retenues="+sel);
+  await step("constituer l'équipe : les retenues confirment leur offre",async()=>{
+    /* v7 : retenir n'ajoute plus à l'effectif — cela envoie une offre.
+       L'équipe se constitue en acceptant ces offres, une à une dans la
+       feuille, ou toutes d'un geste ici. */
+    await partie("Sélection");await volet("Décisions");
+    const attente=await page.evaluate(()=>
+      curSquad().offers.filter(o=>o.status==="pending"&&!o.voidedAt).length);
+    if(!attente)throw new Error("aucune offre en attente : retenir n'a pas engendré d'offre");
+    await btn("Constituer l'équipe");await page.waitForTimeout(300);
+    await page.evaluate(()=>{promoteSelectedToTeam(curSquad())});
+    await page.waitForTimeout(250);
+    const r=await page.evaluate(()=>({
+      equipe:curTeam().playerIds.length,
+      sel:curSquad().roster.filter(e=>e.status==="selected").length,
+      acceptees:curSquad().offers.filter(o=>o.status==="accepted").length}));
+    if(r.equipe!==r.sel||r.equipe===0)throw new Error("équipe="+r.equipe+" retenues="+r.sel);
+    if(r.acceptees!==r.equipe)throw new Error("offres acceptées="+r.acceptees+" pour "+r.equipe+" dans l'équipe");
+    await page.evaluate(()=>{if(state.modalType)closeModal()});
+    await page.waitForTimeout(150);
   });
   await step("saisir des statistiques puis enregistrer le match",async()=>{
-    await tab("Saisie");
+    /* v7 : la saisie n'est plus un onglet, c'est l'acte d'une partie de
+       rencontres — on la lance par « Relever ». */
+    await partie("Matchs");
+    await page.locator(".ph-act button").filter({hasText:"Relever"}).first().click();
+    await page.waitForTimeout(250);
     await page.locator(".player-chip").first().click();await page.waitForTimeout(150);
     for(let i=0;i<3;i++){await page.locator(".qp-stat-btn").first().click();await page.waitForTimeout(40)}
     await page.locator(".btn-save").filter({hasText:"Enregistrer le match"}).click();await page.waitForTimeout(200);

@@ -201,7 +201,8 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Léa","Sofia","Maya","Alice"]
   say("\n── A5 : la fiche joueuse réunit match et évaluations");
   await step("la fiche affiche le cumul de match ET les campagnes",async()=>{
     await page.evaluate(()=>{
-      state.ctx={role:'coach',teamId:(curTeamRecord()||DB.teams[0]).id};state.tab="season";state.seasonPane="selection";state.statusFilter="all";
+      state.ctx={role:'coach',teamId:(curTeamRecord()||DB.teams[0]).id};
+      state.tab="season";state.seasonSection="selection";state.selPane="board";state.statusFilter="all";
       state.expandedPlayerId=curSquad().roster[0].playerId;render();
     });
     await page.waitForTimeout(300);

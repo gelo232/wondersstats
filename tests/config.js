@@ -364,7 +364,10 @@ const ERRORS=[];
   });
 
   await etape("2. l'écran vide lui dit quoi faire d'abord",async()=>{
-    await C.page.evaluate(()=>{state.tab="season";state.seasonPane="selection";render()});
+    /* v7 : l'onglet Saison ouvre le tableau de bord des six parties.
+       Le tableau de convocation vit dans la partie Sélection. */
+    await C.page.evaluate(()=>{state.tab="season";state.seasonSection="selection";
+      state.selPane="board";render()});
     await C.page.waitForTimeout(400);
     const t=await texte(C.page);
     if(!/Convoquez vos joueuses/.test(t))
