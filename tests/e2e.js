@@ -112,28 +112,51 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(!ok)throw new Error("numéros invalides");
   });
   await step("la base se trie par date de naissance, jour compris",async()=>{
+    /* v7 : la base du club passe par la barre de liste partagée — sa
+       recherche ne reconstruit plus l'écran, donc ne referme plus le
+       clavier entre deux lettres. Les tris sont ses boutons. */
     await page.evaluate(()=>{
-      state.tab="players";state.playersPane="db";state.search="";
-      state.dbSort="name";state.dbSortDir="old";render();
+      state.tab="players";state.playersPane="db";
+      state.lists=state.lists||{};state.lists["db-players"]={q:"",sort:null,dir:null,filters:{},open:false};
+      render();
     });
-    await page.waitForTimeout(160);
+    await page.waitForTimeout(200);
     const noms=async()=>await page.$$eval(".pname",els=>els.map(e=>e.textContent.split(" ")[0]).join(","));
+    /* Sans ordre choisi, la base se range d'elle-même par nom : soixante-dix
+       fiches dans leur ordre de création ne se liraient pas. */
     const az=await noms();
-    if(az!=="Alice,Léa,Maya,Sofia,Zoé")throw new Error("A→Z : "+az);
+    if(az!=="Alice,Léa,Maya,Sofia,Zoé")throw new Error("ordre par défaut : "+az);
     /* Zoé 04/03/2011, Léa 26/10/2011, Sofia l'année seule : le jour
        départage, et l'année seule se range après les dates de son année.
        Alice, sans naissance, ferme la marche. */
-    await btn("Plus âgées d'abord");await page.waitForTimeout(160);
+    await page.locator(".sortBtn").filter({hasText:"Âge"}).first().click();
+    await page.waitForTimeout(200);
     const vieilles=await noms();
     if(vieilles!=="Zoé,Léa,Sofia,Maya,Alice")throw new Error("plus âgées d'abord : "+vieilles);
     /* Second clic : le sens s'inverse — mais ni la fiche sans date ni
        celle qui n'a que l'année ne remontent, on ne leur invente pas un
        jour de naissance. */
-    await btn("Plus âgées d'abord");await page.waitForTimeout(160);
+    await page.locator(".sortBtn").filter({hasText:"Âge"}).first().click();
+    await page.waitForTimeout(200);
     const jeunes=await noms();
     if(jeunes!=="Maya,Léa,Zoé,Sofia,Alice")throw new Error("plus jeunes d'abord : "+jeunes);
-    const libelle=await page.evaluate(()=>state.dbSortDir);
-    if(libelle!=="young")throw new Error("sens du tri="+libelle);
+    const sens=await page.evaluate(()=>state.lists["db-players"].dir);
+    if(sens!=="desc")throw new Error("sens du tri="+sens);
+    /* Le contrôle qui manquait : taper dans la recherche ne doit PAS
+       reconstruire l'écran, donc ne doit pas perdre le focus. */
+    await page.click(".searchBar input");
+    await page.type(".searchBar input","Tremb",{delay:40});
+    const focus=await page.evaluate(()=>{
+      var a=document.activeElement;
+      return {cible:a?(a.className||a.tagName):"aucun",
+              valeur:a&&a.value!=null?a.value:"",
+              lignes:document.querySelectorAll(".pname").length};
+    });
+    if(focus.valeur!=="Tremb")
+      throw new Error("la frappe n'a pas tenu : « "+focus.valeur+" » (focus sur "+focus.cible+")");
+    if(focus.lignes!==1)throw new Error("la recherche donne "+focus.lignes+" ligne(s)");
+    await page.fill(".searchBar input","");
+    await page.waitForTimeout(200);
     /* La date se relit dans la liste, telle qu'on l'a écrite. */
     const sous=await page.$$eval(".psub",els=>els[0].textContent);
     if(sous.indexOf("03/02/2012")!==0)throw new Error("date non affichée : "+sous);

@@ -406,3 +406,41 @@ un chiffre à un autre, ou par un invariant vérifié après rechargement.
   sauf une. Les seuils réellement utilisés se calculent sur la dispersion de
   l'équipe, ce qui rend ce barème secondaire, mais il mériterait d'être remplacé
   par des références mesurées.
+
+---
+
+## Audit v7.1 — ce qu'une saison entière a fait sortir
+
+_Ajouté après `tests/saison-complete.js` : deux équipes, trois
+sélectionneurs, soixante-dix athlètes, huit mois de relevés, sur une
+application déjà en service._
+
+Aucun des défauts ci-dessous n'était visible sur un geste isolé. Tous sont
+apparus dans l'enchaînement, et deux d'entre eux auraient faussé des
+décisions de sélection sans que personne s'en aperçoive.
+
+| # | Défaut | Portée |
+|---|---|---|
+| **D1** | **Une soumission ne pouvait pas être corrigée.** Resoumettre ajoutait une observation : les notes se moyennaient, donc une note fautive survivait pour toujours dans le score. L'écran promettait pourtant le contraire. | **Critique** — un évaluateur qui se trompe faussait le classement définitivement. Le seul recours était que l'entraîneur supprime la soumission reçue, ce qu'un sélectionneur ne peut pas demander et qu'un entraîneur ne devine pas. |
+| **D2** | **Retenir une athlète déjà dans l'équipe lui refabriquait une offre en attente.** | **Majeur** — une équipe de douze reconduite à la campagne suivante engendrait douze offres fantômes. L'entraîneuse voyait douze athlètes à « confirmer » alors qu'elles jouaient déjà. |
+| **D3** | **La recherche de la base du club appelait `render()` à chaque frappe** — c'est-à-dire le défaut B1 de l'audit d'origine, revenu par un écran qui n'avait pas été converti. | **Majeur** sur téléphone : le clavier se referme entre deux lettres. |
+| **D4** | Dans « Constituer l'équipe », un bouton grisé était la seule marque d'une offre acceptée, et les offres en attente n'étaient pas en tête de liste. | **Ergonomie** — constituer une équipe de douze demande douze gestes d'affilée ; on cherchait sa prochaine ligne à chaque fois. |
+| **D5** | La place occupée sur l'appareil n'était signalée qu'**après** l'échec d'une sauvegarde. | **Majeur** — le pire moment pour l'apprendre. Mesuré : ≈ 700 Ko chiffrés par saison de deux équipes, pour un quota d'environ 5 Mo. Quatre à cinq saisons tiennent. |
+
+Deux ajouts au composant de liste partagé sont sortis de là, et servent
+partout : un **comparateur sur mesure** (ranger par naissance a trois
+règles qu'une clé comparable ne sait pas exprimer) et un **ordre par
+défaut** (une liste sans tri paraissait dans l'ordre de création des
+fiches, ce qui ne veut rien dire pour qui la lit).
+
+### Ce que la saison chargée a confirmé
+
+- Rendu de 1 à 15 ms par partie sur 50 698 gestes relevés et 158 relevés,
+  deux équipes. Aucun écran ne déborde à 375 px.
+- La somme des sets vaut le total sur les trente-deux matchs ventilés.
+- Le récap global concorde exactement avec chacune des parties dont il sort.
+- La saison précédente ressort intacte : mêmes matchs, mêmes effectifs,
+  même total de gestes.
+- Une athlète inscrite dans deux équipes y porte deux jugements
+  indépendants — écartée d'un côté, retenue de l'autre — sans que l'un
+  contamine l'autre.

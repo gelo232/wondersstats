@@ -319,8 +319,12 @@ const ERRORS=[];let PASS=0;
     await page.evaluate(()=>{
       const an={"Léa":"2011","Sofia":"2009","Maya":"2012"};       // Alice : fiche sans année
       DB.players.forEach(p=>{p.birthYear=an[p.firstName]||""});
-      state.tab="players";state.playersPane="db";state.search="";
-      state.dbSort="birth";state.dbSortDir="old";pickStart("db");
+      state.tab="players";state.playersPane="db";
+      /* v7 : la base passe par la barre de liste partagée. « age/asc »
+         range les plus âgées d'abord, comme l'ancien « birth/old ». */
+      state.lists=state.lists||{};
+      state.lists["db-players"]={q:"",sort:"age",dir:"asc",filters:{},open:false};
+      pickStart("db");
     });
     await page.waitForTimeout(220);
     const ordre=await page.$$eval(".list-row .pname",els=>els.map(e=>e.textContent.split(" ")[0]).join(","));

@@ -13,7 +13,7 @@ trap 'kill $SERVER 2>/dev/null || true' EXIT
 sleep 1
 
 FAIL=0
-for suite in smoke migration selection rencontres objectifs recap e2e modals campaigns roles sync invitation season gate github owner parcours config; do
+for suite in smoke migration selection rencontres objectifs recap saison-complete e2e modals campaigns roles sync invitation season gate github owner parcours config; do
   echo ""
   echo "════ ${suite} ════"
   LOG_FILE="" node "tests/${suite}.js" || FAIL=1

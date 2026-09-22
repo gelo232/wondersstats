@@ -1,6 +1,6 @@
 # Suite de non-régression
 
-Dix-huit suites Playwright pilotent l'application réelle dans Chromium et vérifient
+Dix-neuf suites Playwright pilotent l'application réelle dans Chromium et vérifient
 qu'aucune erreur JS n'est levée.
 
 Depuis le verrou, l'application s'ouvre sur un écran de garde. Les suites le
@@ -9,6 +9,7 @@ n'est ajoutée à l'application pour les tests**.
 
 | Suite | Couverture |
 |---|---|
+| `saison-complete.js` | **Une saison entière, deux équipes, soixante-dix athlètes**, sur une application **non vierge** — une saison précédente est déjà là et doit en ressortir intacte au compteur près. Deux sélections par équipe, trois sélectionneurs, deux inscriptions le jour même, quatre U16 qui testent les sélections U18 sans quitter leur équipe, deux retenues qui acceptent une offre ailleurs, puis cinquante-trois séances, quatre tournois dont deux de championnat et dix amicaux. Vérifie qu'une **correction de soumission** rend l'athlète indiscernable d'un témoin noté à l'identique, que retenir une athlète déjà dans l'équipe ne lui refabrique pas d'offre, que la somme des sets vaut le total sur les trente-deux matchs ventilés, que le récap concorde avec les parties, et qu'**aucun écran ne déborde à 375 px** — le plus petit téléphone visé |
 | `migration.js` | **La montée v6 → v7**, et les cinq invariants dont l'échec serait silencieux : somme des compteurs inchangée athlète par athlète, statuts de sélection préservés au mot près, ventilation égale au total, idempotence de la montée, et survie de la ventilation au rechargement — le piège du littéral de `normalizeSquad`, qui détruit toute clé qu'il ne nomme pas. Plus le cycle complet d'une **offre** (retenir → en attente → confirmer → archiver, sans toucher aux statistiques) et l'**annulation** d'une transaction en échec |
 | `selection.js` | **La partie Sélection** : chaque campagne porte son propre déroulement (une seconde campagne naît vide, une convocation en lot ne remplit qu'elle), le volet Convoquées avec ses deux filtres et ses quatre tris réellement exercés, le récap qui ouvre la feuille d'une athlète, la **lecture seule stricte** d'une soumission — zéro élément modifiable, compté dans le DOM — la décision prise depuis le récap, la suppression d'une campagne sans orphelin, et « Constituer l'équipe » de bout en bout |
 | `rencontres.js` | **Les trois parties de rencontres.** Le cœur : global = tournoi = somme des matchs = somme des sets, pour une athlète comme pour l'équipe, après une saisie en trois sets **et** une correction faite une fois le set clos — le cas qui casse une implémentation naïve. Plus : la ventilation survit au rechargement, une session d'avant la v7 se dit « non ventilé » et jamais « Set 1 », le sélecteur de championnat ne paraît que s'il y a du championnat et filtre vraiment, la descente et la remontée des trois crans, la bascule Équipe / Athlètes |

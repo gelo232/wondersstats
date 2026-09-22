@@ -567,6 +567,40 @@ score corrigé, sans que personne le voie.
 
 ---
 
+## Corriger une soumission
+
+Un évaluateur se trompe. Il note 2 au lieu de 5, il écarte une athlète
+qu'il voulait retenir. Jusqu'ici, soumettre une seconde fois **ajoutait**
+une observation : les deux notes se moyennaient, et la fausse survivait
+pour toujours dans le score.
+
+L'écran de soumission pose donc la question, à qui a déjà soumis :
+
+| Choix | Ce qui se passe |
+|---|---|
+| **✎ Je corrige** | La soumission précédente est remplacée. Ses notes, ses compteurs et son avis ne comptent plus. |
+| **➕ Nouvelle séance** | Elle est conservée. Les deux séances s'additionnent, et l'avis retenu est le plus récent. |
+
+L'application ne peut pas trancher à la place de qui a vu jouer : deux
+séances valent mieux qu'une, mais une erreur ne vaut rien. Côté
+entraîneur, une soumission corrigée reste visible — c'est une pièce du
+dossier — estompée, et marquée « Corrigée — ne compte plus ».
+
+---
+
+## La place occupée sur l'appareil
+
+Une saison de deux équipes, cent soixante relevés et soixante-dix fiches
+pèse environ **700 Ko** une fois chiffrée. Les navigateurs accordent à peu
+près 5 Mo par site : **quatre à cinq saisons tiennent, pas dix**.
+
+`⚙️ Réglages → 💾 Données` affiche en permanence la place occupée. Passé
+3,5 Mo, un bandeau le signale — avant le mur, et non après l'échec d'une
+sauvegarde, qui serait le pire moment pour l'apprendre. Le geste qui aide :
+exporter une sauvegarde, puis archiver les saisons qu'on ne consulte plus.
+
+---
+
 ## Statuts
 
 Deux axes indépendants, pour ne jamais réécrire l'histoire d'une joueuse.
@@ -612,6 +646,43 @@ vous publiez explicitement sur votre propre relais.
 ---
 
 ## Notes de version
+
+### v7.1 — une saison entière, jouée puis auditée
+
+Deux équipes, trois sélectionneurs, soixante-dix athlètes, deux sélections
+par équipe et huit mois de relevés : `tests/saison-complete.js` joue tout
+cela sur une application **déjà en service**, et vérifie que la saison
+précédente n'en ressort pas touchée d'un compteur.
+
+Ce que ce parcours a fait sortir, et qu'aucun geste isolé ne montrait :
+
+- **Une soumission ne pouvait pas être corrigée.** Resoumettre ajoutait une
+  observation : la note fautive survivait dans la moyenne. L'écran
+  promettait pourtant « vous pouvez soumettre à nouveau après correction ».
+  L'évaluateur choisit maintenant entre corriger et ajouter, et le test
+  compare l'athlète corrigée à un témoin noté à l'identique — écart nul
+  exigé.
+- **Retenir une athlète déjà dans l'équipe lui refabriquait une offre.**
+  Une équipe de douze reconduite à la campagne suivante produisait douze
+  offres fantômes à « confirmer » pour des joueuses qui jouaient déjà.
+- **La recherche de la base du club reconstruisait l'écran à chaque
+  frappe**, donc refermait le clavier entre deux lettres. Elle passe par la
+  barre de liste partagée, qui rafraîchit sans reconstruire — et gagne au
+  passage les tris et les filtres que les autres listes avaient déjà. Un
+  ordre par défaut a été ajouté au composant : soixante-dix fiches dans
+  leur ordre de création ne se lisent pas.
+- **« Constituer l'équipe » laissait un bouton grisé** pour seule marque
+  d'une offre acceptée. Un bouton grisé n'est pas un état : la ligne dit
+  maintenant « 🤝 Dans l'équipe », et les offres en attente passent en tête
+  — on constitue une équipe de douze en douze gestes d'affilée.
+- **La place occupée n'était signalée qu'après l'échec d'une sauvegarde.**
+  Elle est désormais affichée en permanence, et un bandeau prévient à 3,5 Mo.
+
+Mesuré sur la saison chargée (50 698 gestes relevés, 158 relevés, deux
+équipes) : chaque partie se dessine en **1 à 15 ms**, et aucun écran ne
+déborde à 375 px.
+
+Dix-neuf suites, 360 contrôles.
 
 ### v7.0 — la saison en six parties
 

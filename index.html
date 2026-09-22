@@ -764,6 +764,10 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .bt-count{font-size:var(--fs-xs);font-weight:700;color:var(--txt-dim);
   margin:var(--s2) 0;font-variant-numeric:tabular-nums}
 
+.bt-act .bt-etat{flex:1;display:flex;align-items:center;min-height:var(--tap-lg);
+  font-size:var(--fs-xs);font-weight:700;color:var(--txt-dim)}
+.bt-act .bt-etat.ok{color:var(--ok-ink)}
+
 /* ── §18 · objectifs ────────────────────────────────────────── */
 .goalCard .rmeta{flex-wrap:wrap}
 .goalCard .bar{margin-top:var(--s1)}
@@ -888,7 +892,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.0";
+var APP_VERSION = "7.1";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -1471,7 +1475,7 @@ function mkSelectorView(o){
     criteria:CRITERIA.map(function(c){return c.key}),
     groups:SG_KEYS.slice(),
     campaignId:null,campaignName:"",anonymous:true,context:"",
-    data:{},createdAt:nowISO(),submittedAt:null,submissionCount:0,
+    data:{},createdAt:nowISO(),submittedAt:null,submissionCount:0,lastSubId:null,
     origin:"local",seasonName:"",published:false},o||{});
 }
 function mkEntryData(){return {stats:emptyS(),ratings:{},reco:"",pos:"",note:""}}
@@ -2921,6 +2925,10 @@ function normalizeSquad(sq,knownPlayers){
   sq.submissions=(sq.submissions||[]).map(function(sub){
     var cid=campKnown[sub.campaignId]?sub.campaignId:legacyCampaignId;
     return {id:sub.id||uid(),viewId:sub.viewId||"",viewName:sub.viewName||"Vue",
+      /* ⚠ Ce littéral détruit toute clé qu'il ne nomme pas : sans cette
+         ligne, une correction serait oubliée au premier rechargement et
+         la note fautive reviendrait. */
+      replaces:sub.replaces||null,
       selectorName:sub.selectorName||"",selectorToken:sub.selectorToken||"",
       campaignId:cid,campaignName:campKnown[cid].name,context:sub.context||"",
       submittedAt:sub.submittedAt||nowISO(),criteria:sub.criteria||CRITERIA.map(function(c){return c.key}),
@@ -4110,6 +4118,21 @@ function setCampaignDecision(sq,campaignId,pid,reco,who){
 function ensureOffer(sq,campaignId,pid){
   var o=liveOffer(sq,campaignId,pid);
   if(o)return o;
+  /* Une athlète DÉJÀ dans l'équipe n'a rien à accepter de nouveau. La
+     retenir à la campagne suivante — une pratique, un point de mi-saison —
+     confirme sa place, elle ne la remet pas en jeu.
+
+     Sans cette garde, une équipe de douze reconduite à la deuxième
+     campagne engendrait douze offres en attente, et l'entraîneuse
+     retrouvait une liste de douze athlètes à « confirmer » alors
+     qu'elles jouaient déjà. */
+  if((sq.playerIds||[]).indexOf(pid)!==-1){
+    var acc=null;
+    offersOfPlayer(sq,pid).forEach(function(x){
+      if(x.status==="accepted"&&offerIsLive(x))acc=x;
+    });
+    return acc;
+  }
   o=mkOffer(campaignId,pid);
   Store.put("offers",o,sq);
   /* Pas d'entrée de journal ici : la décision qui vient de l'engendrer en
@@ -4201,10 +4224,22 @@ function dataFilled(d){
         seul regard.
    Chaque étape est retenue dans `detail`, pour que l'écran puisse montrer
    d'où vient le chiffre plutôt que de l'asséner. */
+/* Les soumissions qu'une correction a remplacées. On suit la chaîne : une
+   correction peut elle-même être corrigée. */
+function soumissionsRemplacees(squad){
+  var mortes={};
+  (squad&&squad.submissions||[]).forEach(function(sub){
+    if(sub.replaces)mortes[sub.replaces]=true;
+  });
+  return mortes;
+}
 function compileSubmissions(squad,campaignId){
   var out={};
   if(!squad)return out;
   var sc=scoringOf(squad);
+  /* Une soumission corrigée ne compte plus : ni ses notes, ni ses
+     compteurs, ni son avis. C'est tout l'objet d'une correction. */
+  var mortes=soumissionsRemplacees(squad);
   function bucket(pid){
     if(!out[pid])out[pid]={playerId:pid,n:0,nRatings:0,nReco:0,stats:emptyS(),ratings:{},
       reco:{select:0,recall:0,cut:0},topReco:null,
@@ -4219,6 +4254,7 @@ function compileSubmissions(squad,campaignId){
   var brut=[];          /* {who, pid, crit, val} */
   squad.submissions.forEach(function(sub){
     if(campaignId&&sub.campaignId!==campaignId)return;
+    if(mortes[sub.id])return;
     var who=(sub.selectorName||"").trim()||sub.viewName||"Sélectionneur";
     sub.entries.forEach(function(e){
       if(!dataFilled(e))return;          // athlète non observée : n'entre pas dans les moyennes
@@ -4859,10 +4895,26 @@ function importPacket(){
 }
 
 /* ── Soumission ────────────────────────────────────────────── */
-function buildSubmission(view,numberFor){
+/* `replaces` porte l'identifiant de la soumission que celle-ci corrige.
+
+   Sans lui, une seconde soumission du même évaluateur s'AJOUTE à la
+   première : les notes se moyennent, et une note fautive survit pour
+   toujours dans le score. C'était le seul défaut de la chaîne
+   d'évaluation qu'aucun geste ne permettait de réparer — il fallait
+   supprimer la soumission reçue, ce qu'un sélectionneur ne peut pas
+   faire et ce qu'un entraîneur ne devine pas.
+
+   Deux soumissions successives disent deux choses différentes, et
+   l'application ne peut pas trancher à la place de qui a vu jouer :
+   « j'ai revu ces athlètes » ajoute une observation, « je m'étais
+   trompé » remplace la précédente. C'est donc l'évaluateur qui le dit,
+   au moment de soumettre. */
+function buildSubmission(view,numberFor,opts){
+  opts=opts||{};
   return {
     type:"wonderstats-submission",version:3,
     id:uid(),viewId:view.id,viewName:view.name,
+    replaces:opts.replaces||null,
     selectorName:(view.selectorName||"").trim(),
     seasonId:view.seasonId||null,
     campaignId:view.campaignId||null,campaignName:view.campaignName||"",
@@ -4876,23 +4928,46 @@ function buildSubmission(view,numberFor){
     })
   };
 }
+/* La dernière soumission vivante d'une vue — celle qu'une correction
+   remplacerait. On cherche par vue, et à défaut par évaluateur dans la
+   même campagne : un sélectionneur qui a refait sa vue depuis un autre
+   appareil corrige tout de même son propre avis. */
+function derniereSoumissionDe(squad,view){
+  var qui=(view.selectorName||"").trim();
+  var best=null;
+  (squad.submissions||[]).forEach(function(sub){
+    var memeVue=sub.viewId&&sub.viewId===view.id;
+    var memeQui=qui&&(sub.selectorName||"").trim()===qui&&
+                sub.campaignId===view.campaignId;
+    if(!memeVue&&!memeQui)return;
+    if(!best||String(sub.submittedAt||"")>String(best.submittedAt||""))best=sub;
+  });
+  return best;
+}
 /* Soumission locale : la vue vit dans la saison, on écrit directement */
-function submitLocalView(squad,view){
-  var sub=buildSubmission(view,function(pid){return numOf(squad,pid)});
+function submitLocalView(squad,view,opts){
+  opts=opts||{};
+  var prec=opts.correction?(derniereSoumissionDe(squad,view)||{id:view.lastSubId}):null;
+  var sub=buildSubmission(view,function(pid){return numOf(squad,pid)},
+    {replaces:(prec&&prec.id)||null});
   delete sub.type;delete sub.version;
   var camp=campaignById(squad,view.campaignId);
   sub.campaignId=view.campaignId;sub.campaignName=camp?camp.name:"";
   squad.submissions.push(sub);
   view.submittedAt=sub.submittedAt;
   view.submissionCount=(view.submissionCount||0)+1;
+  view.lastSubId=sub.id;
   saveNow();
   return sub;
 }
 /* Soumission depuis une vue importée : fichier de secours hors-ligne */
-function exportSubmission(view){
-  var sub=buildSubmission(view,function(pid){return (view.numbers||{})[pid]||""});
+function exportSubmission(view,opts){
+  opts=opts||{};
+  var sub=buildSubmission(view,function(pid){return (view.numbers||{})[pid]||""},
+    {replaces:opts.correction?(view.lastSubId||null):null});
   if(downloadJSON(sub,"Soumission_"+safeName(view.name)+"_"+safeName(view.selectorName)+"_"+stamp()+".json")){
     view.submittedAt=sub.submittedAt;view.submissionCount=(view.submissionCount||0)+1;
+    view.lastSubId=sub.id;
     saveNow();showToast("📤 Soumission exportée");
   }
 }
@@ -4930,6 +5005,7 @@ function integrateSubmission(squad,data){
   var cid=campaignById(squad,data.campaignId)?data.campaignId:squad.activeCampaignId;
   var camp=campaignById(squad,cid);
   var sub={id:data.id||uid(),viewId:data.viewId||"",viewName:data.viewName||"Vue",
+    replaces:data.replaces||null,
     selectorName:data.selectorName||"",selectorToken:data.selectorToken||"",
     campaignId:cid,campaignName:camp?camp.name:"",
     context:data.context||"",submittedAt:data.submittedAt||nowISO(),
@@ -5266,8 +5342,10 @@ function pullForSelector(){
     syncBusy=false;showToast("⚠️ "+err.message);render();
   });
 }
-function uploadSubmission(view){
-  var sub=buildSubmission(view,function(pid){return (view.numbers||{})[pid]||""});
+function uploadSubmission(view,opts){
+  opts=opts||{};
+  var sub=buildSubmission(view,function(pid){return (view.numbers||{})[pid]||""},
+    {replaces:opts.correction?(view.lastSubId||null):null});
   /* Les vues reçues avant que l'équipe ne soit estampillée n'en portent
      pas : celle du jeton fait foi, c'est de toute façon la seule pour
      laquelle le relais acceptera quoi que ce soit. */
@@ -5276,6 +5354,7 @@ function uploadSubmission(view){
   syncBusy=true;render();
   syncPublish("submission",sub.id,sub,{teamId:tid}).then(function(){
     view.submittedAt=sub.submittedAt;view.submissionCount=(view.submissionCount||0)+1;
+    view.lastSubId=sub.id;
     view.uploadedAt=sub.submittedAt;SYNC.lastSyncAt=nowISO();
     syncBusy=false;saveNow();saveSync();
     showToast("✅ Soumission téléversée");
@@ -5459,6 +5538,52 @@ function renderFoundBanner(){
         h("div",{className:"muted",style:{marginTop:"3px"}},
           "Aucun propriétaire n'est déclaré. Tant que c'est le cas, aucun club ne peut être charté.")),
       h("button",{className:"btn btn-primary xs",onclick:startFounding},"Fonder")));
+}
+
+/* ── La place occupée sur l'appareil ───────────────────────────
+   localStorage ne dit pas son quota. Il vaut environ 5 Mo sur la
+   plupart des navigateurs, moins sur iOS hors de l'écran d'accueil.
+   On mesure donc ce qu'on écrit, et on avertit AVANT le mur : le
+   message « stockage plein » de l'ancienne version arrivait après
+   l'échec d'une sauvegarde, c'est-à-dire trop tard pour faire quoi
+   que ce soit.
+
+   Ordre de grandeur mesuré : une saison de deux équipes, cent
+   soixante relevés et soixante-dix fiches pèse environ 700 Ko une
+   fois chiffrée. Quatre à cinq saisons tiennent donc, pas dix. */
+var STORAGE_SEUIL=3500000;
+var storageMasque=false;
+function tailleStockage(){
+  var n=0;
+  try{
+    for(var k in localStorage)
+      if(Object.prototype.hasOwnProperty.call(localStorage,k))
+        n+=((localStorage.getItem(k)||"").length+k.length);
+  }catch(e){return 0}
+  return n;
+}
+function tailleLisible(n){
+  if(n<1024)return n+" o";
+  if(n<1024*1024)return Math.round(n/1024)+" Ko";
+  return (Math.round(n/1024/1024*10)/10)+" Mo";
+}
+function renderStorageBanner(){
+  if(storageMasque)return null;
+  var n=tailleStockage();
+  if(n<STORAGE_SEUIL)return null;
+  return h("div",{className:"card tight",role:"status",
+    style:{margin:"10px var(--gutter) 0",borderColor:"var(--warn)",
+           background:"var(--tint-warn)"}},
+    h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontWeight:"700",color:"var(--warn-ink)",fontSize:"14px"}},
+          "⚠️ L'espace de cet appareil se remplit"),
+        h("div",{className:"muted",style:{marginTop:"3px"}},
+          "Vos données occupent "+tailleLisible(n)+". Les navigateurs en accordent "+
+          "environ 5 Mo par site. Exportez une sauvegarde, puis archivez les "+
+          "saisons que vous ne consultez plus — Réglages → Saisons.")),
+      h("button",{className:"btn btn-ghost sm",type:"button","aria-label":"Masquer l'avertissement",
+        onclick:function(){storageMasque=true;render()}},"✕")));
 }
 
 function renderCtxBar(){
@@ -5858,11 +5983,31 @@ function listApply(cfg){
   var sorts=cfg.sorts||[];
   var actif=null;
   for(var i=0;i<sorts.length;i++)if(sorts[i].key===st.sort)actif=sorts[i];
+  /* Un ordre par défaut, quand la liste en a un qui va de soi. Sans lui,
+     une liste non triée paraît dans l'ordre où les fiches ont été créées
+     — ce qui ne veut rien dire pour qui la lit. */
+  if(!actif&&cfg.defaultSort){
+    for(var j=0;j<sorts.length;j++)if(sorts[j].key===cfg.defaultSort)actif=sorts[j];
+  }
   if(actif){
-    var dir=st.dir||actif.dir||SORT_NATUREL[actif.key]||"asc";
+    var dir=st.dir||((st.sort===actif.key)?null:cfg.defaultDir)||
+            actif.dir||SORT_NATUREL[actif.key]||"asc";
     var signe=(dir==="asc")?1:-1;
     /* On indexe avant de trier : Array.prototype.sort n'est stable que
        depuis ES2019, et l'iPad de prêt est plus vieux que ça. */
+    /* Certains ordres ne se réduisent pas à une clé comparable : ranger
+       par naissance demande que les fiches sans date ferment la marche
+       DANS LES DEUX SENS, et qu'une fiche ne portant que l'année se range
+       après celles dont on connaît le jour. Un tri comme celui-là fournit
+       son propre comparateur, qui reçoit le sens et en décide seul. */
+    if(actif.cmp){
+      var pcmp=out.map(function(it,idx){return {it:it,idx:idx}});
+      pcmp.sort(function(a,b){
+        var c=actif.cmp(a.it,b.it,dir);
+        return c?c:(a.idx-b.idx);
+      });
+      return pcmp.map(function(pp){return pp.it});
+    }
     var paires=out.map(function(it,idx){return {it:it,idx:idx,v:actif.get(it)}});
     paires.sort(function(a,b){
       var x=a.v,y=b.v;
@@ -5971,14 +6116,17 @@ function listToolbar(cfg){
           onclick:function(){listReset(key);rafraichir()}},"Tout effacer"):null):null;
       node.appendChild(h("div",{className:"filterBar"},tete,corps));
     }
-    /* Tris. La barre n'apparaît pas sous onze entrées : au-dessous, on
-       voit toute la liste, et trier ne sert à rien. */
+    /* Tris. La barre n'apparaît pas sous onze entrées : au-dessous on voit
+       toute la liste, et trier ne sert à rien — sauf là où l'ordre EST
+       l'information. Ranger la base du club par âge sert à composer des
+       tranches, même à cinq fiches : ces listes passent `minSort`. */
     var sorts=cfg.sorts||[];
-    if(sorts.length&&(cfg.items||[]).length>10){
+    var seuilTri=(cfg.minSort!=null)?cfg.minSort:11;
+    if(sorts.length&&(cfg.items||[]).length>=seuilTri){
       node.appendChild(h("div",{className:"sortBar",role:"group","aria-label":"Trier la liste"},
         h("span",{className:"sb-lead"},"Trier"),
         sorts.map(function(o){
-          var on=st.sort===o.key;
+          var on=st.sort?(st.sort===o.key):(cfg.defaultSort===o.key);
           var dir=st.dir||o.dir||SORT_NATUREL[o.key]||"asc";
           var suivant=on?(dir==="asc"?"desc":"asc"):(o.dir||SORT_NATUREL[o.key]||"asc");
           return h("button",{className:"sortBtn"+(on?" on":""),type:"button",
@@ -8570,13 +8718,25 @@ function renderSettingsTab(){
   }));
   var body;
   if(state.setPane==="log")body=renderLogPane(sq?sq.teamId:"");
-  else if(state.setPane==="data")body=h("div",null,
-    h("div",{className:"hint"},
-      "Une sauvegarde exportée est un fichier que vous gardez. Elle ne part "+
-      "sur aucun serveur, et ne contient aucun jeton d'accès."),
-    h("div",{className:"data-actions"},
-      h("button",{className:"btn btn-export",type:"button",onclick:exportMyTeam},
-        "📤 Exporter mon équipe")));
+  else if(state.setPane==="data"){
+    var octets=tailleStockage();
+    body=h("div",null,
+      h("div",{className:"hint"},
+        "Une sauvegarde exportée est un fichier que vous gardez. Elle ne part "+
+        "sur aucun serveur, et ne contient aucun jeton d'accès."),
+      h("div",{className:"kpiGrid",style:{marginBottom:"12px"}},
+        kpi({label:"Place occupée",value:tailleLisible(octets),
+          hint:"environ 5 Mo disponibles"}),
+        kpi({label:"Relevés en base",
+          value:String(DB.squads.reduce(function(n,x){return n+(x.sessions||[]).length},0)),
+          hint:plural(DB.players.length,"fiche")})),
+      octets>=STORAGE_SEUIL?h("div",{className:"hint warn"},
+        "L'espace se remplit. Archivez les saisons que vous ne consultez plus : "+
+        "elles restent dans vos sauvegardes exportées."):null,
+      h("div",{className:"data-actions"},
+        h("button",{className:"btn btn-export",type:"button",onclick:exportMyTeam},
+          "📤 Exporter mon équipe")));
+  }
   else body=renderSeasonsPane();
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},row,
     h("div",{className:"content pad","data-scroll-key":"set-"+state.setPane},body));
@@ -9882,45 +10042,55 @@ function renderPlayersTab(){
    Les fiches sans année tombent en fin de liste dans les deux sens. Les
    placer en tête des plus âgées reviendrait à leur inventer un âge. */
 function comparerNoms(a,b){return fullName(a).localeCompare(fullName(b),"fr")}
+/* Ranger par naissance, avec ses trois règles : une fiche sans naissance
+   ferme la marche DANS LES DEUX SENS — on ne lui invente pas un âge ; une
+   fiche qui ne porte que l'année se range après celles dont on connaît le
+   jour de son année ; et à naissance égale, l'ordre alphabétique tranche.
+   `dir` vaut "old" (plus âgées d'abord) ou "young". */
+function comparerNaissance(a,b,dir){
+  var ka=birthSortKey(a),kb=birthSortKey(b);
+  if((ka.y===null)!==(kb.y===null))return ka.y===null?1:-1;
+  if(ka.y!==null&&ka.y!==kb.y)return dir==="young"?(kb.y-ka.y):(ka.y-kb.y);
+  if(!!ka.md!==!!kb.md)return ka.md?-1:1;
+  if(ka.md&&ka.md!==kb.md)return dir==="young"?(ka.md<kb.md?1:-1):(ka.md<kb.md?-1:1);
+  return comparerNoms(a,b);
+}
 function sortDbPlayers(list,mode,dir){
   var out=list.slice();
   if(mode!=="birth")return out.sort(comparerNoms);
-  return out.sort(function(a,b){
-    var ka=birthSortKey(a),kb=birthSortKey(b);
-    if((ka.y===null)!==(kb.y===null))return ka.y===null?1:-1;   /* sans naissance : en fin de liste */
-    if(ka.y!==null&&ka.y!==kb.y)return dir==="young"?(kb.y-ka.y):(ka.y-kb.y);
-    if(!!ka.md!==!!kb.md)return ka.md?-1:1;                     /* jour connu avant année seule */
-    if(ka.md&&ka.md!==kb.md)return dir==="young"?(ka.md<kb.md?1:-1):(ka.md<kb.md?-1:1);
-    return comparerNoms(a,b);
-  });
+  return out.sort(function(a,b){return comparerNaissance(a,b,dir)});
 }
+/* La base du club — la plus longue liste de l'application : soixante-dix
+   fiches, parfois deux cents après quelques saisons. Elle passe donc par
+   le composant partagé, comme toutes les autres.
+
+   Elle le fait pour une raison précise, et pas seulement d'uniformité :
+   son ancien champ de recherche rappelait render() à chaque frappe. Sur un
+   téléphone, cela referme le clavier entre deux lettres. listToolbar
+   rafraîchit la liste SANS reconstruire l'écran, donc sans perdre le
+   focus — c'est tout l'objet du composant. */
 function renderDbPane(squad){
-  var q=(state.search||"").trim().toLowerCase();
-  var players=sortDbPlayers(DB.players,state.dbSort,state.dbSortDir);
-  function correspond(p){return !q||fullName(p).toLowerCase().indexOf(q)!==-1}
-  var shown=players.filter(function(p){return !p.archived&&correspond(p)});
-  /* La recherche vaut aussi pour les archivées : sans quoi « Tout
-     sélectionner » emporterait des fiches que le filtre ne montrait pas. */
-  var archived=players.filter(function(p){return p.archived&&correspond(p)});
   var picking=pickIsOn("db");
 
-  var searchInp=h("input",{className:"txt",placeholder:"Rechercher…",value:state.search,style:{marginBottom:"10px"}});
-  searchInp.addEventListener("input",function(e){state.search=e.target.value;render()});
-
-  function card(p){
+  function sousTitre(p){
     var inSeason=squad?!!rosterEntry(squad,p.id):false;
     var seasons=squadsOf(p.id).length;
-    var sous=(fmtBirth(p)?fmtBirth(p)+" · ":"")+plural(seasons,"équipe-saison")+
+    return (fmtBirth(p)?fmtBirth(p)+" · ":"")+plural(seasons,"équipe-saison")+
       (p.archived?" · archivée":"")+(picking&&inSeason?" · convoquée":"");
+  }
+  function card(p){
+    var inSeason=squad?!!rosterEntry(squad,p.id):false;
     if(picking)return pickRow(h("div",{className:"list-row"},
       h("div",{className:"body"},
         h("div",{className:"pname"},fullName(p)),
-        h("div",{className:"psub"},sous))),p.id);
+        h("div",{className:"psub"},sousTitre(p)))),p.id);
     return h("div",{className:"list-row"},
       h("div",{className:"body",onclick:function(){openModal("editplayer",p.id)}},
         h("div",{className:"pname"},fullName(p)),
-        h("div",{className:"psub"},sous)),
-      squad?h("button",{className:"btn "+(inSeason?"btn-ghost":"btn-save")+" xs",onclick:function(){
+        h("div",{className:"psub"},sousTitre(p))),
+      squad?h("button",{className:"btn "+(inSeason?"btn-ghost":"btn-save")+" sm",
+        "aria-label":(inSeason?"Retirer ":"Convoquer ")+fullName(p),
+        onclick:function(){
         if(inSeason){
           confirmAct("Retirer "+fullName(p)+" de « "+squad.name+" » ?",function(){
             removeFromSquad(squad,p.id);
@@ -9938,54 +10108,82 @@ function renderDbPane(squad){
       }},inSeason?"✓ Convoquée":"+ Convoquer"):null);
   }
 
-  var tous=shown.concat(archived).map(function(p){return p.id});
+  var tb=listToolbar({
+    key:"db-players",
+    items:DB.players.slice(),
+    /* L'ordre est une information ici : on range par âge pour composer
+       des tranches, pas pour retrouver une ligne. Et sans ordre choisi,
+       c'est l'alphabet — soixante-dix fiches dans leur ordre de création
+       ne se lisent pas. */
+    minSort:2,defaultSort:"name",
+    search:{of:function(p){return fullName(p)+" "+(p.number||"")},
+            placeholder:"Rechercher un nom ou un numéro…"},
+    sorts:[
+      {key:"name",label:"Nom",get:function(p){return fullName(p)}},
+      /* L'âge a ses règles propres : voir comparerNaissance. */
+      {key:"age",label:"Âge",dir:"asc",cmp:function(a,b,dir){
+        return comparerNaissance(a,b,dir==="asc"?"old":"young")}},
+      {key:"equipes",label:"Équipes",get:function(p){return squadsOf(p.id).length}}
+    ],
+    filters:[
+      {key:"etat",label:"Fiche",get:function(p){return p.archived?"archivee":"active"},
+       options:[{k:"active",l:"Actives"},{k:"archivee",l:"Archivées"}]}
+    ].concat(squad?[
+      {key:"convoquee",label:"Cette saison",
+       get:function(p){return rosterEntry(squad,p.id)?"oui":"non"},
+       options:[{k:"oui",l:"Convoquées"},{k:"non",l:"Pas encore"}]}
+    ]:[]),
+    empty:function(){
+      return emptyState({icon:DB.players.length?"🔍":"🗂️",small:true,
+        title:DB.players.length?"Aucun résultat":"Base vide",
+        sub:DB.players.length
+          ?"Aucune fiche ne correspond à ce que vous cherchez."
+          :"Ajoutez vos athlètes : une par une, ou d'un coup avec « ⚡ Ajout en lot »."});
+    },
+    rows:function(res){
+      /* Les archivées ferment la marche, sous leur titre : elles restent
+         trouvables sans encombrer la liste de travail. */
+      var actives=res.filter(function(p){return !p.archived});
+      var arch=res.filter(function(p){return !!p.archived});
+      var out=actives.map(card);
+      if(arch.length){
+        out.push(h("div",{className:"section-title"},
+          plural(arch.length,"fiche")+" archivée(s)"));
+        arch.forEach(function(p){out.push(card(p))});
+      }
+      return out;
+    }
+  });
+
+  var visibles=tb.result.map(function(p){return p.id});
   var barre=picking
     ? h("div",{className:"btn-row",style:{marginBottom:"12px"}},
-        h("button",{className:"btn btn-ghost sm",onclick:function(){pickSet(tous)}},"Tout ("+tous.length+")"),
+        h("button",{className:"btn btn-ghost sm",onclick:function(){pickSet(visibles)}},
+          "Tout ("+visibles.length+")"),
         h("button",{className:"btn btn-ghost sm",onclick:function(){pickSet([])}},"Aucune"))
     : h("div",{className:"btn-row",style:{marginBottom:"12px"}},
-        h("button",{className:"btn btn-primary sm",onclick:function(){openModal("newplayer")}},"+ Nouvelle joueuse"),
+        h("button",{className:"btn btn-primary sm",onclick:function(){openModal("newplayer")}},"+ Nouvelle athlète"),
         h("button",{className:"btn btn-ghost sm",onclick:function(){openModal("bulkplayers")}},"⚡ Ajout en lot"),
         DB.players.length?h("button",{className:"btn btn-ghost sm",onclick:function(){pickStart("db")}},"☑️ Sélectionner"):null);
 
-  var wrap=h("div",null,
+  var st=listState("db-players");
+  return h("div",null,
     picking
       ? h("div",{className:"hint"},"Cochez des athlètes, puis choisissez en bas : ",
           h("b",null,"convoquer"),", ",h("b",null,"archiver")," ou ",h("b",null,"supprimer"),
-          ". La recherche et le tri restent actifs — ",h("b",null,"Tout")," ne prend que ce qui est affiché.")
-      : h("div",{className:"hint"},"La base de données est ",h("b",null,"partagée entre toutes les saisons"),". Une joueuse conserve son historique même si son numéro ou son équipe change."),
+          ". La recherche, les tris et les filtres restent actifs — ",
+          h("b",null,"Tout")," ne prend que ce qui est affiché.")
+      : h("div",{className:"hint"},"La base est ",h("b",null,"partagée entre toutes les saisons"),
+          ". Une athlète conserve son historique même si son numéro ou son équipe change."),
     barre,
-    triBase(),
-    state.dbSort==="birth"?h("div",{className:"muted",style:{marginBottom:"8px"}},
-      "Tri sur la date de naissance. Une fiche qui ne porte que l'année se range avec son année, après celles dont on connaît le jour ; celles qui n'ont ni l'une ni l'autre restent en fin de liste."):null,
-    searchInp);
-  if(!shown.length)wrap.appendChild(h("div",{className:"empty"},DB.players.length?"Aucun résultat":"Base vide — ajoutez vos joueuses."));
-  shown.forEach(function(p){wrap.appendChild(card(p))});
-  if(archived.length){
-    wrap.appendChild(h("div",{className:"section-title"},plural(archived.length,"joueuse")+" archivée(s)"));
-    archived.forEach(function(p){wrap.appendChild(card(p))});
-  }
-  return wrap;
+    tb,
+    st.sort==="age"?h("div",{className:"muted",style:{margin:"6px 0"}},
+      "Tri sur la naissance. Une fiche qui ne porte que l'année se range avec "+
+      "son année, après celles dont on connaît le jour ; celles qui n'ont ni "+
+      "l'une ni l'autre ferment la marche, dans les deux sens."):null,
+    tb.list);
 }
-/* Deux ordres, parce qu'on cherche deux choses : un nom qu'on connaît, ou
-   une tranche d'âge qu'on compose. Le second bouton porte le sens du tri
-   dans son propre libellé — cliquer dessus fait ce qu'il annonce. */
-function triBase(){
-  function pastille(label,actif,onclick){
-    var b=h("button",{className:"pill sm"+(actif?" active":""),onclick:onclick},label);
-    if(actif)b.style.background="#2563EB";
-    return b;
-  }
-  var parAn=state.dbSort==="birth";
-  return h("div",{className:"sub-pills",style:{marginBottom:"8px",alignItems:"center"}},
-    h("span",{className:"muted",style:{flexShrink:"0",marginRight:"2px"}},"Trier :"),
-    pastille("A → Z",!parAn,function(){state.dbSort="name";render()}),
-    pastille("🎂 "+(state.dbSortDir==="young"?"Plus jeunes d'abord":"Plus âgées d'abord"),parAn,function(){
-      if(parAn)state.dbSortDir=state.dbSortDir==="young"?"old":"young";
-      else state.dbSort="birth";
-      render();
-    }));
-}
+
 /* Les numéros ne sont jamais attribués par l'application : l'entraîneur les
    saisit, et les corrige ensuite dans le tableau de sélection. On se contente
    de signaler ceux qui sont déjà pris. */
@@ -11385,7 +11583,11 @@ function entryFilled(view,pid){return dataFilled(view.data[pid])}
    hérité. */
 function renderSubmissionsPane(squad,campaignId){
   var wrap=h("div",null);
-  wrap.appendChild(h("div",{className:"hint"},"Chaque soumission est un instantané figé, rattaché à sa campagne. Plusieurs avis sur une même joueuse sont moyennés — mais uniquement à l'intérieur d'une même campagne."));
+  wrap.appendChild(h("div",{className:"hint"},
+    "Chaque soumission est un instantané figé, rattaché à sa campagne. Plusieurs "+
+    "avis sur une même athlète sont moyennés — mais uniquement à l'intérieur "+
+    "d'une même campagne. Une soumission ",h("b",null,"corrigée")," par son auteur "+
+    "ne compte plus, et l'indique."));
   wrap.appendChild(renderSyncPanel(squad));
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
     h("button",{className:"btn btn-import sm",onclick:function(){importSubmission(squad)}},"📥 Importer un fichier de soumission")));
@@ -11396,18 +11598,27 @@ function renderSubmissionsPane(squad,campaignId){
   else if(!campaignId&&!squad.submissions.length)
     wrap.appendChild(h("div",{className:"empty"},"Aucune soumission reçue"));
 
+  var mortes=soumissionsRemplacees(squad);
   (campaignId?[campaignById(squad,campaignId)].filter(Boolean):squad.campaigns).forEach(function(c){
     var subs=campaignSubs(squad,c.id).slice().sort(function(a,b){return (b.submittedAt||"").localeCompare(a.submittedAt||"")});
     if(!subs.length)return;
     wrap.appendChild(h("div",{className:"section-title"},campaignLabel(c)+" · "+plural(subs.length,"soumission")));
     subs.forEach(function(sub){
       var evaluated=sub.entries.filter(dataFilled).length;
-      wrap.appendChild(h("div",{className:"card tight"},
+      /* Une soumission remplacée reste visible — c'est une pièce du
+         dossier — mais elle dit qu'elle ne compte plus, et le corps du
+         texte est estompé plutôt que retiré. */
+      var morte=!!mortes[sub.id];
+      var carte=h("div",{className:"card tight"+(morte?" is-dim":"")},
         h("div",{className:"row-between"},
           h("div",{style:{minWidth:"0"}},
             h("div",{style:{color:"#F8FAFC",fontWeight:"700",fontSize:"14px"}},sub.viewName),
             h("div",{className:"muted",style:{marginTop:"2px"}},"👤 "+(sub.selectorName||"Anonyme")+" · "+fmtDate(sub.submittedAt)),
-            h("div",{className:"muted",style:{marginTop:"2px"}},evaluated+"/"+sub.entries.length+" joueuses évaluées")),
+            h("div",{className:"muted",style:{marginTop:"2px"}},evaluated+"/"+sub.entries.length+" athlètes évaluées"),
+            morte?h("div",{style:{marginTop:"6px"}},
+              tok("box",{label:"Corrigée — ne compte plus",icon:"✎",color:"var(--warn)"})):null,
+            sub.replaces?h("div",{className:"muted",style:{marginTop:"4px"}},
+              "✎ Corrige une soumission précédente du même évaluateur"):null),
           h("div",{className:"btn-row",style:{flexShrink:"0"}},
             /* Relire avant de juger : le contenu exact de ce qui a été
                rendu, athlète par athlète, et sans un champ modifiable. */
@@ -11418,7 +11629,8 @@ function renderSubmissionsPane(squad,campaignId){
             h("button",{className:"btn btn-export xs",title:"Exporter en fichier",onclick:function(){
               exportReceivedSubmission(squad,sub);
             }},"📤"),
-            h("button",{className:"btn btn-danger-o xs",onclick:function(){
+            h("button",{className:"btn btn-danger-o xs","aria-label":"Supprimer la soumission",
+              onclick:function(){
               openConfirm({
                 title:"Supprimer la soumission de "+(sub.selectorName||"—")+" ?",
                 body:"Rien ne la ramènera : ni un nouveau relevé, qui ne redemande que ce qui est plus "+
@@ -11438,7 +11650,8 @@ function renderSubmissionsPane(squad,campaignId){
           var r=e.reco?RECO_BY_KEY[e.reco]:null,seen=dataFilled(e);
           return h("span",{className:"badge",style:{background:(r?r.color:"#334155")+"20",color:r?r.color:(seen?"#94A3B8":"#94A3B8"),fontSize:"11px",padding:"3px 7px",opacity:seen?"1":".55"}},
             numLabel(e.number)+(r?" "+r.icon:""));
-        }))));
+        })));
+      wrap.appendChild(carte);
     });
   });
   return wrap;
@@ -11915,16 +12128,37 @@ function renderSvSubmit(){
     }
     suite();
   }
+  /* Soumettre une seconde fois dit deux choses très différentes, et
+     l'application ne peut pas trancher à la place de qui a vu jouer.
+     « Je m'étais trompé » doit REMPLACER — sinon la note fautive survit
+     dans la moyenne, pour toujours. « J'ai revu ces athlètes » doit
+     s'ajouter — deux séances valent mieux qu'une. D'où la question, posée
+     une seule fois, et seulement à qui a déjà soumis. */
+  var correction=state.svResubmit!=="ajout";
+  if(v.submittedAt){
+    wrap.appendChild(h("div",{className:"section-title"},"Cette soumission"));
+    wrap.appendChild(segmented({label:"Nature de la soumission",
+      value:correction?"correction":"ajout",
+      options:[{k:"correction",l:"✎ Je corrige"},{k:"ajout",l:"➕ Nouvelle séance"}],
+      onpick:function(k){state.svResubmit=k;render()}}));
+    wrap.appendChild(h("div",{className:"hint"},
+      correction
+        ? "Votre soumission précédente sera REMPLACÉE : ses notes et ses compteurs ne compteront plus. C'est ce qu'il faut choisir après une erreur."
+        : "Votre soumission précédente est CONSERVÉE : les notes et les compteurs des deux séances s'additionneront, et votre avis sera le plus récent."));
+  }
   var submitBtn=h("button",{className:"btn btn-save full",style:{marginTop:"16px"},disabled:syncBusy,onclick:function(){
     guard(function(){
+      var o={correction:!!(v.submittedAt&&correction)};
       if(src.kind==="local"){
-        submitLocalView(src.season,v);
-        showToast("✅ Statistiques soumises à l'entraîneur",{tone:"ok"});
+        submitLocalView(src.season,v,o);
+        showToast(o.correction?"✎ Soumission corrigée"
+                              :"✅ Statistiques soumises à l'entraîneur",{tone:"ok"});
+        state.svResubmit=null;
         state.tab="sv_views";render();
       } else if(canUpload){
-        uploadSubmission(v);
+        uploadSubmission(v,o);
       } else {
-        exportSubmission(v);render();
+        exportSubmission(v,o);render();
       }
     });
   }},syncBusy?"⏳ Téléversement…":(src.kind==="local"?"✅ Soumettre les statistiques"
@@ -11934,7 +12168,8 @@ function renderSvSubmit(){
     guard(function(){exportSubmission(v);render()});
   }},"📤 Plutôt générer un fichier (secours hors-ligne)"));
   if(v.submittedAt)wrap.appendChild(h("div",{className:"muted",style:{textAlign:"center",marginTop:"8px"}},
-    "Dernière soumission : "+fmtDate(v.submittedAt)+" · vous pouvez soumettre à nouveau après correction."));
+    "Dernière soumission : "+fmtDate(v.submittedAt)+
+    " · "+plural(v.submissionCount||1,"soumission")+" envoyée(s)."));
   wrap.appendChild(h("div",{style:{height:"20px"}}));
   return h("div",{className:"content pad","data-scroll-key":"sv-submit"},wrap);
 }
@@ -12056,7 +12291,16 @@ function retenuesDe(sq){
     vues[r.playerId]=1;
     out.push({entry:r,player:playerById(r.playerId),offer:o});
   });
-  return out.filter(function(x){return !!x.player});
+  out=out.filter(function(x){return !!x.player});
+  /* Ce qui ATTEND une réponse passe devant. Constituer une équipe de
+     douze, c'est douze gestes d'affilée : si les athlètes déjà tranchées
+     restent mêlées aux autres, on cherche sa prochaine ligne à chaque
+     fois, et on finit par en oublier une. */
+  var rang={pending:0,"":1,accepted:2,declined:3};
+  return out.sort(function(a,b){
+    var ra=rang[(a.offer&&a.offer.status)||""],rb=rang[(b.offer&&b.offer.status)||""];
+    return (ra===rb)?0:(ra-rb);
+  });
 }
 function renderBuildTeamModal(){
   var sq=curSquad();
@@ -12130,27 +12374,44 @@ function renderBuildTeamModal(){
               dim:x.entry.membership==="left"}),
             rouvrir);
         }
-        var actions=h("div",{className:"bt-act"},
-          h("button",{className:"btn btn-save sm",type:"button",disabled:!enAttente,
-            "aria-label":"Confirmer "+fullName(x.player),
-            onclick:function(){
-              acceptOffer(sq,o.id,state.meId||null);
-              showToast("🤝 "+shortName(x.player)+" rejoint l'équipe",{tone:"ok"});
-              render();
-            }},"Confirmer"),
-          h("button",{className:"btn btn-danger-o sm",type:"button",
-            disabled:!(o&&o.status!=="declined"),
-            "aria-label":"Archiver l'offre de "+fullName(x.player),
-            onclick:function(){
-              confirmAct("Archiver l'offre de "+fullName(x.player)+" ?\n"+
-                "Son offre passe à « refusée » et elle sort de l'équipe. "+
-                "Sa fiche, ses statistiques et ses matchs sont conservés.",
-                function(){
-                  declineOffer(sq,o.id,state.meId||null);
-                  showToast("📁 Offre archivée");
-                  render();
-                },{confirm:"Archiver"});
-            }},"Archiver"));
+        /* Un bouton grisé n'est pas un état : c'est un bouton qui ne marche
+           pas. Constituer une équipe de douze est une suite de douze gestes ;
+           si les lignes déjà traitées gardent un « Confirmer » inerte, on
+           cherche sa prochaine ligne à chaque fois. Une offre acceptée dit
+           donc ce qu'elle est devenue, et ne laisse que le geste qui la
+           défait. */
+        var archiver=h("button",{className:"btn btn-danger-o sm",type:"button",
+          "aria-label":"Archiver l'offre de "+fullName(x.player),
+          onclick:function(){
+            confirmAct("Archiver l'offre de "+fullName(x.player)+" ?\n"+
+              "Son offre passe à « refusée » et elle sort de l'équipe. "+
+              "Sa fiche, ses statistiques et ses matchs sont conservés.",
+              function(){
+                declineOffer(sq,o.id,state.meId||null);
+                showToast("📁 Offre archivée");
+                render();
+              },{confirm:"Archiver"});
+          }},"Archiver");
+        var actions;
+        if(enAttente){
+          actions=h("div",{className:"bt-act"},
+            h("button",{className:"btn btn-save sm",type:"button",
+              "aria-label":"Confirmer "+fullName(x.player),
+              onclick:function(){
+                acceptOffer(sq,o.id,state.meId||null);
+                showToast("🤝 "+shortName(x.player)+" rejoint l'équipe",{tone:"ok"});
+                render();
+              }},"Confirmer"),
+            archiver);
+        } else if(o&&o.status==="accepted"){
+          actions=h("div",{className:"bt-act"},
+            h("span",{className:"bt-etat ok"},"🤝 Dans l'équipe"),archiver);
+        } else {
+          /* Retenue sans offre vivante : le modèle n'en crée qu'à la
+             décision, et une base reprise d'une v6 peut arriver ainsi. */
+          actions=h("div",{className:"bt-act"},
+            h("span",{className:"bt-etat"},"Retenue — aucune offre en cours"));
+        }
         return h("div",{className:"bt-row"},
           listRow({lead:x.entry.number||"—",name:fullName(x.player),
             meta:meta,decision:x.entry.status,
@@ -13908,6 +14169,8 @@ function render(){
 
   app.appendChild(renderHeader(title,leftEl,rightEl));
   app.appendChild(renderCtxBar());
+  var sb=renderStorageBanner();
+  if(sb)app.appendChild(sb);
   var fb=renderFoundBanner();
   if(fb)app.appendChild(fb);
   if(isCoachCtx()&&season)app.appendChild(renderSeasonBar());

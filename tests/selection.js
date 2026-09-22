@@ -429,11 +429,22 @@ const ERRORS=[];let PASS=0;
     await volet("Convoquées");
     const r=await page.evaluate(()=>{
       var sq=curSquad(),c2=sq.campaigns[1];
+      var lea=DB.players.filter(function(x){return x.firstName==="Léa"})[0];
       return {n:rosterOfCampaign(sq,c2.id).length,
-              attente:offersOfCampaign(sq,c2.id).filter(function(o){return o.status==="pending"}).length};
+              attente:offersOfCampaign(sq,c2.id).filter(function(o){return o.status==="pending"}).length,
+              leaDejaLa:sq.playerIds.indexOf(lea.id)!==-1,
+              leaStatut:(rosterEntry(sq,lea.id)||{}).status};
     });
     if(r.n<12)throw new Error("convoquées="+r.n);
-    if(r.attente!==1)throw new Error("offres en attente sur la journée 2 = "+r.attente);
+    /* Léa est déjà dans l'équipe : la retenir à la journée 2 CONFIRME sa
+       place, elle ne la remet pas en jeu. Refabriquer une offre lui
+       aurait valu de « confirmer » une athlète qui jouait déjà — et une
+       équipe de douze reconduite aurait produit douze offres fantômes. */
+    if(!r.leaDejaLa)throw new Error("Léa devrait déjà être dans l'équipe");
+    if(r.leaStatut!=="selected")throw new Error("statut de Léa="+r.leaStatut);
+    if(r.attente!==0)
+      throw new Error("offres fantômes sur la journée 2 = "+r.attente+
+        " (une athlète déjà dans l'équipe n'a rien à réaccepter)");
   });
   await step("la liste porte les deux filtres et les quatre tris",async()=>{
     await ouvrirFiltres();
@@ -607,11 +618,26 @@ const ERRORS=[];let PASS=0;
     if(mod!==0)throw new Error(mod+" élément(s) modifiable(s) dans une soumission relue");
   });
   await step("la décision se prend depuis le récap, et engendre l'offre",async()=>{
+    /* On ouvre la feuille d'une athlète qui n'est PAS déjà dans l'équipe :
+       c'est le cas qui engendre une offre. Celle qui y est déjà est
+       traitée juste après, et n'en reçoit aucune. */
+    await page.evaluate(()=>{if(state.modalType)closeModal()});
+    await page.waitForTimeout(200);
+    await page.evaluate(()=>{
+      var sq=curSquad(),cible=null;
+      (sq.roster||[]).forEach(function(r){
+        if(!cible&&sq.playerIds.indexOf(r.playerId)===-1)cible=r.playerId;
+      });
+      openModal("selathlete",cible);
+    });
+    await page.waitForTimeout(400);
     const avant=await page.evaluate(()=>{
       var sq=curSquad(),pid=state.modalCtx,c1=sq.campaigns[0];
       var e1=campaignEntry(sq,c1.id,pid);
-      return {pid:pid,equipe:sq.playerIds.length,j1:e1?e1.decision:null};
+      return {pid:pid,equipe:sq.playerIds.length,j1:e1?e1.decision:null,
+              dejaLa:sq.playerIds.indexOf(pid)!==-1};
     });
+    if(avant.dejaLa)throw new Error("le test vise une athlète déjà dans l'équipe");
     await page.locator(".modal .sel-decision button").filter({hasText:"Retenir"}).first().click();
     await page.waitForTimeout(400);
     const r=await page.evaluate((pid)=>{
@@ -633,6 +659,27 @@ const ERRORS=[];let PASS=0;
        d'un seul geste. */
     if(r.j1!==avant.j1)
       throw new Error("la décision de la journée 1 a changé : "+avant.j1+" → "+r.j1);
+    if(r.probs.length)throw new Error(r.probs.join(" / "));
+  });
+  await step("retenir une athlète DÉJÀ dans l'équipe ne lui refabrique pas d'offre",async()=>{
+    const r=await page.evaluate(()=>{
+      var sq=curSquad(),c2=sq.campaigns[1];
+      var pid=sq.playerIds[0];
+      if(!pid)return {saute:true};
+      var avant=offersOfCampaign(sq,c2.id).filter(function(o){return o.status==="pending"}).length;
+      convokeToCampaign(sq,c2.id,[pid],null);
+      setCampaignDecision(sq,c2.id,pid,"select",null);
+      var apres=offersOfCampaign(sq,c2.id).filter(function(o){return o.status==="pending"}).length;
+      return {avant:avant,apres:apres,
+              statut:(rosterEntry(sq,pid)||{}).status,
+              dansEquipe:sq.playerIds.indexOf(pid)!==-1,probs:checkV7(DB)};
+    });
+    if(r.saute)throw new Error("aucune athlète dans l'équipe");
+    if(r.apres!==r.avant)
+      throw new Error("offre fantôme : "+r.avant+" → "+r.apres+
+        " (elle jouait déjà, il n'y a rien à réaccepter)");
+    if(!r.dansEquipe)throw new Error("elle a quitté l'équipe");
+    if(r.statut!=="selected")throw new Error("statut="+r.statut);
     if(r.probs.length)throw new Error(r.probs.join(" / "));
   });
   await step("retirer la décision annule l'offre encore en attente",async()=>{

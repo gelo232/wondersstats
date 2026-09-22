@@ -1,0 +1,52 @@
+# Publication de l'application sur GitHub Pages.
+#
+# WonderStats est un site statique : index.html, le manifeste, le service
+# worker et l'icône. Il n'y a donc rien à construire — on publie le dépôt
+# tel quel, en écartant seulement ce qui n'appartient pas à l'application
+# (les tests, la documentation, le relais, qui se déploie ailleurs).
+#
+# ⚠️ Un réglage à faire UNE FOIS dans le dépôt, et qui ne peut pas l'être
+# depuis un fichier : Settings → Pages → Build and deployment → Source :
+# « GitHub Actions ». Sans lui, ce workflow échoue à la dernière étape.
+name: Déployer sur GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Un seul déploiement à la fois ; on ne coupe pas celui qui est en cours,
+# pour ne pas laisser le site à moitié publié.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deployer:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rassembler ce qui constitue l'application
+        run: |
+          mkdir -p site
+          cp index.html manifest.json sw.js icon.png superadmin.json site/
+          # Une page 404 qui renvoie sur l'application : ouvrir une adresse
+          # un peu fausse ne doit pas donner un cul-de-sac.
+          cp index.html site/404.html
+          ls -la site
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploiement
+        uses: actions/deploy-pages@v4
