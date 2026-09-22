@@ -764,6 +764,10 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .bt-count{font-size:var(--fs-xs);font-weight:700;color:var(--txt-dim);
   margin:var(--s2) 0;font-variant-numeric:tabular-nums}
 
+/* ── §18 · objectifs ────────────────────────────────────────── */
+.goalCard .rmeta{flex-wrap:wrap}
+.goalCard .bar{margin-top:var(--s1)}
+
 /* ── §14 · la campagne, toujours sous les yeux ────────────────
    Tout ce que montre la partie appartient à UNE campagne. La barre le
    dit en permanence, hors du contenu qui défile, et c'est par elle
@@ -6387,7 +6391,14 @@ function renderSeasonTab(){
    on convoque, on fait évaluer, on reçoit, on tranche. Le récap est
    au centre parce que c'est là qu'on passe le plus de temps — et
    c'est lui qui s'ouvre par défaut. */
+/* Cinq volets, tous bornés à la campagne ouverte. « Scores » réunit le
+   classement compilé de toute la campagne et la progression d'une
+   campagne à l'autre : c'est la lecture d'ensemble, là où « Récap »
+   descend athlète par athlète. Elle appartient à la sélection — c'est
+   là qu'on compare des candidates — et non au récap global, qui parle
+   de l'équipe constituée. */
 var SEL_PANES=[{k:"roster",l:"👥 Convoquées"},{k:"recap",l:"⚖️ Récap"},
+               {k:"scores",l:"📊 Scores"},
                {k:"views",l:"🎯 Vues"},{k:"subs",l:"📥 Soumissions"}];
 function selPaneKey(){
   for(var i=0;i<SEL_PANES.length;i++)if(SEL_PANES[i].k===state.selPane)return state.selPane;
@@ -6473,6 +6484,7 @@ function renderPartSelection(sq){
         onclick:function(){openModal("newcampaign")}},"+ Nouvelle campagne")})};
   }
   else if(pane==="roster")v=renderConvokedPane(sq,camp);
+  else if(pane==="scores")v={corps:renderEvalsPane(sq)};
   else if(pane==="views")v={corps:renderViewsPane(sq,camp.id)};
   else if(pane==="subs")v={corps:renderSubmissionsPane(sq,camp.id)};
   else v=renderCampaignRecapPane(sq,camp);
@@ -7608,25 +7620,931 @@ function renderEventPart(sq,k){
 
 /* ══ §18 PARTIE OBJECTIFS ══════════════════════════════════════
    Objectifs par athlète et pour l'équipe, recalculés à chaque
-   modification de données de performance, avec leurs marqueurs
-   d'atteinte et de régression.                                   */
-function renderPartGoals(sq){
-  return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
-    partHeader("Objectifs",null),
-    h("div",{className:"content pad","data-scroll-key":"part-goals"},
-      emptyState({icon:"📈",title:"Objectifs",
-        sub:"Cette partie arrive. Elle proposera à chaque athlète un objectif "+
-            "de progression recalculé à chaque relevé, réajusté quand il est "+
-            "atteint ou quand la performance recule."})));
+   modification de données de performance, réajustés quand ils sont
+   atteints ou quand la performance recule au-delà du bruit.      */
+
+/* ══════════════════════════════════════════════════════════════
+   §18  OBJECTIFS — le calcul
+
+   Un objectif se fixe sur l'efficacité d'une famille de gestes, et
+   se réévalue à chaque relevé. Trois issues seulement : atteint,
+   régression, ou rien — et « rien » est l'état normal de la plupart
+   des semaines d'une saison.
+
+   CE QUI FONDE LES SEUILS, ET CE QUI N'EST QU'UN CHOIX
+
+   Le bruit d'échantillonnage domine tout. Chaque geste vaut +1, 0 ou
+   −1 ; l'erreur-type d'une efficacité vaut donc à peu près
+   √(0,4 / volume). Une attaquante à 40 attaques par match fluctue
+   ainsi de ±0,10 d'un soir à l'autre par pur hasard. C'est de là que
+   viennent les volumes minimaux, le pas d'objectif (≈ 1,5 × l'erreur-
+   type) et le seuil de régression (≈ 2 ×, soit le double du pas).
+   L'asymétrie est voulue : on reconnaît un progrès tout de suite, on
+   ne déclare un recul qu'à contrecœur.
+
+   Les valeurs de départ par catégorie ne sont qu'une AMORCE À FROID :
+   une seule d'entre elles est réellement sourcée (l'efficacité
+   d'attaque senior, ≈ +0,23, qui correspond au hitting percentage
+   NCAA — même formule). Dès que l'équipe a assez de relevés, c'est sa
+   propre médiane qui sert de repère, et sa propre dispersion qui
+   donne le pas. Un barème universitaire américain n'a rien à dire à
+   une U13 québécoise ; son équipe, si.
+
+   Deux familles n'ont pas d'objectif chiffré, et il faut le dire :
+     · `habiletes` n'a aucun compteur négatif — sa valeur décrit le
+       type de ballon reçu, pas la qualité du geste ;
+     · `services` a une efficacité structurellement négative (aces
+       moins fautes) : même l'élite plafonne à l'équilibre, donc une
+       cible positive serait inatteignable par construction.
+   ══════════════════════════════════════════════════════════════ */
+
+var GOAL_THRESHOLDS={
+  services :{volumeMin:30, volumeObjectif:60,  pas:0.04, regression:0.08, fenetreMax:8,
+             plafond:0.00, depart:{U13:-0.15,U15:-0.15,U18:-0.10,U21:-0.07,SENIOR:-0.05}},
+  reception:{volumeMin:60, volumeObjectif:120, pas:0.05, regression:0.10, fenetreMax:8,
+             depart:{U13:0.35,U15:0.35,U18:0.45,U21:0.52,SENIOR:0.55}},
+  passes   :{volumeMin:100,volumeObjectif:200, pas:0.06, regression:0.12, fenetreMax:8,
+             depart:{U13:0.20,U15:0.20,U18:0.35,U21:0.50,SENIOR:0.60}},
+  attaques :{volumeMin:65, volumeObjectif:130, pas:0.05, regression:0.10, fenetreMax:8,
+             depart:{U13:0.02,U15:0.02,U18:0.08,U21:0.15,SENIOR:0.23}},
+  blocs    :{volumeMin:70, volumeObjectif:140, pas:0.05, regression:0.11, fenetreMax:8,
+             depart:null},
+  defense  :{volumeMin:50, volumeObjectif:100, pas:0.05, regression:0.10, fenetreMax:8,
+             depart:null},
+  habiletes:{volumeMin:30, volumeObjectif:null,pas:null, regression:null, fenetreMax:8,
+             depart:null}
+};
+/* Les familles sur lesquelles un objectif a un sens. */
+var GOAL_FAMILIES=FAMILY_KEYS.filter(function(f){
+  var t=GOAL_THRESHOLDS[f];return !!(t&&t.pas!=null);
+});
+function goalFamilyOk(fam){return GOAL_FAMILIES.indexOf(fam)!==-1}
+
+/* La catégorie d'une équipe, ramenée aux paliers du barème d'amorce. */
+function goalCategorie(sq){
+  var c=String((sq&&sq.category)||"").toUpperCase();
+  var m=/U(\d+)/.exec(c);
+  if(!m)return "SENIOR";
+  var n=+m[1];
+  if(n<=13)return "U13";
+  if(n<=15)return "U15";
+  if(n<=18)return "U18";
+  if(n<=21)return "U21";
+  return "SENIOR";
 }
+
+/* Les efficacités de la famille, athlète par athlète, sur toute la
+   saison — et seulement celles qui reposent sur assez de gestes. */
+function famValuesEquipe(sq,fam){
+  var t=GOAL_THRESHOLDS[fam],out=[];
+  if(!t)return out;
+  (sq.playerIds||[]).forEach(function(pid){
+    var st=emptyS();
+    (sq.sessions||[]).forEach(function(se){
+      (se.entries||[]).forEach(function(en){if(en.playerId===pid)addStats(st,en.stats)});
+    });
+    if(familyVolume(st,fam)>=t.volumeMin){
+      var e=familyEff(st,fam);
+      if(e!=null)out.push(e);
+    }
+  });
+  return out;
+}
+function medianeEquipe(sq,fam){
+  var v=famValuesEquipe(sq,fam);
+  if(v.length<3)return null;            /* trois athlètes, sinon ce n'est pas une équipe */
+  v.sort(function(a,b){return a-b});
+  var m=Math.floor(v.length/2);
+  return (v.length%2)?v[m]:(v[m-1]+v[m])/2;
+}
+function ecartTypeEquipe(sq,fam){
+  var v=famValuesEquipe(sq,fam);
+  if(v.length<3)return null;
+  var moy=v.reduce(function(a,b){return a+b},0)/v.length;
+  var s=v.reduce(function(a,b){return a+(b-moy)*(b-moy)},0)/v.length;
+  return Math.sqrt(s);
+}
+/* Le point de départ : la médiane de l'équipe d'abord, le barème
+   d'amorce seulement à froid. */
+function objectifDepart(sq,fam){
+  var med=medianeEquipe(sq,fam);
+  if(med!=null)return med;
+  var t=GOAL_THRESHOLDS[fam];
+  if(!t||!t.depart)return null;
+  var c=goalCategorie(sq);
+  return t.depart[c]!=null?t.depart[c]:t.depart.SENIOR;
+}
+/* Le pas : l'écart qui vaut la peine d'être visé. Hopkins situe le
+   plus petit changement qui compte à 0,2 écart-type entre athlètes ;
+   on ne descend jamais sous le bruit de mesure, sans quoi l'objectif
+   serait atteint ou manqué au hasard. */
+function pasObjectif(sq,fam){
+  var t=GOAL_THRESHOLDS[fam];
+  if(!t||t.pas==null)return null;
+  var ec=ecartTypeEquipe(sq,fam);
+  if(ec==null||!(ec>0.0001))return t.pas;
+  return Math.max(t.pas,0.2*ec);
+}
+
+/* Les relevés qui concernent un objectif, du plus ancien au plus
+   récent. Un objectif d'équipe somme toutes les athlètes du relevé. */
+function goalReleves(sq,g){
+  var kinds={};
+  ((g.context&&g.context.sections)||[]).forEach(function(k){
+    (sectionKinds(k)||[]).forEach(function(x){kinds[x]=true});
+  });
+  var explicites=(g.context&&g.context.eventKinds)||[];
+  if(explicites.length){kinds={};explicites.forEach(function(x){kinds[x]=true})}
+  var ses=(sq.sessions||[]).filter(function(se){
+    var ev=eventOf(sq,se);return !!(ev&&kinds[ev.kind]);
+  }).slice().sort(function(a,b){
+    var da=a.day||dayOf(a.date),db=b.day||dayOf(b.date);
+    return da<db?-1:(da>db?1:0);
+  });
+  var out=[];
+  ses.forEach(function(se){
+    var st=emptyS(),vu=false;
+    (se.entries||[]).forEach(function(en){
+      if(g.scope==="team"||en.playerId===g.playerId){addStats(st,en.stats);vu=true}
+    });
+    if(vu)out.push({at:se.day||dayOf(se.date),stats:st,id:se.id});
+  });
+  return out;
+}
+
+/* La fenêtre d'observation se définit par le VOLUME, jamais par un
+   nombre de matchs : une centrale fait six attaques un soir et trente
+   le lendemain. On remonte du plus récent au plus ancien jusqu'à
+   cumuler de quoi juger. Plancher de deux relevés : l'efficacité d'un
+   seul match mélange la forme du jour, la force de l'adversaire et le
+   hasard de l'échantillonnage. */
+function fenetreEff(releves,fam){
+  var t=GOAL_THRESHOLDS[fam],def=STAT_FAMILIES[fam];
+  if(!t||!def||t.volumeObjectif==null)return null;
+  var vol=0,pos=0,neg=0,n=0;
+  for(var i=releves.length-1;i>=0&&n<t.fenetreMax;i--){
+    var s=releves[i].stats,v=familyVolume(s,fam);
+    if(!v)continue;
+    def.pos.forEach(function(k){pos+=(s[k]||0)});
+    def.neg.forEach(function(k){neg+=(s[k]||0)});
+    vol+=v;n++;
+    if(vol>=t.volumeObjectif&&n>=2)break;
+  }
+  if(n<2)return null;
+  return {eff:(pos-neg)/vol,volume:vol,releves:n,
+          fiable:vol>=t.volumeObjectif,
+          se:Math.sqrt(0.4/vol)};
+}
+
+/* Garde-fou de qualité : l'efficacité d'attaque n'est juste que si les
+   attaques « réussies » sont saisies. Sans elles, le dénominateur ne
+   compte que les kills et les fautes, et le chiffre est gonflé — ce
+   n'est plus un pourcentage d'attaque. Mieux vaut le dire que fixer un
+   objectif sur une mesure fausse. */
+function saisieIncomplete(stats,fam){
+  if(fam!=="attaques")return false;
+  return (stats.atk_ok||0)===0&&((stats.atk_kill||0)+(stats.atk_err||0))>15;
+}
+
+/* Le recul médian de l'équipe entre les deux dernières fenêtres. Un
+   soir contre le meilleur club de la ligue fait reculer tout le monde ;
+   sans ce garde-fou, l'application déclarerait douze régressions
+   individuelles là où il n'y a qu'un calendrier difficile. */
+function reculMedianEquipe(sq,g){
+  if(g.scope!=="player")return 0;
+  var reculs=[];
+  (sq.playerIds||[]).forEach(function(pid){
+    if(pid===g.playerId)return;
+    var faux={scope:"player",playerId:pid,context:g.context,metric:g.metric};
+    var rel=goalReleves(sq,faux),fam=g.metric.family;
+    if(rel.length<3)return;
+    var recent=fenetreEff(rel,fam);
+    var avant=fenetreEff(rel.slice(0,rel.length-1),fam);
+    if(!recent||!avant)return;
+    reculs.push(avant.eff-recent.eff);
+  });
+  if(reculs.length<3)return 0;
+  reculs.sort(function(a,b){return a-b});
+  var m=Math.floor(reculs.length/2);
+  return (reculs.length%2)?reculs[m]:(reculs[m-1]+reculs[m])/2;
+}
+
+/* L'état d'un objectif, sans rien écrire. */
+function evaluerObjectif(sq,g){
+  var fam=g.metric&&g.metric.family;
+  var t=GOAL_THRESHOLDS[fam];
+  if(!t||t.pas==null)return {etat:"sans-objet"};
+  var rel=goalReleves(sq,g);
+  var cumul=emptyS();
+  rel.forEach(function(r){addStats(cumul,r.stats)});
+  if(saisieIncomplete(cumul,fam))
+    return {etat:"saisie-incomplete",
+            msg:"Les attaques « Réussie » ne sont pas relevées : l'efficacité serait gonflée."};
+  var fen=fenetreEff(rel,fam);
+  if(!fen)return {etat:"volume-insuffisant",manque:t.volumeObjectif,volume:0};
+  if(!fen.fiable)return {etat:"volume-insuffisant",manque:t.volumeObjectif-fen.volume,
+                         volume:fen.volume,valeur:fen.eff};
+  var pas=pasObjectif(sq,fam);
+  if(fen.eff>=g.target)
+    return {etat:"atteint",valeur:fen.eff,volume:fen.volume,
+            nouvelleBase:fen.eff,nouvelleCible:plafonner(fam,fen.eff+pas)};
+  var recul=g.baseline-fen.eff;
+  if(recul>=t.regression){
+    var reculEquipe=reculMedianEquipe(sq,g);
+    if(recul-reculEquipe<t.regression)
+      return {etat:"en-cours",valeur:fen.eff,volume:fen.volume,
+              contexte:"equipe",distance:g.target-fen.eff};
+    if((g.regressStreak||0)>=1)
+      return {etat:"regression",valeur:fen.eff,volume:fen.volume,
+              nouvelleBase:fen.eff,nouvelleCible:plafonner(fam,fen.eff+pas)};
+    return {etat:"regression-a-confirmer",valeur:fen.eff,volume:fen.volume,
+            distance:g.target-fen.eff};
+  }
+  return {etat:"en-cours",valeur:fen.eff,volume:fen.volume,
+          distance:g.target-fen.eff,tendance:fen.eff-g.baseline};
+}
+/* Le service ne peut pas viser au-dessus de l'équilibre : aces moins
+   fautes, même l'élite mondiale n'y passe pas durablement. */
+function plafonner(fam,v){
+  var t=GOAL_THRESHOLDS[fam];
+  if(t&&t.plafond!=null&&v>t.plafond)return t.plafond;
+  return v;
+}
+
+/* La signature des données de performance vues par un objectif :
+   change dès qu'un relevé change, et pas avant. C'est elle qui rend le
+   recalcul idempotent — rejouable sans gonfler l'historique. */
+function goalSignature(sq,g){
+  var rel=goalReleves(sq,g),sig="";
+  rel.forEach(function(r){sig+=r.id+":"+sumStats(r.stats)+";"});
+  return sig;
+}
+
+/* Le recalcul. Appelé après chaque modification de données de
+   performance, et à l'ouverture de la partie. N'écrit que si quelque
+   chose a bougé. */
+function recalcGoal(sq,g){
+  var sig=goalSignature(sq,g);
+  if(g.lastSig===sig)return null;
+  var r=evaluerObjectif(sq,g);
+  g.lastSig=sig;
+  g.updatedAt=nowISO();
+  var ev=null;
+  if(r.etat==="atteint"){
+    g.achievedAt=nowISO();
+    g.regressedAt=null;g.regressStreak=0;
+    g.baseline=r.nouvelleBase;g.target=r.nouvelleCible;g.targetAt=nowISO();
+    ev="achieved";
+  } else if(r.etat==="regression"){
+    g.regressedAt=nowISO();
+    g.regressStreak=0;
+    g.baseline=r.nouvelleBase;g.target=r.nouvelleCible;g.targetAt=nowISO();
+    ev="regressed";
+  } else if(r.etat==="regression-a-confirmer"){
+    g.regressStreak=(g.regressStreak||0)+1;
+    ev="progress";
+  } else {
+    g.regressStreak=0;
+    ev="progress";
+  }
+  g.history.push({at:nowISO(),value:(r.valeur==null?null:r.valeur),
+    target:g.target,volume:r.volume||0,event:ev,etat:r.etat});
+  if(g.history.length>GOAL_HISTORY_MAX)
+    g.history.splice(0,g.history.length-GOAL_HISTORY_MAX);
+  return r;
+}
+/* Tous les objectifs d'un squad. Une seule transaction : la partie
+   entière se recalcule ou rien. */
+function recalcGoals(sq){
+  if(!sq||!(sq.goals||[]).length)return 0;
+  var n=0;
+  Store.tx(function(){
+    sq.goals.forEach(function(g){
+      if(!g.active)return;
+      if(recalcGoal(sq,g))n++;
+    });
+  },"Recalcul des objectifs");
+  return n;
+}
+/* Les marqueurs comptés, pour l'écran et pour la tuile du tableau de
+   bord : combien d'objectifs atteints, combien de reculs notés. */
+function goalMarkers(sq){
+  var m={actifs:0,atteints:0,regressions:0};
+  (sq&&sq.goals||[]).forEach(function(g){
+    if(!g.active)return;
+    m.actifs++;
+    if(g.achievedAt)m.atteints++;
+    if(g.regressedAt)m.regressions++;
+  });
+  return m;
+}
+/* Créer un objectif : la cible naît du départ de l'équipe plus un pas.
+   On ne demande pas à l'entraîneur de deviner un chiffre. */
+function creerObjectif(sq,scope,playerId,fam){
+  if(!goalFamilyOk(fam))return null;
+  var depart=objectifDepart(sq,fam);
+  if(depart==null)depart=0;
+  var pas=pasObjectif(sq,fam)||0.05;
+  var g=mkGoal({scope:scope,playerId:scope==="team"?"":playerId,
+    metric:{kind:"familyEff",family:fam,statKey:"",perMatch:false},
+    baseline:depart,baselineAt:nowISO(),
+    target:plafonner(fam,depart+pas),targetAt:nowISO(),
+    minVolume:(GOAL_THRESHOLDS[fam]||{}).volumeObjectif||0});
+  g.regressStreak=0;g.lastSig="";
+  g.history.push({at:nowISO(),value:null,target:g.target,volume:0,event:"set",etat:"en-cours"});
+  Store.tx(function(){
+    Store.put("goals",g,sq);
+    recalcGoal(sq,g);
+  },"Nouvel objectif");
+  return g;
+}
+
+/* ── §18 · l'écran ─────────────────────────────────────────────── */
+
+var GOAL_ETATS={
+  "atteint":{label:"Atteint",icon:"🏅",color:"var(--ok)"},
+  "regression":{label:"Régression",icon:"⚠️",color:"var(--warn)"},
+  "regression-a-confirmer":{label:"Recul à confirmer",icon:"·",color:"var(--txt-dim)"},
+  "en-cours":{label:"En cours",icon:"→",color:"var(--accent-ink)"},
+  "volume-insuffisant":{label:"Trop peu de gestes",icon:"⏳",color:"var(--txt-faint)"},
+  "saisie-incomplete":{label:"Saisie incomplète",icon:"⚑",color:"var(--warn)"},
+  "sans-objet":{label:"Sans objet",icon:"—",color:"var(--txt-faint)"}
+};
+
+/* La carte d'un objectif : où l'on en est, ce qui est visé, et les
+   marqueurs — un objectif atteint et une régression notée ne
+   s'effacent pas, ils comptent. */
+function goalCard(sq,g,r){
+  var fam=g.metric.family,gfam=SG[fam]||{name:fam,color:"var(--accent)"};
+  var et=GOAL_ETATS[r.etat]||GOAL_ETATS["en-cours"];
+  var val=(r.valeur==null)?null:r.valeur;
+  /* La jauge se lit de la base à la cible, jamais de zéro : une
+     efficacité part de −1, et une barre partant de zéro mentirait. */
+  var bas=Math.min(g.baseline,val==null?g.baseline:val);
+  var haut=Math.max(g.target,val==null?g.target:val);
+  var etendue=(haut-bas)||1;
+
+  var marqueurs=[];
+  if(g.achievedAt)marqueurs.push(tok("box",{label:"Atteint le "+fmtShortDay(dayOf(g.achievedAt)),
+    icon:"🏅",color:"var(--ok)"}));
+  if(g.regressedAt)marqueurs.push(tok("box",{label:"Recul le "+fmtShortDay(dayOf(g.regressedAt)),
+    icon:"⚠️",color:"var(--warn)"}));
+  var atteints=(g.history||[]).filter(function(h){return h.event==="achieved"}).length;
+  var reculs=(g.history||[]).filter(function(h){return h.event==="regressed"}).length;
+  if(atteints>1)marqueurs.push(tok("dot",{label:atteints+" paliers franchis",color:"var(--ok)"}));
+  if(reculs>1)marqueurs.push(tok("dot",{label:reculs+" reculs notés",color:"var(--warn)"}));
+
+  return h("div",{className:"card goalCard"},
+    h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontWeight:"800",color:gfam.color}},gfam.name),
+        h("div",{className:"muted",style:{marginTop:"2px"}},
+          "Cible "+fmtEff(g.target)+" · départ "+fmtEff(g.baseline))),
+      h("span",{className:"badge",style:{background:"transparent",color:et.color,
+        borderColor:et.color}},et.icon+" "+et.label)),
+    h("div",{style:{marginTop:"8px"}},
+      bar({value:(val==null)?0:(val-bas),max:etendue,goal:(g.target-bas),
+           state:(r.etat==="atteint")?"reached":((r.etat==="regression"||r.etat==="regression-a-confirmer")?"down":"running"),
+           label:val==null?"Pas encore mesurable":("Aujourd'hui "+fmtEff(val)),
+           text:val==null?"—":(fmtEff(val)+" / "+fmtEff(g.target))})),
+    (r.etat==="volume-insuffisant")
+      ? h("div",{className:"muted",style:{marginTop:"6px"}},
+          "Encore "+Math.max(0,Math.round(r.manque||0))+" gestes avant de pouvoir juger — "+
+          "une efficacité sur trop peu de gestes ne dit rien.")
+      : null,
+    (r.etat==="saisie-incomplete")
+      ? h("div",{className:"hint warn",style:{marginTop:"6px"}},r.msg)
+      : null,
+    (r.etat==="regression-a-confirmer")
+      ? h("div",{className:"muted",style:{marginTop:"6px"}},
+          "Un recul est apparu. Il sera confirmé — ou démenti — au prochain relevé : "+
+          "on ne dit pas à une athlète qu'elle recule sur une seule mesure.")
+      : null,
+    (r.contexte==="equipe")
+      ? h("div",{className:"muted",style:{marginTop:"6px"}},
+          "Toute l'équipe a reculé autant : c'est le calendrier, pas l'athlète.")
+      : null,
+    marqueurs.length?h("div",{className:"rmeta",style:{marginTop:"8px"}},marqueurs):null,
+    h("div",{className:"btn-row",style:{marginTop:"8px"}},
+      h("button",{className:"btn btn-ghost sm",type:"button",
+        onclick:function(){openModal("goalhist",g.id)}},"📜 Historique"),
+      h("button",{className:"btn btn-danger-o sm",type:"button",
+        onclick:function(){
+          confirmAct("Clore l'objectif « "+gfam.name+" » ?\n"+
+            "Il cesse d'être recalculé. Son historique est conservé.",
+            function(){
+              Store.tx(function(){Store.patch("goals",g.id,{active:false},sq)},"Objectif clos");
+              showToast("🔒 Objectif clos");render();
+            },{confirm:"Clore"});
+        }},"Clore")));
+}
+
+/* L'historique : la trace de chaque recalcul, marqueurs compris. */
+function renderGoalHistModal(){
+  var sq=curSquad(),g=sq?Store.get("goals",state.modalCtx,sq):null;
+  if(!g)return null;
+  var gfam=SG[g.metric.family]||{name:g.metric.family};
+  var lignes=(g.history||[]).slice().reverse();
+  return sheetShell({title:"Historique — "+gfam.name,
+    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},
+    h("div",null,
+      h("div",{className:"hint"},
+        "Chaque recalcul laisse une trace. Les paliers franchis et les reculs "+
+        "notés ne s'effacent pas : c'est ce qui rend une progression lisible "+
+        "sur une saison."),
+      lignes.length?h("div",null,lignes.map(function(x){
+        var e=GOAL_EVENTS[x.event]||GOAL_EVENTS.progress;
+        return h("div",{className:"navRow",style:{cursor:"default"}},
+          h("span",{className:"nr-ico","aria-hidden":"true"},e.icon),
+          h("span",{className:"nr-body"},
+            h("span",{className:"nr-ttl"},e.label+(x.value==null?"":" · "+fmtEff(x.value))),
+            h("span",{className:"nr-sub"},
+              fmtDay(x.at)+" · cible "+fmtEff(x.target)+
+              (x.volume?" · "+plural(x.volume,"geste"):""))));
+      })):emptyState({icon:"📜",title:"Rien encore",small:true,
+        sub:"L'historique se remplit à chaque relevé."})));
+}
+defModal("goalhist",renderGoalHistModal,{autofocus:false});
+
+/* Choisir la famille d'un nouvel objectif. Les familles sans objectif
+   possible ne sont pas offertes, et on dit pourquoi. */
+function renderNewGoalModal(){
+  var sq=curSquad();if(!sq)return null;
+  var ctx=state.modalCtx||{},scope=ctx.scope||"player",pid=ctx.playerId||"";
+  var qui=scope==="team"?"l'équipe":fullName(playerById(pid)||{});
+  return sheetShell({title:"Nouvel objectif — "+qui,
+    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Annuler")]},
+    h("div",null,
+      h("div",{className:"hint"},
+        "La cible est calculée sur votre propre équipe : sa médiane comme point "+
+        "de départ, sa dispersion pour la hauteur du pas. Un barème venu "+
+        "d'ailleurs ne dirait rien de vos athlètes."),
+      h("div",{className:"section-title"},"Sur quoi porter l'effort"),
+      GOAL_FAMILIES.map(function(fam){
+        var g=SG[fam],dep=objectifDepart(sq,fam),pas=pasObjectif(sq,fam);
+        var deja=(sq.goals||[]).some(function(x){
+          return x.active&&x.scope===scope&&x.playerId===(scope==="team"?"":pid)&&
+                 x.metric.family===fam;
+        });
+        return h("button",{className:"navRow",type:"button",disabled:deja,
+          onclick:function(){
+            var ng=creerObjectif(sq,scope,pid,fam);
+            closeModal();
+            showToast(ng?"🎯 Objectif fixé":"⚠️ Objectif impossible",{tone:ng?"ok":null});
+            render();
+          }},
+          h("span",{className:"nr-ico","aria-hidden":"true"},"🎯"),
+          h("span",{className:"nr-body"},
+            h("span",{className:"nr-ttl",style:{color:g.color}},g.name),
+            h("span",{className:"nr-sub"},
+              deja?"Un objectif est déjà en cours"
+                  :(dep==null?"Aucun repère encore — l'équipe n'a pas assez joué"
+                             :("Départ "+fmtEff(dep)+" · pas "+fmtEff(pas)))),
+          h("span",{className:"nr-arw","aria-hidden":"true"},deja?"":"›")));
+      }),
+      h("div",{className:"hint",style:{marginTop:"10px"}},
+        "Les habiletés n'ont pas d'objectif chiffré : elles n'ont aucun compteur "+
+        "d'erreur, donc leur valeur décrit le type de ballon reçu, pas la qualité "+
+        "du geste. Au service, la cible est plafonnée à l'équilibre — l'efficacité "+
+        "y est la différence entre les aces et les fautes, et même au plus haut "+
+        "niveau elle ne passe pas durablement au-dessus de zéro.")));
+}
+defModal("newgoal",renderNewGoalModal,{autofocus:false});
+
+function renderPartGoals(sq){
+  /* Recalcul à l'ouverture : les relevés ont pu changer ailleurs. */
+  recalcGoals(sq);
+  var sujet=state.goalSujet==="team"?"team":"players";
+  var m=goalMarkers(sq);
+
+  var tete=h("div",{className:"partHead"},
+    h("button",{className:"ph-back",type:"button","aria-label":"Retour à la saison",
+      onclick:navBackToHub},"← Saison"),
+    h("div",{className:"ph-body"},
+      h("div",{className:"ph-ttl"},"Objectifs"),
+      h("div",{className:"ph-sub"},
+        m.actifs?(m.atteints+" atteint(s) sur "+m.actifs+
+                  (m.regressions?" · "+plural(m.regressions,"recul"):""))
+                :"aucun objectif fixé")),
+    null);
+
+  var barres=h("div",{className:"pill-row tight"},
+    segmented({label:"Sujet",value:sujet,
+      options:[{k:"players",l:"👥 Les athlètes"},{k:"team",l:"📊 L'équipe"}],
+      onpick:function(v){state.goalSujet=v;saveNow();render()}}));
+
+  var corps=h("div",null);
+
+  if(sujet==="team"){
+    var teamGoals=(sq.goals||[]).filter(function(g){return g.scope==="team"&&g.active});
+    corps.appendChild(h("div",{className:"hint"},
+      "Un objectif d'équipe se mesure sur la somme des athlètes — c'est la "+
+      "même mesure, à une autre échelle."));
+    if(!teamGoals.length)
+      corps.appendChild(emptyState({icon:"📊",title:"Aucun objectif d'équipe",
+        sub:"Fixez-en un pour suivre la progression collective sur une famille de gestes.",
+        action:h("button",{className:"btn btn-primary",type:"button",
+          onclick:function(){openModal("newgoal",{scope:"team"})}},"+ Fixer un objectif")}));
+    else {
+      teamGoals.forEach(function(g){corps.appendChild(goalCard(sq,g,evaluerObjectif(sq,g)))});
+      corps.appendChild(h("button",{className:"btn btn-ghost full",type:"button",
+        style:{marginTop:"8px"},
+        onclick:function(){openModal("newgoal",{scope:"team"})}},"+ Un autre objectif d'équipe"));
+    }
+    return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
+      tete,barres,h("div",{className:"content pad","data-scroll-key":"part-goals-team"},corps));
+  }
+
+  /* Par athlète : la liste, avec son avancement en un coup d'œil. */
+  var items=(sq.playerIds||[]).map(function(pid){
+    var objs=(sq.goals||[]).filter(function(g){
+      return g.active&&g.scope==="player"&&g.playerId===pid;
+    });
+    var etats=objs.map(function(g){return evaluerObjectif(sq,g)});
+    var atteints=objs.filter(function(g){return !!g.achievedAt}).length;
+    var reculs=objs.filter(function(g){return !!g.regressedAt}).length;
+    return {pid:pid,player:playerById(pid),entry:rosterEntry(sq,pid),
+            objs:objs,etats:etats,atteints:atteints,reculs:reculs};
+  }).filter(function(x){return !!x.player});
+
+  if(!items.length){
+    corps.appendChild(emptyState({icon:"📈",title:"Aucune athlète dans l'équipe",
+      sub:"Constituez l'équipe depuis la partie Sélection : les objectifs suivent l'effectif."}));
+  } else {
+    var tb=listToolbar({
+      key:"goals-players",items:items,
+      search:{of:function(x){return fullName(x.player)+" "+((x.entry&&x.entry.number)||"")},
+              placeholder:"Rechercher une athlète…"},
+      sorts:[
+        {key:"number",label:"Numéro",get:function(x){
+          var n=parseInt((x.entry&&x.entry.number)||"",10);return isFinite(n)?n:null}},
+        {key:"name",label:"Nom",get:function(x){return fullName(x.player)}},
+        {key:"age",label:"Âge",get:function(x){return ageOf(x.player)}},
+        {key:"result",label:"Résultat",get:function(x){return x.atteints}}
+      ],
+      filters:[
+        {key:"etat",label:"État",get:function(x){
+          if(x.reculs)return "regression";
+          if(!x.objs.length)return "aucun";
+          if(x.atteints===x.objs.length)return "atteint";
+          return "encours";},
+         options:[{k:"aucun",l:"Sans objectif"},{k:"encours",l:"En cours"},
+                  {k:"atteint",l:"Tous atteints"},{k:"regression",l:"En recul"}]}
+      ],
+      empty:function(){
+        return emptyState({icon:"🔍",title:"Aucune athlète",small:true,
+          sub:"Aucune ne correspond à ce que vous cherchez."});
+      },
+      rows:function(res){
+        return res.map(function(x){
+          var meta=[];
+          if(!x.objs.length)meta.push(tok("dot",{label:"Sans objectif",color:"var(--txt-faint)"}));
+          else meta.push(tok("dot",{label:x.atteints+"/"+x.objs.length+" atteints",
+            color:x.atteints===x.objs.length?"var(--ok)":"var(--txt-dim)"}));
+          if(x.reculs)meta.push(tok("box",{label:plural(x.reculs,"recul"),icon:"⚠️",
+            color:"var(--warn)"}));
+          return listRow({lead:(x.entry&&x.entry.number)||"—",
+            name:fullName(x.player),meta:meta,
+            trail:kpiInline(String(x.objs.length),"objectifs"),
+            onclick:function(){openModal("goalsathlete",x.pid)}});
+        });
+      }
+    });
+    corps.appendChild(tb);corps.appendChild(tb.list);
+  }
+
+  return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
+    tete,barres,h("div",{className:"content pad","data-scroll-key":"part-goals"},corps));
+}
+
+/* Les objectifs d'une athlète, en feuille. */
+function renderGoalsAthleteModal(){
+  var sq=curSquad(),pid=state.modalCtx;
+  if(!sq||!pid)return null;
+  var p=playerById(pid);if(!p)return null;
+  var e=rosterEntry(sq,pid);
+  var objs=(sq.goals||[]).filter(function(g){
+    return g.active&&g.scope==="player"&&g.playerId===pid;
+  });
+  var clos=(sq.goals||[]).filter(function(g){
+    return !g.active&&g.scope==="player"&&g.playerId===pid;
+  });
+  return sheetShell({title:fullName(p),
+    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},
+    h("div",null,
+      h("div",{className:"muted",style:{marginBottom:"8px"}},
+        numLabel((e&&e.number)||"")+" · "+plural(objs.length,"objectif")+" en cours"),
+      objs.length
+        ? h("div",null,objs.map(function(g){return goalCard(sq,g,evaluerObjectif(sq,g))}))
+        : emptyState({icon:"🎯",title:"Aucun objectif",small:true,
+            sub:"Fixez-en un : la cible se calcule sur votre équipe, pas sur un barème."}),
+      h("button",{className:"btn btn-primary full",type:"button",style:{marginTop:"8px"},
+        onclick:function(){openModal("newgoal",{scope:"player",playerId:pid})}},
+        "+ Fixer un objectif"),
+      clos.length?h("div",null,
+        h("div",{className:"section-title"},plural(clos.length,"objectif")+" clos"),
+        clos.map(function(g){
+          var gf=SG[g.metric.family]||{name:g.metric.family};
+          var at=(g.history||[]).filter(function(x){return x.event==="achieved"}).length;
+          return h("div",{className:"navRow",style:{cursor:"default"}},
+            h("span",{className:"nr-ico","aria-hidden":"true"},"🔒"),
+            h("span",{className:"nr-body"},
+              h("span",{className:"nr-ttl"},gf.name),
+              h("span",{className:"nr-sub"},
+                at?plural(at,"palier")+" franchi(s)":"aucun palier franchi")));
+        })):null));
+}
+defModal("goalsathlete",renderGoalsAthleteModal,{autofocus:false});
 /* ══ fin §18 ══════════════════════════════════════════════════ */
 
 /* ══ §19 PARTIE RÉCAP GLOBAL ═══════════════════════════════════
    La compilation des cinq autres parties, par athlète et pour
-   l'équipe entière. Rien n'y est stocké : tout s'y recalcule.    */
-function renderPartRecap(sq){
-  return renderSummaryTab();
+   l'équipe entière. Rien n'y est stocké : tout s'y recalcule.   */
+
+/* ══════════════════════════════════════════════════════════════
+   §19  RÉCAP GLOBAL — la compilation des cinq autres parties
+
+   Rien n'est stocké ici. Tout se recalcule à l'affichage, depuis les
+   mêmes fonctions que les parties : c'est la seule façon qu'un total
+   ne puisse pas contredire le détail dont il sort. Un cache persisté
+   se serait désynchronisé au premier score corrigé.
+
+   Deux sujets, comme partout : l'équipe entière, ou chaque athlète.
+   Et pour chacun, les cinq parties d'un coup d'œil — sélection,
+   entraînements, matchs, tournois, objectifs.
+   ══════════════════════════════════════════════════════════════ */
+
+/* Le cumul d'une athlète sur une section, toutes rencontres
+   confondues. Passe par le même périmètre que la partie, pour que les
+   deux écrans ne puissent pas dire deux chiffres différents. */
+function recapSectionStats(sq,k,pid){
+  var ses=sessionsOfSection(sq,k);
+  var out=emptyS();
+  ses.forEach(function(se){
+    (se.entries||[]).forEach(function(en){
+      if(pid==null||en.playerId===pid)addStats(out,en.stats);
+    });
+  });
+  return out;
 }
+/* Ce que chaque partie a à dire d'une athlète — ou de l'équipe quand
+   pid est nul. Un tableau de lignes prêtes à afficher. */
+function recapLignes(sq,pid){
+  var out=[];
+  ["training","matches","tournaments"].forEach(function(k){
+    var s=SECTION_BY_KEY[k],ses=sessionsOfSection(sq,k);
+    if(!ses.length)return;
+    var st=recapSectionStats(sq,k,pid),total=sumStats(st);
+    var rec={win:0,loss:0,draw:0};
+    ses.forEach(function(se){
+      var o=resultOutcome(se.result);
+      if(o==="win")rec.win++;else if(o==="loss")rec.loss++;else if(o==="draw")rec.draw++;
+    });
+    out.push({key:k,label:s.label,icon:s.icon,stats:st,total:total,
+      sessions:ses.length,record:rec,
+      sets:ses.filter(sessionIsSplit).length});
+  });
+  return out;
+}
+/* L'état de sélection d'une athlète, dit en une ligne. */
+function recapSelection(sq,pid){
+  var e=rosterEntry(sq,pid);
+  if(!e)return null;
+  var o=currentOffer(sq,pid);
+  return {statut:e.status,offre:o?o.status:"",
+          campagnes:campaignsOfPlayer(sq,pid).length,
+          membership:e.membership};
+}
+
+function renderPartRecap(sq){
+  /* Les objectifs sont recalculés ici aussi : un récap qui montrerait
+     un objectif périmé serait pire que muet. */
+  recalcGoals(sq);
+  var sujet=state.recapSujet==="players"?"players":"team";
+
+  var tete=h("div",{className:"partHead"},
+    h("button",{className:"ph-back",type:"button","aria-label":"Retour à la saison",
+      onclick:navBackToHub},"← Saison"),
+    h("div",{className:"ph-body"},
+      h("div",{className:"ph-ttl"},"Récap global"),
+      h("div",{className:"ph-sub"},
+        plural((sq.sessions||[]).length,"relevé")+" · "+
+        plural((sq.playerIds||[]).length,"athlète"))),
+    null);
+
+  var barres=h("div",{className:"pill-row tight"},
+    segmented({label:"Sujet",value:sujet,
+      options:[{k:"team",l:"📊 L'équipe"},{k:"players",l:"👥 Les athlètes"}],
+      onpick:function(v){state.recapSujet=v;saveNow();render()}}));
+
+  var corps=h("div",null);
+
+  if(sujet==="team"){
+    corps.appendChild(h("div",{className:"hint"},
+      "Tout ce qui suit se recalcule à l'affichage, depuis les mêmes "+
+      "chiffres que chaque partie — un total ne peut donc pas contredire "+
+      "le détail dont il sort."));
+
+    /* Sélection : où en est l'effectif. */
+    var camp=curCampaign(sq);
+    var attente=(sq.offers||[]).filter(function(o){
+      return o.status==="pending"&&offerIsLive(o)}).length;
+    var retenues=(sq.roster||[]).filter(function(r){return r.status==="selected"}).length;
+    corps.appendChild(h("div",{className:"section-title"},"🎯 Sélection"));
+    corps.appendChild(h("div",{className:"kpiGrid"},
+      kpi({label:"Dans l'équipe",value:String((sq.playerIds||[]).length),
+        hint:plural((sq.roster||[]).length,"convoquée")}),
+      kpi({label:"Retenues",value:String(retenues),
+        hint:attente?plural(attente,"offre")+" en attente":"toutes tranchées"}),
+      kpi({label:"Campagnes",value:String((sq.campaigns||[]).length),
+        hint:camp?campaignLabel(camp):""})));
+
+    /* Les trois parties de rencontres. */
+    var lignes=recapLignes(sq,null);
+    if(!lignes.length){
+      corps.appendChild(emptyState({icon:"📊",title:"Aucun relevé",
+        sub:"Les parties se rempliront dès le premier match ou la première séance relevée."}));
+    } else lignes.forEach(function(L){
+      var tuiles=[kpi({label:"Gestes",value:String(L.total),
+        hint:plural(L.sessions,"relevé")})];
+      if(L.record.win+L.record.loss+L.record.draw)
+        tuiles.push(kpi({label:"Bilan",
+          value:L.record.win+"–"+L.record.loss+(L.record.draw?"–"+L.record.draw:""),
+          hint:L.sets?plural(L.sets,"match")+" ventilé(s)":"non ventilés"}));
+      var atk=familyEff(L.stats,"attaques");
+      if(atk!=null)tuiles.push(kpi({label:"Efficacité attaque",value:fmtEff(atk),
+        hint:familyVolume(L.stats,"attaques")+" gestes"}));
+      corps.appendChild(h("div",{className:"section-title"},L.icon+" "+L.label));
+      corps.appendChild(h("div",{className:"kpiGrid"},tuiles));
+      corps.appendChild(h("div",{className:"card tight"},
+        L.total?renderStatFamilies(famProfile(L.stats))
+               :h("div",{className:"muted"},"Aucun compteur.")));
+    });
+
+    /* Toutes natures confondues : le chiffre que l'on cite. */
+    var tout=emptyS();
+    (sq.sessions||[]).forEach(function(se){
+      (se.entries||[]).forEach(function(en){addStats(tout,en.stats)});
+    });
+    if(sumStats(tout)){
+      corps.appendChild(h("div",{className:"section-title"},"🏐 Toute la saison"));
+      corps.appendChild(h("div",{className:"card tight"},
+        renderStatFamilies(famProfile(tout))));
+    }
+
+    /* Objectifs d'équipe et marqueurs. */
+    var m=goalMarkers(sq);
+    corps.appendChild(h("div",{className:"section-title"},"📈 Objectifs"));
+    if(!m.actifs){
+      corps.appendChild(h("div",{className:"muted"},
+        "Aucun objectif fixé. La partie Objectifs en propose, calculés sur cette équipe."));
+    } else {
+      corps.appendChild(h("div",{className:"kpiGrid"},
+        kpi({label:"Objectifs suivis",value:String(m.actifs),
+          hint:plural(m.atteints,"atteint")}),
+        kpi({label:"Reculs notés",value:String(m.regressions),
+          hint:m.regressions?"réajustés à la baisse":"aucun"})));
+      (sq.goals||[]).filter(function(g){return g.active&&g.scope==="team"})
+        .forEach(function(g){corps.appendChild(goalCard(sq,g,evaluerObjectif(sq,g)))});
+    }
+
+    return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
+      tete,barres,h("div",{className:"content pad","data-scroll-key":"part-recap-team"},corps));
+  }
+
+  /* Par athlète : la liste, puis la fiche complète en feuille. */
+  var items=(sq.roster||[]).map(function(r){
+    var pid=r.playerId,p=playerById(pid);
+    var tout=emptyS();
+    (sq.sessions||[]).forEach(function(se){
+      (se.entries||[]).forEach(function(en){if(en.playerId===pid)addStats(tout,en.stats)});
+    });
+    var objs=(sq.goals||[]).filter(function(g){
+      return g.active&&g.scope==="player"&&g.playerId===pid});
+    return {pid:pid,player:p,entry:r,stats:tout,total:sumStats(tout),
+            objs:objs,atteints:objs.filter(function(g){return !!g.achievedAt}).length,
+            dansEquipe:(sq.playerIds||[]).indexOf(pid)!==-1};
+  }).filter(function(x){return !!x.player});
+
+  var tb=listToolbar({
+    key:"recap-players",items:items,
+    search:{of:function(x){return fullName(x.player)+" "+(x.entry.number||"")},
+            placeholder:"Rechercher une athlète…"},
+    sorts:[
+      {key:"number",label:"Numéro",get:function(x){
+        var n=parseInt(x.entry.number||"",10);return isFinite(n)?n:null}},
+      {key:"name",label:"Nom",get:function(x){return fullName(x.player)}},
+      {key:"age",label:"Âge",get:function(x){return ageOf(x.player)}},
+      {key:"result",label:"Résultat",get:function(x){return x.total}}
+    ],
+    filters:[
+      {key:"decision",label:"Décision",get:function(x){return x.entry.status},
+       options:STATUS_ORDER.map(function(k){return {k:k,l:STATUSES[k].label}})},
+      {key:"offre",label:"Offre",get:function(x){return offerStatusOf(sq,x.pid)},
+       options:OFFER_KEYS.map(function(k){return {k:k,l:OFFER_STATUS[k].label}})},
+      {key:"equipe",label:"Effectif",get:function(x){return x.dansEquipe?"oui":"non"},
+       options:[{k:"oui",l:"Dans l'équipe"},{k:"non",l:"Hors effectif"}]}
+    ],
+    empty:function(){
+      return emptyState({icon:"🔍",title:"Aucune athlète",small:true,
+        sub:"Aucune ne correspond à ce que vous cherchez."});
+    },
+    rows:function(res){
+      return res.map(function(x){
+        var meta=[];
+        if(STATUSES[x.entry.status])meta.push(tok("pill",STATUSES[x.entry.status]));
+        var os=offerStatusOf(sq,x.pid);
+        if(os&&os!=="accepted"&&OFFER_STATUS[os])meta.push(tok("box",OFFER_STATUS[os]));
+        if(x.entry.membership!=="active"&&MEMBERSHIPS[x.entry.membership])
+          meta.push(tok("dot",MEMBERSHIPS[x.entry.membership]));
+        if(x.objs.length)meta.push(tok("dot",{label:x.atteints+"/"+x.objs.length+" objectifs",
+          color:"var(--txt-dim)"}));
+        return listRow({lead:x.entry.number||"—",name:fullName(x.player),meta:meta,
+          decision:x.entry.status,dim:x.entry.membership==="left",
+          trail:kpiInline(String(x.total),"gestes"),
+          onclick:function(){openModal("recapathlete",x.pid)}});
+      });
+    }
+  });
+  corps.appendChild(tb);corps.appendChild(tb.list);
+
+  return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
+    tete,barres,h("div",{className:"content pad","data-scroll-key":"part-recap"},corps));
+}
+
+/* La fiche complète d'une athlète : les cinq parties réunies. C'est le
+   document qu'on ouvre devant elle, ou devant ses parents. */
+function renderRecapAthleteModal(){
+  var sq=curSquad(),pid=state.modalCtx;
+  if(!sq||!pid)return null;
+  var p=playerById(pid);if(!p)return null;
+  var e=rosterEntry(sq,pid);
+  var sel=recapSelection(sq,pid);
+  var lignes=recapLignes(sq,pid);
+  var objs=(sq.goals||[]).filter(function(g){
+    return g.active&&g.scope==="player"&&g.playerId===pid});
+  var tout=emptyS();
+  (sq.sessions||[]).forEach(function(se){
+    (se.entries||[]).forEach(function(en){if(en.playerId===pid)addStats(tout,en.stats)});
+  });
+  var a=ageOf(p);
+
+  var corps=h("div",null);
+  corps.appendChild(h("div",{className:"muted",style:{marginBottom:"8px"}},
+    [numLabel((e&&e.number)||""),
+     (e&&e.position&&POS_LABELS[e.position])?POS_LABELS[e.position]:null,
+     (a!=null)?a+" ans":null].filter(Boolean).join(" · ")));
+
+  /* Sélection. */
+  if(sel){
+    corps.appendChild(h("div",{className:"section-title"},"🎯 Sélection"));
+    var jetons=[];
+    if(STATUSES[sel.statut])jetons.push(tok("pill",STATUSES[sel.statut]));
+    if(sel.offre&&OFFER_STATUS[sel.offre])jetons.push(tok("box",OFFER_STATUS[sel.offre]));
+    if(MEMBERSHIPS[sel.membership])jetons.push(tok("dot",MEMBERSHIPS[sel.membership]));
+    corps.appendChild(h("div",{className:"rmeta"},jetons));
+    corps.appendChild(h("div",{className:"muted",style:{marginTop:"4px"}},
+      plural(sel.campagnes,"campagne")+" l'a vue"));
+  }
+
+  /* Les trois parties de rencontres. */
+  if(lignes.length){
+    lignes.forEach(function(L){
+      corps.appendChild(h("div",{className:"section-title"},L.icon+" "+L.label));
+      if(!L.total){
+        corps.appendChild(h("div",{className:"muted"},"Aucun relevé la concernant."));
+        return;
+      }
+      corps.appendChild(h("div",{className:"muted",style:{marginBottom:"4px"}},
+        plural(L.total,"geste")+" sur "+plural(L.sessions,"relevé")));
+      corps.appendChild(renderStatFamilies(famProfile(L.stats)));
+    });
+  }
+
+  /* Toute la saison. */
+  if(sumStats(tout)){
+    corps.appendChild(h("div",{className:"section-title"},"🏐 Toute la saison"));
+    corps.appendChild(renderStatFamilies(famProfile(tout)));
+    corps.appendChild(h("div",{className:"card tight",style:{marginTop:"8px"}},
+      h("div",{className:"muted",style:{marginBottom:"6px"}},"Le détail des compteurs"),
+      renderStatMini(tout)));
+  } else {
+    corps.appendChild(emptyState({icon:"📊",title:"Aucun relevé",small:true,
+      sub:"Cette athlète n'a encore aucun compteur cette saison."}));
+  }
+
+  /* Objectifs. */
+  corps.appendChild(h("div",{className:"section-title"},"📈 Objectifs"));
+  if(objs.length)objs.forEach(function(g){
+    corps.appendChild(goalCard(sq,g,evaluerObjectif(sq,g)));
+  });
+  else corps.appendChild(h("div",{className:"muted"},"Aucun objectif fixé."));
+
+  return sheetShell({title:fullName(p),
+    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},
+    corps);
+}
+defModal("recapathlete",renderRecapAthleteModal,{autofocus:false});
 /* ══ fin §19 ══════════════════════════════════════════════════ */
 
 var SECTION_RENDER={
@@ -9677,6 +10595,9 @@ function saveSession(team,opts){
   team.sessions.unshift(se);
   team.stats={};
   squad.setMarks=[];
+  /* « Recalculée automatiquement à chaque modification de données de
+     performance » : un match enregistré EST cette modification. */
+  recalcGoals(squad);
   var k=EVENT_KINDS[ev.kind]||EVENT_KINDS.league;
   logAct("match",k.label+" « "+nom+" »"+
     (adv?" contre "+adv:"")+

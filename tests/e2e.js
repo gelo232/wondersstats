@@ -338,9 +338,13 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(c.selecteurs!==2)throw new Error("sélectionneurs="+c.selecteurs);
     if(!c.tie)throw new Error("une égalité 1-1 doit être signalée, tie="+c.tie);
   });
-  await step("le Récap global → Évaluations affiche les scores",async()=>{
-    await partie("Récap global");
-    await page.locator(".pill").filter({hasText:"Évaluations"}).click();await page.waitForTimeout(200);
+  await step("Sélection → Scores affiche le classement compilé",async()=>{
+    /* v7 : le classement compilé d'une campagne appartient à la
+       sélection — c'est là qu'on compare des candidates. Le récap global
+       parle de l'équipe constituée, pas des tryouts. */
+    await partie("Sélection");
+    await page.locator(".pill").filter({hasText:"Scores"}).first().click();
+    await page.waitForTimeout(250);
     const t=await page.textContent("#app");
     if(!t.includes("Tremblay"))throw new Error("noms absents de la vue entraîneur");
     if(!/\d[.,]\d/.test(t))throw new Error("aucun score affiché");
