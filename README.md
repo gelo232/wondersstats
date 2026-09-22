@@ -11,7 +11,7 @@ server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
 GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
-tests/          suite de non-régression Playwright
+tests/          suite de non-régression Playwright — dix-huit suites
 ```
 
 ---
@@ -179,13 +179,31 @@ les matchs et n'évalue pas — ce sont des actes de terrain qui engagent leur a
 
 ### 👔 Entraîneur
 
+La barre du bas porte **trois axes**, pas une liste d'écrans :
+
 | Onglet | Rôle |
 |---|---|
-| 🗓️ **Saison** | Tableau de sélection · **campagnes d'évaluation** · **journal des décisions** · saisons |
-| 👥 **Joueuses** | Base de données partagée entre toutes les saisons · convocation |
-| ✏️ **Saisie** | Statistiques en direct — mode rapide ou mode grille |
-| 📊 **Récap** | Match en cours · cumul (filtrable par **nature** et par **rencontre**) · **⭐ évaluations par campagne** et **📈 progression** · **🏐 rencontres** |
-| 🎯 **Sélection** | Vues sélectionneur · publication · soumissions reçues |
+| 🗓️ **Saison** | Le tableau de bord des **six parties** de la saison |
+| 👥 **Athlètes** | La base du club, partagée entre toutes les saisons |
+| ⚙️ **Réglages** | Saisons · journal des décisions · sortie des données |
+
+Six onglets auraient tenu 62 px chacun sur un téléphone de 375 px, et tronqué
+quatre libellés sur six. Une barre d'onglets annonce des axes ; les contenus
+vivent dessous. L'onglet Saison ouvre donc un **tableau de bord de six tuiles**,
+chacune portant son chiffre du moment — ce qui reste à trancher, le bilan, les
+offres en attente. Une saison vide dit par où commencer.
+
+| Partie | Ce qu'elle porte |
+|---|---|
+| 🎯 **Sélection** | Les **campagnes**, et pour chacune : convoquées, récap, scores, vues, soumissions, décisions, offres |
+| 🎽 **Entraînements** | La performance en séance, par athlète et pour l'équipe |
+| 🤝 **Matchs** | Amicaux **et** championnat — par set, par match, sur tous les matchs |
+| 🎪 **Tournois** | Tous tournois confondus, par tournoi, par match, par set |
+| 📈 **Objectifs** | Objectifs d'athlète et d'équipe, recalculés à chaque relevé |
+| 📊 **Récap global** | La compilation des cinq autres, par athlète et pour l'équipe |
+
+La **saisie** n'est pas un onglet : c'est l'acte d'une partie de rencontres —
+« ✏️ Relever », qui propose d'emblée la nature de la partie d'où l'on vient.
 
 Il ne voit que **son** équipe : roster, statistiques, campagnes et soumissions.
 Il peut ajouter des athlètes à la base du club et inviter des sélectionneurs sur
@@ -230,9 +248,38 @@ Un tournoi se saisit une fois puis se complète : le second match propose
 « Rattacher à » la rencontre du jour. Chaque match garde **son propre adversaire**
 — il change à chaque tour — et son score par set, dont l'issue (V/D/N) est déduite.
 
-L'écran **🏐 Rencontres** regroupe les matchs sous leur rencontre, affiche le bilan
-de la saison décliné par nature, et le bouton 📊 d'une rencontre bascule le cumul
-sur elle seule.
+Les trois parties de rencontres — **Entraînements**, **Matchs**, **Tournois** —
+lisent les **mêmes** rencontres, filtrées par nature. Rien n'est dupliqué : une
+rencontre mal classée se corrige en changeant sa nature, jamais en la déplaçant.
+
+Le **championnat n'a pas de partie à lui** : il se compte et s'affiche exactement
+comme un amical, et lui donner son propre écran en aurait fait le jumeau de celui
+des amicaux. La partie **Matchs** couvre les deux, derrière un sélecteur
+`Amicaux · Championnat · Tous` qui n'apparaît que si la saison en contient.
+
+### Par set, par match, par tournoi, globalement
+
+Deux axes se croisent dans un seul écran, plutôt que dans huit écrans jumeaux :
+
+- le **niveau** — global → tournoi → match → set. On descend d'un appui, on
+  remonte par `← Remonter`, qui dit toujours où l'on retombe ;
+- le **sujet** — `📊 L'équipe` ou `👥 Les athlètes`. L'équipe n'est jamais une
+  donnée à part : c'est la somme de ses athlètes, et l'application le vérifie.
+
+Un tournoi a un niveau de plus qu'un match, parce qu'il porte plusieurs matchs.
+Un match seul n'a pas de niveau intermédiaire : on y descend droit.
+
+### Relever set par set
+
+Pendant la saisie, **⏭ Set suivant** pose une borne. Les sets sont les
+différences successives de ces bornes, la dernière étant le total : **leur somme
+vaut donc le total exactement, par construction**, et non par vérification. Rien
+n'est remis à zéro en cours de match, ce qui permet de corriger un compteur
+*après* avoir clos un set.
+
+Les matchs saisis avant cette possibilité ne sont **pas ventilés**. Ils
+s'affichent « Match (non ventilé) » et jamais « Set 1 » — on n'affirme pas une
+donnée qu'on n'a pas — et comptent à l'identique dans tous les cumuls.
 
 La date de la rencontre est distincte de l'horodatage de saisie : un tournoi joué
 samedi et saisi dimanche reste daté de samedi.
@@ -255,7 +302,7 @@ Le numéro n'est **jamais attribué automatiquement** — vous le saisissez.
 - à la création d'une fiche joueuse (champ *Numéro d'athlète*, facultatif) ;
 - en fin de ligne dans l'ajout en lot : `Léa Tremblay 7` ;
 - **et à tout moment ensuite**, directement dans la case de gauche du tableau
-  `🗓️ Saison → Sélection`.
+  `🗓️ Saison → 🎯 Sélection → 👥 Convoquées`.
 
 Un numéro déjà pris est refusé, un doublon s'affiche en rouge, et les joueuses sans
 numéro sont signalées — c'est la seule information que verront vos sélectionneurs,
@@ -272,23 +319,30 @@ mi-saison, le bilan de mai. Chaque vue sélectionneur appartient à une campagne
 ```
 Sélection (août)     Léa · 2,5  ─┐
 Mi-saison (janvier)  Léa · 3,5  ─┼─▶  chaque campagne garde son score
-Fin de saison (mai)  Léa · 4,5  ─┘    Récap → 📈 Progression : +2,0
+Fin de saison (mai)  Léa · 4,5  ─┘    Sélection → 📊 Scores : +2,0
 ```
 
 Pour réévaluer les mêmes athlètes plus tard, **🔁 Réévaluer** duplique la vue dans
 une autre campagne avec des données **vierges** : aucune note périmée ne peut être
 resoumise par inadvertance.
 
-`🗓️ Saison → Campagnes` permet d'ouvrir, renommer, clore et supprimer une campagne.
+La **barre de campagne**, en tête de la partie Sélection, porte le nom de la
+campagne ouverte et son avancement. Elle ouvre la feuille **📅 Campagnes** : créer,
+renommer, clore, supprimer, et régler la formule du score. Les cinq volets —
+Convoquées, Récap, Scores, Vues, Soumissions — sont **bornés à la campagne
+ouverte**, ce qui est la seule garantie qu'on ne tranche pas la journée 1 en
+croyant trancher la 2.
+
 Une campagne close, comme une saison clôturée, disparaît du rôle sélectionneur.
+Supprimer une campagne emporte ses convocations et ses offres, et le dit avant.
 
 ---
 
 ## Comment se calcule le score
 
 Le score d'une athlète dans une campagne se construit en cinq temps. Chacun corrige
-un travers que la moyenne simple laissait passer. `Récap → ⭐ Évaluations → ⚖️ Formule`
-règle l'ensemble — **pour une équipe, sur toute sa saison, et pour chacune de ses
+un travers que la moyenne simple laissait passer.
+`🎯 Sélection → barre de campagne → ⚖️ Régler` règle l'ensemble — **pour une équipe, sur toute sa saison, et pour chacune de ses
 campagnes**. Comparer septembre à décembre n'a de sens que si les deux sont mesurés
 pareil. Chaque équipe a la sienne ; elle la conserve d'une saison à l'autre, tandis qu'une
 équipe créée après coup part des valeurs par défaut.
@@ -353,7 +407,7 @@ ceux qui se sont prononcés, pas ceux qui n'ont relevé que des compteurs.
 
 Les compteurs relevés le jour de la sélection ne sont pas un souvenir : c'est la
 **première mesure** de l'athlète. Une fois retenue, sa fiche de saison
-(`🗓️ Saison → Sélection`, dépliez-la) porte un bloc **« Depuis la sélection »** qui met
+(`🎯 Sélection → ⚖️ Récap`, ouvrez sa feuille) porte un bloc **« Depuis la sélection »** qui met
 face à face l'efficacité relevée ce jour-là et celle du cumul des matchs, famille par
 famille, avec l'écart.
 
@@ -383,8 +437,10 @@ Base de joueuses ──convocation──▶ Roster de la saison (numéros saisis
                                    compilation par joueuse
                      (somme des stats · moyenne/min/max par critère · avis)
                                         │
-                     ▼ Récap → ⭐ Évaluations   et   📈 Progression
-                     ▼ Saison → Sélection : Retenir / Recaller / Non retenue
+                     ▼ Sélection → 📊 Scores   et   📈 Progression
+                     ▼ Sélection → ⚖️ Récap : Retenir / Recaller / Non retenue
+                     ▼ une retenue reçoit une OFFRE en attente
+                     ▼ 👕 Constituer l'équipe : Confirmer / Archiver
                                         │
                              joueuses retenues ──▶ équipe de la saison
 ```
@@ -429,6 +485,85 @@ son équipe, jamais les soumissions — pas même la sienne une fois déposée.
 > Un jeton identifie, il n'authentifie pas : quiconque obtient un lien d'invitation
 > en prend l'identité. Révoquez-le si un appareil est perdu, et changez de salon
 > entre deux saisons.
+
+---
+
+## Offres — être retenue n'est pas avoir dit oui
+
+Retenir une athlète ne la met plus dans l'effectif. Elle reçoit une **offre de
+rejoindre l'équipe**, qui a trois états :
+
+| État | Ce qu'il veut dire |
+|---|---|
+| ⏳ **En attente** | Elle est retenue, elle n'a pas encore répondu |
+| 🤝 **Acceptée** | Elle est dans l'équipe |
+| ✖️ **Refusée** | Elle n'en sera pas — archivée |
+
+L'équipe se constitue par **👕 Constituer l'équipe**, en barre du bas de la partie
+Sélection. La feuille liste les retenues, et devant chacune deux gestes :
+
+- **Confirmer** — l'offre passe à *acceptée* et l'athlète entre dans l'effectif ;
+- **Archiver** — l'offre passe à *refusée* et l'athlète en sort. **Ni sa fiche, ni
+  ses statistiques, ni les matchs qu'elle a joués ne sont touchés** : elle a joué,
+  cela reste vrai.
+
+Une offre tranchée ne se réécrit pas — c'est un acte daté — mais elle se **rouvre**
+explicitement, et le journal le note. Retirer une décision annule une offre encore
+en attente ; elle reste en base, datée, parce qu'elle n'a engagé personne.
+
+Un effectif ne se remplit donc plus de joueuses qui n'ont pas répondu. C'est la
+seule différence de comportement entre la v6 et la v7 sur un geste existant.
+
+---
+
+## Objectifs
+
+Chaque athlète peut porter des **objectifs de progression**, recalculés à chaque
+relevé et réajustés d'eux-mêmes : relevés d'un pas quand ils sont atteints, ramenés
+au niveau réel quand la performance recule. Chaque palier franchi et chaque recul
+noté restent comptés.
+
+**Les seuils se calculent sur votre équipe**, pas sur un barème venu d'ailleurs :
+la médiane de l'effectif donne le point de départ, sa dispersion donne la hauteur
+du pas. Un classement universitaire américain n'a rien à dire d'une U13
+québécoise ; son équipe, si. Un barème par catégorie ne sert que d'amorce, au tout
+premier match, et une seule de ses cellules est réellement sourcée.
+
+### Ce que l'application refuse de dire
+
+C'est le plus important. Un objectif faux coûte plus cher que pas d'objectif.
+
+- **Sous le volume minimal, elle se taît.** Une efficacité sur trois services ne
+  dit rien. Chaque geste vaut +1, 0 ou −1, donc une efficacité fluctue d'environ
+  ±0,10 d'un match à l'autre par pur hasard quand l'athlète fait quarante gestes.
+  C'est ce bruit qui fixe tous les seuils — le pas vaut environ une fois et demie
+  l'erreur-type, le seuil de recul le double du pas.
+- **Un recul n'est déclaré qu'après confirmation** sur une seconde fenêtre. On ne
+  dit pas à une joueuse de quatorze ans qu'elle régresse sur une seule mesure.
+- **Un recul partagé par toute l'équipe n'est pas imputé à l'athlète** : si tout le
+  monde a baissé autant, c'est le calendrier, pas elle.
+- **Pas d'objectif sur les habiletés** : cette famille n'a aucun compteur d'erreur,
+  donc sa valeur décrit le type de ballon reçu, pas la qualité du geste.
+- **Au service, la cible est plafonnée à l'équilibre.** L'efficacité y est la
+  différence entre les aces et les fautes ; même au plus haut niveau elle ne passe
+  pas durablement au-dessus de zéro, et viser plus serait inatteignable par
+  construction.
+- **Si les attaques « réussie » ne sont pas saisies**, l'efficacité d'attaque est
+  gonflée et n'est plus un pourcentage d'attaque. L'application affiche « saisie
+  incomplète » plutôt qu'un objectif faux.
+
+La fenêtre d'observation se définit par le **volume**, jamais par un nombre de
+matchs : une centrale fait six attaques un soir et trente le lendemain.
+
+---
+
+## Récap global
+
+La compilation des cinq autres parties, par athlète et pour l'équipe entière.
+**Rien n'y est stocké** : tout se recalcule à l'affichage, depuis les mêmes
+fonctions que les parties. C'est la seule façon qu'un total ne puisse pas
+contredire le détail dont il sort — un cache se serait désynchronisé au premier
+score corrigé, sans que personne le voie.
 
 ---
 
@@ -477,6 +612,57 @@ vous publiez explicitement sur votre propre relais.
 ---
 
 ## Notes de version
+
+### v7.0 — la saison en six parties
+
+La refonte du profil entraîneur. Cinq onglets et quatorze volets menaient à
+vingt-quatre destinations par trente-huit chemins : près d'une destination sur deux
+s'atteignait de plusieurs façons, ce qui est la définition de s'y perdre. La
+sélection paraissait à trois endroits, les statistiques à deux.
+
+**Navigation.** Trois axes en barre du bas — Saison, Athlètes, Réglages — et un
+tableau de bord de six tuiles vivantes sous Saison. La saisie cesse d'être un
+onglet pour redevenir l'acte d'une partie (« ✏️ Relever »). Le journal et les
+saisons passent aux Réglages. Retaper l'onglet actif ramène à sa racine.
+
+**Sélection par campagne.** Une décision par campagne, là où le statut de saison
+n'en portait qu'une : une athlète recallée en journée 1 et retenue à l'extra avait
+une seule case pour deux décisions. Chaque campagne porte ses convoquées, son
+récap, ses scores, ses vues et ses soumissions. Dans le récap, chaque soumission se
+lit **en lecture seule** avant de trancher.
+
+**Offres.** Retenir envoie une offre en attente ; l'équipe se constitue en la
+confirmant. Archiver sort de l'effectif sans toucher aux statistiques.
+
+**Statistiques par set.** Les sets sont les différences successives d'instantanés
+cumulatifs, donc leur somme vaut le total du match par construction arithmétique —
+même après une correction faite une fois le set clos. Les matchs d'avant sont dits
+« non ventilés » et comptent à l'identique.
+
+**Objectifs.** Recalculés à chaque relevé, réajustés à l'atteinte comme au recul,
+avec leurs marqueurs. Les seuils sortent de la dispersion réelle de l'équipe.
+
+**Récap global.** La compilation des cinq parties, par athlète et pour l'équipe,
+sans rien stocker.
+
+**Préparation d'un hébergement serveur.** Une couche `Store` gouverne toutes les
+écritures : une collection par future table, un journal d'opérations horodaté et
+identifié, des transactions qui restaurent ce qu'elles ont touché si elles
+échouent. La sauvegarde devient progressive à deux vitesses — le journal part en
+quelques centaines de millisecondes, le bloc chiffré suit — et le journal est
+rejoué au démarrage s'il est en avance sur le bloc.
+
+**Corrigé au passage.** `window.confirm` ne s'affiche pas en PWA autonome : il
+renvoyait `false` sans rien montrer, donc l'action la plus destructrice de
+l'application échouait en silence. Remplacé par une confirmation maison dont le
+bouton porte le verbe (défaut B4 de l'audit). Le gris des libellés secondaires
+était à 3,75:1 de contraste, sous le seuil AA, partout dans l'application.
+
+**Compatibilité.** Le modèle v7 est strictement additif : aucun champ v6 retiré ni
+renommé, migration idempotente qui tourne à chaque chargement. Un export v7 relu
+par une v6 perdrait cependant la ventilation par set ; déployez la v7 partout avant
+de faire circuler des exports. Dix-huit suites de non-régression le vérifient, dont
+cinq neuves.
 
 ### v6.3 — les statistiques décident aussi
 

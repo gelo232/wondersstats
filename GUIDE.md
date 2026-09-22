@@ -14,13 +14,50 @@ recaller 2, écarter 3.
 
 ---
 
+## 0 · Se repérer
+
+La barre du bas porte **trois axes**, et rien d'autre :
+
+| | |
+|---|---|
+| 🗓️ **Saison** | le tableau de bord des six parties |
+| 👥 **Athlètes** | la base du club, ses fiches, ses numéros |
+| ⚙️ **Réglages** | saisons, journal des décisions, sortie des données |
+
+L'onglet Saison ouvre **six tuiles**, une par partie, chacune portant son chiffre
+du moment : ce qui reste à trancher, le bilan des matchs, les offres en attente,
+les objectifs atteints. C'est le seul endroit d'où l'on part, et il dit par où
+commencer.
+
+```
+🗓️ Saison ─┬─ 🎯 Sélection     campagnes · convoquées · récap · scores · vues · soumissions
+           ├─ 🎽 Entraînements  séances relevées
+           ├─ 🤝 Matchs         amicaux et championnat — par set, par match, tous
+           ├─ 🎪 Tournois       par tournoi, par match, par set
+           ├─ 📈 Objectifs      par athlète et pour l'équipe
+           └─ 📊 Récap global   les cinq parties réunies
+```
+
+Dans chaque partie, `← Saison` ou `← Remonter` ramène d'un cran, et dit toujours où
+l'on retombe. Retaper l'onglet Saison revient au tableau de bord.
+
+Deux choses à savoir tout de suite, parce qu'elles changent des gestes anciens :
+
+- **la saisie n'est pas un onglet.** On relève depuis la partie de la rencontre —
+  `🤝 Matchs → ✏️ Relever` — et la nature du match est déjà choisie ;
+- **retenir une athlète ne l'ajoute pas à l'équipe.** Elle reçoit une **offre en
+  attente**. L'équipe se constitue par `👕 Constituer l'équipe`, en bas de la partie
+  Sélection, où chaque offre se **confirme** ou s'**archive**.
+
+---
+
 ## 1 · La veille — le terrain administratif
 
 Rien de ce qui suit ne peut se faire dans le gymnase. Faites-le la veille.
 
 ### La saison et la campagne
 
-`🗓️ Saison → 📅 Campagnes`. Une saison neuve porte déjà une campagne ; renommez-la
+`🎯 Sélection → barre de campagne → 📅 Campagnes`. Une saison neuve porte déjà une campagne ; renommez-la
 en **« Sélection U14 — sept. 2026 »** et donnez-lui le type 🎯 *Sélection*.
 
 > **Pourquoi le type compte.** La campagne de type *Sélection* devient la **base de
@@ -30,7 +67,7 @@ en **« Sélection U14 — sept. 2026 »** et donnez-lui le type 🎯 *Sélectio
 
 ### Les athlètes et les dossards
 
-`👥 Joueuses → ⚡ Ajout en lot`. Une athlète par ligne :
+`👥 Athlètes → ⚡ Ajout en lot`. Une athlète par ligne :
 **`Prénom Nom [naissance] [dossard]`**
 
 ```
@@ -52,7 +89,7 @@ treize fiches à moitié saisies.
 
 Le numéro est facultatif ici, mais **c'est la seule chose que verront vos
 évaluateurs**. Un numéro manquant ou en double s'affiche en rouge dans
-`🗓️ Saison → 🎯 Sélection`, avec un bandeau d'avertissement. Corrigez-les là,
+`🎯 Sélection → ⚖️ Récap`, avec un bandeau d'avertissement. Corrigez-les là,
 directement dans la case de gauche, avant de composer les vues.
 
 L'ajout en lot n'interdit pas les doublons — il les signale après coup. Sur 28
@@ -87,7 +124,7 @@ La barre affiche aussi, **à chaque coche**, ce que la sélection engage :
 
 ### Retrouver une athlète dans la base : par nom, ou par âge
 
-`👥 Joueuses → 🗂️ Base de données` porte deux ordres, sous `Trier :`
+`👥 Athlètes → 🗂️ Base de données` porte deux ordres, sous `Trier :`
 
 | Bouton | Ce qu'il donne |
 |---|---|
@@ -104,13 +141,13 @@ Triez par naissance, passez en `☑️ Sélectionner`, cochez la cohorte,
 > lui inventer un âge. Si une athlète vous manque à l'appel d'une tranche, sa
 > naissance n'est pas saisie : ouvrez sa fiche.
 
-### Poser les numéros : l'onglet 🔢 Numérotation
+### Poser les numéros : le volet 🔢 Numérotation
 
 Vingt-huit dossards à attribuer, le soir avant le tryout. Les taper un par un dans le
 tableau de sélection marche, mais on ne voit pas ce qui reste libre — et on se
 retrouve à trois reprises sur le même 12.
 
-`👥 Joueuses → 🔢 Numérotation` met la série sous les yeux :
+`👥 Athlètes → 🔢 Numérotation` met la série sous les yeux :
 
 1. **La série de chasubles que vous avez en main.** `du 1 au 28`, ou `du 4 au 19`
    pour un club qui garde ses maillots. Non réglée, elle se devine de l'effectif
@@ -144,7 +181,7 @@ revenir à la liste.
 **Oui, à tout moment, et sans rien perdre.** Une athlète est identifiée par sa fiche,
 jamais par son numéro : renuméroter conserve ses évaluations, ses avis reçus, ses
 statistiques de match, sa progression entre campagnes et sa base de sélection. Le
-changement est inscrit au journal (`🗓️ Saison → 📜 Journal`, entrée 🔢 *Numéros*).
+changement est inscrit au journal (`⚙️ Réglages → 📜 Journal`, entrée 🔢 *Numéros*).
 
 Ce qui suit le nouveau numéro : les classements, les fiches, les exports CSV, et une
 vue ouverte sur place par `🎯 Ouvrir ici`.
@@ -162,7 +199,7 @@ Corrigez donc les dossards **avant** de distribuer les vues, pendant la prépara
 Ce sont **deux numéros différents**, et c'est normal : le dossard 1 à 28 se rend en
 sortant du gymnase, le maillot s'attribue une fois l'équipe formée. Après
 `👕 Composer l'équipe`, saisissez les numéros de saison des retenues, toujours au
-même endroit — la case de gauche de `🗓️ Saison → 🎯 Sélection`.
+même endroit — la case de gauche de `🎯 Sélection → ⚖️ Récap`.
 
 **Le dossard porté pendant la sélection n'est pas perdu pour autant.** Les écrans
 d'évaluation affichent les deux, pour que les commentaires des évaluateurs restent
@@ -190,7 +227,7 @@ poste est celui de **l'entraîneur** ; l'avis des évaluateurs ne l'écrasera ja
 ### Défaire une convocation
 
 On convoque vingt-huit athlètes d'un geste ; on doit pouvoir en retirer douze du
-même. `👥 Joueuses → 📋 Convoquées` ouvre deux boutons :
+même. `👥 Athlètes → 📋 Convoquées` ouvre deux boutons :
 
 - `☑️ Sélectionner` — vous cochez, puis `✕ Retirer de la convocation` en bas. Les
   raccourcis du haut prennent tout un statut d'un coup : `⛔ Non retenue (11)` après
@@ -201,12 +238,12 @@ même. `👥 Joueuses → 📋 Convoquées` ouvre deux boutons :
 **Ce que le retrait emporte est annoncé avant d'agir**, dans la barre de sélection
 puis dans la confirmation : les retenues qui sortent de l'effectif de la saison, celles qui ont
 déjà joué, les compteurs en cours de saisie qui seront effacés, les athlètes qui
-figurent dans une vue déjà distribuée. Le journal (`🗓️ Saison → 📜 Journal`) n'en
+figurent dans une vue déjà distribuée. Le journal (`⚙️ Réglages → 📜 Journal`) n'en
 garde **qu'une ligne**, avec les noms : ce fut un seul geste.
 
 > **Ce qui ne bouge pas.** Les fiches restent dans la base du club, avec leur
 > historique. Les matchs déjà enregistrés gardent leurs statistiques et restent
-> lisibles dans `📊 Récap → Cumul`. Et les évaluations reçues restent dans les
+> lisibles dans `📊 Récap global`. Et les évaluations reçues restent dans les
 > soumissions : **reconvoquer une athlète les fait réapparaître**, notes et avis
 > compris.
 >
@@ -331,7 +368,7 @@ Puis `📤 Soumettre la vue`, avant de quitter le gymnase.
 
 ## 4 · Lire le classement
 
-Retour en entraîneur : `📊 Récap → ⭐ Évaluations`.
+Retour en entraîneur : `🎯 Sélection → 📊 Scores`.
 
 Le bandeau rappelle la campagne lue et le nombre de soumissions. **Les campagnes ne
 se mélangent jamais** — un onglet « Toutes » existe, il vous avertit qu'il mêle des
@@ -383,8 +420,8 @@ Deux chemins mènent au même écran :
 
 | Chemin | Quand l'utiliser |
 |---|---|
-| `🗓️ Saison → 📅 Campagnes → ⚖️ Régler` | **avant la séance**, en préparant la campagne |
-| `📊 Récap → ⭐ Évaluations → ⚖️ Formule` | une fois les évaluations reçues, pour ajuster |
+| `🎯 Sélection → barre de campagne → ⚖️ Régler` | **avant la séance**, en préparant la campagne |
+| `🎯 Sélection → barre de campagne → ⚖️ Régler` | une fois les évaluations reçues, pour ajuster |
 
 La carte du premier écran affiche en permanence la formule en vigueur, sans
 avoir à ouvrir quoi que ce soit :
@@ -644,7 +681,7 @@ corrigée · amorti selon le nombre de regards.
 ```
 
 Toute modification est inscrite au **journal des décisions**
-(`🗓️ Saison → 📜 Journal`, entrée 🎚️ *Formule*) : on sait qui a changé quoi, et quand.
+(`⚙️ Réglages → 📜 Journal`, entrée 🎚️ *Formule*) : on sait qui a changé quoi, et quand.
 
 ---
 
@@ -694,7 +731,7 @@ jouent en même temps que les U21. La catégorie se règle sur l'équipe, dans
 
 Pour une **équipe qui existait déjà**, la nouvelle saison reprend **la formule du
 score**, et rien d'autre : roster, campagnes, vues et matchs repartent de zéro. Si
-vous voulez aussi reprendre l'effectif, `🗓️ Saison → 🗓️ Saisons → + Nouvelle saison`
+vous voulez aussi reprendre l'effectif, `⚙️ Réglages → 🗓️ Saisons → + Nouvelle saison`
 propose **« reprendre l'effectif d'une saison précédente »** — les joueuses
 reviennent au statut *Candidate*, avec leur numéro et leur position, à
 re-sélectionner.
@@ -710,7 +747,7 @@ Nouvelle saison d'une équipe existante
 
 ## 6 · Trancher
 
-`🗓️ Saison → 🎯 Sélection`. Les athlètes y sont classées par score, les non notées
+`🎯 Sélection → ⚖️ Récap`. Les athlètes y sont classées par score, les non notées
 en fin de liste.
 
 Trois boutons par ligne : ✅ 🔁 ⛔. Ou, pour aligner d'un coup sur les avis reçus :
@@ -738,7 +775,7 @@ apparaissent dans `✏️ Saisie`.
 
 Les recallées ne sont ni prises ni écartées : elles attendent une seconde séance.
 
-1. `🗓️ Saison → 📅 Campagnes → + Nouvelle campagne`. Type *Ponctuelle*, nom
+1. `🎯 Sélection → barre de campagne → + Nouvelle campagne`. Type *Ponctuelle*, nom
    **« Second regard — oct. 2026 »**. Elle devient active.
 2. `🎯 Sélection → + Nouvelle vue` : ne cochez que les recallées.
 3. Une vue par séance de pratique — les notes des deux séances s'additionnent,
@@ -777,14 +814,14 @@ chaque tour.
 
 ### Lire le cumul
 
-`📊 Récap → 🌐 Cumul` compose trois axes : la **nature**, la **rencontre**, et la
+`📊 Récap global` compose trois axes : la **nature**, la **rencontre**, et la
 **fenêtre** (toute la saison, 3, 5 ou 10 derniers matchs). Le bandeau rappelle en
 clair ce qui est cumulé.
 
 `÷ Par match` divise par le nombre de matchs joués par chacune : une titulaire à 8
 matchs et une arrivante à 1 deviennent comparables.
 
-`📊 Récap → 🏐 Rencontres` regroupe les matchs sous leur rencontre et affiche le
+`🤝 Matchs` et `🎪 Tournois` regroupe les matchs sous leur rencontre et affiche le
 bilan décliné par nature.
 
 ---
@@ -802,14 +839,14 @@ Nouvelle campagne, type 📈 *Mi-saison*. Puis, au choix :
 
 ### Lire la progression
 
-`📊 Récap → ⭐ Évaluations → 📈 Progression`, dès qu'il existe deux campagnes avec
+`🎯 Sélection → 📊 Scores → 📈 Progression`, dès qu'il existe deux campagnes avec
 des soumissions. Choisissez « De » et « À » : l'écart s'affiche globalement et
 critère par critère. Une athlète n'apparaît avec un écart que si elle a été évaluée
 **dans les deux**.
 
 ### Depuis la sélection
 
-Dépliez une athlète dans `🗓️ Saison → 🎯 Sélection`. Sous son cumul de matchs, le
+Dépliez une athlète dans `🎯 Sélection → ⚖️ Récap`. Sous son cumul de matchs, le
 bloc **« Depuis la sélection »** met face à face ce qu'elle valait au tryout et ce
 qu'elle vaut aujourd'hui :
 
@@ -862,7 +899,7 @@ Sans fichier, il reste une porte : **demander à l'évaluateur de soumettre à
 nouveau**. Son application garde sa vue et toutes ses saisies, et chaque envoi porte
 un identifiant neuf.
 
-Le journal (`🗓️ Saison → 📜 Journal`, nature 📥 *Soumissions*) garde la trace de la
+Le journal (`⚙️ Réglages → 📜 Journal`, nature 📥 *Soumissions*) garde la trace de la
 suppression — qui, quelle vue, quand — mais pas le contenu.
 
 ---
@@ -892,5 +929,5 @@ réussissent autant, la famille ne départage rien.
 part des statistiques étant à 50 % par défaut. Notes, avis et statuts ne bougent pas.
 `⚖️ Formule → Moyenne simple` rétablit l'ancien calcul.
 
-**Sauvegardez.** `🗓️ Saison → 🗓️ Saisons → 📤 Sauvegarde` avant chaque séance de
+**Sauvegardez.** `⚙️ Réglages → 🗓️ Saisons → 📤 Sauvegarde` avant chaque séance de
 sélection. Les données vivent dans le navigateur ; la phrase de passe ne se retrouve pas.

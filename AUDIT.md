@@ -337,3 +337,72 @@ documente, il ne prouve pas.
   groupes diffèrent entièrement.
 - **Quota `localStorage`** : ~5 Mo, très loin des besoins ; l'échec d'écriture est
   désormais signalé à l'utilisateur au lieu d'être avalé.
+
+
+---
+
+## Refonte v7 — ce qui a été corrigé, et ce qui restait à corriger
+
+_Ajouté lors de la refonte du profil entraîneur (v7.0)._
+
+### Défauts de cet audit enfin levés
+
+| # | Constat d'origine | État |
+|---|---|---|
+| **B4** | `confirm()` / `alert()` natifs mêlés à des modales maison ; `confirm()` bloqué en PWA standalone | **Corrigé.** C'était le plus grave : en mode autonome la boîte n'apparaît pas et renvoie `false`, donc l'action la plus destructrice de l'application échouait **en silence**. Les 29 appels passent par une confirmation maison dont le bouton porte le verbe |
+| **B5** | Aucune indication de duplication ni de validation à la saisie d'effectif | **Corrigé** depuis la v5, renforcé ici |
+| **C7** | Aucun test, aucun linter, aucune version affichée | **Corrigé** : dix-huit suites Playwright, dont cinq neuves en v7 |
+
+### Contrastes — mesurés, et sous le seuil
+
+Relevé pendant la refonte, absent des audits précédents : `#64748B`, le gris des
+libellés secondaires, est à **3,75:1** sur le fond de l'application et **3,07:1**
+sur les cartes — sous le seuil AA, partout où il porte du texte. Blanc sur le vert
+des boutons d'enregistrement : **2,54:1**. Corrigés, avec le passage de toute la
+palette en variables CSS.
+
+### Le piège qui aurait détruit des données
+
+`normalizeSquad` ne normalise pas `sq.sessions` par `Object.assign` : il le
+**reconstruit champ par champ en littéral**. Toute clé qu'il ne nomme pas est donc
+détruite à chaque chargement, **silencieusement**. Ajouter la ventilation par set
+sans étendre ce littéral aurait effacé une saison de saisie sans un message.
+`sets` et `splitAt` y sont désormais nommés, et un test le vérifie
+(`tests/migration.js`, invariant I13).
+
+La même mécanique vaut pour `sq.submissions` et `sq.subteams` : tout champ ajouté à
+l'une de ces trois collections doit être nommé dans son littéral.
+
+### Défauts trouvés en construisant la v7
+
+Cinq défauts du noyau v7 sont sortis en bâtissant la partie Sélection dessus, et un
+sixième en écrivant les tests de rencontres :
+
+1. la migration ne gardait que la première campagne : une athlète convoquée à la
+   seule journée 2 était reversée dans la journée 1 **à chaque rechargement** ;
+2. convoquer à une campagne ne recalculait pas le statut dérivé ;
+3. retirer une athlète de la saison laissait des convocations orphelines et des
+   offres en attente ;
+4. supprimer une campagne n'emportait ni ses convocations ni ses offres ;
+5. le registre de modales était déclaré après les écrans qui s'en servent : toute
+   modale déclarée depuis une partie était effacée en silence ;
+6. les scores miroirs d'un set créé en séance n'étaient pas rafraîchis, et
+   « Archiver » ne pouvait pas retirer une athlète qui avait déjà accepté.
+
+Aucun n'aurait été trouvé par relecture : tous l'ont été par un test qui comparait
+un chiffre à un autre, ou par un invariant vérifié après rechargement.
+
+### Ce qui reste ouvert
+
+- La modale de composition d'une vue propose encore le roster de la saison plutôt
+  que les convoquées de la campagne ; un raccourci « Les convoquées » y pallie.
+- Le budget vertical est tendu sur un téléphone de 375 × 667 : au-dessus d'un volet
+  s'empilent l'en-tête, la barre de contexte, la barre de saison, le bandeau de
+  partie, la barre de campagne, les pastilles de volet, puis la barre de liste.
+- Un export v7 relu par une v6 conserve les convocations, les offres et les
+  objectifs, mais **perd la ventilation par set** — conséquence du littéral
+  ci-dessus. La rétrocompatibilité descendante n'est donc pas promise.
+- Les valeurs de départ des objectifs par catégorie d'âge sont des extrapolations,
+  sauf une. Les seuils réellement utilisés se calculent sur la dispersion de
+  l'équipe, ce qui rend ce barème secondaire, mais il mériterait d'être remplacé
+  par des références mesurées.
