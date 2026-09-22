@@ -819,6 +819,15 @@ aucun moyen d'isoler ces lignes : ils ont maintenant leur « — Sans poste »,
 leur « — Aucune ». Dans « Ce qu'on regarde », le chiffre d'une nature
 ignorait la période déjà posée.
 
+**Filtrer et trier ne sont plus deux voyages.** Une liste réduite à ce
+qui reste à trancher est précisément celle qu'on veut ranger — et il
+fallait refermer la feuille des filtres, retrouver le bouton de tri, la
+rouvrir. Les deux tiennent maintenant dans une seule feuille, « Filtrer
+et trier » : on pose un filtre, on choisit un ordre, on sort une fois.
+Les deux boutons de la barre restent, parce qu'ils ne disent pas la même
+chose — l'un porte le nombre de filtres posés, l'autre le nom de l'ordre
+courant — mais ils ouvrent la même feuille.
+
 **Une recherche infructueuse n'était plus un cul-de-sac.** Ni croix pour
 l'effacer, ni ligne « 0 sur 20 · Tout effacer », et les écrans vides sur
 mesure n'offraient aucune sortie : il fallait vider le champ à la main.

@@ -907,12 +907,38 @@ hors ligne, les six écrans se rendent et le rechargement est servi par le
 service worker ; aucun débordement de page à 375, 768 et 1024, et la
 barre du bas ne masque jamais la dernière ligne.
 
+### M bis. Filtrer et trier, au même endroit
+
+Remonté à la relecture de la barre remaniée, et vrai : **on peut vouloir
+trier une liste filtrée**. C'est même le cas normal — une fois la liste
+réduite aux six athlètes qui restent à trancher, on veut les ranger par
+score. Or les deux vivaient dans deux feuilles qui s'excluaient : depuis
+« Filtrer », il fallait refermer, retrouver le bouton `⇅`, rouvrir, et
+perdre au passage la vue de ce qu'on venait de poser.
+
+Une seule feuille désormais, deux sections, titrée « Filtrer et trier ».
+Les deux boutons de la barre restent — ils ne disent pas la même chose,
+`⚙︎` porte le nombre de filtres posés et `⇅` le nom de l'ordre courant —
+mais ils mènent à la même feuille, chacun amenant sa section sous les
+yeux. Le tri porte sur ce que les filtres laissent passer, et la feuille
+le dit.
+
+Deux corrections mineures sont sorties de là. La règle qui masque le tri
+sous onze entrées vivait dans la barre seulement : la feuille pouvait
+donc proposer un ordre que la barre cachait. Elle est maintenant lue au
+même endroit par les deux. Et la feuille, reconstruite en entier à chaque
+geste — c'est ce qui met ses chiffres à jour — repartait du haut : sur
+une feuille qui porte les deux sections, choisir une option en bas
+ramenait le regard en tête de liste. Le défilement garde sa place, et
+seulement si c'est bien la même feuille qui revient.
+
 ### N. Vérification de ce dernier passage
 
-`tests/onglets.js` — onze contrôles, dont **dix échouent** sur la version
-d'avant. Les quatre premiers ouvrent réellement deux pages sur le même
+`tests/onglets.js` — douze contrôles, dont **onze échouent** sur la
+version d'avant. Les quatre premiers ouvrent réellement deux pages sur le même
 `localStorage` et vérifient, en rechargeant depuis une troisième, ce qui
 est vraiment sur le disque : que l'onglet resté ouvert rattrape le
 travail de l'autre, qu'aucun des deux ne l'efface en cas de divergence,
 que le journal de secours survit, et qu'un choix explicite — et lui seul
-— écrit par-dessus.
+— écrit par-dessus. Le douzième pose un filtre puis un ordre dans la même
+visite, et vérifie que la liste rendue est bien filtrée ET triée.

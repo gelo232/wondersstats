@@ -19,7 +19,7 @@
    ⚑ supprimer une fiche laissait une offre qui la désignait encore. */
 const {chromium}=require("playwright");
 const {sansRacine,franchirGarde,deverrouiller,ouvrirFiltres,fermerFeuilleListe,
-       accepterDialogue}=require("./gate-helper");
+       choisirOption,accepterDialogue}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -172,6 +172,42 @@ const ERRORS=[];let PASS=0;
     if(!rendues)throw new Error("aucune ligne rendue — la sonde ne mesure rien");
     if(lu!==rendues)
       throw new Error("« Toutes » annonce "+lu+" pour "+rendues+" lignes rendues");
+  });
+
+  await step("filtrer puis trier, sans quitter la feuille",async()=>{
+    /* Une liste réduite à ce qui reste à trancher est précisément celle
+       qu'on veut ranger. Filtres et tris vivaient dans deux feuilles qui
+       s'excluaient : il fallait refermer, retrouver « ⇅ », rouvrir. */
+    await ouvrirFiltres(A,"");
+    const vu=await A.evaluate(()=>{
+      const m=document.querySelector(".modal.listsheet");
+      return {titre:m.querySelector(".m-head h3").textContent,
+              filtres:!!m.querySelector(".ls-grp:not(.ls-grp-tri)"),
+              tri:!!m.querySelector(".ls-grp-tri")};
+    });
+    if(!vu.filtres)throw new Error("la feuille ne porte pas les filtres");
+    if(!vu.tri)throw new Error("la feuille ne porte pas le tri — il faut encore en sortir");
+    if(!/Filtrer et trier/.test(vu.titre))
+      throw new Error("le titre ne dit pas les deux : "+vu.titre);
+    /* Et les deux se posent d'affilée, dans la même visite. */
+    await choisirOption(A,"Retenue");
+    await choisirOption(A,"Numéro");
+    const etat=await A.evaluate(()=>{
+      const st=state.lists["recap-players"];
+      return {filtre:st.filters.decision||"",tri:st.sort||""};
+    });
+    await fermerFeuilleListe(A);
+    if(etat.filtre!=="selected")throw new Error("le filtre n'a pas été posé : "+etat.filtre);
+    if(etat.tri!=="number")throw new Error("le tri n'a pas été posé : "+etat.tri);
+    const nums=await A.evaluate(()=>[].slice.call(
+      document.querySelectorAll(".lt-list .listRow .lead"))
+      .map(e=>parseInt(e.textContent,10)).filter(n=>isFinite(n)));
+    if(nums.length<2)throw new Error("trop peu de lignes pour juger de l'ordre");
+    for(let i=1;i<nums.length;i++)
+      if(nums[i]<nums[i-1])throw new Error("la liste filtrée n'est pas triée : "+nums.join(","));
+    await A.evaluate(()=>{listReset("recap-players");
+      const st=state.lists["recap-players"];st.sort=null;st.dir=null;render()});
+    await A.waitForTimeout(250);
   });
 
   /* ══ La recherche ══════════════════════════════════════════ */

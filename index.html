@@ -6821,6 +6821,15 @@ function listReset(key){
   st.q="";st.filters={};
   return st;
 }
+/* Sous un certain nombre d'entrées, trier ne dit rien : on voit la liste
+   entière d'un regard. La règle vit ici pour que la barre et la feuille
+   la lisent au même endroit — sans quoi la feuille pouvait proposer un
+   tri que la barre cachait, ou l'inverse. */
+function listTriVisible(cfg){
+  var sorts=cfg.sorts||[];
+  var seuil=(cfg.minSort!=null)?cfg.minSort:11;
+  return !!(sorts.length&&(cfg.items||[]).length>=seuil);
+}
 /* Nombre de filtres réellement actifs — sert le compteur du repli. */
 function listActiveCount(cfg){
   var st=listState(cfg.key),n=0;
@@ -7003,8 +7012,7 @@ function listToolbar(cfg){
     var of=cfg.search&&cfg.search.of;
     var groupes=cfg.filters||[];
     var sorts=cfg.sorts||[];
-    var seuilTri=(cfg.minSort!=null)?cfg.minSort:11;
-    var triVisible=sorts.length&&(cfg.items||[]).length>=seuilTri;
+    var triVisible=listTriVisible(cfg);
     var actifs=0;
     groupes.forEach(function(f){if(st.filters[f.key])actifs++});
 
@@ -7461,42 +7469,52 @@ function renderLectureSheet(){
   var b=n.querySelector(".modal");if(b)b.className+=" listsheet";
   return n;
 }
+/* ── La feuille de liste : filtrer ET trier, au même endroit ────
+   Elles vivaient dans deux feuilles qui s'excluaient : une fois la liste
+   réduite aux six athlètes qui restent à trancher, on peut vouloir les
+   ranger par score — et il fallait refermer, retrouver le bouton `⇅`,
+   rouvrir. Or c'est précisément une fois filtrée qu'une liste mérite
+   d'être triée. Une seule feuille, deux sections, et les deux boutons de
+   la barre y mènent — chacun amenant sa section sous les yeux.
+
+   Les deux boutons restent : ils ne disent pas la même chose. `⚙︎` porte
+   le nombre de filtres posés, `⇅` le nom de l'ordre courant. */
 function renderListSheet(){
   var L=state.listSheet;if(!L)return null;
   var cfg=L.cfg,st=listState(L.key);
   var corps=h("div",null);
+  var filtres=cfg.filters||[];
+  var triVisible=listTriVisible(cfg);
 
-  if(L.quoi==="filtres"){
-    (cfg.filters||[]).forEach(function(f){
-      var n=listFacettes(cfg,f);
-      var opts=[{k:"",l:"Toutes"}].concat(f.options||[]);
-      corps.appendChild(h("div",{className:"ls-grp"},
-        h("div",{className:"ls-lbl"},f.label),
-        h("div",{className:"ls-opts",role:"group","aria-label":f.label},
-          opts.map(function(o){
-            var on=(st.filters[f.key]||"")===o.k;
-            var c=o.k===""?n.tout:(n.par[String(o.k)]||0);
-            var vide=!on&&!c;
-            var b=h("button",{className:"ls-opt"+(on?" on":"")+(vide?" vide":""),
-              type:"button",disabled:vide,
-              "aria-pressed":on?"true":"false",
-              "aria-label":f.label+" : "+o.l+" — "+plural(c,"entrée"),
-              onclick:function(){
-                st.filters[f.key]=on?"":o.k;
-                if(L.refresh)L.refresh();
-                repeindreDialogues();
-              }},
-              o.icon?h("span",{className:"ls-ico","aria-hidden":"true"},o.icon):null,
-              h("span",{className:"grow"},o.l),
-              h("span",{className:"ls-n"},String(c)));
-            return b;
-          }))));
-    });
-    if(!(cfg.filters||[]).length)
-      corps.appendChild(h("div",{className:"hint"},"Cette liste n'a pas de filtre."));
-  } else {
-    var sorts=cfg.sorts||[];
+  filtres.forEach(function(f){
+    var n=listFacettes(cfg,f);
+    var opts=[{k:"",l:"Toutes"}].concat(f.options||[]);
     corps.appendChild(h("div",{className:"ls-grp"},
+      h("div",{className:"ls-lbl"},f.label),
+      h("div",{className:"ls-opts",role:"group","aria-label":f.label},
+        opts.map(function(o){
+          var on=(st.filters[f.key]||"")===o.k;
+          var c=o.k===""?n.tout:(n.par[String(o.k)]||0);
+          var vide=!on&&!c;
+          var b=h("button",{className:"ls-opt"+(on?" on":"")+(vide?" vide":""),
+            type:"button",disabled:vide,
+            "aria-pressed":on?"true":"false",
+            "aria-label":f.label+" : "+o.l+" — "+plural(c,"entrée"),
+            onclick:function(){
+              st.filters[f.key]=on?"":o.k;
+              if(L.refresh)L.refresh();
+              repeindreDialogues();
+            }},
+            o.icon?h("span",{className:"ls-ico","aria-hidden":"true"},o.icon):null,
+            h("span",{className:"grow"},o.l),
+            h("span",{className:"ls-n"},String(c)));
+          return b;
+        }))));
+  });
+
+  if(triVisible){
+    var sorts=cfg.sorts||[];
+    corps.appendChild(h("div",{className:"ls-grp ls-grp-tri"},
       h("div",{className:"ls-lbl"},"Trier par"),
       h("div",{className:"ls-opts",role:"group","aria-label":"Trier"},
         sorts.map(function(o){
@@ -7516,28 +7534,59 @@ function renderListSheet(){
             h("span",{className:"ls-n"},on?(dir==="asc"?"↑ croissant":"↓ décroissant"):""));
         }))));
     corps.appendChild(h("div",{className:"hint"},
-      "Toucher l'ordre déjà choisi l'inverse."));
+      "Toucher l'ordre déjà choisi l'inverse. Le tri porte sur ce que les "+
+      "filtres laissent passer."));
   }
+  if(!filtres.length&&!triVisible)
+    corps.appendChild(h("div",{className:"hint"},"Cette liste n'a ni filtre ni tri."));
 
   var actifs=0;
-  (cfg.filters||[]).forEach(function(f){if(st.filters[f.key])actifs++});
+  filtres.forEach(function(f){if(st.filters[f.key])actifs++});
   var boutons=[h("button",{className:"btn btn-primary full",type:"button",
     onclick:fermerListSheet},"Voir les résultats ("+listApply(cfg).length+")")];
   if(actifs||st.q)boutons.unshift(h("button",{className:"btn btn-ghost full",type:"button",
     onclick:function(){listReset(L.key);if(L.refresh)L.refresh();repeindreDialogues()}},
     "Tout effacer"));
 
-  var n=sheetShell({title:L.quoi==="filtres"?"Filtrer":"Trier",
-    onclose:fermerListSheet,buttons:boutons},corps);
-  var b=n.querySelector(".modal");if(b)b.className+=" listsheet";
-  return n;
+  var titre=(filtres.length&&triVisible)?"Filtrer et trier"
+           :(triVisible?"Trier":"Filtrer");
+  var n2=sheetShell({title:titre,onclose:fermerListSheet,buttons:boutons},corps);
+  var b2=n2.querySelector(".modal");if(b2)b2.className+=" listsheet";
+
+  /* Venu par `⇅` : on amène la section du tri sous les yeux, une seule
+     fois — la feuille se reconstruit à chaque geste, et y revenir à
+     chaque clic de filtre serait insupportable. */
+  if(L.quoi==="tri"&&triVisible&&filtres.length&&!L.ancre){
+    L.ancre=true;
+    setTimeout(function(){
+      var g=document.querySelector(".modal.listsheet .ls-grp-tri");
+      if(g&&g.scrollIntoView)try{g.scrollIntoView({block:"start"})}catch(e){g.scrollIntoView()}
+    },0);
+  }
+  return n2;
 }
+
+/* La feuille est reconstruite en entier à chaque geste — c'est ce qui
+   met ses chiffres à jour. Elle repartait donc du haut à chaque option
+   touchée : sur une feuille qui porte maintenant les filtres ET le tri,
+   choisir en bas ramenait le regard en haut. On rend sa place au
+   défilement, et seulement si c'est bien la même feuille qui revient. */
 function repeindreDialogues(){
   var app=document.getElementById("app");if(!app)return;
   var vieux=app.querySelectorAll(".scrim.dlg");
-  for(var i=0;i<vieux.length;i++)vieux[i].parentNode.removeChild(vieux[i]);
+  var defil=0,signature="";
+  for(var i=0;i<vieux.length;i++){
+    var corps=vieux[i].querySelector(".m-body"),boite=vieux[i].querySelector(".modal");
+    if(corps&&corps.scrollTop){defil=corps.scrollTop;signature=(boite&&boite.className)||""}
+    vieux[i].parentNode.removeChild(vieux[i]);
+  }
   var n=renderConfirm()||renderPrompt()||renderListSheet()||renderLectureSheet();
-  if(n){n.className+=" dlg";app.appendChild(n)}
+  if(!n)return;
+  n.className+=" dlg";app.appendChild(n);
+  if(defil){
+    var b=n.querySelector(".modal"),c=n.querySelector(".m-body");
+    if(c&&b&&b.className===signature)c.scrollTop=defil;
+  }
 }
 
 /* ── showToast · confirmer sans interrompre ──────────────────────
