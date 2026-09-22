@@ -7,7 +7,7 @@
    jamais « Une nouvelle version est disponible » — le nouveau code
    n'arriverait qu'au chargement suivant, en silence. À bouger donc à
    chaque livraison, version de l'application ou simple correctif. */
-var CACHE = "wonderstats-v7-1-0";
+var CACHE = "wonderstats-v7-2-0";
 var SHELL = ["./", "./index.html", "./manifest.json", "./icon.png"];
 
 self.addEventListener("install", function (e) {
@@ -35,6 +35,24 @@ self.addEventListener("fetch", function (e) {
   if (req.method !== "GET") return;                       // jamais de POST en cache
   var url = new URL(req.url);
   if (url.origin !== self.location.origin) return;        // pas de cross-origin
+
+  /* La racine de confiance ne se met pas en cache d'abord. C'est elle
+     qui dit qui est le propriétaire du système : servie depuis le cache,
+     une rotation de clé — compromission, refondation — n'était prise en
+     compte qu'au démarrage SUIVANT. Le `cache:"no-cache"` du client
+     n'agit que sur le cache HTTP, pas sur nous. */
+  if (/superadmin\.json$/.test(url.pathname)) {
+    e.respondWith(
+      fetch(req).then(function (res) {
+        if (res && res.ok && res.type === "basic") {
+          var c2 = res.clone();
+          caches.open(CACHE).then(function (c) { c.put(req, c2); }).catch(function () {});
+        }
+        return res;
+      }).catch(function () { return caches.match(req); })
+    );
+    return;
+  }
 
   e.respondWith(
     caches.match(req).then(function (cached) {

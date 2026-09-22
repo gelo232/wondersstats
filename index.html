@@ -761,6 +761,12 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .bt-row:last-child{border-bottom:none}
 .bt-act{display:flex;gap:var(--s2);padding:0 var(--s1) 0 56px}
 .bt-act .btn{flex:1;min-height:var(--tap-lg)}
+.bt-lot{width:100%;display:flex;flex-direction:column;gap:var(--s2)}
+.bt-lot .pick-head{display:flex;align-items:center;gap:var(--s2)}
+.bt-lot .pick-warn{font-size:var(--fs-xs);color:var(--warn-ink);line-height:1.35}
+.bt-lot .btn-row{display:flex;gap:var(--s2)}
+.bt-lot .btn-row .btn{flex:1;min-height:var(--tap-lg)}
+.bt-row .listRow{flex:1}
 .bt-count{font-size:var(--fs-xs);font-weight:700;color:var(--txt-dim);
   margin:var(--s2) 0;font-variant-numeric:tabular-nums}
 
@@ -892,7 +898,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.1";
+var APP_VERSION = "7.2";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -990,6 +996,18 @@ var CRITERIA=[
 ];
 var CRIT_BY_KEY={};CRITERIA.forEach(function(c){CRIT_BY_KEY[c.key]=c});
 var RATING_MAX=5;
+/* Des notes venues d'ailleurs : on ne garde que les critères connus, et
+   seulement dans l'échelle. Tout le reste est écarté sans discuter. */
+function normRatings(r){
+  var o={};
+  if(!r||typeof r!=="object")return o;
+  CRITERIA.forEach(function(c){
+    var v=r[c.key];
+    if(typeof v!=="number"||!isFinite(v)||v<=0)return;
+    o[c.key]=Math.max(1,Math.min(RATING_MAX,Math.round(v)));
+  });
+  return o;
+}
 
 /* ══ §02 SÉMANTIQUE DES COULEURS ════════════════════════════════════
    Teinte = humeur, forme = axe, glyphe = valeur. Une teinte n'est
@@ -1296,7 +1314,24 @@ function todayISO(){
   var d=new Date();
   return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
 }
-function dayOf(iso){return String(iso||"").slice(0,10)}
+/* `nowISO()` est en UTC, `todayISO()` en heure locale. Couper les dix
+   premiers caractères d'un horodatage UTC donne donc le jour SUIVANT
+   pour tout ce qui se passe après 20 h en Amérique du Nord — c'est-à-dire
+   pour la quasi-totalité des entraînements et des matchs. Un palier
+   franchi le dimanche soir s'affichait « lundi », et deux campagnes
+   créées le même soir pouvaient s'inverser au tri. On reconstruit donc
+   la date dans le fuseau de l'appareil.
+
+   Une valeur déjà écrite par `todayISO()` (« 2026-09-21 ») est rendue
+   telle quelle : elle est déjà locale, la réinterpréter la décalerait. */
+function dayOf(iso){
+  var v=String(iso||"");
+  if(!v)return "";
+  if(v.length<=10)return v.slice(0,10);
+  var d=new Date(v);
+  if(isNaN(d.getTime()))return v.slice(0,10);
+  return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
+}
 function fmtDate(iso){try{return new Date(iso).toLocaleDateString("fr-CA",{year:"numeric",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"})}catch(e){return iso||""}}
 function fmtDay(iso){try{return new Date(iso).toLocaleDateString("fr-CA",{year:"numeric",month:"long",day:"numeric"})}catch(e){return iso||""}}
 function fmtShortDay(d){if(!d)return "?";try{return new Date(d+(d.length===10?"T12:00:00":"")).toLocaleDateString("fr-CA",{month:"short",day:"numeric",year:"numeric"})}catch(e){return d}}
@@ -1401,6 +1436,11 @@ function mkGoal(o){
     metric:{kind:"familyEff",family:"attaques",statKey:"",perMatch:false},
     context:{sections:["training","matches","tournaments"],eventKinds:[],window:"last5"},
     baseline:0,baselineAt:"",target:0,targetAt:"",minVolume:0,
+    /* `baseline` est l'AMORCE qui a fixé la cible — la médiane de
+       l'équipe au jour de la création. `reference` est ce que l'athlète
+       a réellement fait la première fois qu'on a pu la mesurer : c'est
+       elle, et elle seule, qui dit s'il y a recul. */
+    reference:null,referenceAt:"",
     achievedAt:null,regressedAt:null,active:true,auto:true,
     history:[]},o||{});
 }
@@ -1414,6 +1454,10 @@ function mkEvent(o){
 /* Un résultat est une suite de sets. L'issue s'en déduit — on ne stocke
    pas une victoire qu'on pourrait contredire en corrigeant un score. */
 function mkResult(){return {sets:[]}}
+/* Un set 0–0 n'a pas été joué : le compter « nul » faisait dire
+   « 0–0 / Nul » à une grille de score vide, et comptait un match sans
+   résultat dans le bilan. */
+function setJoue(x){return !!x&&((x.us||0)>0||(x.them||0)>0)}
 function setsOf(r){
   var w=0,l=0;
   ((r&&r.sets)||[]).forEach(function(x){
@@ -1421,7 +1465,10 @@ function setsOf(r){
   });
   return {won:w,lost:l};
 }
-function hasResult(r){return !!(r&&r.sets&&r.sets.length)}
+/* Une grille de sets tous à 0–0 n'est pas un résultat : c'est une
+   grille vide. La compter donnait « 0–0 · Nul » à un match dont
+   personne n'avait saisi le score, et ce faux nul entrait au bilan. */
+function hasResult(r){return !!(r&&r.sets&&r.sets.some(setJoue))}
 function resultLabel(r){
   if(!hasResult(r))return "";
   var s=setsOf(r);
@@ -1495,7 +1542,14 @@ function mkScoring(o){
     statShare:0.5,      /* part des statistiques dans le score */
     severity:true,      /* corriger la sévérité propre à chaque sélectionneur */
     reliability:1,      /* amortissement d'un score fondé sur peu de regards */
-    minVolume:5         /* gestes au-dessous desquels une famille ne dit rien */
+    /* 5 gestes ne disent rien. Le même fichier refuse de parler d'un
+       objectif sous 65 attaques, et l'application répète qu'« une
+       efficacité sur trois services ne dit rien » — mais le score de
+       SÉLECTION, la décision la plus lourde, notait une efficacité
+       calculée sur cinq ballons, et une joueuse à 4 kills / 1 faute
+       devançait de 1,7 point une attaquante à +0,167 sur 300 ballons.
+       30 est le plancher du plus permissif des seuils d'objectif. */
+    minVolume:30        /* gestes au-dessous desquels une famille ne dit rien */
   },o||{});
 }
 /* Les réglages d'une saison, complétés de leurs valeurs par défaut : une
@@ -1591,6 +1645,7 @@ var state={
   seasonSection:null,           // la partie ouverte, ou null pour le tableau de bord
   selPane:"recap",              // volet de la partie Sélection (§14)
   evScope:{},                   // portée de lecture des parties de rencontres (§15-§17)
+  splitOpen:false, splitKey:null, // ventilation après coup : dépliée, et sur quel compteur
   setPane:"seasons",            // volet des Réglages
   lists:{},                     // état des listes, par clé (voir §12)
   evalCampaignId:null,          // filtre de campagne dans Récap → Évaluations
@@ -1676,7 +1731,7 @@ function curTeamRecord(){var tid=state.ctx&&state.ctx.teamId;return tid?teamById
 function playerById(id){for(var i=0;i<DB.players.length;i++)if(DB.players[i].id===id)return DB.players[i];return null}
 function rosterEntry(squad,pid){if(!squad)return null;for(var i=0;i<squad.roster.length;i++)if(squad.roster[i].playerId===pid)return squad.roster[i];return null}
 function seasonById(id){for(var i=0;i<DB.seasons.length;i++)if(DB.seasons[i].id===id)return DB.seasons[i];return null}
-function viewById(squad,id){if(!squad)return null;for(var i=0;i<squad.selectorViews.length;i++)if(squad.selectorViews[i].id===id)return squad.selectorViews[i];return null}
+function viewById(squad,id){if(!squad||!Array.isArray(squad.selectorViews))return null;for(var i=0;i<squad.selectorViews.length;i++)if(squad.selectorViews[i].id===id)return squad.selectorViews[i];return null}
 
 /* ══ ACCÈS ═══════════════════════════════════════════════════════
    Applique la matrice de ROLES.md. Garde-fou ergonomique : sur un
@@ -2015,14 +2070,23 @@ function subtle(){
    de faire semblant de chiffrer. */
 function cryptoAvailable(){return !!subtle()&&typeof TextEncoder!=="undefined"}
 
+/* Par TRANCHES, pas caractère par caractère. Sur une saison réelle —
+   4,3 Mo de données — la concaténation d'un caractère à la fois coûtait
+   365 ms à chaque sauvegarde sur un portable, et 2 274 ms sur un vieil
+   iPad : 77 % du coût total de l'écriture, pour une fonction de trois
+   lignes. Mesuré après correction : 38 ms et 766 ms. La sortie est
+   identique, octet pour octet. */
 function b64(buf){
-  var b=new Uint8Array(buf),s="";
-  for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);
-  return btoa(s);
+  var b=new Uint8Array(buf),p=[],T=0x8000;
+  for(var i=0;i<b.length;i+=T)p.push(String.fromCharCode.apply(null,b.subarray(i,i+T)));
+  return btoa(p.join(""));
 }
 function unb64(str){
-  var s=atob(str),b=new Uint8Array(s.length);
-  for(var i=0;i<s.length;i++)b[i]=s.charCodeAt(i);
+  var s=atob(str),b=new Uint8Array(s.length),T=0x8000;
+  for(var i=0;i<s.length;i+=T){
+    var fin=Math.min(i+T,s.length);
+    for(var j=i;j<fin;j++)b[j]=s.charCodeAt(j);
+  }
   return b;
 }
 function randBytes(n){
@@ -2103,9 +2167,14 @@ function vaultCreate(pass,hint,who,payload){
       VAULT.unlocked=true;VAULT.noCrypto=false;
       return vaultEncrypt(payload).then(function(box){
         localStorage.setItem(SK_VAULT,JSON.stringify(box));
-        /* La copie en clair n'a plus lieu d'être. */
+        /* La copie en clair n'a plus lieu d'être — et « la copie », ce
+           n'est pas seulement `wonderstats_v3`. L'INBOX d'un
+           sélectionneur porte ses vues et ses commentaires libres sur
+           des athlètes : elle restait en clair sur le disque d'un
+           appareil qui avait tourné avant le verrou. */
         localStorage.removeItem(SK);
-        LEGACY_KEYS.forEach(function(k){localStorage.removeItem(k)});
+        localStorage.removeItem(SK_INBOX);
+        LEGACY_ALL.forEach(function(k){localStorage.removeItem(k)});
         return true;
       });
     });
@@ -2128,9 +2197,16 @@ function vaultChangePass(oldPass,newPass,hint){
   });
 }
 function vaultLock(){
+  /* Une sauvegarde encore en vol écrirait par-dessus la base vide qu'on
+     installe ici. */
+  if(typeof autoSaveTimer!=="undefined"&&autoSaveTimer){clearTimeout(autoSaveTimer);autoSaveTimer=null}
   VAULT.key=null;VAULT.unlocked=false;VAULT.plain=null;
   DB=emptyDB();INBOX={views:[]};SECRETS={github:null,superKey:null};
   superProof={done:false,ok:false};
+  /* Le jeton de relais donne un accès RÉSEAU vivant : le laisser en
+     mémoire et sur le disque après un verrouillage vide le verrou de
+     son sens. */
+  if(typeof SYNC!=="undefined"){SYNC.token="";SYNC.identity=null;try{saveSync()}catch(e){}}
   state.meId=null;state.ctx=null;
 }
 
@@ -2309,13 +2385,16 @@ function verifyAll(){
   DB.clubs.forEach(function(c){
     if(!c.charter){res.clubs[c.id]=false;return}
     jobs.push(verifyDoc(c.charter).then(function(ok){
-      res.clubs[c.id]=ok&&c.charter.clubId===c.id;
+      /* `kind` aussi : sans lui, une nomination signée du même club
+         passait pour une charte, et le club s'affichait « vérifié ». */
+      res.clubs[c.id]=ok&&c.charter.kind==="club"&&c.charter.clubId===c.id;
     }));
   });
   DB.clubAssignments.forEach(function(a){
     if(!a.grant){res.grants[a.id]=false;return}
     jobs.push(verifyDoc(a.grant).then(function(ok){
-      res.grants[a.id]=ok&&a.grant.clubId===a.clubId&&a.grant.personId===a.personId;
+      res.grants[a.id]=ok&&a.grant.kind==="admin"&&
+        a.grant.clubId===a.clubId&&a.grant.personId===a.personId;
     }));
   });
   return Promise.all(jobs).then(function(){VERIF=res;return res});
@@ -2454,13 +2533,20 @@ function ghPull(pass){
 /* ══ PERSISTANCE ═══════════════════════════════════════════════ */
 var SK="wonderstats_v3", SK_UI="wonderstats_ui_v3", SK_INBOX="wonderstats_inbox_v3";
 var LEGACY_KEYS=["vball_mt_v2","vball_mt_v1"];
+/* Tout ce que l'application a pu écrire en clair au fil de ses versions,
+   readLegacyV1 compris. C'est cette liste — et non LEGACY_KEYS, qui en
+   oubliait la moitié — que pose du verrou et remise à zéro effacent. */
+var LEGACY_ALL=LEGACY_KEYS.concat(["vball_sessions_v5","vball_current_v5"]);
 var autoSaveTimer=null, saveFailed=false;
 
 function uiSnapshot(){
   return {meId:state.meId,ctx:state.ctx,tab:state.tab,viewIdx:state.viewIdx,
     posFilter:state.posFilter,inputMode:state.inputMode,svViewId:state.svViewId};
 }
+var loadFailed=false;
 function saveAll(){
+  /* Voir loadAll : une base qu'on n'a pas su lire reste intouchée. */
+  if(loadFailed)return null;
   /* Rien n'est chargé : il n'y a rien à écrire, et écrire serait pire
      que ne rien faire. L'application enregistre à chaque fois que
      l'onglet passe en arrière-plan — ce qui, sur un téléphone, arrive
@@ -2469,13 +2555,20 @@ function saveAll(){
      sur le disque, et cette base prenait ensuite le pas sur le lien
      d'invitation : l'invité était accueilli en propriétaire d'un club
      qui n'existait pas. */
-  if(gate.mode&&!gate.loaded)return;
+  if(gate.mode&&!gate.loaded)return null;
+  /* Coffre refermé alors qu'un coffre existe : la branche claire
+     ci-dessous réécrirait `wonderstats_v3`, que vaultCreate avait
+     justement supprimé. Une base vide, certes — mais l'invariant
+     « aucune copie en clair » ne se négocie pas. */
+  if(!VAULT.unlocked&&vaultExists())return null;
   /* Coffre ouvert : rien ne part en clair sur le disque. L'écriture est
-     asynchrone, mais l'ordre est garanti par la file ci-dessous. */
+     asynchrone, mais l'ordre est garanti par la file ci-dessous. On
+     REND la promesse : l'appelant qui efface le journal de secours doit
+     attendre que le bloc ait réellement atterri. */
   if(VAULT.unlocked){
-    queueVaultWrite();
+    var promesse=queueVaultWrite();
     try{localStorage.setItem(SK_UI,JSON.stringify(uiSnapshot()))}catch(e){}
-    return;
+    return promesse;
   }
   try{
     localStorage.setItem(SK,JSON.stringify(DB));
@@ -2484,25 +2577,32 @@ function saveAll(){
     saveFailed=false;
   }catch(e){
     if(!saveFailed){saveFailed=true;showToast("⚠️ Sauvegarde impossible (stockage plein)")}
+    return Promise.reject(e);
   }
+  return null;
 }
 
 /* Chiffrer prend quelques millisecondes : on sérialise les écritures pour
    qu'une sauvegarde rapide n'en double pas une autre, et on garde une
    demande en attente plutôt que d'en empiler dix. */
-var vaultWriting=false,vaultPending=false;
+var vaultWriting=false,vaultPending=false,vaultDone=null;
 function queueVaultWrite(){
-  if(vaultWriting){vaultPending=true;return}
+  /* Une écriture est déjà en vol : on la rend, elle couvre l'état
+     courant ou le suivra immédiatement. */
+  if(vaultWriting){vaultPending=true;return vaultDone}
   vaultWriting=true;
-  vaultEncrypt({db:DB,inbox:INBOX,secrets:SECRETS}).then(function(box){
+  var ok=false;
+  vaultDone=vaultEncrypt({db:DB,inbox:INBOX,secrets:SECRETS}).then(function(box){
     localStorage.setItem(SK_VAULT,JSON.stringify(box));
-    saveFailed=false;
+    saveFailed=false;ok=true;
   }).catch(function(){
     if(!saveFailed){saveFailed=true;showToast("⚠️ Sauvegarde impossible")}
   }).then(function(){
     vaultWriting=false;
-    if(vaultPending){vaultPending=false;queueVaultWrite()}
+    if(vaultPending){vaultPending=false;return queueVaultWrite()}
+    if(!ok)throw new Error("écriture du coffre en échec");
   });
+  return vaultDone;
 }
 function updateIndicators(saving){
   var els=document.querySelectorAll(".autosave-indicator");
@@ -2520,10 +2620,39 @@ function scheduleAutoSave(){
   updateIndicators(true);
   scheduleOpsJournal();
   autoSaveTimer=setTimeout(function(){
-    saveAll();autoSaveTimer=null;updateIndicators(false);clearOpsJournal();
+    autoSaveTimer=null;purgerApres(saveAll());
   },1200);
 }
-function saveNow(){if(autoSaveTimer){clearTimeout(autoSaveTimer);autoSaveTimer=null}saveAll();updateIndicators(false);clearOpsJournal()}
+/* Le journal d'opérations est le SEUL filet entre deux blocs complets.
+   L'effacer avant que le bloc soit écrit ouvre une fenêtre où ni l'un
+   ni l'autre ne porte la modification — et sous coffre l'écriture est
+   asynchrone, donc la fenêtre est systématique. On n'efface qu'une
+   fois l'écriture confirmée, et jamais si elle a échoué. */
+function purgerApres(promesse){
+  if(promesse&&promesse.then){
+    promesse.then(function(){updateIndicators(false);clearOpsJournal()},
+                  function(){updateIndicators(false)});
+    return promesse;
+  }
+  updateIndicators(false);
+  if(promesse!==null||!loadFailed)clearOpsJournal();
+  return promesse;
+}
+function saveNow(){
+  if(autoSaveTimer){clearTimeout(autoSaveTimer);autoSaveTimer=null}
+  return purgerApres(saveAll());
+}
+/* Changer d'onglet, de volet, de tri ou de filtre ne touche pas à `DB` :
+   seule la photo d'interface bouge. Or ces gestes appelaient `saveNow()`,
+   qui rechiffre la base ENTIÈRE — mesuré à 473 ms sur une saison réelle,
+   2,8 s sur un vieil iPad, pour enregistrer le nom d'un onglet. On
+   n'écrit donc que la photo, ce qui coûte moins d'une milliseconde. */
+function saveUI(){
+  if(loadFailed)return null;
+  if(gate.mode&&!gate.loaded)return null;
+  try{localStorage.setItem(SK_UI,JSON.stringify(uiSnapshot()))}catch(e){}
+  return null;
+}
 /* ══════════════════════════════════════════════════════════════
    STORE — une collection, un identifiant, une opération
 
@@ -2611,6 +2740,17 @@ function snapshotEntity(coll,id,sq){
   TX.before.push({coll:coll,id:id,squadId:(sq&&sq.id)||null,
                   value:(i===-1)?null:clone(arr[i]),index:i});
 }
+/* Un squad porte, HORS de ses collections déclarées, des champs que
+   presque tous les gestes remuent : `playerIds`, `lineup`, `subteams`,
+   `stats`, et le `status` inscrit sur chaque ligne de roster par
+   recomputeRosterStatus. Ils n'appartiennent à aucune entrée de
+   COLLECTIONS : une transaction qui ne prenait que l'offre touchée
+   rendait donc une annulation à moitié faite — l'offre redevenait « en
+   attente » mais l'athlète restait dans l'effectif. On prend le squad
+   en entier ; une seule fois par transaction, `TX.seen` y veille. */
+function snapshotSquad(sq){
+  if(sq&&sq.id&&TX.depth>0)snapshotEntity("squads",sq.id,null);
+}
 function restoreSnapshot(s){
   var sq=s.squadId?squadById(s.squadId):null;
   if(s.squadId&&!sq)return;
@@ -2636,6 +2776,10 @@ function storeTx(fn,label){
   if(TX.depth>0){TX.depth++;try{return fn()}finally{TX.depth--}}
   TX.depth=1;TX.gid=uid();TX.before=[];TX.ops=[];TX.seen={};
   var before=TX.before,ops=TX.ops;
+  /* `DB.log` n'est pas une collection : logAct y pousse directement. Une
+     transaction qui lève laissait donc une ligne de journal affirmant un
+     fait qui n'a pas eu lieu. On retient sa longueur pour la rendre. */
+  var logLen=DB&&DB.log?DB.log.length:0;
   try{
     var r=fn();
     OPLOG.push.apply(OPLOG,ops);
@@ -2654,6 +2798,7 @@ function storeTx(fn,label){
     before.slice().reverse().forEach(function(s){
       try{restoreSnapshot(s)}catch(e2){}
     });
+    try{if(DB&&DB.log&&DB.log.length>logLen)DB.log.length=logLen}catch(e3){}
     TX.depth=0;TX.gid=null;
     showToast("⚠️ Opération annulée");
     throw e;
@@ -2916,10 +3061,13 @@ function normalizeSquad(sq,knownPlayers){
     v.anonymous=v.anonymous!==false;
     var d={};v.playerIds.forEach(function(pid){
       var src=(v.data||{})[pid]||{};
-      d[pid]={stats:normStats(src.stats),ratings:src.ratings||{},
+      d[pid]={stats:normStats(src.stats),ratings:normRatings(src.ratings),
         reco:RECO_BY_KEY[src.reco]?src.reco:"",pos:normPos(src.pos),note:src.note||""};
     });
     v.data=d;
+    /* Normalisés jusqu'ici uniquement à l'import : un groupe composé par
+       l'entraîneure gardait indéfiniment une athlète sortie du roster. */
+    v.playerGroups=normPlayerGroups(v.playerGroups,v.playerIds);
     return v;
   });
   sq.submissions=(sq.submissions||[]).map(function(sub){
@@ -2934,7 +3082,7 @@ function normalizeSquad(sq,knownPlayers){
       submittedAt:sub.submittedAt||nowISO(),criteria:sub.criteria||CRITERIA.map(function(c){return c.key}),
       entries:(sub.entries||[]).filter(function(e){return e&&e.playerId}).map(function(e){
         return {playerId:e.playerId,number:cleanNum(e.number),stats:normStats(e.stats),
-          ratings:e.ratings||{},reco:RECO_BY_KEY[e.reco]?e.reco:"",pos:normPos(e.pos),note:e.note||""};
+          ratings:normRatings(e.ratings),reco:RECO_BY_KEY[e.reco]?e.reco:"",pos:normPos(e.pos),note:e.note||""};
       })};
   });
 
@@ -3421,7 +3569,15 @@ function loadAll(fromVault){
       DB=legacy?normalizeDB(migrateV3(migrateV2(legacy))):emptyDB();
       if(legacy)setTimeout(function(){showToast("✅ Données migrées vers la v7")},400);
     }
-  }catch(e){DB=emptyDB()}
+  }catch(e){
+    /* Distinguer « rien à lire » de « je n'ai pas su lire ». Dans le
+       second cas la base EXISTE sur le disque : repartir d'une base
+       vide serait déjà fâcheux, mais la réécrire par-dessus l'originale
+       à la première bascule d'onglet détruit la saison pour de bon.
+       On note donc l'échec, et saveAll refusera d'écrire. */
+    DB=emptyDB();loadFailed=true;
+    try{console.error("WonderStats — lecture des données impossible :",e)}catch(e2){}
+  }
 
   /* Un club a toujours au moins une saison, une équipe et un administrateur :
      sans quoi l'application n'offrirait aucun point d'entrée. */
@@ -3495,15 +3651,42 @@ function doUndo(){
     if(v)v.data=snap.data;
   } else if(snap.kind==="snapshot"){
     /* Du plus récent au plus ancien : une entité touchée deux fois
-       retrouve sa valeur d'avant la transaction. */
-    snap.before.slice().reverse().forEach(function(x){
-      try{restoreSnapshot(x)}catch(e){}
+       retrouve sa valeur d'avant la transaction.
+
+       Et on journalise l'annulation elle-même : sans op compensatoire,
+       un rejeu du journal après plantage réappliquait par-dessus le
+       bloc ce qu'on venait de défaire. */
+    storeTx(function(){
+      snap.before.slice().reverse().forEach(function(x){
+        try{
+          restoreSnapshot(x);
+          var sq=x.squadId?squadById(x.squadId):null;
+          pushOp(x.coll,x.id,x.value===null?"del":"put",x.value,sq);
+        }catch(e){}
+      });
+    },"Annulation");
+    /* `roster[].status` est DÉRIVÉ des convocations et des offres : il
+       n'est dans aucune collection, donc dans aucun instantané. Sans ce
+       recalcul le badge restait sur la décision annulée jusqu'au
+       prochain rechargement. */
+    var squads={};
+    snap.before.forEach(function(x){
+      if(x.squadId)squads[x.squadId]=1;
+      else if(x.coll==="squads")squads[x.id]=1;
+    });
+    Object.keys(squads).forEach(function(id){
+      var sq=squadById(id);if(sq)recomputeRosterStatus(sq);
     });
   }
   scheduleAutoSave();showToast("↩ Annulé : "+snap.label);render();
 }
+/* Les vues sont portées par le SQUAD depuis la v4. Chercher dans
+   DB.seasons ne trouvait donc jamais rien — pire, `saison.selectorViews`
+   étant indéfini, la boucle levait à chaque fois : l'annulation d'une
+   note d'évaluateur ne faisait rien, en silence, et la branche INBOX
+   (la seule utile au sélectionneur autonome) n'était jamais atteinte. */
 function findViewAnywhere(id){
-  for(var i=0;i<DB.seasons.length;i++){var v=viewById(DB.seasons[i],id);if(v)return v}
+  for(var i=0;i<DB.squads.length;i++){var v=viewById(DB.squads[i],id);if(v)return v}
   for(var j=0;j<INBOX.views.length;j++)if(INBOX.views[j].id===id)return INBOX.views[j];
   return null;
 }
@@ -3560,7 +3743,14 @@ function campaignById(squad,id){
 }
 function curCampaign(squad){
   squad=squad||curSquad();if(!squad)return null;
-  return campaignById(squad,squad.activeCampaignId)||squad.campaigns[squad.campaigns.length-1]||null;
+  /* `campaigns[length-1]` est l'ordre des CLICS : une campagne créée
+     après coup pour rattraper la journée 1 devenait « la campagne
+     ouverte ». `campaignOrder` trie par rang, puis par date — c'est
+     l'ordre du travail, et c'est lui qui doit dire la dernière. */
+  if(campaignById(squad,squad.activeCampaignId))
+    return campaignById(squad,squad.activeCampaignId);
+  var ord=campaignOrder(squad);
+  return ord[ord.length-1]||null;
 }
 function campaignLabel(c){
   if(!c)return "—";
@@ -3677,9 +3867,10 @@ function campaignsOfPlayer(sq,pid){
 function ensureCampaignRosterEntry(sq,campaignId,pid,who){
   var e=campaignEntry(sq,campaignId,pid);
   if(e)return e;
-  e=mkCampaignRosterEntry(campaignId,pid,{convokedBy:who||null});
-  sq.campaignRoster.push(e);
-  return e;
+  /* Par le Store : créée à la main, l'entrée n'avait ni instantané ni
+     opération, et le `patch` qui suivait ne trouvait rien à rejouer —
+     la décision était perdue au redémarrage. */
+  return Store.put("campaignRoster",mkCampaignRosterEntry(campaignId,pid,{convokedBy:who||null}),sq);
 }
 
 /* ── Offres ────────────────────────────────────────────────── */
@@ -3863,8 +4054,31 @@ function recomputeSessionTotals(se){
    entries est corrompue (import bricolé, fusion, défaut). `entries`
    fait foi — c'est le total historiquement affiché — et l'écart est
    versé dans un set de correction plutôt que jeté. */
+/* L'invariant : la somme des sets vaut le total du match, exactement.
+   Le calcul d'écart ne versait que le MANQUANT dans le bloc de reste ;
+   un set qui compte PLUS que le match — ce que produit un import mal
+   remappé, ou un fichier bricolé — restait en trop pour toujours, et
+   l'écran affichait des sets dont la somme dépasse leur propre total.
+   On écrête donc d'abord les sets réels sur ce que le match compte. */
 function reconcileSessionTotals(se){
   if(!sessionIsSplit(se))return;
+  var tot={};
+  (se.entries||[]).forEach(function(en){tot[en.playerId]=normStats(en.stats)});
+  var cum={};
+  se.sets.forEach(function(bl){
+    if(bl.reconciled)return;
+    (bl.entries||[]).forEach(function(x){
+      if(!x||!x.playerId||!tot[x.playerId])return;
+      x.stats=normStats(x.stats);
+      if(!cum[x.playerId])cum[x.playerId]=emptyS();
+      for(var i=0;i<ALL_STATS.length;i++){
+        var k=ALL_STATS[i].key;
+        var libre=Math.max(0,tot[x.playerId][k]-cum[x.playerId][k]);
+        if(x.stats[k]>libre)x.stats[k]=libre;
+        cum[x.playerId][k]+=x.stats[k];
+      }
+    });
+  });
   var somme=sumBySet(se),ecart={},reste=false;
   (se.entries||[]).forEach(function(en){
     var d=emptyS(),diff=false,s=somme[en.playerId]||emptyS();
@@ -4052,6 +4266,7 @@ function convokeToCampaign(sq,campaignId,pids,who){
   if(!sq||!campaignId||!pids||!pids.length)return 0;
   var n=0;
   Store.tx(function(){
+    snapshotSquad(sq);
     pids.forEach(function(pid){
       if(!rosterEntry(sq,pid))return;          // pas au roster : rien à convoquer
       if(hasCampaignEntry(sq,campaignId,pid))return;
@@ -4080,6 +4295,7 @@ function unconvokeFromCampaign(sq,campaignId,pid){
   Store.tx(function(){
     var e=campaignEntry(sq,campaignId,pid);
     if(!e)return;
+    snapshotSquad(sq);
     voidPendingOffer(sq,campaignId,pid);
     Store.del("campaignRoster",e.id,sq);
     recomputeRosterStatus(sq,pid);
@@ -4092,8 +4308,19 @@ function setCampaignDecision(sq,campaignId,pid,reco,who){
   if(!sq||!campaignId||!pid)return;
   if(reco&&!RECO_BY_KEY[reco])return;
   Store.tx(function(){
+    snapshotSquad(sq);
     var e=ensureCampaignRosterEntry(sq,campaignId,pid,who);
     if(e.decision===(reco||""))return;         // idempotent
+    /* Écarter une athlète dont l'offre a été ACCEPTÉE ne pouvait rien
+       faire : `derivedStatus` rend « retenue » dès qu'une offre acceptée
+       vit, et l'écran laissait croire qu'on avait tranché. Le chemin
+       `setRosterStatus` traitait déjà le cas ; celui-ci l'ignorait. Les
+       deux mutateurs ne peuvent pas diverger sur une décision. */
+    if(reco&&reco!=="select"){
+      var acc=currentOffer(sq,pid);
+      if(acc&&acc.status==="accepted"&&offerIsLive(acc))
+        declineOffer(sq,acc.id,who||null);
+    }
     /* Le journal dit la transition, pas l'état d'arrivée seul : « Candidate
        → Retenue » se relit six mois plus tard, « Retenue » ne dit rien. Le
        numéro est celui du jour des faits — logWho s'en charge. */
@@ -4154,6 +4381,7 @@ function acceptOffer(sq,offerId,who){
   Store.tx(function(){
     var o=offerById(sq,offerId);
     if(!o||o.status!=="pending"||!offerIsLive(o))return;
+    snapshotSquad(sq);
     Store.patch("offers",o.id,{status:"accepted",decidedAt:nowISO(),decidedBy:who||null},sq);
     if(sq.playerIds.indexOf(o.playerId)===-1)sq.playerIds.push(o.playerId);
     var r=rosterEntry(sq,o.playerId);
@@ -4174,6 +4402,7 @@ function declineOffer(sq,offerId,who){
        l'équipe. C'est le seul geste qui défait une acceptation, et il est
        tracé. Une offre déjà refusée, elle, n'a rien à refaire. */
     if(!o||o.status==="declined"||!offerIsLive(o))return;
+    snapshotSquad(sq);
     Store.patch("offers",o.id,{status:"declined",decidedAt:nowISO(),decidedBy:who||null},sq);
     var pid=o.playerId;
     sq.playerIds=sq.playerIds.filter(function(x){return x!==pid});
@@ -4188,16 +4417,66 @@ function declineOffer(sq,offerId,who){
   },"Offre archivée");
 }
 /* Rouvrir une offre tranchée : le seul moyen de défaire une acceptation,
-   et il est explicite et tracé. */
+   et il est explicite et tracé. Le journal le disait déjà dans ce
+   commentaire sans que personne ne l'écrive : une acceptation se
+   défaisait donc sans laisser de trace, alors que l'accepter et
+   l'archiver en laissaient une. */
 function reopenOffer(sq,offerId){
   Store.tx(function(){
     var o=offerById(sq,offerId);
     if(!o||o.status==="pending")return;
-    var pid=o.playerId;
+    snapshotSquad(sq);
+    var pid=o.playerId,avant=o.status;
     if(o.status==="accepted")sq.playerIds=sq.playerIds.filter(function(x){return x!==pid});
     Store.patch("offers",o.id,{status:"pending",decidedAt:null,decidedBy:null},sq);
     recomputeRosterStatus(sq,pid);
-  },"Offre rouverte");
+    var p=playerById(pid);
+    logAct("roster",(p?fullName(p):"Athlète")+" — offre remise en attente"+
+      (avant==="accepted"?" (elle sort de l'équipe)":""),
+      {teamId:sq.teamId,seasonId:sq.seasonId,playerId:pid});
+  },"Offre remise en attente");
+}
+/* Remettre en attente, pour une athlète ou pour vingt d'un seul geste.
+
+   Trois situations, une seule intention — « qu'elle ait de nouveau à
+   répondre » :
+     · offre acceptée   → elle ressort de l'effectif et redevient à
+                          confirmer, sans passer par « refusée », qui
+                          serait faux et le resterait dans le journal ;
+     · offre refusée    → elle redevient à confirmer ;
+     · retenue sans offre vivante — une base reprise d'une v6, ou une
+                          offre annulée avec sa décision — → on lui en
+                          fabrique une, en attente.
+   Une athlète déjà en attente n'est pas touchée : le geste est
+   idempotent, ce qui est la moindre des choses pour une action de
+   lot. Tout tient dans UNE transaction : un seul « Annuler » la
+   défait en entier. */
+function remettreOffresEnAttente(sq,pids){
+  if(!sq||!pids||!pids.length)return 0;
+  var n=0;
+  Store.tx(function(){
+    snapshotSquad(sq);
+    pids.forEach(function(pid){
+      var o=currentOffer(sq,pid);
+      if(o&&o.status==="pending")return;
+      if(o){reopenOffer(sq,o.id);n++;return}
+      /* Aucune offre vivante : seule une retenue en mérite une neuve.
+         En fabriquer une à une athlète coupée la ferait paraître dans
+         « Constituer l'équipe » sans que personne l'ait retenue. */
+      var r=rosterEntry(sq,pid);
+      if(!r||r.status!=="selected")return;
+      var camp=curCampaign(sq);
+      var neuve=mkOffer(camp?camp.id:"",pid);
+      Store.put("offers",neuve,sq);
+      sq.playerIds=(sq.playerIds||[]).filter(function(x){return x!==pid});
+      recomputeRosterStatus(sq,pid);
+      var p=playerById(pid);
+      logAct("roster",(p?fullName(p):"Athlète")+" — offre ouverte, en attente",
+        {teamId:sq.teamId,seasonId:sq.seasonId,playerId:pid});
+      n++;
+    });
+  },"Offres remises en attente");
+  return n;
 }
 
 function dataFilled(d){
@@ -4226,6 +4505,25 @@ function dataFilled(d){
    d'où vient le chiffre plutôt que de l'asséner. */
 /* Les soumissions qu'une correction a remplacées. On suit la chaîne : une
    correction peut elle-même être corrigée. */
+/* Supprimer une soumission emporte la CHAÎNE qu'elle remplace : sans
+   cela, retirer la correction ressuscitait la note que l'évaluateur
+   avait explicitement corrigée, et celle-ci redevenait le score de
+   l'athlète. Rend les identifiants supprimés. */
+function supprimerSoumission(squad,subId){
+  var morts=[],vus={};
+  var suivre=function(id){
+    if(!id||vus[id])return;
+    vus[id]=1;
+    var s0=null;
+    (squad.submissions||[]).forEach(function(x){if(x.id===id)s0=x});
+    if(!s0)return;
+    morts.push(id);
+    if(s0.replaces)suivre(s0.replaces);
+  };
+  suivre(subId);
+  squad.submissions=(squad.submissions||[]).filter(function(x){return morts.indexOf(x.id)===-1});
+  return morts;
+}
 function soumissionsRemplacees(squad){
   var mortes={};
   (squad&&squad.submissions||[]).forEach(function(sub){
@@ -4310,13 +4608,29 @@ function compileSubmissions(squad,campaignId){
       (parCle[k]=parCle[k]||[]).push(r);
     });
     var ecarts={};
+    /* `recoupe` retient les couples (athlète, critère) réellement vus par
+        au moins deux évaluateurs : c'est le seul endroit où une
+        correction de sévérité a un sens. Sans cette mémoire, le
+        recentrage déplaçait aussi les notes qu'un seul évaluateur avait
+        mises — « sans recoupement, rien n'est corrigé » n'était pas tenu. */
+    var recoupe={};
     Object.keys(parCle).forEach(function(k){
       var lot=parCle[k];
-      var noms={};lot.forEach(function(r){noms[r.who]=1});
-      if(Object.keys(noms).length<2)return;      // rien à recouper
+      /* Un même évaluateur qui soumet deux séances figure deux fois dans
+         le lot : il serait comparé à lui-même, et son biais tiré vers
+         zéro. On moyenne d'abord ses notes. */
+      var parNom={};
       lot.forEach(function(r){
-        var autres=lot.filter(function(x){return x.who!==r.who});
-        if(!autres.length)return;
+        var e=parNom[r.who]||(parNom[r.who]={who:r.who,somme:0,n:0});
+        e.somme+=r.val;e.n++;
+      });
+      var uniques=Object.keys(parNom).map(function(w){
+        return {who:w,val:parNom[w].somme/parNom[w].n};
+      });
+      if(uniques.length<2)return;                // rien à recouper
+      recoupe[k]=1;
+      uniques.forEach(function(r){
+        var autres=uniques.filter(function(x){return x.who!==r.who});
         var moy=autres.reduce(function(t,x){return t+x.val},0)/autres.length;
         (ecarts[r.who]=ecarts[r.who]||[]).push(r.val-moy);
       });
@@ -4324,8 +4638,7 @@ function compileSubmissions(squad,campaignId){
     Object.keys(ecarts).forEach(function(who){
       var lot=ecarts[who],k=lot.length;
       var moy=lot.reduce(function(t,v){return t+v},0)/k;
-      var amorti=moy*(k/(k+5));                  // peu de recoupements → peu de correction
-      biais[who]=Math.max(-1.5,Math.min(1.5,amorti));
+      biais[who]=moy*(k/(k+5));                  // peu de recoupements → peu de correction
     });
     /* Recentrage. Sans lui, la correction déplacerait le niveau général :
        un évaluateur qui note seul quatre critères verrait ceux-ci baisser
@@ -4334,7 +4647,7 @@ function compileSubmissions(squad,campaignId){
        autour de zéro, au prorata du nombre de notes de chacun — ce qui
        corrige les écarts entre évaluateurs sans toucher à l'échelle. */
     var parQui={};
-    brut.forEach(function(r){parQui[r.who]=(parQui[r.who]||0)+1});
+    brut.forEach(function(r){if(recoupe[r.pid+"|"+r.crit])parQui[r.who]=(parQui[r.who]||0)+1});
     var sommeP=0,total=0;
     Object.keys(biais).forEach(function(who){
       var n=parQui[who]||0;sommeP+=n*biais[who];total+=n;
@@ -4343,15 +4656,34 @@ function compileSubmissions(squad,campaignId){
       var centre=sommeP/total;
       Object.keys(biais).forEach(function(who){biais[who]-=centre});
     }
+    /* Borner APRÈS le recentrage, et non avant : borner d'abord puis
+       recentrer laissait ressortir des biais de ±1,6 — la borne annoncée
+       à ±1,5 ne tenait pas. */
+    Object.keys(biais).forEach(function(who){
+      biais[who]=Math.max(-1.5,Math.min(1.5,biais[who]));
+    });
+    /* Le biais ne s'applique QUE là où il a été mesuré. */
+    biais.__recoupe=recoupe;
   }
 
   /* ── 3. les critères, corrigés puis pondérés ────────────────── */
+  var recoupeMap=biais.__recoupe||null;
   brut.forEach(function(r){
     var b=out[r.pid];
-    var v=r.val-(biais[r.who]||0);
+    /* Une note sans recoupement reste telle quelle : personne d'autre
+       n'a vu cette athlète sur ce critère, il n'y a rien à corriger. */
+    var corrigible=!recoupeMap||recoupeMap[r.pid+"|"+r.crit];
+    var v=r.val-(corrigible?(biais[r.who]||0):0);
     v=Math.max(1,Math.min(RATING_MAX,v));
     var rr=b.ratings[r.crit]||(b.ratings[r.crit]={sum:0,n:0,min:r.val,max:r.val,avg:0,rawSum:0});
     rr.sum+=v;rr.rawSum+=r.val;rr.n++;
+    /* Ce que la correction a réellement DÉPLACÉ, en valeur absolue.
+       Le déplacement net (`detail.severity`) est nul quand deux
+       évaluateurs se compensent — et c'est le bon comportement, puisque
+       la correction ne doit pas bouger le niveau général — mais il ne
+       dit alors pas si quelque chose a été corrigé. Celui-ci le dit. */
+    b.detail.severityAbs=(b.detail.severityAbs||0)+Math.abs(v-r.val);
+    b.detail.severityN=(b.detail.severityN||0)+1;
     /* min et max restent les notes telles qu'elles ont été mises : la
        correction de sévérité ajuste la moyenne, elle n'efface pas le
        désaccord. « 4,5 (3–5) » dit le résultat et la divergence ; un
@@ -4433,14 +4765,22 @@ function compileSubmissions(squad,campaignId){
     var somme=0,pds=0;
     pids.forEach(function(pid){
       var b=out[pid];
-      if(!b.nRatings||b.critScore==null&&b.statScore==null)return;
-      somme+=b.rawScore*b.nRatings;pds+=b.nRatings;
+      /* Le poids, c'est le nombre de REGARDS, pas le nombre de notes.
+         `nRatings` valait zéro pour une athlète relevée au compteur mais
+         jamais notée : elle sortait de la référence ET échappait à
+         l'amortissement, si bien qu'une efficacité vue par un seul
+         évaluateur coiffait celles que trois personnes avaient jugées —
+         l'inverse exact de ce que l'amortissement doit faire. */
+      if(b.critScore==null&&b.statScore==null)return;
+      var w=b.selectors.length||b.n||0;
+      if(!w)return;
+      somme+=b.rawScore*w;pds+=w;
     });
     if(pds){
       var refer=somme/pds;
       pids.forEach(function(pid){
-        var b=out[pid],n=b.nRatings;
-        if(!n)return;
+        var b=out[pid],n=b.selectors.length||b.n||0;
+        if(!n||(b.critScore==null&&b.statScore==null))return;
         var avant=b.rawScore;
         b.score=(n*b.rawScore+sc.reliability*refer)/(n+sc.reliability);
         b.detail.shrink=b.score-avant;
@@ -4457,6 +4797,8 @@ function compileSubmissions(squad,campaignId){
       if(r&&r.n){d+=(r.avg-r.rawAvg);k++}
     });
     b.detail.severity=k?d/k:0;
+    b.detail.severityAbs=b.detail.severityN?(b.detail.severityAbs/b.detail.severityN):0;
+    delete b.detail.severityN;
 
     /* Dépouillement : une voix par évaluateur, la dernière qu'il a donnée. */
     var derniers=[];
@@ -4642,8 +4984,17 @@ function pickJSON(cb){
     var file=e.target.files&&e.target.files[0];if(!file)return;
     var reader=new FileReader();
     reader.onload=function(ev){
-      try{cb(JSON.parse(ev.target.result),file.name)}
-      catch(err){showToast("⚠️ Fichier illisible")}
+      var data;
+      try{data=JSON.parse(ev.target.result)}
+      catch(err){showToast("⚠️ Fichier illisible");return}
+      /* Séparer la lecture du traitement : confondre les deux faisait
+         dire « fichier illisible » à un fichier parfaitement lisible que
+         l'import n'avait pas su traiter — et masquait la vraie erreur. */
+      try{cb(data,file.name)}
+      catch(err2){
+        showToast("⚠️ Import impossible : "+(err2&&err2.message||"erreur interne"),{tone:"danger"});
+        try{console.error("pickJSON",err2)}catch(e3){}
+      }
     };
     reader.onerror=function(){showToast("⚠️ Lecture impossible")};
     reader.readAsText(file);
@@ -4671,8 +5022,15 @@ function exportMyTeam(){
 
 /* Sauvegarde complète du club — réservée à l'administration */
 function exportBackup(){
-  if(downloadJSON({type:"wonderstats-backup",version:5,exportDate:nowISO(),db:DB},
-    "WonderStats_"+stamp()+".json")) showToast("📤 Sauvegarde exportée");
+  /* Le fichier circule : par courriel, dans un dossier partagé, sur une
+     clé. `person.token` est le jeton de relais — qui l'a prend
+     l'identité de son porteur. L'écran promettait déjà « aucun jeton
+     d'accès » ; on tient la promesse. */
+  var db=clone(DB);
+  db.people.forEach(function(x){x.token="";x.tokenFor=null});
+  if(downloadJSON({type:"wonderstats-backup",version:5,exportDate:nowISO(),db:db},
+    "WonderStats_"+stamp()+".json"))
+    showToast("📤 Sauvegarde exportée — sans les jetons d'invitation",{duree:4000});
 }
 function importBackup(){
   pickJSON(function(data){
@@ -4691,8 +5049,23 @@ function importBackup(){
     confirmAct("Fusionner "+plural(incoming.teams.length,"équipe")+" et "+
       plural(incoming.players.length,"joueuse")+" avec les données actuelles ?",
       function(){
-        mergeDB(incoming);
-        normalizeCtx();saveNow();showToast("📥 Import terminé",{tone:"ok"});render();
+        /* Une fusion qui lève à mi-chemin laissait la base à moitié
+           fondue, sans retour possible. On prend l'empreinte d'avant. */
+        var avant=clone(DB);
+        var refuses;
+        try{refuses=mergeDB(incoming)}
+        catch(err){
+          DB=avant;render();
+          showToast("⚠️ Import interrompu — rien n'a été modifié",{tone:"danger"});
+          try{console.error("mergeDB",err)}catch(e2){}
+          return;
+        }
+        normalizeCtx();saveNow();
+        showToast((refuses&&refuses.length)
+          ? "📥 Importé — déjà présent, non fusionné : "+refuses.join(", ")
+          : "📥 Import terminé",
+          {tone:(refuses&&refuses.length)?"warn":"ok",duree:(refuses&&refuses.length)?6000:2600});
+        render();
       },{confirm:"Fusionner",tone:"primary"});
   });
 }
@@ -4728,9 +5101,28 @@ function mergeDB(inc){
   });
   function rp(id){return remap[id]||id}
 
+  /* Les CLUBS d'abord. Ils manquaient : les équipes entraient avec le
+     `clubId` de l'appareil d'origine, inconnu ici, et normalizeDB les
+     supprimait au rechargement suivant — « Import terminé », puis les
+     équipes et leurs matchs disparaissaient le lendemain, sans un mot. */
+  var clubsConnus={},clubsParNom={},clubRemap={};
+  DB.clubs.forEach(function(c){clubsConnus[c.id]=c;clubsParNom[(c.name||"").toLowerCase()]=c});
+  (inc.clubs||[]).forEach(function(c){
+    if(clubsConnus[c.id]){clubRemap[c.id]=c.id;return}
+    var ex=clubsParNom[(c.name||"").toLowerCase()];
+    if(ex){clubRemap[c.id]=ex.id;return}
+    DB.clubs.push(c);clubsConnus[c.id]=c;clubsParNom[(c.name||"").toLowerCase()]=c;clubRemap[c.id]=c.id;
+  });
+  function rc(id){return clubRemap[id]||id}
+
   var teamRemap={},teamById_={},teamByName={};
-  DB.teams.forEach(function(t){teamById_[t.id]=t;teamByName[t.name.toLowerCase()]=t});
+  DB.teams.forEach(function(t){teamById_[t.id]=t;teamByName[(t.name||"").toLowerCase()]=t});
   inc.teams.forEach(function(t){
+    /* Rattacher AVANT de dédoublonner : une équipe importée doit porter
+       un club d'ici, faute de quoi elle sera filtrée. Sans club connu,
+       elle rejoint le premier — mieux vaut mal rangée que disparue. */
+    t.clubId=t.clubId?rc(t.clubId):"";
+    if(!clubsConnus[t.clubId])t.clubId=(DB.clubs[0]&&DB.clubs[0].id)||"";
     if(teamById_[t.id]){teamRemap[t.id]=t.id;return}
     var ex=teamByName[(t.name||"").toLowerCase()];
     if(ex){teamRemap[t.id]=ex.id;return}
@@ -4739,7 +5131,7 @@ function mergeDB(inc){
   function rt(id){return teamRemap[id]||id}
 
   var seasonRemap={},seasonByName={};
-  DB.seasons.forEach(function(x){seasonByName[x.name.toLowerCase()]=x});
+  DB.seasons.forEach(function(x){seasonByName[(x.name||"").toLowerCase()]=x});
   inc.seasons.forEach(function(x){
     var ex=null;
     DB.seasons.forEach(function(y){if(y.id===x.id)ex=y});
@@ -4766,7 +5158,17 @@ function mergeDB(inc){
       return x.personId===a.personId&&x.teamId===a.teamId&&x.role===a.role;});
     if(!dup)DB.assignments.push(a);
   });
+  /* Elles manquaient aussi : une administratrice restaurée se retrouvait
+     sans le club qu'elle administre. */
+  (inc.clubAssignments||[]).forEach(function(a){
+    a.personId=rpe(a.personId);a.clubId=rc(a.clubId);
+    if(!clubsConnus[a.clubId])return;
+    var dup=DB.clubAssignments.some(function(x){
+      return x.personId===a.personId&&x.clubId===a.clubId&&x.role===a.role;});
+    if(!dup)DB.clubAssignments.push(a);
+  });
 
+  var squadsRefuses=[];
   inc.squads.forEach(function(sq){
     sq.teamId=rt(sq.teamId);sq.seasonId=rs(sq.seasonId);
     sq.roster.forEach(function(e){e.playerId=rp(e.playerId)});
@@ -4782,8 +5184,33 @@ function mergeDB(inc){
       var nd={};Object.keys(v.data).forEach(function(pid){nd[rp(pid)]=v.data[pid]});v.data=nd;
     });
     sq.submissions.forEach(function(sub){sub.entries.forEach(function(e){e.playerId=rp(e.playerId)})});
-    /* Un squad déjà présent pour ce couple équipe × saison n'est pas écrasé. */
+    /* Les collections nées avec la v7 étaient oubliées du remappage :
+       leurs playerId restaient ceux de l'appareil d'origine, et
+       normalizeSquad les jetait comme « hors roster ». Résultat : les
+       convocations campagne par campagne se réduisaient à une ligne,
+       les offres étaient refabriquées, et la ventilation d'un match
+       basculait entière dans « Reste non ventilé ». */
+    (sq.campaignRoster||[]).forEach(function(e){e.playerId=rp(e.playerId)});
+    (sq.offers||[]).forEach(function(o){o.playerId=rp(o.playerId)});
+    (sq.goals||[]).forEach(function(g){if(g.playerId)g.playerId=rp(g.playerId)});
+    (sq.sessions||[]).forEach(function(se){
+      (se.sets||[]).forEach(function(bl){
+        (bl.entries||[]).forEach(function(x){x.playerId=rp(x.playerId)});
+      });
+    });
+    (sq.setMarks||[]).forEach(function(m){
+      if(!m||!m.stats)return;
+      var o={};Object.keys(m.stats).forEach(function(pid){o[rp(pid)]=m.stats[pid]});m.stats=o;
+    });
+    (sq.selectorViews||[]).forEach(function(v){
+      (v.playerGroups||[]).forEach(function(g){g.playerIds=(g.playerIds||[]).map(rp)});
+    });
+    /* Un squad déjà présent pour ce couple équipe × saison n'est pas
+       écrasé — mais on le DIT. Le taire laissait croire à un import
+       réussi alors que rien n'était entré. */
     if(!squadFor(sq.teamId,sq.seasonId))DB.squads.push(sq);
+    else squadsRefuses.push(((teamById(sq.teamId)||{}).name||"Équipe")+
+      " · "+((seasonById(sq.seasonId)||{}).name||"saison"));
   });
 
   /* Les journaux se réunissent et se retrient : une entrée déjà connue
@@ -4797,7 +5224,11 @@ function mergeDB(inc){
     DB.log.push(l);
   });
   DB.log.sort(function(a,b){return String(a.at).localeCompare(String(b.at))});
-  normalizeDB(DB);
+  /* normalizeDB repart d'un objet neuf (`Object.assign(emptyDB(),db)`) :
+     ne pas reprendre son retour revenait à ne rien normaliser du tout.
+     C'est le seul des quatorze appels du fichier qui l'oubliait. */
+  DB=normalizeDB(DB);
+  return squadsRefuses;
 }
 function nameKey(p){return (fullName(p)+"|"+(p.birthYear||"")).toLowerCase()}
 
@@ -4818,7 +5249,12 @@ function buildPacket(squad,view){
     seasonId:squad.id,seasonName:squad.name,
     campaignId:view.campaignId||null,campaignName:camp?camp.name:"",
     view:{
-      id:view.id,name:view.name,selectorName:view.selectorName,
+      id:view.id,name:view.name,
+      /* Publié sans destinataire, un paquet est lisible de TOUS les
+         sélectionneurs de l'équipe : y inscrire le nom de celui à qui la
+         vue était destinée leur apprend qui évalue quoi. Le relais
+         estampille de toute façon l'auteur d'un dépôt. */
+      selectorName:view.selectorPersonId?view.selectorName:"",
       criteria:view.criteria.slice(),groups:view.groups.slice(),
       /* Les groupes d'athlètes voyagent avec la vue : composés une fois,
          ils la suivent chez celui qu'on invite, au lieu de le laisser
@@ -4932,17 +5368,32 @@ function buildSubmission(view,numberFor,opts){
    remplacerait. On cherche par vue, et à défaut par évaluateur dans la
    même campagne : un sélectionneur qui a refait sa vue depuis un autre
    appareil corrige tout de même son propre avis. */
+/* « ✎ Je corrige » remplace VOTRE soumission précédente de CETTE vue.
+   Le repli « même évaluateur, même campagne » ne filtrait pas la vue :
+   un sélectionneur qui avait soumis deux vues dans la même campagne
+   corrigeait la première et annulait la SECONDE — la vue corrigée
+   comptait alors deux fois, et l'autre disparaissait. Le repli ne sert
+   donc plus qu'à défaut de toute soumission de cette vue. */
 function derniereSoumissionDe(squad,view){
   var qui=(view.selectorName||"").trim();
-  var best=null;
+  var parVue=null,parQui=null;
   (squad.submissions||[]).forEach(function(sub){
-    var memeVue=sub.viewId&&sub.viewId===view.id;
-    var memeQui=qui&&(sub.selectorName||"").trim()===qui&&
-                sub.campaignId===view.campaignId;
-    if(!memeVue&&!memeQui)return;
-    if(!best||String(sub.submittedAt||"")>String(best.submittedAt||""))best=sub;
+    if(sub.viewId&&sub.viewId===view.id){
+      if(!parVue||String(sub.submittedAt||"")>String(parVue.submittedAt||""))parVue=sub;
+      return;
+    }
+    if(!qui||(sub.selectorName||"").trim()!==qui)return;
+    if(sub.campaignId!==view.campaignId)return;
+    /* Le repli sert à la vue REFABRIQUÉE — réimportée, republiée — qui
+       porte un identifiant neuf mais le même travail. Ce qui identifie
+       ce travail pour l'évaluateur, c'est le NOM de la vue. Sans ce
+       filtre, corriger « groupe C » annulait la soumission de
+       « groupe B » : l'autre vue disparaissait, et celle-ci comptait
+       deux fois. */
+    if((sub.viewName||"")!==(view.name||""))return;
+    if(!parQui||String(sub.submittedAt||"")>String(parQui.submittedAt||""))parQui=sub;
   });
-  return best;
+  return parVue||parQui;
 }
 /* Soumission locale : la vue vit dans la saison, on écrit directement */
 function submitLocalView(squad,view,opts){
@@ -5011,7 +5462,11 @@ function integrateSubmission(squad,data){
     context:data.context||"",submittedAt:data.submittedAt||nowISO(),
     criteria:data.criteria||CRITERIA.map(function(c){return c.key}),
     entries:entries.map(function(e){return {playerId:e.playerId,number:cleanNum(e.number),
-      stats:normStats(e.stats),ratings:e.ratings||{},reco:RECO_BY_KEY[e.reco]?e.reco:"",
+      stats:normStats(e.stats),
+      /* `stats`, `reco` et `pos` étaient normalisés, `ratings` non : un
+         fichier de soumission bricolé pouvait y glisser un 9999, que le
+         score compilé moyennait tel quel. */
+      ratings:normRatings(e.ratings),reco:RECO_BY_KEY[e.reco]?e.reco:"",
       pos:normPos(e.pos),note:e.note||""}})};
   squad.submissions.push(sub);
   return sub;
@@ -5054,24 +5509,54 @@ function loadSync(){
   }catch(e){}
 }
 function syncReady(){return !!(SYNC.url&&SYNC.room&&SYNC.token)}
+/* `Math.random()` n'est pas fait pour cela : son état interne se
+   reconstitue depuis une poignée de tirages observés, et un jeton EST
+   la seule chose qui sépare un inconnu des données du club. `randBytes`
+   est défini trente lignes plus haut et s'appuie sur `crypto`. Le repli
+   ne sert qu'aux navigateurs sans WebCrypto, où rien n'est chiffré de
+   toute façon. */
+function randChars(n,abc){
+  var out="";
+  try{
+    var b=randBytes(n);
+    for(var i=0;i<n;i++)out+=abc.charAt(b[i]%abc.length);
+    return out;
+  }catch(e){
+    out="";
+    for(var j=0;j<n;j++)out+=abc.charAt(Math.floor(Math.random()*abc.length));
+    return out;
+  }
+}
 function mkRoomCode(){
-  var abc="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",out="";
-  for(var i=0;i<6;i++)out+=abc.charAt(Math.floor(Math.random()*abc.length));
+  var out=randChars(6,"ABCDEFGHJKLMNPQRSTUVWXYZ23456789");
   return "WNDR-"+out.slice(0,3)+"-"+out.slice(3);
 }
 /* Un jeton n'est pas un mot de passe : c'est un porte-clé opaque, émis
    par l'administrateur et révocable. Il identifie une personne auprès du
    relais et détermine ce qu'elle peut y lire. */
-function mkToken(){
-  var abc="abcdefghijklmnopqrstuvwxyz0123456789",out="";
-  for(var i=0;i<32;i++)out+=abc.charAt(Math.floor(Math.random()*abc.length));
-  return out;
-}
+function mkToken(){return randChars(32,"abcdefghijklmnopqrstuvwxyz0123456789")}
 function normUrl(u){
   u=(u||"").trim();
   if(!u)return "";
-  if(!/^https?:\/\//i.test(u))u="https://"+u;
+  /* Sans schéma : https, sauf pour une adresse locale, où c'est http
+     qu'on veut — un relais de test n'a pas de certificat. */
+  if(!/^https?:\/\//i.test(u))u=(adressePrivee("http://"+u)?"http://":"https://")+u;
+  /* Le jeton voyage dans cette adresse : en clair sur le réseau, il est
+     lisible de quiconque écoute le wifi du gymnase. On force donc https
+     — SAUF sur une adresse locale ou privée, où un relais de test ou de
+     LAN n'a pas de certificat et où le trafic ne sort pas du réseau. */
+  if(/^http:\/\//i.test(u)&&!adressePrivee(u))u=u.replace(/^http:\/\//i,"https://");
   return u.replace(/[?#].*$/,"").replace(/\/+$/,"");
+}
+/* localhost, 127.x, ::1, 10.x, 192.168.x, 172.16-31.x, et le .local de
+   Bonjour : tout ce qui ne quitte pas le réseau de la maison. */
+function adressePrivee(u){
+  var m=/^https?:\/\/([^\/:?#]+)/i.exec(u||"");
+  if(!m)return false;
+  var h=m[1].toLowerCase().replace(/^\[|\]$/g,"");
+  if(h==="localhost"||h==="::1"||/\.local$/.test(h))return true;
+  if(/^127\./.test(h)||/^10\./.test(h)||/^192\.168\./.test(h))return true;
+  return /^172\.(1[6-9]|2\d|3[01])\./.test(h);
 }
 function syncEndpoint(params){
   var q=[];
@@ -5149,13 +5634,21 @@ function grantToken(person,teamId,role){
     teamId:teamId||"",teamName:t?t.name:""
   }});
 }
+/* Révoquer, c'est un geste sur le RELAIS : c'est lui qui détient le
+   jeton et qui l'honore. Effacer d'abord la copie locale rendait la
+   révocation impossible à refaire quand l'appel échouait — hors ligne,
+   ou sans les droits — et l'écran affichait pourtant un succès. Le
+   jeton restait valide jusqu'à l'expiration du salon, et plus personne
+   ne savait lequel. On n'efface qu'une fois le relais d'accord. */
 function revokeToken(person){
   if(!person||!person.token)return Promise.resolve();
   var tok=person.token;
-  person.token="";person.tokenFor=null;
-  logAct("access","Jeton de "+person.name+" révoqué");
-  if(!syncReady())return Promise.resolve();
-  return syncPost("revoke",{target:tok}).catch(function(){});
+  if(!syncReady())
+    return Promise.reject(new Error("relais non configuré — le jeton reste valide"));
+  return syncPost("revoke",{target:tok}).then(function(){
+    person.token="";person.tokenFor=null;
+    logAct("access","Jeton de "+person.name+" révoqué");
+  });
 }
 
 /* ── Lien d'invitation : porte le jeton personnel ──────────── */
@@ -5325,6 +5818,9 @@ function pullForSelector(){
            republiée ne les remplace pas, elle les recadre sur les
            athlètes encore présentes. Mais s'il n'en avait aucun, ceux qui
            arrivent avec la vue lui servent de point de départ. */
+        Object.keys(existing.data||{}).forEach(function(pid){
+          if(fresh.playerIds.indexOf(pid)===-1)delete existing.data[pid];
+        });
         var siens=normPlayerGroups(existing.playerGroups,fresh.playerIds);
         existing.playerGroups=siens.length?siens:fresh.playerGroups;
         existing.teamId=fresh.teamId||existing.teamId;
@@ -5509,7 +6005,7 @@ function renderTabBar(){
          on ne la retrouve pas trois onglets plus loin. */
       state.tab=t.key;state.sortBy=null;state.pickMode=null;state.picked=[];
       if(t.key==="season")state.seasonSection=null;
-      saveNow();render();
+      saveUI();render();
     }},h("span",{className:"ico"},t.icon),h("span",{className:"lbl"},t.label));
   }));
 }
@@ -5553,6 +6049,10 @@ function renderFoundBanner(){
    fois chiffrée. Quatre à cinq saisons tiennent donc, pas dix. */
 var STORAGE_SEUIL=3500000;
 var storageMasque=false;
+/* Ce qui est SUR LE DISQUE. Utile pour dire la place prise, inutile
+   pour prévenir : quand l'écriture échoue faute de place, le disque
+   garde la vieille sauvegarde — donc cette mesure BAISSE au moment
+   précis où il faudrait alerter. */
 function tailleStockage(){
   var n=0;
   try{
@@ -5562,28 +6062,42 @@ function tailleStockage(){
   }catch(e){return 0}
   return n;
 }
+/* Ce qu'il FAUDRAIT écrire : la base sérialisée, plus l'inflation du
+   base64 (×1,34). C'est cette mesure-là qui doit déclencher l'alerte,
+   et c'est elle que l'écran affiche. */
+function tailleAEcrire(){
+  try{return Math.round(JSON.stringify(DB).length*1.34)}catch(e){return 0}
+}
+function taillePertinente(){return Math.max(tailleStockage(),tailleAEcrire())}
 function tailleLisible(n){
   if(n<1024)return n+" o";
   if(n<1024*1024)return Math.round(n/1024)+" Ko";
   return (Math.round(n/1024/1024*10)/10)+" Mo";
 }
 function renderStorageBanner(){
-  if(storageMasque)return null;
-  var n=tailleStockage();
-  if(n<STORAGE_SEUIL)return null;
+  if(storageMasque&&!saveFailed)return null;
+  var n=taillePertinente();
+  if(n<STORAGE_SEUIL&&!saveFailed)return null;
   return h("div",{className:"card tight",role:"status",
     style:{margin:"10px var(--gutter) 0",borderColor:"var(--warn)",
            background:"var(--tint-warn)"}},
     h("div",{className:"row-between"},
       h("div",{style:{minWidth:"0"}},
         h("div",{style:{fontWeight:"700",color:"var(--warn-ink)",fontSize:"14px"}},
-          "⚠️ L'espace de cet appareil se remplit"),
+          saveFailed?"⛔ La sauvegarde ne passe plus"
+                    :"⚠️ L'espace de cet appareil se remplit"),
         h("div",{className:"muted",style:{marginTop:"3px"}},
-          "Vos données occupent "+tailleLisible(n)+". Les navigateurs en accordent "+
-          "environ 5 Mo par site. Exportez une sauvegarde, puis archivez les "+
-          "saisons que vous ne consultez plus — Réglages → Saisons.")),
-      h("button",{className:"btn btn-ghost sm",type:"button","aria-label":"Masquer l'avertissement",
-        onclick:function(){storageMasque=true;render()}},"✕")));
+          saveFailed
+            ? ("Vos données ("+tailleLisible(n)+") ne tiennent plus dans l'espace que "+
+               "ce navigateur accorde. CE QUE VOUS SAISISSEZ MAINTENANT N'EST PLUS "+
+               "ENREGISTRÉ. Exportez une sauvegarde complète tout de suite — "+
+               "⚙️ Réglages → 💾 Données — puis archivez ou supprimez une saison.")
+            : ("Vos données occupent "+tailleLisible(n)+". Les navigateurs en accordent "+
+               "environ 5 Mo par site. Exportez une sauvegarde, puis archivez les "+
+               "saisons que vous ne consultez plus — Réglages → Saisons."))),
+      saveFailed?null
+        :h("button",{className:"btn btn-ghost sm",type:"button","aria-label":"Masquer l'avertissement",
+           onclick:function(){storageMasque=true;render()}},"✕")));
 }
 
 function renderCtxBar(){
@@ -5602,7 +6116,7 @@ function renderCtxBar(){
 function renderPosFilter(){
   return h("div",{className:"pos-row"},POSITIONS.map(function(p){
     var btn=h("button",{className:"pill sm"+(state.posFilter===p.key?" active":""),onclick:function(){
-      state.posFilter=p.key;state.sortBy=null;saveNow();render();
+      state.posFilter=p.key;state.sortBy=null;saveUI();render();
     }},p.label);
     if(state.posFilter===p.key)btn.style.background="#6D28D9";
     return btn;
@@ -6179,11 +6693,37 @@ function bottomActionBar(opts){
    colle au pouce, garde son titre en haut et ses boutons en bas
    pendant que le contenu défile. La boîte centrée reste pour les
    formulaires courts et les confirmations. */
+/* Un brouillon en cours vaut confirmation. Le fond ferme la feuille au
+   moindre contact — et au bord d'un terrain, le pouce se pose n'importe
+   où : un formulaire de rencontre à moitié rempli disparaissait sans un
+   mot. On ne demande QUE si quelque chose a été saisi. */
+function brouillonRempli(){
+  var d=state.modalDraft;
+  if(!d||typeof d!=="object")return false;
+  return Object.keys(d).some(function(k){
+    if(k==="busy"||k==="err")return false;
+    var v=d[k];
+    if(typeof v==="string")return v.trim()!=="";
+    if(typeof v==="number")return true;
+    if(Array.isArray(v))return v.length>0;
+    return false;
+  });
+}
+function fermerAvecGarde(fermer){
+  if(!brouillonRempli()){fermer();return}
+  openConfirm({
+    title:"Abandonner cette saisie ?",
+    body:"Ce que vous venez de saisir dans cette fenêtre sera perdu.",
+    detail:"Le reste de vos données n'est pas touché.",
+    confirm:"Abandonner",tone:"danger",
+    onconfirm:function(){state.modalDraft=null;fermer()}});
+}
 function sheetShell(opts,corps){
   opts=opts||{};
   var feuille=opts.variant!=="center";
   var fermer=opts.onclose||closeModal;
-  return h("div",{className:"scrim "+(feuille?"bottom":"center"),onclick:fermer},
+  var fermerDuFond=opts.onclose?fermer:function(){fermerAvecGarde(fermer)};
+  return h("div",{className:"scrim "+(feuille?"bottom":"center"),onclick:fermerDuFond},
     h("div",{className:"modal "+(feuille?"sheet":"box"),
       role:"dialog","aria-modal":"true","aria-label":opts.title,
       onclick:function(e){e.stopPropagation()}},
@@ -6237,8 +6777,56 @@ function defModal(type,fn,opts){
      tone     : "danger" si l'action détruit, sinon "primary"
      onconfirm: function(){}
    })                                                              */
-function openConfirm(opts){state.confirm=opts||null;state.prompt=null;repeindreDialogues();}
-function closeConfirm(){state.confirm=null;repeindreDialogues();}
+/* ── Les couches, et les deux gestes qui les referment ──────────────
+   Une « couche » est une modale, une feuille, une confirmation ou une
+   invite : tout ce qui se pose PAR-DESSUS l'écran. Deux gestes les
+   fermaient jusqu'ici, et aucun n'était celui qu'on attend :
+
+   · `Échap` ne faisait rien. Sur l'iPad du club avec son clavier, il
+     fallait viser le ✕ ou le fond.
+   · Le retour système d'Android — le geste le plus employé sur un
+     téléphone — QUITTAIT l'application, en pleine saisie de match,
+     alors que l'utilisateur voulait seulement refermer une boîte.
+
+   On pose donc une entrée d'historique par couche ouverte. Le retour la
+   dépile et referme la couche au lieu de sortir. Une fermeture par
+   bouton reprend son entrée (`history.back()`), pour que la pile reste
+   fidèle à ce que l'écran montre. */
+var coucheHist=false;
+function couchesOuvertes(){return !!(state.prompt||state.confirm||state.modalType)}
+function coucheEmpiler(){
+  if(coucheHist)return;
+  try{history.pushState({wsCouche:1},"");coucheHist=true}catch(e){}
+}
+function coucheDepiler(){
+  if(!coucheHist)return;
+  coucheHist=false;
+  try{history.back()}catch(e){}
+}
+function fermerCoucheDuDessus(){
+  /* Du plus haut au plus bas : une confirmation ouverte DEPUIS une
+     feuille se referme sans emporter la feuille. */
+  if(state.prompt){state.prompt=null;repeindreDialogues();return true}
+  if(state.confirm){state.confirm=null;repeindreDialogues();return true}
+  if(state.modalType){closeModal();return true}
+  return false;
+}
+window.addEventListener("popstate",function(){
+  coucheHist=false;
+  if(!couchesOuvertes())return;             /* déjà fermée au bouton */
+  fermerCoucheDuDessus();
+  if(couchesOuvertes())coucheEmpiler();     /* il en reste une dessous */
+});
+document.addEventListener("keydown",function(e){
+  if(e.key!=="Escape"&&e.key!=="Esc")return;
+  if(!couchesOuvertes())return;
+  e.preventDefault();
+  var avait=coucheHist;
+  fermerCoucheDuDessus();
+  if(avait&&!couchesOuvertes())coucheDepiler();
+});
+function openConfirm(opts){state.confirm=opts||null;state.prompt=null;coucheEmpiler();repeindreDialogues();}
+function closeConfirm(){state.confirm=null;repeindreDialogues();if(!couchesOuvertes())coucheDepiler();}
 function renderConfirm(){
   var c=state.confirm;if(!c)return null;
   var n=sheetShell({title:c.title,variant:"center",onclose:closeConfirm,
@@ -6258,13 +6846,13 @@ function renderConfirm(){
    Remplace promptAct. Le champ est focalisé hors du cycle de rendu. */
 function openPrompt(opts){
   state.prompt=Object.assign({value:""},opts||{});state.confirm=null;
-  repeindreDialogues();
+  coucheEmpiler();repeindreDialogues();
   setTimeout(function(){
     var el=document.querySelector(".modal.prompt input");
     if(el&&!("ontouchstart" in window))el.focus();
   },40);
 }
-function closePrompt(){state.prompt=null;repeindreDialogues();}
+function closePrompt(){state.prompt=null;repeindreDialogues();if(!couchesOuvertes())coucheDepiler();}
 function renderPrompt(){
   var p=state.prompt;if(!p)return null;
   var inp=h("input",{type:p.password?"password":"text",value:p.value||"",
@@ -6392,12 +6980,12 @@ function navToSection(k){
   state.seasonSection=SECTION_BY_KEY[k]?k:null;
   state.tab="season";
   state.sortBy=null;state.pickMode=null;state.picked=[];
-  saveNow();render();
+  saveUI();render();
 }
 function navBackToHub(){
   state.seasonSection=null;
   state.sortBy=null;state.pickMode=null;state.picked=[];
-  saveNow();render();
+  saveUI();render();
 }
 
 /* Le chiffre d'une tuile. Ce n'est pas un compteur d'objets : c'est
@@ -7442,7 +8030,7 @@ function evGo(champ,val){
   if(champ==="event"){p.eventId=val;p.sessionId=null;p.setIdx=null}
   else if(champ==="session"){p.sessionId=val;p.setIdx=null}
   else if(champ==="set"){p.setIdx=val}
-  saveNow();render();
+  saveUI();render();
 }
 function evUp(){
   var p=evPath();
@@ -7450,7 +8038,7 @@ function evUp(){
   else if(p.sessionId){p.sessionId=null}
   else if(p.eventId){p.eventId=null}
   else {navBackToHub();return}
-  saveNow();render();
+  saveUI();render();
 }
 
 /* Le périmètre courant, déduit du chemin. C'est la seule fonction
@@ -7579,6 +8167,162 @@ defModal("evathlete",renderEvAthleteModal,{autofocus:false});
 
 /* La liste du niveau courant : les rencontres, les matchs d'un
    tournoi, ou les sets d'un match. */
+/* ── Ventiler un match après coup ───────────────────────────────────
+   Le moteur existait depuis la v7 — splitPrepare, splitSetCount,
+   splitMove, unsplitSession — et la feuille de style avec lui. Rien ne
+   les appelait. L'application écrivait pourtant, au moment d'enregistrer
+   un match sans borne : « Vous pourrez le ventiler plus tard, depuis 🗓️ Saison → la rencontre → Ventilation. » Plus
+   tard, l'écran disait « seule la répartition manque » et n'offrait
+   aucun geste. C'était la seule promesse fausse de l'application.
+
+   On ne saisit JAMAIS le reste : il se déduit de la différence entre le
+   total du match et ce qui a trouvé son set. C'est ce recalcul — et non
+   la bonne volonté de qui tape — qui garantit que le total ne bouge pas
+   d'un compteur. */
+function splitCompteurs(se){
+  /* Seuls les compteurs réellement relevés sur ce match : proposer les
+     vingt-trois à chaque fois noierait les trois qui comptent. */
+  var vus={};
+  (se.entries||[]).forEach(function(en){
+    ALL_STATS.forEach(function(st){if((en.stats[st.key]||0)>0)vus[st.key]=1});
+  });
+  return ALL_STATS.filter(function(st){return vus[st.key]});
+}
+function splitKeyCourante(se){
+  var dispo=splitCompteurs(se);
+  if(!dispo.length)return null;
+  for(var i=0;i<dispo.length;i++)if(dispo[i].key===state.splitKey)return state.splitKey;
+  return dispo[0].key;
+}
+function renderVentilation(sq,se){
+  var wrap=h("div",null);
+  var dispo=splitCompteurs(se);
+
+  if(!sessionIsSplit(se)){
+    if(!dispo.length){
+      wrap.appendChild(h("div",{className:"hint"},
+        "Ce match ne porte aucun compteur : il n'y a rien à ventiler."));
+      return wrap;
+    }
+    wrap.appendChild(h("div",{className:"hint"},
+      "Ce match n'a pas été relevé set par set — il est d'avant cette possibilité, "+
+      "ou il a été saisi d'un bloc. Son total reste exact ; seule la répartition manque. "+
+      "Si vous avez votre feuille de match, vous pouvez la reporter ici : rien ne "+
+      "s'additionne, on DÉPLACE ce qui est déjà compté."));
+    var n=(se.result&&se.result.sets||[]).length||3;
+    wrap.appendChild(h("button",{className:"btn btn-primary full",type:"button",
+      onclick:function(){
+        pushUndoSquad("Ventilation de « "+se.name+" »",sq);
+        splitPrepare(se,n);
+        state.splitOpen=true;state.splitKey=null;
+        saveNow();showToast("Reportez chaque set — le reste se déduit",{tone:"ok"});render();
+      }},"🎽 Ventiler ce match en "+plural(n,"set")));
+    return wrap;
+  }
+
+  var reels=(se.sets||[]).filter(function(b){return !b.reconciled});
+  var reste=splitResidual(se);
+  var key=splitKeyCourante(se);
+
+  wrap.appendChild(h("div",{className:reste?"hint warn":"hint ok"},
+    reste?("Il reste "+plural(reste,"geste")+" à placer. Tant qu'il en reste, ils sont "+
+           "comptés dans le match sans appartenir à un set.")
+         :"Ventilation complète : la somme des sets vaut exactement le total du match."));
+
+  if(!state.splitOpen){
+    wrap.appendChild(h("button",{className:"btn btn-ghost full",type:"button",
+      onclick:function(){state.splitOpen=true;render()}},
+      reste?"✏️ Reprendre la ventilation":"✏️ Corriger la ventilation"));
+    return wrap;
+  }
+
+  /* Combien de sets. Retirer un set ne perd rien : ce qu'il portait
+     retombe dans le reste. */
+  var pills=h("div",{className:"pill-row tight"});
+  [3,4,5].forEach(function(n2){
+    pills.appendChild(h("button",{className:"pill"+(reels.length===n2?" active":""),type:"button",
+      onclick:function(){
+        pushUndoSquad("Nombre de sets de « "+se.name+" »",sq);
+        splitSetCount(se,n2);saveNow();render();
+      }},n2+" sets"));
+  });
+  wrap.appendChild(h("div",{className:"section-title"},"Nombre de sets"));
+  wrap.appendChild(pills);
+
+  if(!key){
+    wrap.appendChild(h("div",{className:"hint"},"Aucun compteur relevé sur ce match."));
+    return wrap;
+  }
+  var sel=h("select",{"aria-label":"Compteur à ventiler"},
+    SG_KEYS.map(function(gk){
+      var dedans=SG[gk].stats.filter(function(st){
+        return dispo.some(function(d){return d.key===st.key});});
+      if(!dedans.length)return null;
+      return h("optgroup",{label:SG[gk].name},
+        dedans.map(function(st){return h("option",{value:st.key},st.label)}));
+    }).filter(Boolean));
+  sel.value=key;
+  sel.addEventListener("change",function(e){state.splitKey=e.target.value;render()});
+  wrap.appendChild(h("div",{className:"section-title"},"Compteur"));
+  wrap.appendChild(h("div",{className:"field"},sel));
+
+  /* Le tableau : une colonne par set, une dernière pour ce qui n'a pas
+     encore trouvé la sienne. */
+  var tbl=h("table",{className:"splitTbl"});
+  var thead=h("tr",null,h("th",{className:"who"},"Athlète"));
+  reels.forEach(function(b,i){thead.appendChild(h("th",null,"S"+(i+1)))});
+  thead.appendChild(h("th",null,"Reste"));
+  tbl.appendChild(h("thead",null,thead));
+  var tbody=h("tbody",null);
+  (se.entries||[]).forEach(function(en){
+    var tot=en.stats[key]||0;
+    if(!tot)return;
+    var pose=0;
+    var tr=h("tr",null,h("td",{className:"who",title:en.name||""},
+      (en.number?"#"+en.number+" ":"")+(shortName(playerById(en.playerId))||en.name||"—")));
+    var cellReste=h("td",{className:"rest"});
+    reels.forEach(function(b,i){
+      var v=0;
+      (b.entries||[]).forEach(function(x){if(x.playerId===en.playerId)v=x.stats[key]||0});
+      pose+=v;
+      var inp=h("input",{type:"number",min:"0",max:String(tot),inputmode:"numeric",
+        value:String(v),"aria-label":(en.name||"")+" — set "+(i+1)});
+      inp.addEventListener("change",function(e){
+        pushUndoSquad("Ventilation de « "+se.name+" »",sq);
+        var retenu=splitMove(se,en.playerId,key,i,parseInt(e.target.value,10)||0);
+        e.target.value=String(retenu);
+        saveNow();render();
+      });
+      tr.appendChild(h("td",null,inp));
+    });
+    var r=Math.max(0,tot-pose);
+    cellReste.textContent=String(r);
+    if(!r)cellReste.className="rest done";
+    tr.appendChild(cellReste);
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+  wrap.appendChild(h("div",{"data-scroll-key":"split-"+se.id,style:{overflowX:"auto"}},tbl));
+
+  wrap.appendChild(h("div",{className:"btn-row",style:{marginTop:"var(--s3)"}},
+    h("button",{className:"btn btn-ghost sm",type:"button",
+      onclick:function(){state.splitOpen=false;render()}},"Terminer"),
+    h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){
+      openConfirm({
+        title:"Défaire la ventilation ?",
+        body:"Le match redeviendra « non ventilé ».",
+        detail:"Son total n'a jamais bougé : aucun compteur n'est perdu.",
+        confirm:"Défaire",tone:"danger",
+        onconfirm:function(){
+          pushUndoSquad("Ventilation défaite — « "+se.name+" »",sq);
+          unsplitSession(se);state.splitOpen=false;
+          saveNow();showToast("Ventilation défaite",{tone:"warn",
+            action:{label:"Annuler",onclick:doUndo}});render();
+        }});
+    }},"Défaire la ventilation")));
+  return wrap;
+}
+
 function evChildren(sq,k){
   var p=evPath(),scope=evScope(sq,k);
   var wrap=h("div",null);
@@ -7593,12 +8337,7 @@ function evChildren(sq,k){
     var blocs=setsOfSession(se);
     wrap.appendChild(h("div",{className:"section-title"},
       sessionIsSplit(se)?plural(blocs.length,"set"):"Ventilation"));
-    if(!sessionIsSplit(se)){
-      wrap.appendChild(h("div",{className:"hint"},
-        "Ce match n'a pas été relevé set par set — il est d'avant cette "+
-        "possibilité, ou il a été saisi d'un bloc. Son total reste exact ; "+
-        "seule la répartition manque."));
-    }
+    wrap.appendChild(renderVentilation(sq,se));
     blocs.forEach(function(b,i){
       var tot=b.entries.reduce(function(n,x){return n+sumStats(x.stats)},0);
       wrap.appendChild(h("button",{className:"navRow",type:"button",
@@ -7738,13 +8477,13 @@ function renderEventPart(sq,k){
       [{k:"all",l:"Tous"},{k:"friendly",l:"Amicaux"},{k:"league",l:"Championnat"}]
       .map(function(o){
         return h("button",{className:"pill"+(cour===o.k?" active":""),type:"button",
-          onclick:function(){state.cumulKind=o.k;saveNow();render()}},o.l);
+          onclick:function(){state.cumulKind=o.k;saveUI();render()}},o.l);
       })));
   }
   barres.push(h("div",{className:"pill-row tight"},
     segmented({label:"Sujet",value:sujet,
       options:[{k:"team",l:"📊 L'équipe"},{k:"players",l:"👥 Les athlètes"}],
-      onpick:function(v){state.evSujet=v;saveNow();render()}})));
+      onpick:function(v){state.evSujet=v;saveUI();render()}})));
 
   var corps=h("div",null);
   if(!scope.sessions.length){
@@ -7829,28 +8568,56 @@ var GOAL_FAMILIES=FAMILY_KEYS.filter(function(f){
 function goalFamilyOk(fam){return GOAL_FAMILIES.indexOf(fam)!==-1}
 
 /* La catégorie d'une équipe, ramenée aux paliers du barème d'amorce. */
+/* Les catégories sont des DONNÉES du club : « M15 » (FFVolley),
+   « Benjamines », « Cadettes », « Juvénile » sont aussi légitimes que
+   « U15 ». Retomber sur SENIOR pour toutes faisait démarrer une équipe
+   de quinze ans sur le barème NCAA : cible inatteignable, et le premier
+   relevé déclaré en recul. Faute de reconnaître, on ne devine plus :
+   `null` veut dire « pas d'amorce », donc pas d'objectif d'office. */
+var GOAL_CAT_MOTS=[
+  [/BENJAMIN|POUSSIN|MINIME\s*1/,"U13"],
+  [/CADET|MINIME/,"U15"],
+  [/JUVEN|JUNIOR/,"U18"],
+  [/ESPOIR|U2[0-3]/,"U21"],
+  [/SENIOR|OPEN|ELITE|ÉLITE/,"SENIOR"]
+];
 function goalCategorie(sq){
   var c=String((sq&&sq.category)||"").toUpperCase();
-  var m=/U(\d+)/.exec(c);
-  if(!m)return "SENIOR";
-  var n=+m[1];
-  if(n<=13)return "U13";
-  if(n<=15)return "U15";
-  if(n<=18)return "U18";
-  if(n<=21)return "U21";
-  return "SENIOR";
+  if(!c)return null;
+  var m=/[UM](\d+)/.exec(c);
+  if(m){
+    var n=+m[1];
+    if(n<=13)return "U13";
+    if(n<=15)return "U15";
+    if(n<=18)return "U18";
+    if(n<=21)return "U21";
+    return "SENIOR";
+  }
+  for(var i=0;i<GOAL_CAT_MOTS.length;i++)
+    if(GOAL_CAT_MOTS[i][0].test(c))return GOAL_CAT_MOTS[i][1];
+  return null;
 }
 
 /* Les efficacités de la famille, athlète par athlète, sur toute la
    saison — et seulement celles qui reposent sur assez de gestes. */
-function famValuesEquipe(sq,fam){
+/* `ctx` : le périmètre de l'objectif. Sans lui, la base d'équipe
+   s'appuyait sur TOUTES les rencontres pendant que la mesure de
+   l'athlète ne portait que sur les siennes — un objectif borné aux
+   matchs se comparait donc à une médiane qui comptait les
+   entraînements, et naissait mécaniquement atteint. */
+function famValuesEquipe(sq,fam,ctx){
   var t=GOAL_THRESHOLDS[fam],out=[];
   if(!t)return out;
   (sq.playerIds||[]).forEach(function(pid){
     var st=emptyS();
-    (sq.sessions||[]).forEach(function(se){
-      (se.entries||[]).forEach(function(en){if(en.playerId===pid)addStats(st,en.stats)});
-    });
+    if(ctx){
+      goalReleves(sq,{scope:"player",playerId:pid,context:ctx,
+        metric:{kind:"familyEff",family:fam}}).forEach(function(r){addStats(st,r.stats)});
+    } else {
+      (sq.sessions||[]).forEach(function(se){
+        (se.entries||[]).forEach(function(en){if(en.playerId===pid)addStats(st,en.stats)});
+      });
+    }
     if(familyVolume(st,fam)>=t.volumeMin){
       var e=familyEff(st,fam);
       if(e!=null)out.push(e);
@@ -7858,15 +8625,15 @@ function famValuesEquipe(sq,fam){
   });
   return out;
 }
-function medianeEquipe(sq,fam){
-  var v=famValuesEquipe(sq,fam);
+function medianeEquipe(sq,fam,ctx){
+  var v=famValuesEquipe(sq,fam,ctx);
   if(v.length<3)return null;            /* trois athlètes, sinon ce n'est pas une équipe */
   v.sort(function(a,b){return a-b});
   var m=Math.floor(v.length/2);
   return (v.length%2)?v[m]:(v[m-1]+v[m])/2;
 }
-function ecartTypeEquipe(sq,fam){
-  var v=famValuesEquipe(sq,fam);
+function ecartTypeEquipe(sq,fam,ctx){
+  var v=famValuesEquipe(sq,fam,ctx);
   if(v.length<3)return null;
   var moy=v.reduce(function(a,b){return a+b},0)/v.length;
   var s=v.reduce(function(a,b){return a+(b-moy)*(b-moy)},0)/v.length;
@@ -7874,22 +8641,24 @@ function ecartTypeEquipe(sq,fam){
 }
 /* Le point de départ : la médiane de l'équipe d'abord, le barème
    d'amorce seulement à froid. */
-function objectifDepart(sq,fam){
-  var med=medianeEquipe(sq,fam);
+function objectifDepart(sq,fam,ctx){
+  var med=medianeEquipe(sq,fam,ctx);
   if(med!=null)return med;
   var t=GOAL_THRESHOLDS[fam];
   if(!t||!t.depart)return null;
   var c=goalCategorie(sq);
-  return t.depart[c]!=null?t.depart[c]:t.depart.SENIOR;
+  /* Catégorie non reconnue : pas d'amorce. Mieux vaut ne pas proposer
+     d'objectif que d'en proposer un fondé sur le mauvais barème. */
+  return c&&t.depart[c]!=null?t.depart[c]:null;
 }
 /* Le pas : l'écart qui vaut la peine d'être visé. Hopkins situe le
    plus petit changement qui compte à 0,2 écart-type entre athlètes ;
    on ne descend jamais sous le bruit de mesure, sans quoi l'objectif
    serait atteint ou manqué au hasard. */
-function pasObjectif(sq,fam){
+function pasObjectif(sq,fam,ctx){
   var t=GOAL_THRESHOLDS[fam];
   if(!t||t.pas==null)return null;
-  var ec=ecartTypeEquipe(sq,fam);
+  var ec=ecartTypeEquipe(sq,fam,ctx);
   if(ec==null||!(ec>0.0001))return t.pas;
   return Math.max(t.pas,0.2*ec);
 }
@@ -7949,9 +8718,17 @@ function fenetreEff(releves,fam){
    compte que les kills et les fautes, et le chiffre est gonflé — ce
    n'est plus un pourcentage d'attaque. Mieux vaut le dire que fixer un
    objectif sur une mesure fausse. */
+/* Le test était binaire : UNE seule attaque « Réussie » sur toute la
+   saison désarmait le garde-fou, et une efficacité trois fois gonflée
+   repartait piloter la cible, le recul et le score. On regarde la PART
+   des réussies : au volleyball elle descend rarement sous 30 %, et sous
+   15 % la saisie est forcément partielle. */
 function saisieIncomplete(stats,fam){
   if(fam!=="attaques")return false;
-  return (stats.atk_ok||0)===0&&((stats.atk_kill||0)+(stats.atk_err||0))>15;
+  var ok=stats.atk_ok||0,kill=stats.atk_kill||0,err=stats.atk_err||0;
+  var vol=ok+kill+err;
+  if(vol<=15)return false;
+  return (ok/vol)<0.15;
 }
 
 /* Le recul médian de l'équipe entre les deux dernières fenêtres. Un
@@ -7999,14 +8776,24 @@ function evaluerObjectif(sq,g){
   if(!fen)return {etat:"volume-insuffisant",manque:t.volumeObjectif,volume:0};
   if(!fen.fiable)return {etat:"volume-insuffisant",manque:t.volumeObjectif-fen.volume,
                          volume:fen.volume,valeur:fen.eff};
-  var pas=pasObjectif(sq,fam);
+  var pas=pasObjectif(sq,fam,g.context);
   if(fen.eff>=g.target)
     return {etat:"atteint",valeur:fen.eff,volume:fen.volume,
             nouvelleBase:fen.eff,nouvelleCible:plafonner(fam,fen.eff+pas)};
-  var recul=g.baseline-fen.eff;
-  if(recul>=t.regression){
+  /* La référence de recul : la PREMIÈRE mesure fiable de l'athlète.
+     Tant qu'elle n'existe pas, il n'y a rien à comparer — on ne peut pas
+     reculer par rapport à une médiane d'équipe qu'on n'a jamais eue. */
+  if(g.reference==null)
+    return {etat:"en-cours",valeur:fen.eff,volume:fen.volume,
+            distance:g.target-fen.eff,poserReference:fen.eff};
+  var recul=g.reference-fen.eff;
+  /* Le seuil suit le pas : la table le fixe à deux fois le pas NOMINAL,
+     mais `pasObjectif` s'adapte à la dispersion de l'équipe et pouvait
+     le dépasser — un recul plus petit qu'un pas était alors déclaré. */
+  var seuilRecul=Math.max(t.regression,2*pas);
+  if(recul>=seuilRecul){
     var reculEquipe=reculMedianEquipe(sq,g);
-    if(recul-reculEquipe<t.regression)
+    if(recul-reculEquipe<seuilRecul)
       return {etat:"en-cours",valeur:fen.eff,volume:fen.volume,
               contexte:"equipe",distance:g.target-fen.eff};
     if((g.regressStreak||0)>=1)
@@ -8031,7 +8818,15 @@ function plafonner(fam,v){
    recalcul idempotent — rejouable sans gonfler l'historique. */
 function goalSignature(sq,g){
   var rel=goalReleves(sq,g),sig="";
-  rel.forEach(function(r){sig+=r.id+":"+sumStats(r.stats)+";"});
+  /* La SOMME des compteurs ne change pas quand on requalifie un kill en
+     erreur : le volume est identique, l'efficacité ne l'est pas du tout.
+     Un objectif restait alors calé sur la valeur d'avant la correction,
+     indéfiniment. On signe chaque compteur. */
+  rel.forEach(function(r){
+    sig+=r.id+":";
+    for(var i=0;i<ALL_STATS.length;i++)sig+=(r.stats[ALL_STATS[i].key]||0)+",";
+    sig+=";";
+  });
   return sig;
 }
 
@@ -8044,16 +8839,23 @@ function recalcGoal(sq,g){
   var r=evaluerObjectif(sq,g);
   g.lastSig=sig;
   g.updatedAt=nowISO();
+  /* La référence de recul se pose au premier relevé fiable, et ne bouge
+     plus qu'avec un palier franchi ou un recul confirmé. */
+  if(r.poserReference!=null&&g.reference==null){
+    g.reference=r.poserReference;g.referenceAt=nowISO();
+  }
   var ev=null;
   if(r.etat==="atteint"){
     g.achievedAt=nowISO();
     g.regressedAt=null;g.regressStreak=0;
     g.baseline=r.nouvelleBase;g.target=r.nouvelleCible;g.targetAt=nowISO();
+    g.reference=r.nouvelleBase;g.referenceAt=nowISO();
     ev="achieved";
   } else if(r.etat==="regression"){
     g.regressedAt=nowISO();
     g.regressStreak=0;
     g.baseline=r.nouvelleBase;g.target=r.nouvelleCible;g.targetAt=nowISO();
+    g.reference=r.nouvelleBase;g.referenceAt=nowISO();
     ev="regressed";
   } else if(r.etat==="regression-a-confirmer"){
     g.regressStreak=(g.regressStreak||0)+1;
@@ -8070,6 +8872,11 @@ function recalcGoal(sq,g){
 }
 /* Tous les objectifs d'un squad. Une seule transaction : la partie
    entière se recalcule ou rien. */
+/* recalcGoal écrit `lastSig`, `history` et `achievedAt` à la main : la
+   transaction reste donc sans opération, et storeTx ne programme aucune
+   sauvegarde. Appelée depuis un rendu, la fonction modifiait le modèle
+   sans que rien ne l'enregistre — et repoussait la même entrée
+   d'historique au recalcul suivant, jusqu'à chasser les vraies. */
 function recalcGoals(sq){
   if(!sq||!(sq.goals||[]).length)return 0;
   var n=0;
@@ -8079,6 +8886,7 @@ function recalcGoals(sq){
       if(recalcGoal(sq,g))n++;
     });
   },"Recalcul des objectifs");
+  if(n)scheduleAutoSave();
   return n;
 }
 /* Les marqueurs comptés, pour l'écran et pour la tuile du tableau de
@@ -8097,13 +8905,31 @@ function goalMarkers(sq){
    On ne demande pas à l'entraîneur de deviner un chiffre. */
 function creerObjectif(sq,scope,playerId,fam){
   if(!goalFamilyOk(fam))return null;
-  var depart=objectifDepart(sq,fam);
-  if(depart==null)depart=0;
-  var pas=pasObjectif(sq,fam)||0.05;
+  /* Le contexte par défaut d'un objectif neuf — celui de mkGoal : c'est
+     sur LUI que la base d'équipe doit être prise. */
+  var ctx=mkGoal().context;
+  var depart=objectifDepart(sq,fam,ctx);
+  /* Sans amorce — catégorie inconnue et équipe trop petite pour une
+     médiane — on ne fabrique pas un objectif à partir de zéro : zéro
+     n'est le niveau de personne. */
+  if(depart==null)return null;
+  var pas=pasObjectif(sq,fam,ctx)||0.05;
+  var cible=plafonner(fam,depart+pas);
+  /* Une cible qui n'excède pas la base ne demande rien. C'est le cas du
+     service quand l'équipe est déjà à l'équilibre : le plafond ramenait
+     la cible SOUS le départ, l'objectif naissait « atteint », et chaque
+     relevé redatait le palier sans que la cible ne monte jamais. */
+  if(cible<=depart)return null;
   var g=mkGoal({scope:scope,playerId:scope==="team"?"":playerId,
     metric:{kind:"familyEff",family:fam,statKey:"",perMatch:false},
+    /* `depart` vient de la médiane de l'équipe : c'est une AMORCE pour
+       fixer la cible, pas une mesure de l'athlète. L'employer comme
+       référence de recul revenait à déclarer en régression une athlète
+       parfaitement stable, au seul motif qu'elle est sous la médiane.
+       La référence de recul se pose au premier relevé fiable. */
     baseline:depart,baselineAt:nowISO(),
-    target:plafonner(fam,depart+pas),targetAt:nowISO(),
+    reference:null,referenceAt:"",
+    target:cible,targetAt:nowISO(),
     minVolume:(GOAL_THRESHOLDS[fam]||{}).volumeObjectif||0});
   g.regressStreak=0;g.lastSig="";
   g.history.push({at:nowISO(),value:null,target:g.target,volume:0,event:"set",etat:"en-cours"});
@@ -8236,12 +9062,17 @@ function renderNewGoalModal(){
         "d'ailleurs ne dirait rien de vos athlètes."),
       h("div",{className:"section-title"},"Sur quoi porter l'effort"),
       GOAL_FAMILIES.map(function(fam){
-        var g=SG[fam],dep=objectifDepart(sq,fam),pas=pasObjectif(sq,fam);
+        var ctxDef=mkGoal().context;
+        var g=SG[fam],dep=objectifDepart(sq,fam,ctxDef),pas=pasObjectif(sq,fam,ctxDef);
+        /* Une cible qui n'excède pas le départ — le service déjà à
+           l'équilibre — ne demande rien : l'écran le dit au lieu
+           d'offrir un objectif qui naîtrait « atteint ». */
+        var plafonne=dep!=null&&plafonner(fam,dep+(pas||0))<=dep;
         var deja=(sq.goals||[]).some(function(x){
           return x.active&&x.scope===scope&&x.playerId===(scope==="team"?"":pid)&&
                  x.metric.family===fam;
         });
-        return h("button",{className:"navRow",type:"button",disabled:deja,
+        return h("button",{className:"navRow",type:"button",disabled:deja||dep==null||plafonne,
           onclick:function(){
             var ng=creerObjectif(sq,scope,pid,fam);
             closeModal();
@@ -8253,9 +9084,11 @@ function renderNewGoalModal(){
             h("span",{className:"nr-ttl",style:{color:g.color}},g.name),
             h("span",{className:"nr-sub"},
               deja?"Un objectif est déjà en cours"
-                  :(dep==null?"Aucun repère encore — l'équipe n'a pas assez joué"
-                             :("Départ "+fmtEff(dep)+" · pas "+fmtEff(pas)))),
-          h("span",{className:"nr-arw","aria-hidden":"true"},deja?"":"›")));
+                  :(dep==null?"Aucun repère encore — l'équipe n'a pas assez joué, "+
+                              "ou sa catégorie n'est pas reconnue"
+                   :(plafonne?"Déjà à l'équilibre — il n'y a rien à viser au-dessus"
+                             :("Départ "+fmtEff(dep)+" · pas "+fmtEff(pas))))),
+          h("span",{className:"nr-arw","aria-hidden":"true"},(deja||dep==null||plafonne)?"":"›")));
       }),
       h("div",{className:"hint",style:{marginTop:"10px"}},
         "Les habiletés n'ont pas d'objectif chiffré : elles n'ont aucun compteur "+
@@ -8286,7 +9119,7 @@ function renderPartGoals(sq){
   var barres=h("div",{className:"pill-row tight"},
     segmented({label:"Sujet",value:sujet,
       options:[{k:"players",l:"👥 Les athlètes"},{k:"team",l:"📊 L'équipe"}],
-      onpick:function(v){state.goalSujet=v;saveNow();render()}}));
+      onpick:function(v){state.goalSujet=v;saveUI();render()}}));
 
   var corps=h("div",null);
 
@@ -8490,7 +9323,7 @@ function renderPartRecap(sq){
   var barres=h("div",{className:"pill-row tight"},
     segmented({label:"Sujet",value:sujet,
       options:[{k:"team",l:"📊 L'équipe"},{k:"players",l:"👥 Les athlètes"}],
-      onpick:function(v){state.recapSujet=v;saveNow();render()}}));
+      onpick:function(v){state.recapSujet=v;saveUI();render()}}));
 
   var corps=h("div",null);
 
@@ -8718,6 +9551,7 @@ var SECTION_RENDER={
 function renderSettingsTab(){
   var sq=curSquad();
   var panes=[{k:"seasons",l:"🗓️ Saisons"},{k:"log",l:"📜 Journal"},{k:"data",l:"💾 Données"}];
+  if(vaultExists())panes.push({k:"securite",l:"🔒 Sécurité"});
   if(!state.setPane||!panes.some(function(p){return p.k===state.setPane}))state.setPane="seasons";
   var row=h("div",{className:"pill-row tight"},panes.map(function(p){
     return h("button",{className:"pill"+(state.setPane===p.k?" active":""),type:"button",
@@ -8725,15 +9559,16 @@ function renderSettingsTab(){
   }));
   var body;
   if(state.setPane==="log")body=renderLogPane(sq?sq.teamId:"");
+  else if(state.setPane==="securite")body=renderSecuritePane();
   else if(state.setPane==="data"){
-    var octets=tailleStockage();
+    var octets=taillePertinente();
     body=h("div",null,
       h("div",{className:"hint"},
         "Une sauvegarde exportée est un fichier que vous gardez. Elle ne part "+
         "sur aucun serveur, et ne contient aucun jeton d'accès."),
       h("div",{className:"kpiGrid",style:{marginBottom:"12px"}},
         kpi({label:"Place occupée",value:tailleLisible(octets),
-          hint:"environ 5 Mo disponibles"}),
+          hint:"environ 5 Mo disponibles"+(saveFailed?" — DÉPASSÉ":"")}),
         kpi({label:"Relevés en base",
           value:String(DB.squads.reduce(function(n,x){return n+(x.sessions||[]).length},0)),
           hint:plural(DB.players.length,"fiche")})),
@@ -8742,12 +9577,137 @@ function renderSettingsTab(){
         "elles restent dans vos sauvegardes exportées."):null,
       h("div",{className:"data-actions"},
         h("button",{className:"btn btn-export",type:"button",onclick:exportMyTeam},
-          "📤 Exporter mon équipe")));
+          "📤 Exporter mon équipe")),
+      /* La sauvegarde COMPLÈTE n'était atteignable que du rôle
+         administrateur — et le README la donnait pourtant comme un geste
+         d'entraîneur. Une entraîneuse qui n'administre rien n'avait donc
+         aucun moyen de sauvegarder l'ensemble, ni d'en restaurer une. */
+      h("div",{className:"section-title"},"Tout ce qui est sur cet appareil"),
+      h("div",{className:"hint"},
+        "Une sauvegarde complète emporte le club, ses équipes, ses saisons et sa base "+
+        "de joueuses. C'est elle qu'il faut pour repartir d'un appareil neuf. "+
+        "Restaurer FUSIONNE avec ce qui est déjà là : rien n'est écrasé, et ce qui "+
+        "n'est pas repris vous est nommé."),
+      h("div",{className:"data-actions"},
+        h("button",{className:"btn btn-export sm",type:"button",onclick:exportBackup},
+          "📤 Sauvegarde complète"),
+        h("button",{className:"btn btn-import sm",type:"button",onclick:importBackup},
+          "📥 Restaurer / fusionner")));
   }
   else body=renderSeasonsPane();
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},row,
     h("div",{className:"content pad","data-scroll-key":"set-"+state.setPane},body));
 }
+
+/* ── Sécurité de l'appareil ─────────────────────────────────────
+   Deux gestes que le code savait faire et que l'écran n'offrait nulle
+   part : `vaultChangePass` et `vaultLock` n'étaient appelés par personne.
+   Concrètement : une phrase de passe choisie à la hâte le premier jour
+   ne pouvait plus JAMAIS être changée, et la seule façon de refermer
+   l'application sur un iPad de club partagé était de fermer le
+   navigateur — encore fallait-il y penser. */
+function renderSecuritePane(){
+  var wrap=h("div",null);
+  wrap.appendChild(h("div",{className:"hint"},
+    "Les données de cet appareil sont chiffrées par votre phrase de passe. "+
+    "Elle ne quitte jamais l'appareil et n'est enregistrée nulle part : "+
+    "personne, pas même le club, ne peut la retrouver."));
+
+  var c1=h("div",{className:"card"});
+  c1.appendChild(h("div",{className:"section-title",style:{marginTop:"0"}},"Verrouiller maintenant"));
+  c1.appendChild(h("div",{className:"muted",style:{marginBottom:"8px",lineHeight:"1.5"}},
+    "Referme le coffre sur-le-champ. À faire avant de prêter l'appareil, "+
+    "ou de le laisser au bord du terrain."));
+  c1.appendChild(h("button",{className:"btn btn-ghost full",type:"button",onclick:function(){
+    openConfirm({
+      title:"Verrouiller cet appareil ?",
+      body:"L'application se refermera, et redemandera votre phrase de passe.",
+      detail:"Rien n'est perdu : tout ce qui est enregistré le reste.",
+      confirm:"Verrouiller",
+      onconfirm:function(){
+        /* On enregistre AVANT de vider la mémoire, et on attend que le
+           bloc chiffré ait atterri. */
+        var p=saveNow();
+        var fermer=function(){
+          vaultLock();
+          gate.mode="unlock";gate.pass="";gate.err="";gate.loaded=false;
+          renderGate();
+        };
+        if(p&&p.then)p.then(fermer,fermer);else fermer();
+      }});
+  }},"🔒 Verrouiller"));
+  wrap.appendChild(c1);
+
+  var c2=h("div",{className:"card"});
+  c2.appendChild(h("div",{className:"section-title",style:{marginTop:"0"}},"Changer la phrase de passe"));
+  c2.appendChild(h("div",{className:"muted",style:{marginBottom:"8px",lineHeight:"1.5"}},
+    "Les données sont rechiffrées sur place. Les autres appareils gardent "+
+    "leur propre phrase ; seule une sauvegarde GitHub, elle, devra être "+
+    "relue avec la nouvelle."));
+  c2.appendChild(h("button",{className:"btn btn-primary full",type:"button",
+    onclick:function(){state.modalDraft=null;openModal("changepass")}},"🔑 Changer la phrase"));
+  wrap.appendChild(c2);
+
+  if(VAULT.meta&&VAULT.meta.hint)
+    wrap.appendChild(h("div",{className:"muted",style:{textAlign:"center",marginTop:"10px"}},
+      "Indice actuel : "+VAULT.meta.hint));
+  return wrap;
+}
+
+function renderChangePassModal(){
+  var d=state.modalDraft||(state.modalDraft={old:"",p1:"",p2:"",hint:(VAULT.meta&&VAULT.meta.hint)||"",busy:false,err:""});
+  function champ(cle,libelle,ph,type){
+    var inp=h("input",{type:type||"password",placeholder:ph||"",value:d[cle]||"",
+      autocomplete:"off",autocapitalize:"off",spellcheck:"false"});
+    inp.addEventListener("input",function(e){d[cle]=e.target.value});
+    return h("div",{className:"field"},h("label",null,libelle),inp);
+  }
+  var force=passScore(d.p1);
+  var corps=h("div",null,
+    champ("old","Phrase actuelle","Celle que vous saisissez au démarrage"),
+    champ("p1","Nouvelle phrase","Au moins 10 caractères"),
+    champ("p2","Répétez la nouvelle phrase",""),
+    champ("hint","Indice (facultatif, lisible sans la phrase)","Ex. celle du carnet bleu","text"),
+    d.p1?h("div",{className:"muted",style:{marginTop:"4px",color:passColor(force)}},
+      "Solidité : "+passLabel(force)):null,
+    d.err?h("div",{className:"hint warn"},d.err):null,
+    h("div",{className:"hint"},
+      "Personne ne peut retrouver cette phrase. Si vous la perdez, les données "+
+      "de cet appareil sont irrécupérables — gardez une sauvegarde exportée ailleurs."));
+  return sheetShell({title:"Changer la phrase de passe",variant:"center",
+    buttons:[
+      h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Annuler"),
+      h("button",{id:"modalOk",className:"btn btn-save full",type:"button",disabled:d.busy,
+        onclick:function(){
+          d.err="";
+          if(!d.old){d.err="Saisissez votre phrase actuelle";render();return}
+          if((d.p1||"").length<10){d.err="La nouvelle phrase fait moins de 10 caractères";render();return}
+          if(d.p1!==d.p2){d.err="Les deux nouvelles phrases diffèrent";render();return}
+          if(d.p1===d.old){d.err="La nouvelle phrase est identique à l'ancienne";render();return}
+          d.busy=true;render();
+          /* vaultChangePass rechiffre ce qui est SUR LE DISQUE : on y
+             verse d'abord l'état courant, sans quoi une modification non
+             encore enregistrée disparaîtrait avec l'ancienne phrase. */
+          var avant=saveNow();
+          Promise.resolve(avant).then(function(){
+            return vaultChangePass(d.old,d.p1,(d.hint||"").trim());
+          }).then(function(){
+            d.busy=false;state.modalDraft=null;closeModal();
+            logAct("access","Phrase de passe de cet appareil changée");
+            saveNow();
+            showToast("🔑 Phrase changée — c'est elle qu'il faudra au prochain démarrage",
+              {tone:"ok",duree:5000});
+          }).catch(function(err){
+            d.busy=false;
+            d.err=/incorrecte/i.test(err&&err.message||"")
+              ? "Phrase actuelle incorrecte"
+              : ("Changement impossible : "+(err&&err.message||"erreur"));
+            render();
+          });
+        }},d.busy?"Rechiffrement…":"Changer")]},
+    corps);
+}
+defModal("changepass",renderChangePassModal);
 
 /* ── Fiche joueuse de saison ────────────────────────────────
    Réunit ce que l'audit avait trouvé séparé : le cumul de match
@@ -8940,6 +9900,12 @@ function renderScoreBreakdown(squad,c){
   if(Math.abs(c.detail.severity)>=0.005)
     box.appendChild(ligne("Sévérité corrigée",fmtDelta(c.detail.severity),deltaColor(c.detail.severity),
       c.detail.severity>0?"l'évaluateur notait bas":"l'évaluateur notait haut"));
+  else if((c.detail.severityAbs||0)>=0.005)
+    /* Les corrections se sont compensées : le score n'a pas bougé, mais
+       les évaluateurs ont bien été rapprochés. Le taire laisserait croire
+       que rien n'a été fait. */
+    box.appendChild(ligne("Sévérité corrigée","±"+c.detail.severityAbs.toFixed(2),"var(--txt-dim)",
+      "les évaluateurs se compensent : le score ne bouge pas"));
   if(Math.abs(c.detail.shrink)>=0.005)
     box.appendChild(ligne("Peu de regards",fmtDelta(c.detail.shrink),deltaColor(c.detail.shrink),
       plural(c.nRatings,"regard")+" — ramené vers "+(c.detail.reference||0).toFixed(2)));
@@ -9002,10 +9968,16 @@ function renderStatMini(stats){
    changement de comportement de la v7 par rapport à la v6, et il est
    voulu : un effectif ne se remplit pas de joueuses qui n'ont pas dit
    oui. */
-function setRosterStatus(squad,entry,status){
+/* `campaignId` : la campagne D'OÙ vient la décision. Sans lui,
+   « ⚡ Appliquer les avis » lisait les soumissions de la campagne
+   affichée à l'écran Scores et inscrivait la décision dans la campagne
+   ACTIVE — on tranchait la journée 2 en croyant trancher la journée 1,
+   ce que les cinq volets sont précisément censés empêcher. */
+function setRosterStatus(squad,entry,status,campaignId){
   var pid=entry.playerId;
   if(!MEMBERSHIPS[entry.membership])entry.membership="active";
-  setCampaignDecision(squad,squad.activeCampaignId,pid,STATUS_TO_RECO[status]||"",state.meId||null);
+  var cid=campaignId&&campaignById(squad,campaignId)?campaignId:squad.activeCampaignId;
+  setCampaignDecision(squad,cid,pid,STATUS_TO_RECO[status]||"",state.meId||null);
   if(status!=="selected"){
     /* Écarter quelqu'un qui avait accepté demande d'archiver son offre :
        c'est le seul chemin qui la sorte de l'équipe, et il est tracé. */
@@ -9026,6 +9998,14 @@ function detachFromTeam(team,pid){
    Le geste unitaire et le retrait en lot effacent exactement la même
    chose : ils partagent ce noyau et ne se distinguent que par la ligne
    qu'ils écrivent au journal. */
+/* Instantané du squad entier, pour les gestes qui le remanient hors
+   des collections déclarées. `restoreSnapshot` sait traiter `squads`. */
+function pushUndoSquad(label,sq){
+  if(!sq)return;
+  undoStack.push({kind:"snapshot",label:label,gid:uid(),
+    before:[{coll:"squads",id:sq.id,squadId:null,value:clone(sq),index:DB.squads.indexOf(sq)}]});
+  trimUndo();
+}
 function detachRosterEntry(squad,pid){
   squad.roster=squad.roster.filter(function(e){return e.playerId!==pid});
   detachFromTeam(squad,pid);
@@ -9040,6 +10020,16 @@ function detachRosterEntry(squad,pid){
      plus. Les offres encore EN ATTENTE n'engageaient personne : on les
      annule. Celles déjà tranchées restent, datées : elles ont eu lieu. */
   squad.campaignRoster=(squad.campaignRoster||[]).filter(function(e){return e.playerId!==pid});
+  /* Ce que le détachement laissait derrière lui, et que seul le
+     rechargement suivant nettoyait : un objectif affiché au nom de
+     « — », un groupe de vue portant une absente, une borne de set. */
+  (squad.goals||[]).forEach(function(g){if(g.playerId===pid)g.active=false});
+  (squad.setMarks||[]).forEach(function(m){if(m&&m.stats)delete m.stats[pid]});
+  (squad.selectorViews||[]).forEach(function(v){
+    (v.playerGroups||[]).forEach(function(g){
+      g.playerIds=(g.playerIds||[]).filter(function(x){return x!==pid});
+    });
+  });
   (squad.offers||[]).forEach(function(o){
     if(o.playerId===pid&&o.status==="pending"&&!o.voidedAt)o.voidedAt=nowISO();
   });
@@ -9233,13 +10223,24 @@ function pickSet(ids){state.picked=(ids||[]).slice();render()}
 function pickRow(row,id){
   var on=pickHas(id);
   var box=h("span",{className:"pick-box"+(on?" on":"")},on?"✓":"");
-  if(on)row.classList.add("picked");
+  /* Deux familles de lignes cohabitent — `.list-row`, hérité, et le
+     composant `.listRow`. Elles ne portent pas la même classe de
+     coche : sans les deux, une ligne cochée dans l'une reste
+     indiscernable d'une ligne qui ne l'est pas. */
+  function peindre(v){
+    row.classList.toggle("picked",v);
+    row.classList.toggle("is-picked",v);
+  }
+  if(on)peindre(true);
   row.insertBefore(box,row.firstChild);
+  row.setAttribute("role","checkbox");
+  row.setAttribute("aria-checked",on?"true":"false");
   row.addEventListener("click",function(){
     var i=state.picked.indexOf(id);
     if(i!==-1)state.picked.splice(i,1);else state.picked.push(id);
     var now=pickHas(id);
-    row.classList.toggle("picked",now);
+    peindre(now);
+    row.setAttribute("aria-checked",now?"true":"false");
     box.className="pick-box"+(now?" on":"");
     box.textContent=now?"✓":"";
     refreshPickUI();
@@ -9249,6 +10250,13 @@ function pickRow(row,id){
 function avertissementPick(){
   if(!state.picked.length)return "";
   var bits=[];
+  if(state.pickMode==="offers"){
+    var sq0=curSquad();
+    var dedans=state.picked.filter(function(pid){
+      var o=currentOffer(sq0,pid);return !!(o&&o.status==="accepted");}).length;
+    return dedans?("⚠️ Dont "+plural(dedans,"athlète")+" déjà dans l'équipe : "+
+      (dedans>1?"elles en ressortiront":"elle en ressortira")+" le temps de répondre.") : "";
+  }
   if(state.pickMode==="roster"){
     var d=pertesRetrait(curSquad(),state.picked);
     if(d.retenues)bits.push(d.retenues+(d.retenues>1?" retenues":" retenue"));
@@ -9594,11 +10602,22 @@ function renderAdminPeople(){
             showToast("⚠️ Seul administrateur de "+seul[0].name);return;
           }
           confirmAct("Supprimer « "+p.name+" » ?\nSes affectations seront retirées.",function(){
-            DB.assignments=DB.assignments.filter(function(a){return a.personId!==p.id});
-            DB.people=DB.people.filter(function(x){return x.id!==p.id});
-            if(state.meId===p.id)state.meId=null;
-            revokeToken(p);
-            saveNow();render();
+            var effacer=function(){
+              DB.assignments=DB.assignments.filter(function(a){return a.personId!==p.id});
+              DB.clubAssignments=DB.clubAssignments.filter(function(a){return a.personId!==p.id});
+              DB.people=DB.people.filter(function(x){return x.id!==p.id});
+              if(state.meId===p.id)state.meId=null;
+              saveNow();render();
+            };
+            if(!p.token){effacer();return}
+            /* Supprimer la fiche emporte le jeton avec elle : si le
+               relais ne l'a pas révoqué, l'appareil de cette personne
+               garde son accès et plus rien ici ne permet de le couper. */
+            revokeToken(p).then(effacer).catch(function(err){
+              showToast("⚠️ Le relais n'a pas révoqué son jeton ("+
+                (err&&err.message||"injoignable")+"). Supprimez-la une fois le relais joignable, "+
+                "ou son appareil gardera l'accès.",{tone:"danger",duree:7000});
+            });
           },{confirm:"Supprimer"});
         }},"🗑️"))));
 
@@ -10000,7 +11019,18 @@ function renderAdminSync(){
           h("div",{className:"psub"},"…"+String(p.token).slice(-6))),
         h("button",{className:"btn btn-danger-o xs",onclick:function(){
           confirmAct("Révoquer le jeton de « "+p.name+" » ?\nSon appareil perdra l'accès au relais.",
-            function(){revokeToken(p);saveNow();render()},{confirm:"Révoquer"});
+            function(){
+              revokeToken(p).then(function(){
+                saveNow();showToast("🔒 Jeton révoqué",{tone:"ok"});render();
+              }).catch(function(err){
+                /* La ligne RESTE : tant que le relais n'a pas dit oui,
+                   le jeton fonctionne, et c'est la seule trace qui
+                   permette de réessayer. */
+                showToast("⚠️ Révocation refusée — le jeton reste valide ("+
+                  (err&&err.message||"relais injoignable")+")",{tone:"danger",duree:6000});
+                render();
+              });
+            },{confirm:"Révoquer"});
         }},"Révoquer")));
     });
   }
@@ -10679,7 +11709,7 @@ function renderGridInput(team){
 
   var viewRow=h("div",{className:"pill-row"},VIEWS.map(function(v,i){
     var b=h("button",{className:"pill"+(i===state.viewIdx?" active":""),onclick:function(){
-      state.viewIdx=i;state.expandedGroup=null;saveNow();render();
+      state.viewIdx=i;state.expandedGroup=null;saveUI();render();
     }},v.label);
     if(i===state.viewIdx)b.style.background="#F59E0B";
     return b;
@@ -10871,7 +11901,7 @@ function renderStatsTable(team,modeRow){
 
   var viewRow=h("div",{className:"pill-row"},VIEWS.map(function(v,i){
     var b=h("button",{className:"pill"+(i===state.viewIdx?" active":""),onclick:function(){
-      state.viewIdx=i;state.groupIdx=0;state.sortBy=null;saveNow();render();
+      state.viewIdx=i;state.groupIdx=0;state.sortBy=null;saveUI();render();
     }},v.label);
     if(i===state.viewIdx)b.style.background="#F59E0B";
     return b;
@@ -11360,8 +12390,15 @@ function renderSessionsPane(squad,opts){
         h("button",{className:"btn btn-danger-o xs",onclick:function(){
           confirmAct("Supprimer « "+se.name+" » ?",function(){
             logAct("match","Match « "+se.name+" » supprimé",{teamId:squad.teamId,seasonId:squad.seasonId});
+            pushUndoSquad("Suppression de « "+se.name+" »",squad);
             squad.sessions=squad.sessions.filter(function(x){return x.id!==se.id});
-            saveNow();showToast("🗑️ Supprimé",{tone:"danger"});render();
+            /* Les objectifs sont fondés sur les relevés : en retirer un
+               sans recalculer laissait des cibles et des « atteint »
+               appuyés sur un match qui n'existe plus. */
+            recalcGoals(squad);
+            saveNow();
+            showToast("🗑️ Supprimé",{tone:"danger",action:{label:"Annuler",onclick:doUndo}});
+            render();
           },{confirm:"Supprimer"});
         }},"✕"));
       card.appendChild(h("div",{className:"ev-match"},
@@ -11532,7 +12569,7 @@ function renderViewCard(squad,camp,v){
     acts.appendChild(h("button",{className:"btn btn-warn sm",onclick:function(){
       ensureSelectorCtx(squad.teamId);
       state.tab="sv_eval";state.svViewId=v.id;state.svPlayerId=null;
-      state.svPlayerGroupId=null;state.svTilesOpen=true;saveNow();render();
+      state.svPlayerGroupId=null;state.svTilesOpen=true;saveUI();render();
     }},"🎯 Ouvrir ici"));
     /* Inviter part de la vue : c'est le geste entier — la personne, son
        jeton, et la vue publiée à son nom — et c'est lui qui restreint ce
@@ -11643,14 +12680,22 @@ function renderSubmissionsPane(squad,campaignId){
                 body:"Rien ne la ramènera : ni un nouveau relevé, qui ne redemande que ce qui est plus "+
                      "récent, ni une sauvegarde restaurée, qui n'écrase pas une équipe-saison déjà là. "+
                      "Les moyennes compilées seront recalculées.",
-                detail:"Pour pouvoir la réimporter plus tard, annulez et exportez-la d'abord avec 📤. "+
-                       "Sinon il faudra demander à "+(sub.selectorName||"l'évaluateur")+" de soumettre à nouveau.",
+                detail:(sub.replaces
+                  ? "Celle-ci en CORRIGEAIT une précédente : les deux partent ensemble. Ne retirer que "+
+                    "la correction ferait revenir la note que l'évaluateur avait justement corrigée. "
+                  : "")+
+                  "Pour pouvoir la réimporter plus tard, annulez et exportez-la d'abord avec 📤. "+
+                  "Sinon il faudra demander à "+(sub.selectorName||"l'évaluateur")+" de soumettre à nouveau.",
                 confirm:"Supprimer",tone:"danger",
                 onconfirm:function(){
-                  logAct("submission","Soumission de "+(sub.selectorName||"—")+" sur « "+sub.viewName+" » supprimée",
+                  pushUndoSquad("Soumission supprimée",squad);
+                  var morts=supprimerSoumission(squad,sub.id);
+                  logAct("submission","Soumission de "+(sub.selectorName||"—")+" sur « "+sub.viewName+
+                    " » supprimée"+(morts.length>1?" (et "+plural(morts.length-1,"correction")+" qu'elle remplaçait)":""),
                     {teamId:squad.teamId,seasonId:squad.seasonId});
-                  squad.submissions=squad.submissions.filter(function(x){return x.id!==sub.id});
-                  saveNow();render();
+                  saveNow();
+                  showToast("🗑️ Supprimée",{tone:"danger",action:{label:"Annuler",onclick:doUndo}});
+                  render();
                 }});
             }},"🗑️"))),
         h("div",{style:{display:"flex",gap:"4px",flexWrap:"wrap",marginTop:"8px"}},sub.entries.map(function(e){
@@ -11841,10 +12886,10 @@ function renderSvViews(){
     card.appendChild(h("div",{className:"btn-row",style:{marginTop:"10px"}},
       h("button",{className:"btn btn-warn sm",style:{flex:"1"},onclick:function(){
         state.svViewId=v.id;state.svPlayerId=null;state.svPlayerGroupId=null;
-        state.svTilesOpen=true;state.tab="sv_eval";saveNow();render();
+        state.svTilesOpen=true;state.tab="sv_eval";saveUI();render();
       }},"✏️ Évaluer"),
       h("button",{className:"btn btn-ghost sm",onclick:function(){
-        state.svViewId=v.id;state.tab="sv_submit";saveNow();render();
+        state.svViewId=v.id;state.tab="sv_submit";saveUI();render();
       }},"📤 Soumettre"),
       src.kind==="inbox"?h("button",{className:"btn btn-danger-o xs",onclick:function(){
         confirmAct("Retirer la vue « "+v.name+" » de cet appareil ?\nLes évaluations non soumises seront perdues.",
@@ -12185,6 +13230,7 @@ function renderSvSubmit(){
    MODALES
    ══════════════════════════════════════════════════════════════ */
 function openModal(type,ctx,input,input2){
+  coucheEmpiler();
   state.modalType=type;state.modalCtx=ctx||null;
   state.modalInput=input!=null?input:"";state.modalInput2=input2!=null?input2:"";
   render();
@@ -12194,10 +13240,19 @@ function openModal(type,ctx,input,input2){
     if(el&&!("ontouchstart" in window))el.focus();
   },40);
 }
-function closeModal(){state.modalType=null;state.modalCtx=null;state.modalInput="";state.modalInput2="";state.modalSel=[];state.modalDraft=null;state.editingSubteamId=null;state.editViewId=null;render()}
+function closeModal(){state.modalType=null;state.modalCtx=null;state.modalInput="";state.modalInput2="";state.modalSel=[];state.modalDraft=null;state.editingSubteamId=null;state.editViewId=null;
+  /* Une sélection multiple ouverte DANS une feuille ne lui survit pas :
+     la barre de lot disparaîtrait avec la feuille en laissant `picked`
+     derrière elle, et le prochain volet Joueuses s'ouvrirait avec des
+     lignes déjà cochées. */
+  if(state.pickMode==="offers"){state.pickMode=null;state.picked=[]}
+  render();
+  if(!couchesOuvertes())coucheDepiler();}
 function modalShell(title,body,buttons,maxWidth){
-  return h("div",{className:"modal-bg",onclick:closeModal},
-    h("div",{className:"modal",style:maxWidth?{maxWidth:maxWidth}:null,onclick:function(e){e.stopPropagation()}},
+  return h("div",{className:"modal-bg",
+    onclick:function(){fermerAvecGarde(closeModal)}},
+    h("div",{className:"modal",role:"dialog","aria-modal":"true","aria-label":title,
+      style:maxWidth?{maxWidth:maxWidth}:null,onclick:function(e){e.stopPropagation()}},
       h("h3",null,title),body,
       h("div",{style:{display:"flex",gap:"8px",marginTop:"6px",flexWrap:"wrap"}},buttons)));
 }
@@ -12319,6 +13374,39 @@ function renderBuildTeamModal(){
   function score(x){var c=comp[x.entry.playerId];return c?c.score:null}
   function statutOffre(x){return x.offer?x.offer.status:""}
 
+  /* Remettre en attente : le geste manquant. « Archiver » sortait bien
+     une athlète de l'équipe, mais en la disant refusée — ce qu'elle
+     n'est pas quand on veut seulement lui reposer la question. Il
+     fallait alors archiver puis rouvrir : deux gestes, et une ligne de
+     journal fausse entre les deux. */
+  var enLot=pickIsOn("offers");
+  function remettre(pids,apres){
+    var n=remettreOffresEnAttente(sq,pids);
+    saveNow();
+    if(apres)apres();
+    showToast(n?("⏳ "+plural(n,"offre")+(n>1?" remises":" remise")+" en attente")
+               :"Déjà en attente",
+      {tone:"warn",action:{label:"Annuler",onclick:doUndo}});
+    render();
+  }
+  function demanderRemise(pids,apres){
+    var dedans=pids.filter(function(pid){
+      var o=currentOffer(sq,pid);return !!(o&&o.status==="accepted");}).length;
+    var qui=pids.length===1
+      ? fullName((playerById(pids[0])||{}))
+      : plural(pids.length,"athlète");
+    openConfirm({
+      title:"Remettre "+(pids.length===1?"l'offre de "+qui:qui)+" en attente ?",
+      body:pids.length===1
+        ? "Son offre repasse « en attente » : elle aura de nouveau à être confirmée."
+        : "Leurs offres repassent « en attente » : elles auront de nouveau à être confirmées.",
+      detail:(dedans?("⚠️ "+plural(dedans,"athlète")+" déjà dans l'équipe en "+
+              (dedans>1?"ressortiront":"ressortira")+" le temps de répondre. "):"")+
+        "Rien d'autre ne change : ni les fiches, ni les compteurs, ni les matchs joués.",
+      confirm:"Remettre en attente",
+      onconfirm:function(){remettre(pids,apres)}});
+  }
+
   var tb=listToolbar({
     key:"buildteam",
     items:items,
@@ -12351,35 +13439,31 @@ function renderBuildTeamModal(){
         if(a!=null)meta.push(tok("dot",{label:a+" ans",color:"var(--txt-dim)"}));
         if(sc!=null)meta.push(tok("dot",{label:"Score "+sc.toFixed(1),color:"var(--txt-dim)"}));
         var enAttente=!!(o&&o.status==="pending");
+
+        /* En mode sélection, la ligne ne porte plus ses boutons : on coche,
+           puis on agit une fois pour toutes depuis la barre. */
+        if(enLot){
+          return h("div",{className:"bt-row"},
+            pickRow(listRow({lead:x.entry.number||"—",name:fullName(x.player),
+              meta:meta,decision:x.entry.status,
+              dim:x.entry.membership==="left"}),pid));
+        }
+        /* Le bouton qui reprend la question, quel que soit l'état de
+           départ — sauf « en attente », où il n'aurait rien à faire. */
+        var remiseBtn=enAttente?null:h("button",{className:"btn btn-ghost sm",type:"button",
+          "aria-label":"Remettre l'offre de "+fullName(x.player)+" en attente",
+          onclick:function(){demanderRemise([pid])}},"⏳ En attente");
         /* Une offre ARCHIVÉE était une impasse : la retenir de nouveau ne
            lui en fabrique pas une seconde — l'épisode reste ouvert en base
            tant qu'on ne le rouvre pas — et les deux boutons restaient
            grisés à jamais. On donne donc le geste que le modèle prévoit,
            reopenOffer, plutôt que de laisser l'écran sans issue. */
         if(o&&o.status==="declined"){
-          var rouvrir=h("div",{className:"bt-act"},
-            h("button",{className:"btn btn-ghost sm",type:"button",
-              "aria-label":"Rouvrir l'offre de "+fullName(x.player),
-              onclick:function(){
-                openConfirm({
-                  title:"Rouvrir l'offre de "+fullName(x.player)+" ?",
-                  body:"Son offre repasse « en attente » : elle pourra de nouveau "+
-                       "être confirmée, et entrer dans l'équipe.",
-                  detail:"Rien d'autre ne change : ni sa fiche, ni ses compteurs, "+
-                         "ni les matchs qu'elle a joués.",
-                  confirm:"Rouvrir",
-                  onconfirm:function(){
-                    reopenOffer(sq,o.id);
-                    saveNow();
-                    showToast("⏳ Offre rouverte — à confirmer",{tone:"warn"});
-                    render();
-                  }});
-              }},"↺ Rouvrir l'offre"));
           return h("div",{className:"bt-row"},
             listRow({lead:x.entry.number||"—",name:fullName(x.player),
               meta:meta,decision:x.entry.status,
               dim:x.entry.membership==="left"}),
-            rouvrir);
+            h("div",{className:"bt-act"},remiseBtn));
         }
         /* Un bouton grisé n'est pas un état : c'est un bouton qui ne marche
            pas. Constituer une équipe de douze est une suite de douze gestes ;
@@ -12412,12 +13496,17 @@ function renderBuildTeamModal(){
             archiver);
         } else if(o&&o.status==="accepted"){
           actions=h("div",{className:"bt-act"},
-            h("span",{className:"bt-etat ok"},"🤝 Dans l'équipe"),archiver);
+            h("span",{className:"bt-etat ok"},"🤝 Dans l'équipe"),remiseBtn,archiver);
         } else {
           /* Retenue sans offre vivante : le modèle n'en crée qu'à la
-             décision, et une base reprise d'une v6 peut arriver ainsi. */
+             décision, et une base reprise d'une v6 peut arriver ainsi.
+             L'écran n'avait alors rien à offrir qu'une phrase : on lui
+             donne le geste qui la sort de là. */
           actions=h("div",{className:"bt-act"},
-            h("span",{className:"bt-etat"},"Retenue — aucune offre en cours"));
+            h("span",{className:"bt-etat"},"Retenue — aucune offre"),
+            h("button",{className:"btn btn-save sm",type:"button",
+              "aria-label":"Ouvrir une offre en attente pour "+fullName(x.player),
+              onclick:function(){demanderRemise([pid])}},"⏳ Ouvrir l'offre"));
         }
         return h("div",{className:"bt-row"},
           listRow({lead:x.entry.number||"—",name:fullName(x.player),
@@ -12430,18 +13519,70 @@ function renderBuildTeamModal(){
 
   var dansEquipe=(sq.playerIds||[]).length;
   var attente=items.filter(function(x){return statutOffre(x)==="pending"}).length;
+  var remettables=items.filter(function(x){return statutOffre(x)!=="pending"});
 
-  return sheetShell({title:"Constituer l'équipe",
-    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},
+  /* La barre de lot. Elle vit dans le pied de la feuille, là où sont
+     déjà les boutons : on coche en haut, on agit en bas, sans jamais
+     remonter — comme la barre de sélection des deux volets Joueuses. */
+  var pieds;
+  if(enLot){
+    var n=state.picked.length;
+    pieds=[h("div",{className:"bt-lot"},
+      h("div",{className:"pick-head"},
+        h("span",{id:"pickCount",style:{fontSize:"13px",fontWeight:"700",color:"var(--txt-strong)"}},
+          n?plural(n,"sélectionnée"):"Aucune sélectionnée"),
+        h("span",{style:{flex:"1"}}),
+        h("button",{className:"btn btn-ghost xs",type:"button",
+          onclick:function(){
+            var tous=items.map(function(x){return x.entry.playerId});
+            pickSet(state.picked.length>=tous.length?[]:tous);
+          }},state.picked.length>=items.length&&items.length?"Aucune":"Toutes"),
+        h("button",{className:"btn btn-ghost xs",type:"button",
+          onclick:function(){state.pickMode=null;state.picked=[];render()}},"Quitter")),
+      (function(){
+        var w=h("div",{id:"pickWarn",className:"pick-warn"});
+        var t=avertissementPick();
+        w.textContent=t;if(!t)w.style.display="none";
+        return w;
+      })(),
+      h("div",{className:"btn-row"},
+        h("button",{className:"btn btn-ghost sm pick-act",disabled:!n,type:"button",
+          onclick:function(){
+            demanderRemise(state.picked.slice(),function(){state.pickMode=null;state.picked=[]});
+          }},"⏳ Remettre en attente"),
+        h("button",{className:"btn btn-save sm pick-act",disabled:!n,type:"button",
+          onclick:function(){
+            var pids=state.picked.slice(),k=0;
+            Store.tx(function(){
+              pids.forEach(function(pid){
+                var o=currentOffer(sq,pid);
+                if(o&&o.status==="pending"){acceptOffer(sq,o.id,state.meId||null);k++}
+              });
+            },"Offres confirmées");
+            state.pickMode=null;state.picked=[];saveNow();
+            showToast(k?("🤝 "+plural(k,"offre")+(k>1?" confirmées":" confirmée")):"Aucune offre en attente",
+              {tone:"ok",action:{label:"Annuler",onclick:doUndo}});
+            render();
+          }},"🤝 Confirmer")))];
+  } else {
+    pieds=[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")];
+  }
+
+  return sheetShell({title:"Constituer l'équipe",buttons:pieds},
     h("div",null,
       h("div",{className:"hint"},
         "Une athlète retenue reçoit une offre en attente. ",
         h("b",null,"Confirmer")," l'accepte et la fait entrer dans l'équipe ; ",
-        h("b",null,"Archiver")," la refuse et l'en retire — sans jamais toucher "+
+        h("b",null,"Archiver")," la refuse et l'en retire ; ",
+        h("b",null,"⏳ En attente")," lui repose la question — sans jamais toucher "+
         "à sa fiche ni à ses statistiques."),
       h("div",{className:"bt-count"},
         plural(dansEquipe,"athlète")+" dans l'équipe"+
         (attente?" · "+plural(attente,"offre")+" en attente":"")),
+      (!enLot&&remettables.length>1)?h("div",{className:"btn-row",style:{marginBottom:"var(--s2)"}},
+        h("button",{className:"btn btn-ghost sm",type:"button",
+          onclick:function(){state.pickMode="offers";state.picked=[];render()}},
+          "☑︎ Sélectionner plusieurs athlètes")):null,
       tb,tb.list));
 }
 defModal("buildteam",renderBuildTeamModal);
@@ -12585,7 +13726,11 @@ function renderModal(){
         if(!n){showToast("⚠️ Entrez un nom");return}
         if(per){
           per.name=n;per.revoked=!!pd.revoked;
-          if(per.revoked)revokeToken(per);
+          if(per.revoked&&per.token)revokeToken(per).catch(function(err){
+            showToast("⚠️ Le relais n'a pas révoqué son jeton ("+
+              (err&&err.message||"injoignable")+") — son appareil garde l'accès.",
+              {tone:"danger",duree:6000});
+          });
         } else DB.people.push(mkPerson({name:n}));
         state.modalDraft=null;normalizeCtx();closeModal();saveNow();
         showToast(per?"✅ Mise à jour":"✅ « "+n+" » ajoutée");
@@ -13507,7 +14652,7 @@ function renderModal(){
       h("b",null,plural(nMarks+1,"set")),". La somme des sets vaut le total, par construction."));
     else body.appendChild(h("div",{className:"muted"},
       "Aucune borne de set posée : ce match sera enregistré sans ventilation, et "+
-      "s'affichera « Match (non ventilé) ». Vous pourrez le ventiler plus tard."));
+      "s'affichera « Match (non ventilé) ». Vous pourrez le ventiler plus tard, depuis 🗓️ Saison → la rencontre → Ventilation."));
 
     body.appendChild(h("div",{className:"muted"},
       "Les compteurs seront remis à zéro pour le match suivant. Le match reste consultable dans Récap → 🏐 Rencontres."));
@@ -14095,7 +15240,9 @@ function renderModal(){
           "Regardez-les avant d'appliquer."):null,
         list),
       [cancel,changes.length?h("button",{id:"modalOk",className:"btn btn-warn full",onclick:function(){
-        changes.forEach(function(ch){setRosterStatus(season,ch.entry,ch.target)});
+        /* La décision s'inscrit dans la campagne dont les avis viennent
+           d'être compilés, jamais dans une autre. */
+        changes.forEach(function(ch){setRosterStatus(season,ch.entry,ch.target,applyCampId)});
         logAct("status","Avis de la campagne "+(applyCamp?"« "+applyCamp.name+" »":"active")+
           " appliqués : "+plural(changes.length,"statut")+" alignés",
           {teamId:season.teamId,seasonId:season.seasonId});
@@ -14162,7 +15309,7 @@ function render(){
       }},"Reset"));
     var isQuick=state.inputMode==="quick";
     rightEl=h("button",{className:"mode-toggle"+(isQuick?"":" active"),onclick:function(){
-      state.inputMode=isQuick?"grid":"quick";state.quickPlayer=null;saveNow();render();
+      state.inputMode=isQuick?"grid":"quick";state.quickPlayer=null;saveUI();render();
     }},isQuick?"Grille":"Rapide");
   } else if(isSelectorCtx()&&state.tab==="sv_eval"){
     var ub=h("button",{className:"btn btn-undo xs",disabled:!undoStack.length,onclick:doUndo},"↩");
@@ -14226,7 +15373,14 @@ function render(){
   if(state.toast)app.appendChild(h("div",{className:"toast"},state.toast));
   if(state.updateReady)app.appendChild(h("div",{className:"update-bar"},
     h("span",null,"Une nouvelle version est disponible."),
-    h("button",{className:"btn btn-primary xs",onclick:function(){saveNow();location.reload()}},"Mettre à jour")));
+    h("button",{className:"btn btn-primary xs",onclick:function(e){
+      /* Recharger sans attendre la fin du chiffrement perdait tout ce
+         qui n'était pas encore sur le disque. */
+      var b=e.currentTarget;b.disabled=true;b.textContent="Sauvegarde…";
+      var p=saveNow();
+      if(p&&p.then)p.then(function(){location.reload()},function(){location.reload()});
+      else location.reload();
+    }},"Mettre à jour")));
   restoreScrollPos();
 }
 
@@ -14316,7 +15470,13 @@ function renderGate(){
         detail:"Ne faites ceci que si vous repartez de zéro, ou si vous avez une sauvegarde ailleurs.",
         confirm:"Effacer",tone:"danger",
         onconfirm:function(){
-          localStorage.removeItem(SK_VAULT);localStorage.removeItem(SK_UI);
+          /* « Effacer les données de cet appareil » ne peut pas laisser
+             derrière lui le journal d'opérations (chiffré, mais plein de
+             la base), l'INBOX, ni surtout le jeton de relais — qui donne
+             un accès RÉSEAU vivant à qui reprend l'appareil. */
+          [SK_VAULT,SK_UI,SK,SK_INBOX,SK_OPS,SK_SYNC,SK_DEV]
+            .concat(LEGACY_ALL)
+            .forEach(function(k){try{localStorage.removeItem(k)}catch(e){}});
           location.reload();
         }});
     }},"Phrase oubliée — repartir de zéro"));
@@ -14795,10 +15955,34 @@ function bootRest(){
   }catch(e){}
   var cfg=readShareLink();
   if(!cfg)return;
-  SYNC.url=cfg.url;SYNC.room=cfg.room;SYNC.token=cfg.token;
-  SYNC.pulled={packet:"",catalog:"",submission:""};
-  SYNC.identity=null;
-  saveSync();clearHash();
+  /* Sur un appareil VIERGE, adopter le lien est tout l'intérêt : c'est
+     l'invitation. Sur une application déjà installée, c'est autre chose
+     — on change de relais et d'identité. Un lien reçu par messagerie
+     détournait ainsi, sans un mot, toute la synchronisation d'une
+     entraîneuse vers un relais choisi par l'expéditeur : ses vues y
+     partaient, et les « soumissions » qu'il y déposait entraient dans
+     sa base. On demande donc. */
+  var deja=syncReady()&&(SYNC.url!==cfg.url||SYNC.room!==cfg.room||SYNC.token!==cfg.token);
+  var appliquer=function(){
+    SYNC.url=cfg.url;SYNC.room=cfg.room;SYNC.token=cfg.token;
+    SYNC.pulled={packet:"",catalog:"",submission:""};
+    SYNC.identity=null;
+    saveSync();clearHash();
+    rejoindreSalon(cfg);
+  };
+  if(!deja){appliquer();return}
+  clearHash();
+  openConfirm({
+    title:"Rejoindre un autre salon ?",
+    body:"Ce lien rattache cet appareil au salon « "+cfg.room+" » sur "+cfg.url+
+         ", et lui donne l'identité que ce relais lui attribuera.",
+    detail:"Cet appareil est aujourd'hui relié au salon « "+(SYNC.room||"—")+
+           " ». Ne poursuivez que si vous attendiez cette invitation. "+
+           "Vos données locales ne sont pas effacées.",
+    confirm:"Rejoindre",tone:"danger",
+    onconfirm:appliquer});
+}
+function rejoindreSalon(cfg){
   syncWhoami().then(function(data){
     var g=data&&data.grant;
     if(!g)throw new Error("Jeton inconnu du relais");
@@ -14833,7 +16017,11 @@ function adoptRemoteIdentity(g){
       return a.personId===person.id&&a.clubId===cl.id&&a.role==="admin";}))
       DB.clubAssignments.push(mkClubAssignment(person.id,cl.id,"admin",g.grant||null));
     if(cl)state.ctx={role:"admin",clubId:cl.id};
-    normalizeCtx();saveAll();return;
+    /* La nomination vient d'être posée : on la vérifie tout de suite,
+       pour que les écrans qui s'appuient sur `VERIF` disent vrai. */
+    normalizeCtx();
+    if(typeof verifyAll==="function")verifyAll().then(function(){render()}).catch(function(){});
+    saveAll();return;
   }
   if(!g.teamId){normalizeCtx();saveAll();return}
 
@@ -14886,8 +16074,15 @@ window.addEventListener("hashchange",function(){
   /* unlock et protect : le lien attend que le coffre soit ouvert, et
      c'est bootRest() qui le lira. On ne jette pas des données pour lui. */
 });
-window.addEventListener("beforeunload",function(){saveAll()});
-document.addEventListener("visibilitychange",function(){if(document.visibilityState==="hidden")saveAll()});
+/* Au déchargement, une promesse ne se résout plus : le bloc chiffré
+   n'atteindra pas le disque. On lance quand même l'écriture — elle
+   aboutit en mode clair — mais on NE TOUCHE PAS au journal, qui est
+   alors la seule chose qui survivra, et que le prochain démarrage
+   rejouera. */
+window.addEventListener("beforeunload",function(){try{saveAll()}catch(e){}});
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="hidden"){try{saveAll()}catch(e){}}
+});
 
 /* Stockage persistant : évite l'éviction des données par le navigateur */
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(function(){});

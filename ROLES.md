@@ -37,9 +37,23 @@ l'appareil du propriétaire ne transmet donc rien à personne.
 **Portée honnête.** La vérification se fait dans le navigateur : qui modifie sa
 propre copie de la page peut la contourner sur son propre appareil. Ce qu'elle
 empêche vraiment, c'est qu'une pièce forgée soit acceptée **ailleurs** — par un
-autre appareil, ou par le relais, qui applique la même vérification hors de portée
-de celui qu'il contrôle. C'est la même frontière qu'au §4 : la signature déplace
-la question du « je le prétends » au « je peux le prouver ».
+autre appareil, qui applique la même vérification hors de portée de celui qu'il
+contrôle. C'est la même frontière qu'au §4 : la signature déplace la question du
+« je le prétends » au « je peux le prouver ».
+
+> **Ce que le relais ne fait pas, et qu'il faut savoir.** Le relais ignore
+> totalement les chartes et les nominations : il ne connaît que des jetons. Il
+> autorise donc sur la foi d'un jeton, jamais d'une signature. Concrètement, la
+> signature distingue aujourd'hui une pièce authentique d'une pièce forgée à
+> l'affichage et à l'adoption d'une identité distante — elle ne conditionne pas
+> encore les actions d'un appareil sur ses propres données. Une version
+> antérieure de ce paragraphe affirmait le contraire ; c'était faux.
+
+> **Les soumissions ne sont pas signées.** Le champ `by` d'un dépôt est estampillé
+> par le relais à partir du jeton présenté : il protège d'un sélectionneur qui
+> mentirait sur son identité, pas d'un relais compromis, qui peut fabriquer des
+> avis attribués à un évaluateur réel. C'est la raison pour laquelle rejoindre un
+> autre salon demande désormais confirmation sur une application déjà installée.
 
 ### Perdre la clé
 

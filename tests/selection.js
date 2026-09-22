@@ -204,13 +204,15 @@ const ERRORS=[];let PASS=0;
   });
   await step("une offre archivée se rouvre — l'écran n'est pas une impasse",async()=>{
     /* Retenir une athlète dont l'offre a été archivée ne lui en fabrique
-       pas une seconde : l'épisode reste ouvert en base. Sans « Rouvrir »,
-       les deux boutons restaient grisés à jamais et elle ne pouvait plus
-       entrer dans l'équipe. */
+       pas une seconde : l'épisode reste ouvert en base. Sans « remettre
+       en attente », les deux boutons restaient grisés à jamais et elle
+       ne pouvait plus entrer dans l'équipe. Le geste porte le même nom
+       quel que soit l'état de départ — acceptée, refusée, ou retenue
+       sans offre : c'est une seule et même intention. */
     const ligne=page.locator(".bt-row").filter({hasText:"Maya"});
     const t=await ligne.first().innerText();
-    if(!/Rouvrir/.test(t))throw new Error("aucun geste offert sur une offre archivée : "+t);
-    await ligne.locator("button").filter({hasText:"Rouvrir"}).first().click();
+    if(!/En attente/.test(t))throw new Error("aucun geste offert sur une offre archivée : "+t);
+    await ligne.locator("button").filter({hasText:"En attente"}).first().click();
     await accepterDialogue(page);
     await page.waitForTimeout(350);
     const r=await page.evaluate(()=>{

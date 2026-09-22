@@ -635,9 +635,18 @@ conservé d'une saison à l'autre.
 Tout est stocké localement (`localStorage`). Rien ne sort de l'appareil, sauf ce que
 vous publiez explicitement sur votre propre relais.
 
-- `Saison → Saisons → 📤 Sauvegarde` produit un fichier complet.
-- `📥 Restaurer / fusionner` réimporte en dédoublonnant les joueuses. Les exports de
-  l'ancienne version (v7 et antérieurs) sont acceptés.
+- `⚙️ Réglages → 💾 Données → 📤 Sauvegarde complète` produit un fichier complet :
+  le club, ses équipes, ses saisons et sa base de joueuses. C'est lui qu'il faut pour
+  repartir d'un appareil neuf. Il ne contient **aucun jeton d'invitation** — restaurer
+  une sauvegarde suppose donc de réémettre les liens.
+- `📤 Exporter mon équipe`, à côté, n'emporte qu'une équipe-saison : de quoi passer
+  la main sans emporter les données des collègues.
+- `📥 Restaurer / fusionner` réimporte en dédoublonnant les joueuses sur `nom + année`,
+  les équipes et les clubs sur leur nom. Rien n'est écrasé : une équipe-saison déjà
+  présente n'est pas fusionnée, et l'écran vous la **nomme** plutôt que de la taire.
+  Les exports de l'ancienne version (v7 et antérieurs) sont acceptés.
+- `⚙️ Réglages → 🔒 Sécurité` verrouille l'appareil sur-le-champ, et permet de
+  **changer la phrase de passe** — les données sont rechiffrées sur place.
 - Au premier lancement, les données de l'ancienne version sont migrées automatiquement.
 - Les saisons enregistrées avant les rencontres sont reprises : les matchs d'un même
   tournoi se regroupent d'eux-mêmes, la nature est devinée du nom, l'adversaire lu
@@ -646,6 +655,107 @@ vous publiez explicitement sur votre propre relais.
 ---
 
 ## Notes de version
+
+### v7.2 — le filet de sécurité, et trois promesses tenues
+
+Les versions précédentes ont construit ce que l'application **fait**. Celle-ci
+regarde ce qu'elle promet de **ne pas perdre** — et c'est là qu'étaient les
+défauts les plus coûteux : tous silencieux, tous découverts après coup.
+
+**Restaurer une sauvegarde restaure vraiment tout.** L'import n'emportait ni les
+clubs ni les affectations de club : les équipes entraient avec l'identifiant de
+club de l'appareil d'origine, inconnu ici, et disparaissaient **au rechargement
+suivant** — pas à l'import, ce qui rendait la perte invisible sur le moment. Le
+remappage des identifiants oubliait par ailleurs tout ce qui est né avec la v7:
+convocations, décisions, offres, objectifs, ventilation par set. Et la
+normalisation finale était appelée sans que son résultat soit repris — seul des
+quatorze appels du fichier à l'oublier. Enfin, une équipe-saison déjà présente
+était écartée **sans un mot**, pendant que le message disait « Import terminé » :
+elle vous est maintenant nommée.
+
+**« Sauvegardé » veut dire écrit.** Sous coffre — c'est-à-dire toujours —
+l'écriture est un chiffrement asynchrone. L'application effaçait le journal de
+secours et affichait « Sauvegardé » **avant** que le bloc n'atteigne le disque.
+Le bouton « Mettre à jour », lui, rechargeait la page dans la foulée : perte
+garantie. Le journal n'est désormais purgé qu'une fois l'écriture confirmée, et
+jamais si elle a échoué ; à la fermeture de l'onglet on n'y touche plus du tout
+— c'est lui qui survivra, et le démarrage suivant le rejouera.
+
+**Une base illisible n'est plus écrasée par une base vide.** Une erreur de
+lecture donnait un club vide, sans message ; la première bascule d'onglet
+écrivait ce vide par-dessus la saison. L'application refuse maintenant d'écrire
+ce qu'elle n'a pas su lire.
+
+**L'annulation dit vrai.** Confirmer une offre puis annuler laissait l'athlète
+dans l'équipe avec une offre revenue « en attente » : les champs propres à
+l'équipe-saison n'étaient pris dans aucun instantané. Le badge de décision
+restait sur la valeur annulée jusqu'au rechargement. L'annulation d'une note
+d'évaluateur ne faisait rien du tout — elle cherchait les vues dans les saisons,
+où il n'y en a pas. Et quatre écrans offraient « Annuler » sur un geste qui
+n'empilait rien : le bouton annulait l'opération **précédente**, un compteur de
+match ou une décision de sélection.
+
+**Trois choses que le code savait faire et que l'écran n'offrait pas.**
+`⚙️ Réglages → 🔒 Sécurité` verrouille l'appareil sur-le-champ — pour l'iPad du
+club qu'on laisse au bord du terrain — et permet enfin de **changer la phrase de
+passe** : choisie à la hâte le premier jour, elle ne pouvait plus jamais l'être.
+`💾 Données` porte la **sauvegarde complète** et sa restauration, jusqu'ici
+réservées au rôle administrateur alors que ce guide les donnait comme un geste
+d'entraîneur. Et **ventiler un match après coup** existe : l'application écrivait
+« Vous pourrez le ventiler plus tard », puis n'offrait aucun geste. On reporte
+désormais sa feuille de match compteur par compteur, dans un tableau où le reste
+se déduit tout seul — rien ne s'additionne, on **déplace** ce qui est déjà
+compté, et le total du match ne peut pas bouger.
+
+**Ce que les objectifs disaient de travers.** Un recul était déclaré pour une
+athlète parfaitement stable, au seul motif qu'elle est sous la médiane de son
+équipe : la médiane sert à fixer la cible, elle ne peut pas servir de référence
+de recul. Celle-ci est désormais la première mesure réelle de l'athlète. Une
+correction de relevé à volume égal — un kill requalifié en erreur — ne
+déclenchait aucun recalcul. Une seule attaque « Réussie » sur toute la saison
+désarmait le garde-fou de saisie incomplète, et une efficacité trois fois gonflée
+repartait piloter la cible. La base d'équipe ignorait le périmètre de l'objectif.
+Une catégorie « M15 » ou « Cadettes » retombait sur le barème senior. Et au
+service, une équipe déjà à l'équilibre recevait une cible **sous** son niveau :
+l'objectif naissait atteint et se redatait indéfiniment.
+
+**Ce que le score disait de travers.** La correction de sévérité était bornée
+puis recentrée — donc débordait la borne annoncée — et déplaçait des notes
+qu'aucun second évaluateur n'avait vues. Une athlète relevée au compteur mais
+jamais notée échappait à l'amortissement et coiffait le classement. Supprimer une
+soumission corrective ressuscitait la note que l'évaluateur avait corrigée.
+« Je corrige » pouvait annuler la soumission d'une **autre** vue. « Appliquer les
+avis » lisait une campagne et écrivait dans une autre. Et le seuil de volume du
+score de sélection était de cinq gestes, quand l'application refuse par ailleurs
+de parler d'un objectif sous soixante-cinq.
+
+**Sécurité.** Un lien d'invitation ouvert sur une application déjà installée
+reconfigurait le relais et l'identité sans un mot — il demande maintenant
+confirmation. Une sauvegarde complète exportait le jeton de relais de chacun.
+Révoquer un jeton hors ligne affichait un succès et ne faisait rien, tout en
+effaçant le seul moyen de réessayer. Jetons et codes de salon venaient de
+`Math.random()`. Poser le verrou laissait l'inbox d'un sélectionneur en clair sur
+le disque, et « repartir de zéro » laissait le jeton de relais. Côté relais, un
+entraîneur pouvait réécrire la nomination de n'importe quel jeton dont il
+connaissait la valeur.
+
+**Vitesse.** Sur une saison réelle — quatre mégaoctets — chaque sauvegarde
+passait 365 ms à encoder caractère par caractère, et 2,3 secondes sur un vieil
+iPad : 77 % du coût, pour trois lignes. Changer d'onglet rechiffrait la base
+entière, 473 ms pour enregistrer le nom d'un onglet. Et la bannière qui prévient
+que l'espace se remplit mesurait ce qui est **sur le disque** — donc se taisait
+précisément quand l'écriture échouait faute de place. Les trois sont corrigés.
+
+**Deux gestes qui referment une fenêtre.** `Échap` ne faisait rien ; le retour
+système d'Android **quittait l'application** en pleine saisie de match. Et le
+fond d'une fenêtre la fermait au moindre contact — au bord d'un terrain, le pouce
+se pose n'importe où, et un formulaire à moitié rempli disparaissait sans un mot.
+
+**Et la remise en attente d'une offre**, à l'unité ou pour vingt athlètes d'un
+seul geste : « Archiver » sortait bien une athlète de l'équipe, mais en la disant
+*refusée*, ce qu'elle n'est pas quand on veut seulement lui reposer la question.
+
+---
 
 ### v7.1 — une saison entière, jouée puis auditée
 

@@ -484,3 +484,152 @@ Deux défauts d'application en sont sortis :
 
 La saison complète inscrit maintenant cinq paliers franchis et trois
 reculs notés, dont un objectif marqué en recul.
+
+---
+
+## Audit v7.2 — le filet de sécurité, éprouvé pour la première fois
+
+Les audits précédents portaient sur ce que l'application **fait** : les
+calculs, les statuts, les parcours. Celui-ci porte sur ce qu'elle promet
+de **ne pas perdre** — sauvegarder, restaurer, annuler, verrouiller. C'est
+la partie qu'aucune suite ne couvrait, et c'est là que se trouvaient les
+défauts les plus coûteux : tous silencieux, tous découverts après coup.
+
+### A. Restaurer une sauvegarde n'en restaurait qu'une partie
+
+| # | Défaut | Ce que vivait l'utilisateur |
+|---|---|---|
+| **A1** | `mergeDB` n'importait **ni les clubs ni les affectations de club**. Les équipes entraient avec le `clubId` de l'appareil d'origine, inconnu ici, et `normalizeDB` les supprimait au **rechargement suivant** (`db.teams=db.teams.filter(…knownClubs…)`). | « 📥 Import terminé », les équipes apparaissent. Le lendemain, elles et tous leurs matchs ont disparu, sans un mot. |
+| **A2** | `mergeDB` se terminait par `normalizeDB(DB);` — **sans reprendre le retour**. Or `normalizeDB` repart d'un objet neuf (`Object.assign(emptyDB(),db)`) : l'import n'était donc jamais normalisé. Seul des quatorze appels du fichier à l'oublier. | C'est ce qui masquait A1 : l'import paraissait réussi, la perte venait plus tard. |
+| **A3** | Le remappage des identifiants oubliait toutes les collections nées avec la v7 : `campaignRoster`, `offers`, `goals`, `sessions[].sets[].entries[]`, `setMarks[].stats`, `selectorViews[].playerGroups`. | Sur un appareil qui connaissait déjà les athlètes (dédoublonnage par nom + année), l'historique de convocation se réduisait à une ligne, les offres étaient refabriquées, et un match ventilé basculait entier dans « Reste non ventilé ». |
+| **A4** | `if(!squadFor(…))DB.squads.push(sq)` — une équipe-saison déjà présente était écartée **en silence**, et le toast disait « Import terminé ». | Deux entraîneurs ayant saisi des matchs différents de la même équipe : l'un importe l'export de l'autre, rien n'entre, rien ne le dit. |
+| **A5** | Une fusion qui levait à mi-chemin laissait la base à moitié fondue, sans retour. `pickJSON` enveloppait la lecture ET le traitement dans le même `catch`, et disait « Fichier illisible » d'un fichier parfaitement lisible. | Base corrompue, message faux, cause invisible. |
+
+**Corrigé.** Les clubs et leurs affectations entrent avant les équipes ; une
+équipe importée est rattachée à un club d'ici avant d'être dédoublonnée ;
+le remappage couvre les huit collections ; `DB=normalizeDB(DB)` ; ce qui
+n'est pas repris est **nommé** à l'écran ; une fusion qui lève restaure
+l'empreinte prise juste avant ; lecture et traitement ont chacun leur
+message.
+
+### B. « Sauvegardé » ne voulait pas dire écrit
+
+Sous coffre — c'est-à-dire toujours, depuis la v5.1 — `saveAll()` est
+**asynchrone** : `queueVaultWrite()` lance un chiffrement AES-GCM et rend
+la main aussitôt. Or ses deux appelants enchaînaient :
+
+```js
+saveAll(); updateIndicators(false); clearOpsJournal();
+```
+
+`clearOpsJournal()` efface le journal d'opérations — **le seul filet entre
+deux blocs complets** — et l'indicateur passe à « Sauvegardé », avant que
+quoi que ce soit n'ait atteint le disque. Mesuré : à l'instant où
+`saveNow()` rend la main, le bloc sur disque est **encore l'ancien** et le
+journal est **déjà effacé**. Sur `beforeunload`, la fenêtre est certaine :
+une promesse ne se résout jamais après le déchargement. Et le bouton
+« Mettre à jour » faisait `saveNow(); location.reload()` — perte garantie.
+
+**Corrigé.** `saveAll()` et `saveNow()` rendent la promesse ; le journal
+n'est purgé qu'une fois l'écriture **confirmée**, jamais si elle a échoué ;
+au déchargement on n'y touche pas du tout — il est ce qui survivra, et
+`replayPendingOps` le rejouera ; « Mettre à jour » attend.
+
+### C. Une base illisible était écrasée par une base vide
+
+`loadAll` rattrapait toute exception par `catch(e){DB=emptyDB()}`, sans
+distinguer « rien à lire » de « je n'ai pas su lire ». `saveAll` ne posait
+aucune condition. La première bascule d'onglet écrivait la base vide
+par-dessus l'originale. Toute la saison, définitivement.
+
+**Corrigé.** `loadFailed` est posé, `saveAll` refuse d'écrire, et l'erreur
+part en console au lieu d'être muette.
+
+### D. L'annulation mentait
+
+| # | Défaut |
+|---|---|
+| **D1** | `acceptOffer`, `declineOffer`, `reopenOffer`, `convokeToCampaign`, `setCampaignDecision` écrivaient `sq.playerIds`, `sq.lineup`, `sq.subteams` et `roster[].membership` **hors du Store**. Ces champs n'appartiennent à aucune collection déclarée : aucun instantané ne les prenait. Annuler « Confirmer » laissait l'athlète dans l'équipe avec une offre revenue « en attente ». |
+| **D2** | `doUndo` restaurait les entités sources mais ne rappelait pas `recomputeRosterStatus` : le badge restait sur la décision annulée jusqu'au prochain rechargement. `tests/migration.js` le contournait en appelant la fonction lui-même — la trace d'un défaut connu de fait et non corrigé. |
+| **D3** | `findViewAnywhere` parcourait `DB.seasons` au lieu de `DB.squads`. Les vues sont portées par le squad depuis la v4 : la boucle levait **à chaque fois**. L'annulation d'une note d'évaluateur ne faisait rien, en silence. |
+| **D4** | Quatre toasts offraient « Annuler » sur un retrait de saison qui n'empilait rien : le bouton annulait l'**opération précédente** — un compteur de match, une décision de sélection. |
+| **D5** | `doUndo` ne poussait aucune opération compensatoire : un rejeu du journal après plantage réappliquait ce qui venait d'être annulé. |
+| **D6** | `ensureCampaignRosterEntry` créait la convocation hors du Store ; le `patch` qui suivait n'avait donc rien à rejouer, et la décision était perdue au redémarrage. |
+
+**Corrigé.** `snapshotSquad()` prend le squad entier au début de chaque
+transaction qui le remanie ; `doUndo` recalcule les statuts dérivés et
+journalise l'annulation ; `findViewAnywhere` cherche dans les squads ;
+`pushUndoSquad()` donne un vrai instantané aux gestes qui n'en avaient
+pas ; la convocation passe par `Store.put`.
+
+### E. Ce que la ventilation laissait passer
+
+`reconcileSessionTotals` ne versait dans le bloc de reste que les écarts
+**positifs** : un set qui compte PLUS que le match restait en trop
+indéfiniment, et l'écran affichait des sets dont la somme dépasse leur
+propre total. La fonction était idempotente — sur un état faux.
+
+**Corrigé.** Les sets réels sont écrêtés sur le total avant tout calcul
+d'écart.
+
+### F. Sécurité — ce qui sortait, et ce qui restait
+
+| # | Défaut | Portée |
+|---|---|---|
+| **F1** | Un lien d'invitation ouvert sur une application **déjà installée** reconfigurait le relais et réécrivait l'identité, sans confirmation. | Quiconque fait toucher un `…#s=…` à une entraîneuse détournait sa synchronisation vers un relais qu'il contrôle : ses vues y partaient, et les « soumissions » qu'il y déposait entraient dans sa base. |
+| **F2** | `exportBackup` exportait `DB.people[].token` — le jeton de relais de chacun — en clair, dans un fichier qui circule par courriel. | Qui l'obtient prend l'identité de n'importe quel membre sur le relais. L'écran promettait pourtant « aucun jeton d'accès ». |
+| **F3** | `revokeToken` effaçait le jeton **localement d'abord**, puis avalait l'échec de l'appel. Hors ligne, la révocation affichait un succès, le jeton restait valide 120 jours, et plus personne ne savait lequel. | Le seul remède en cas d'appareil perdu ne faisait rien. |
+| **F4** | `mkToken` et `mkRoomCode` tiraient de `Math.random()`, alors que `randBytes` est défini trente lignes plus haut. | Un jeton EST la seule chose qui sépare un inconnu des données du club. |
+| **F5** | `vaultCreate` n'effaçait que `wonderstats_v3` et deux clés héritées : `wonderstats_inbox_v3` — les vues et les commentaires libres d'un sélectionneur — restait **en clair** sur un appareil qui avait tourné avant le verrou. « Phrase oubliée — repartir de zéro » laissait le journal chiffré, l'inbox, et le jeton de relais. | La promesse « rien de lisible ne reste sur le disque » était fausse. |
+| **F6** | `vaultLock` ne touchait ni à `SYNC.token` ni à l'autosauvegarde armée : verrouiller laissait un accès réseau vivant, et pouvait réécrire une base vide en clair. | — |
+| **F7** | `verifyAll` ne contrôlait pas `kind` : une nomination signée passait pour une charte. | Dormant, mais du genre qui devient exploitable dès qu'on conditionne quoi que ce soit à `clubVerified`. |
+| **F8** | `buildPacket` inscrivait `selectorName` même dans un paquet publié **sans destinataire**, donc lisible de tous les sélectionneurs de l'équipe. | Ils apprenaient qui évalue quoi. |
+| **F9** | Le service worker servait `superadmin.json` depuis son cache : une rotation de la racine de confiance n'était prise en compte qu'au démarrage suivant. | — |
+| **F10** | Relais : `grant` n'attachait pas le jeton cible à son émetteur — un porteur `coach` pouvait **réécrire la nomination** de n'importe quel jeton dont il connaissait la valeur, et fabriquer des jetons permanents qu'aucun écran ne montre. Un rôle d'équipe sans `teamId` recevait le préfixe de tout le salon. | La faille la plus sérieuse côté serveur. |
+| **F11** | `integrateSubmission` ne bornait pas `ratings`, alors que `stats`, `reco` et `pos` l'étaient. | Un fichier bricolé y glissait un 9999 que le score compilé moyennait tel quel. |
+
+**Tout corrigé.** Voir les notes de version v7.2.
+
+### G. Ce que le code savait faire et que l'écran n'offrait pas
+
+Vingt et une fonctions n'étaient appelées par personne. Trois d'entre
+elles étaient des manques fonctionnels réels :
+
+- **`vaultChangePass`** — une phrase de passe choisie à la hâte le premier
+  jour ne pouvait plus **jamais** être changée ;
+- **`vaultLock`** — la seule façon de refermer l'application sur un iPad
+  de club partagé était de fermer le navigateur ;
+- **`splitPrepare` / `splitSetCount` / `splitMove` / `unsplitSession`** —
+  l'application écrivait « Vous pourrez le ventiler plus tard » au moment
+  d'enregistrer un match sans borne. Plus tard, l'écran disait « seule la
+  répartition manque » et n'offrait **aucun geste**. Le moteur était
+  écrit, la feuille de style aussi. Rien ne les appelait.
+
+Et un quatrième manque, celui-là de pure distribution : la **sauvegarde
+complète** n'était atteignable que du rôle administrateur, alors que le
+README la donnait comme un geste d'entraîneur. Une entraîneuse qui
+n'administre rien n'avait aucun moyen de sauvegarder l'ensemble.
+
+**Tout branché.** `⚙️ Réglages → 🔒 Sécurité` verrouille et change la
+phrase ; `💾 Données` porte la sauvegarde complète et la restauration ;
+`🗓️ Saison → une rencontre → Ventilation` reporte une feuille de match
+après coup, compteur par compteur, sans jamais toucher au total.
+
+### H. Les deux gestes qui referment une couche
+
+`Échap` ne faisait rien. Le retour système d'Android — le geste le plus
+employé sur un téléphone — **quittait l'application** en pleine saisie de
+match, quand l'utilisateur voulait seulement refermer une boîte. Et le
+fond d'une modale la fermait au moindre contact : au bord d'un terrain,
+le pouce se pose n'importe où, et un formulaire de rencontre à moitié
+rempli disparaissait sans un mot.
+
+**Corrigé.** Une entrée d'historique par couche ouverte ; `Échap` et le
+retour système referment la couche du dessus ; le fond demande
+confirmation quand un brouillon a été saisi.
+
+### I. Vérification
+
+La suite `tests/sauvegarde.js` est née de cet audit : douze contrôles sur
+le cycle sauvegarder → restaurer → annuler, dont neuf **échouent** sur la
+version d'avant. C'est la mesure de ce qui a été corrigé.

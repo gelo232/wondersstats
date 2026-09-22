@@ -45,7 +45,12 @@ const fail = (msg, status = 400) => json({ ok: false, error: msg }, status);
 
 const ownerKey = (room) => `${room}/_owner`;
 const grantKey = (room, token) => `${room}/_grant/${token}`;
-const itemKey = (room, teamId, kind, id) => `${room}/item/${teamId || "_"}/${kind}/${id}`;
+// Chaque composant est échappé : sans cela, un `id` contenant « / »
+// déplaçait l'enregistrement dans un autre espace de préfixes — donc
+// hors du périmètre que `list` croit interroger.
+const seg = (v) => encodeURIComponent(String(v));
+const itemKey = (room, teamId, kind, id) =>
+  `${room}/item/${teamId ? seg(teamId) : "_"}/${seg(kind)}/${seg(id)}`;
 
 /**
  * Résout le porteur d'un jeton. Le premier jeton présenté sur un salon
@@ -150,6 +155,10 @@ export default {
       }
 
       if (request.method !== "POST") return fail("POST attendu", 405);
+      // Content-Length d'abord : mesurer après `text()` suppose d'avoir
+      // déjà tout tamponné en mémoire, ce que la limite doit empêcher.
+      const annonce = Number(request.headers.get("content-length") || 0);
+      if (annonce > MAX_BODY) return fail("Dépôt trop volumineux", 413);
       const text = await request.text();
       if (text.length > MAX_BODY) return fail("Dépôt trop volumineux", 413);
       let body;
@@ -169,9 +178,29 @@ export default {
           if (g.role === "admin") return fail("Un entraîneur ne peut pas nommer d'administrateur", 403);
           if (g.teamId !== r.grant.teamId) return fail("Émission limitée à votre équipe", 403);
         }
+        // Un rôle d'équipe SANS équipe recevrait le préfixe de tout le
+        // salon : il lirait alors les catalogues et les vues non
+        // adressées de toutes les équipes.
+        if (g.role !== "admin" && !String(g.teamId || ""))
+          return fail("Un jeton d'entraîneur ou de sélectionneur doit porter une équipe");
+        // Un jeton déjà attribué appartient à qui l'a émis. Sans ce
+        // contrôle, tout porteur d'un jeton `coach` réécrivait la
+        // nomination de n'importe quel jeton dont il connaissait la
+        // valeur — celle d'une administratrice comprise.
+        const deja = await env.WONDERSTATS.get(grantKey(body.room, g.token));
+        if (deja) {
+          let prev = null;
+          try { prev = JSON.parse(deja); } catch { prev = null; }
+          const mien = prev && (prev.by === r.grant.token || prev.token === r.grant.token);
+          if (!r.isOwner && r.grant.role !== "admin" && !mien)
+            return fail("Ce jeton a été émis par quelqu'un d'autre", 403);
+        }
         const rec = {
           token: g.token, name: String(g.name || "").slice(0, 80), role: g.role,
           teamId: String(g.teamId || ""), teamName: String(g.teamName || "").slice(0, 80),
+          // Qui l'a émis : c'est ce qui rend la réécriture contrôlable,
+          // et l'émission auditable.
+          by: r.grant.token,
           at: new Date().toISOString()
         };
         await env.WONDERSTATS.put(grantKey(body.room, g.token), JSON.stringify(rec), { expirationTtl: TTL_SECONDS });

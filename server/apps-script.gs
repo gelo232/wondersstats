@@ -30,7 +30,7 @@ function sheet_(name, headers) {
   return sh;
 }
 function itemsSheet_() { return sheet_(ITEMS, ['room', 'teamId', 'kind', 'id', 'at', 'to', 'by', 'payload']); }
-function grantsSheet_() { return sheet_(GRANTS, ['room', 'token', 'name', 'role', 'teamId', 'teamName', 'at']); }
+function grantsSheet_() { return sheet_(GRANTS, ['room', 'token', 'name', 'role', 'teamId', 'teamName', 'at', 'by']); }
 
 function out_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
@@ -41,7 +41,7 @@ function findGrant_(room, token) {
   var rows = grantsSheet_().getDataRange().getValues();
   for (var i = 1; i < rows.length; i++) {
     if (rows[i][0] === room && String(rows[i][1]) === String(token)) {
-      return { row: i + 1, grant: { token: String(rows[i][1]), name: rows[i][2], role: rows[i][3],
+      return { row: i + 1, by: String(rows[i][7] || ''), grant: { token: String(rows[i][1]), name: rows[i][2], role: rows[i][3],
         teamId: String(rows[i][4] || ''), teamName: rows[i][5] } };
     }
   }
@@ -146,13 +146,20 @@ function doPost(e) {
         if (g.role === 'admin') return fail_("Un entraîneur ne peut pas nommer d'administrateur");
         if (String(g.teamId || '') !== r.grant.teamId) return fail_('Émission limitée à votre équipe');
       }
+      // Même contrat que le Worker : un rôle d'équipe porte une équipe,
+      // et un jeton déjà attribué appartient à qui l'a émis.
+      if (g.role !== 'admin' && !String(g.teamId || ''))
+        return fail_("Un jeton d'entraîneur ou de sélectionneur doit porter une équipe");
       var at = new Date().toISOString();
       var existing = findGrant_(body.room, g.token);
       var sh = grantsSheet_();
       if (existing) {
-        sh.getRange(existing.row, 3, 1, 5).setValues([[g.name || '', g.role, g.teamId || '', g.teamName || '', at]]);
+        var mien = existing.by === r.grant.token || existing.grant.token === r.grant.token;
+        if (!r.isOwner && r.grant.role !== 'admin' && !mien)
+          return fail_("Ce jeton a été émis par quelqu'un d'autre");
+        sh.getRange(existing.row, 3, 1, 6).setValues([[g.name || '', g.role, g.teamId || '', g.teamName || '', at, r.grant.token]]);
       } else {
-        sh.appendRow([body.room, g.token, g.name || '', g.role, g.teamId || '', g.teamName || '', at]);
+        sh.appendRow([body.room, g.token, g.name || '', g.role, g.teamId || '', g.teamName || '', at, r.grant.token]);
       }
       return out_({ ok: true, grant: { token: g.token, name: g.name, role: g.role,
         teamId: g.teamId || '', teamName: g.teamName || '', at: at } });

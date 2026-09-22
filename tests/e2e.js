@@ -328,10 +328,17 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
       s.scoring=garde;
       return {avecCrit:avec.critScore,sansCrit:sans.critScore,
               deplacement:avec.detail.severity,
+              corrige:avec.detail.severityAbs,
               ecartBrut:avec.ratings.tech.max-avec.ratings.tech.min};
     });
     if(Math.abs(d.sansCrit-4)>1e-9)throw new Error("sans correction, critScore devrait valoir 4 : "+d.sansCrit);
-    if(Math.abs(d.deplacement)<1e-9)throw new Error("deux évaluateurs qui divergent de 2 points : rien n'a été corrigé");
+    /* Ce qu'il faut exiger, c'est que les DEUX notes aient bougé l'une
+       vers l'autre — pas que la moyenne se soit déplacée. Quand deux
+       évaluateurs divergent symétriquement, la correction les rapproche
+       et la moyenne ne bouge pas : c'est précisément ce que promet le
+       recentrage (« sans déplacer le niveau général »). Mesurer le
+       déplacement NET revenait à exiger le contraire. */
+    if(!(d.corrige>1e-9))throw new Error("deux évaluateurs qui divergent de 2 points : rien n'a été corrigé");
     if(d.ecartBrut!==2)throw new Error("écart brut attendu 2, obtenu "+d.ecartBrut);
   });
   await step("« Moyenne simple » rétablit exactement le calcul d'avant",async()=>{
