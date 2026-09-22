@@ -699,9 +699,25 @@ const ERRORS=[];let PASS=0;
     var t=DB.teams.filter(function(x){return x.name===equipe})[0];
     var sq=squadFor(t.id,DB.activeSeasonId);
     var t0=Date.now();
-    function statsAthlete(pid,i,intensite){
+    /* `chute` : une athlète perd sa forme dans la seconde moitié de la
+       saison. Sans elle, des performances plates ne font jamais reculer
+       un objectif, et tout le versant « régression » du recalcul reste
+       hors du parcours — c'est exactement ce qui manquait. */
+    function statsAthlete(pid,i,intensite,chute){
       var st=emptyS();
       var base=6+((pid.charCodeAt(0)+i)%5);
+      if(chute){
+        /* Beaucoup de fautes, peu de kills : l'efficacité d'attaque
+           s'écroule d'environ 0,30, bien au-delà du seuil de 0,10. */
+        st.atk_kill=Math.round(2*intensite);
+        st.atk_ok=Math.round(base*1.8*intensite);
+        st.atk_err=Math.round(base*1.4*intensite);
+        st.rec_in=Math.round(base*1.6*intensite);
+        st.rec_err=Math.round(base*0.3*intensite);
+        st.srv_in=Math.round(base*1.2*intensite);
+        st.def_ok=Math.round(base*1.1*intensite);
+        return st;
+      }
       st.atk_kill=Math.round(base*intensite);
       st.atk_ok=Math.round(base*1.8*intensite);
       st.atk_err=Math.max(0,Math.round((6-base*0.4)*intensite));
@@ -720,13 +736,14 @@ const ERRORS=[];let PASS=0;
     /* ── Les entraînements, par le vrai chemin : squad.stats puis
           saveSession. C'est lui qui crée la rencontre et recalcule les
           objectifs. ── */
-    var nEntr=0;
+    var nEntr=0,mi=Math.floor(jours.length/2);
+    var enChute=sq.playerIds[0];
     jours.forEach(function(jour,i){
       sq.stats={};
       sq.playerIds.forEach(function(pid,k){
         /* Une absente de temps à autre : un effectif n'est jamais complet. */
         if((i+k)%11===0)return;
-        sq.stats[pid]=statsAthlete(pid,i,0.7);
+        sq.stats[pid]=statsAthlete(pid,i,0.7,pid===enChute&&i>mi);
       });
       saveSession(sq,{name:"Séance "+(i+1),kind:"training",day:jour,
         note:"2 h 15"});
@@ -954,6 +971,10 @@ const ERRORS=[];let PASS=0;
               atteints:objs.filter(function(g){return !!g.achievedAt}).length,
               reculs:objs.filter(function(g){return !!g.regressedAt}).length,
               bornes:objs.every(function(g){return g.history.length<=GOAL_HISTORY_MAX}),
+              paliers:objs.reduce(function(n,g){
+                return n+g.history.filter(function(h){return h.event==="achieved"}).length},0),
+              notes:objs.reduce(function(n,g){
+                return n+g.history.filter(function(h){return h.event==="regressed"}).length},0),
               mesures:objs.filter(function(g){
                 return g.history.some(function(h){return h.value!=null})}).length};
     });
@@ -962,9 +983,18 @@ const ERRORS=[];let PASS=0;
       throw new Error("objectifs sans historique : "+(r.n-r.avecHistorique)+"/"+r.n);
     if(!r.mesures)throw new Error("aucun objectif n'a été mesuré sur la saison");
     if(!r.bornes)throw new Error("un historique a dépassé son plafond");
+    /* Une athlète a perdu sa forme à la mi-saison : son objectif doit
+       l'avoir noté. Sans ce contrôle, tout le versant « régression » du
+       recalcul traverserait la saison sans être exercé une seule fois. */
+    if(!r.atteints)throw new Error("aucun objectif atteint sur toute une saison");
+    if(!r.reculs)
+      throw new Error("aucun recul noté alors qu'une athlète a perdu sa forme "+
+        "à la mi-saison — le versant régression n'est pas exercé");
+    if(!r.paliers)throw new Error("aucun palier franchi dans les historiques");
     await pasDeDebordement("partie Objectifs");
-    say("       objectifs : "+r.n+" suivis, "+r.atteints+" atteint(s), "+
-        r.reculs+" recul(s) noté(s), "+r.mesures+" mesuré(s)");
+    say("       objectifs : "+r.n+" suivis · "+r.atteints+" marqué(s) atteint(s) · "+
+        r.reculs+" marqué(s) en recul · "+r.paliers+" palier(s) franchi(s) · "+
+        r.notes+" recul(s) inscrit(s) · "+r.mesures+" mesuré(s)");
   });
   await step("le récap global concorde avec les parties, sur toute la saison",async()=>{
     await partie("Récap global");

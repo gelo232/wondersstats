@@ -682,7 +682,18 @@ Mesuré sur la saison chargée (50 698 gestes relevés, 158 relevés, deux
 équipes) : chaque partie se dessine en **1 à 15 ms**, et aucun écran ne
 déborde à 375 px.
 
-Dix-neuf suites, 360 contrôles.
+**Ce qu'une relecture des tests a encore trouvé.** Trois contrôles
+d'objectifs ne prouvaient rien : ils acceptaient l'état « recul à
+confirmer » comme un succès, ou se contentaient de vérifier qu'une
+fonction renvoie un nombre. Remplacés par une trajectoire déterministe qui
+exige l'état exact à chaque étape — silence, progression, atteinte, recul
+non confirmé, recul inscrit, recul collectif non imputé. Deux défauts en
+sont sortis : le garde-fou d'équipe comparait deux fenêtres qui se
+recouvraient presque, donc ne se déclenchait jamais ; et un objectif ne
+mesurait par défaut que les matchs, alors qu'une équipe de club fait
+cinquante séances pour dix-huit matchs.
+
+Dix-neuf suites, 365 contrôles.
 
 ### v7.0 — la saison en six parties
 

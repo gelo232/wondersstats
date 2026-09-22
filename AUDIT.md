@@ -444,3 +444,43 @@ fiches, ce qui ne veut rien dire pour qui la lit).
 - Une athlète inscrite dans deux équipes y porte deux jugements
   indépendants — écartée d'un côté, retenue de l'autre — sans que l'un
   contamine l'autre.
+
+### D6 · Trois contrôles d'objectifs qui ne prouvaient rien
+
+Relevé en relisant les tests plutôt que le code, à la suite d'une question
+simple : « la régression est-elle réellement simulée ? »
+
+| Contrôle | Ce qu'il asseyait vraiment |
+|---|---|
+| « un seul recul ne déclare rien » | Acceptait `en-cours`, `à-confirmer` **ou** `regression` : il passait même si aucun recul n'avait jamais été détecté. |
+| « confirmé sur une seconde fenêtre » | Passait si l'état était seulement *à confirmer*. Ne prouvait ni le marqueur, ni le réajustement de la cible. |
+| « un recul d'équipe n'est pas imputé » | Vérifiait uniquement que la fonction **renvoie un nombre**. |
+
+Et le parcours de saison n'inscrivait **aucun** recul : les performances
+simulées étaient plates, donc tout le versant descendant du recalcul
+traversait la saison sans être exercé une seule fois.
+
+Remplacés par une **trajectoire déterministe** : six athlètes identiques,
+une seule dont on fait varier la forme au centième. Un écart-type d'équipe
+nul fixe le pas d'objectif à sa valeur plancher, donc plus rien n'est
+approximatif. On exige l'état EXACT à chaque étape : silence sous le
+volume, en-cours avec sa distance, atteinte marquée et cible relevée,
+premier recul non déclaré, second recul inscrit et cible redescendue au
+niveau réel, puis recul collectif non imputé à l'athlète.
+
+Deux défauts d'application en sont sortis :
+
+- **le garde-fou d'équipe ne mesurait presque rien.** Il comparait la
+  fenêtre courante à celle d'un relevé plus tôt : les deux partageaient
+  presque tous leurs relevés, donc l'écart mesuré valait une fraction de
+  l'écart réel et le garde-fou ne se déclenchait jamais. Il recule
+  désormais d'une fenêtre entière, sans recouvrement ;
+- **un objectif ne mesurait par défaut que les matchs et les tournois.**
+  Une équipe de club fait cinquante séances pour dix-huit matchs : un
+  objectif qui n'écoute que les matchs reste presque immobile toute la
+  saison, alors que l'application promet de le recalculer à chaque relevé.
+  Les entraînements entrent donc dans le périmètre par défaut ;
+  l'entraîneur peut restreindre.
+
+La saison complète inscrit maintenant cinq paliers franchis et trois
+reculs notés, dont un objectif marqué en recul.

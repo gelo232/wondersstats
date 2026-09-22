@@ -170,54 +170,6 @@ const ERRORS=[];let PASS=0;
     if(a.probs.length)throw new Error(a.probs.join(" / "));
   });
 
-  say("\n── Reculer : l'application est lente à le dire");
-  await step("un seul recul ne déclare rien — il demande confirmation",async()=>{
-    await jouer([{kill:4,ok:10,err:18},{kill:4,ok:10,err:18},{kill:4,ok:10,err:18}]);
-    const r=await page.evaluate(()=>{
-      var sq=curSquad(),g=sq.goals[0];
-      return {etat:evaluerObjectif(sq,g).etat,streak:g.regressStreak||0,
-              marque:!!g.regressedAt};
-    });
-    if(r.etat==="regression"&&r.streak===0)
-      throw new Error("régression déclarée sans confirmation");
-    if(!["regression-a-confirmer","regression","en-cours"].includes(r.etat))
-      throw new Error("état inattendu="+r.etat);
-  });
-  await step("confirmé sur une seconde fenêtre, le recul est noté et la cible réajustée",async()=>{
-    await jouer([{kill:3,ok:8,err:20},{kill:3,ok:8,err:20},{kill:3,ok:8,err:20}]);
-    const r=await page.evaluate(()=>{
-      var sq=curSquad(),g=sq.goals[0];
-      return {marque:!!g.regressedAt,
-              reculs:g.history.filter(function(h){return h.event==="regressed"}).length,
-              etat:evaluerObjectif(sq,g).etat,probs:checkV7(DB)};
-    });
-    if(!r.marque&&r.etat!=="regression-a-confirmer")
-      throw new Error("aucun recul noté après deux fenêtres : "+r.etat);
-    if(r.probs.length)throw new Error(r.probs.join(" / "));
-  });
-  await step("un recul partagé par toute l'équipe n'est pas imputé à l'athlète",async()=>{
-    const r=await page.evaluate(()=>{
-      var sq=curSquad();
-      /* Toute l'équipe s'écroule d'un coup : c'est le calendrier. */
-      var ev=sq.events.filter(function(e){return e.kind==="friendly"})[0];
-      for(var m=0;m<3;m++){
-        var entries=sq.playerIds.map(function(pid){
-          var st=emptyS();st.atk_kill=2;st.atk_ok=6;st.atk_err=22;
-          return {playerId:pid,name:"",number:"",position:"",stats:st};
-        });
-        sq.sessions.push({id:"chute"+m,name:"Amical dur "+m,date:nowISO(),day:todayISO(),
-          opponent:"Champions",eventId:ev.id,teamName:sq.name,
-          result:{sets:[{us:12,them:25}]},sets:[],splitAt:null,entries:entries});
-      }
-      DB=normalizeDB(DB);sq=curSquad();
-      var g2=creerObjectif(sq,"player",sq.playerIds[1],"attaques");
-      /* La garde d'équipe se lit dans le résultat de l'évaluation. */
-      var e=evaluerObjectif(sq,g2);
-      return {recul:reculMedianEquipe(sq,g2),etat:e.etat,contexte:e.contexte||""};
-    });
-    if(typeof r.recul!=="number")throw new Error("le recul médian de l'équipe n'est pas calculé");
-  });
-
   say("\n── L'écran");
   await step("la partie Objectifs s'ouvre et liste les athlètes",async()=>{
     await partie("Objectifs");
@@ -315,6 +267,226 @@ const ERRORS=[];let PASS=0;
     await page.waitForTimeout(250);
     const t=await page.locator(".hubTile").filter({hasText:"Objectifs"}).first().textContent();
     if(!/\d+\/\d+|aucun objectif/.test(t))throw new Error("la tuile ne dit rien : "+t);
+  });
+
+  /* ════════════════════════════════════════════════════════════
+     UNE TRAJECTOIRE COMPLÈTE, ET DÉTERMINISTE
+
+     Les contrôles ci-dessus disaient « recul » sans jamais prouver
+     qu'un recul avait été déclaré : ils acceptaient l'état « à
+     confirmer » comme un succès. On reprend donc à zéro, sur une
+     équipe dont on maîtrise entièrement les chiffres, et on exige
+     l'état EXACT à chaque étape.
+
+     Six athlètes identiques, une seule dont on fait varier la forme.
+     Des coéquipières identiques donnent un écart-type nul, donc un pas
+     d'objectif égal à sa valeur plancher (0,05) : plus rien n'est
+     approximatif.
+
+     Efficacité d'attaque = (kills − fautes) / (kills + réussies +
+     fautes). À cinquante gestes par relevé et huit fautes fixes,
+     l'efficacité ne dépend que du nombre de kills — on la commande
+     donc au centième.
+     ════════════════════════════════════════════════════════════ */
+  say("\n── Trajectoire : silence, progression, atteinte, recul, garde-fou");
+
+  const TRAJ="U17 Trajectoire";
+  await step("une équipe dont on maîtrise tous les chiffres",async()=>{
+    await page.evaluate((nom)=>{
+      var club=DB.clubs[0];
+      var t=mkTeamRecord({clubId:club.id,name:nom,category:"U18"});
+      DB.teams.push(t);
+      var sq=ensureSquad(t.id,DB.activeSeasonId);
+      for(var i=0;i<6;i++){
+        var p=mkDbPlayer({firstName:(i===0?"Cible":"Paire"+i),lastName:"Traj",
+          birthDate:"2009-05-05"});
+        DB.players.push(p);
+        var e=mkRosterEntry(p.id,String(i+1),"OH");
+        sq.roster.push(e);sq.playerIds.push(p.id);
+      }
+      DB=normalizeDB(DB);
+      var m=me();
+      if(m)DB.assignments.push(mkAssignment(m.id,t.id,"coach"));
+      switchCtx({role:"coach",teamId:t.id});
+      saveNow();
+    },TRAJ);
+    await page.waitForTimeout(250);
+    const n=await page.evaluate(()=>curSquad().playerIds.length);
+    if(n!==6)throw new Error("effectif="+n);
+  });
+
+  /* effCible / effAutres : l'efficacité voulue, au centième. */
+  const relever=(nb,effCible,effAutres)=>page.evaluate(([nb,effCible,effAutres])=>{
+    var sq=curSquad();
+    function stats(eff){
+      var st=emptyS();
+      var err=8,kill=Math.round(eff*50)+err;
+      st.atk_kill=kill;st.atk_err=err;st.atk_ok=50-kill-err;
+      return st;
+    }
+    var ev=sq.events.filter(function(e){return e.kind==="friendly"})[0];
+    if(!ev){ev=mkEvent({kind:"friendly",name:"Amicaux",opponent:"X"});sq.events.push(ev)}
+    for(var i=0;i<nb;i++){
+      sq.sessions.push({id:uid(),name:"Relevé "+(sq.sessions.length+1),
+        date:nowISO(),day:todayISO(),opponent:"X",eventId:ev.id,teamName:sq.name,
+        result:{sets:[{us:25,them:20}]},sets:[],splitAt:null,
+        entries:sq.playerIds.map(function(pid,k){
+          return {playerId:pid,name:"",number:"",position:"",
+                  stats:stats(k===0?effCible:effAutres)};
+        })});
+    }
+    DB=normalizeDB(DB);
+    var sq2=curSquad();
+    saveNow();
+    var g=sq2.goals[0];
+    /* On lit la TRANSITION, pas l'état d'après : une atteinte relève la
+       cible, donc réévaluer ensuite rend « en cours » — ce qui est juste,
+       mais ne dit rien de ce qui vient de se passer. C'est le retour de
+       recalcGoal qui porte la décision. */
+    var e=g?recalcGoal(sq2,g):null;
+    saveNow();
+    return {etat:e?e.etat:"aucun-objectif",
+            valeur:e&&e.valeur!=null?Math.round(e.valeur*1000)/1000:null,
+            volume:e?e.volume:0,contexte:(e&&e.contexte)||"",
+            dernier:(g&&g.history.length)?g.history[g.history.length-1].event:"",
+            base:g?Math.round(g.baseline*1000)/1000:null,
+            cible:g?Math.round(g.target*1000)/1000:null,
+            atteint:!!(g&&g.achievedAt),recul:!!(g&&g.regressedAt),
+            streak:g?(g.regressStreak||0):0,
+            evenements:g?g.history.map(function(h){return h.event}).join(","):"",
+            probs:checkV7(DB)};
+  },[nb,effCible,effAutres]);
+
+  await step("sous le volume de fiabilité, l'application se TAIT",async()=>{
+    /* Deux relevés de cinquante gestes : cent, sous les cent trente
+       qu'exige l'attaque. La fenêtre existe mais n'est pas fiable. */
+    await relever(2,0.20,0.20);
+    const r=await page.evaluate(()=>{
+      var sq=curSquad();
+      var g=creerObjectif(sq,"player",sq.playerIds[0],"attaques");
+      saveNow();
+      var e=evaluerObjectif(sq,g);
+      return {etat:e.etat,base:Math.round(g.baseline*1000)/1000,
+              cible:Math.round(g.target*1000)/1000,
+              pas:Math.round(pasObjectif(sq,"attaques")*1000)/1000,
+              med:medianeEquipe(sq,"attaques"),
+              ec:ecartTypeEquipe(sq,"attaques")};
+    });
+    if(r.etat!=="volume-insuffisant")throw new Error("état="+r.etat);
+    if(r.pas!==0.05)throw new Error("pas d'objectif="+r.pas+" (0,05 attendu sur un écart-type nul)");
+    say("       objectif fixé : départ "+r.base+" → cible "+r.cible+" (pas "+r.pas+")");
+  });
+
+  await step("assez de volume, mais sous la cible : EN COURS, et la distance est dite",async()=>{
+    /* Deux relevés de plus : la fenêtre atteint cent cinquante gestes. */
+    const r=await relever(2,0.20,0.20);
+    if(r.etat!=="en-cours")throw new Error("état="+r.etat+" (valeur "+r.valeur+")");
+    if(r.valeur!==0.2)throw new Error("efficacité mesurée="+r.valeur);
+    if(r.volume<130)throw new Error("volume="+r.volume);
+    if(r.atteint)throw new Error("marqué atteint alors que la cible n'est pas franchie");
+    if(r.recul)throw new Error("marqué en recul alors que rien n'a baissé");
+    say("       "+r.valeur+" pour une cible de "+r.cible+" · "+r.volume+" gestes");
+  });
+
+  await step("au-dessus de la cible : ATTEINT, marqué, et la cible remonte d'un pas",async()=>{
+    const avant=await page.evaluate(()=>{
+      var g=curSquad().goals[0];return Math.round(g.target*1000)/1000;
+    });
+    const r=await relever(3,0.40,0.20);
+    if(r.etat!=="atteint")throw new Error("état="+r.etat+" (valeur "+r.valeur+")");
+    if(r.dernier!=="achieved")throw new Error("dernier événement="+r.dernier);
+    if(!r.atteint)throw new Error("le marqueur d'atteinte n'est pas posé");
+    if(r.base!==r.valeur)
+      throw new Error("la base ne vaut pas la valeur atteinte : "+r.base+" ≠ "+r.valeur);
+    if(r.cible<=avant)throw new Error("la cible n'a pas monté : "+avant+" → "+r.cible);
+    if(Math.abs(r.cible-(r.base+0.05))>0.001)
+      throw new Error("la cible n'est pas base + pas : "+r.cible);
+    if(r.evenements.indexOf("achieved")===-1)
+      throw new Error("aucun événement « atteint » dans l'historique : "+r.evenements);
+    say("       atteint à "+r.valeur+" · base "+r.base+" → cible "+r.cible);
+  });
+
+  await step("premier recul : À CONFIRMER, aucun marqueur, cible inchangée",async()=>{
+    const avant=await page.evaluate(()=>{
+      var g=curSquad().goals[0];
+      return {cible:Math.round(g.target*1000)/1000,base:Math.round(g.baseline*1000)/1000};
+    });
+    /* 0,25 contre une base de 0,40 : un recul de 0,15, au-delà du seuil
+       de 0,10. Les coéquipières ne bougent pas, donc le garde-fou
+       d'équipe ne s'applique pas. */
+    const r=await relever(3,0.25,0.20);
+    if(r.etat!=="regression-a-confirmer")
+      throw new Error("état="+r.etat+" (valeur "+r.valeur+", base "+avant.base+")");
+    if(r.dernier!=="progress")
+      throw new Error("un recul non confirmé ne doit pas s'inscrire comme tel : "+r.dernier);
+    if(r.recul)throw new Error("le recul est marqué dès la première fenêtre");
+    if(r.streak!==1)throw new Error("compteur de confirmation="+r.streak);
+    if(r.cible!==avant.cible)
+      throw new Error("la cible a bougé avant confirmation : "+avant.cible+" → "+r.cible);
+    say("       "+r.valeur+" contre une base de "+avant.base+" — on attend une seconde fenêtre");
+  });
+
+  await step("seconde fenêtre : RECUL noté, et la cible redescend au niveau réel",async()=>{
+    const avant=await page.evaluate(()=>{
+      var g=curSquad().goals[0];
+      return {cible:Math.round(g.target*1000)/1000,base:Math.round(g.baseline*1000)/1000};
+    });
+    const r=await relever(3,0.25,0.20);
+    if(r.etat!=="regression")throw new Error("état="+r.etat+" (valeur "+r.valeur+")");
+    if(r.dernier!=="regressed")throw new Error("dernier événement="+r.dernier);
+    if(!r.recul)throw new Error("le marqueur de régression n'est pas posé");
+    /* La base descend au niveau RÉELLEMENT mesuré — pas à une valeur
+       ronde : un nombre entier de kills ne donne pas un centième rond. */
+    if(r.base!==r.valeur)
+      throw new Error("la base ne vaut pas le niveau mesuré : "+r.base+" ≠ "+r.valeur);
+    if(!(r.cible<avant.cible))
+      throw new Error("la cible n'a pas redescendu : "+avant.cible+" → "+r.cible);
+    if(Math.abs(r.cible-(r.base+0.05))>0.001)
+      throw new Error("la cible n'est pas base + pas : "+r.cible);
+    if(r.evenements.indexOf("regressed")===-1)
+      throw new Error("aucun événement « régression » dans l'historique : "+r.evenements);
+    /* L'atteinte précédente n'est pas effacée : elle a eu lieu. */
+    if(!r.atteint)throw new Error("le marqueur d'atteinte a été effacé par le recul");
+    if(r.streak!==0)throw new Error("le compteur de confirmation n'est pas remis à zéro : "+r.streak);
+    say("       recul noté · base "+avant.base+" → "+r.base+" · cible "+avant.cible+" → "+r.cible);
+  });
+
+  await step("un recul partagé par TOUTE l'équipe n'est pas imputé à l'athlète",async()=>{
+    /* Tout le monde s'écroule de 0,15 d'un coup : c'est le calendrier,
+       pas l'athlète. Son recul dépasse le seuil, mais celui de l'équipe
+       aussi — et l'écart entre les deux ne le dépasse pas. */
+    const r=await relever(3,0.10,0.05);
+    if(r.etat!=="en-cours")
+      throw new Error("état="+r.etat+" : un recul collectif a été imputé à l'athlète");
+    if(r.contexte!=="equipe")
+      throw new Error("le contexte d'équipe n'est pas signalé : « "+r.contexte+" »");
+    const med=await page.evaluate(()=>{
+      var sq=curSquad(),g=sq.goals[0];
+      return Math.round(reculMedianEquipe(sq,g)*1000)/1000;
+    });
+    if(!(med>=0.10))
+      throw new Error("le recul médian de l'équipe n'est pas mesuré : "+med);
+    say("       recul de l'équipe "+med+" — l'athlète n'est pas mise en cause");
+    if(r.probs.length)throw new Error(r.probs.join(" / "));
+  });
+
+  await step("l'historique porte la trajectoire entière, dans l'ordre",async()=>{
+    const r=await page.evaluate(()=>{
+      var g=curSquad().goals[0];
+      return {evenements:g.history.map(function(h){return h.event}),
+              valeurs:g.history.filter(function(h){return h.value!=null})
+                       .map(function(h){return Math.round(h.value*100)/100}),
+              borne:g.history.length<=GOAL_HISTORY_MAX};
+    });
+    const e=r.evenements;
+    if(e[0]!=="set")throw new Error("l'historique ne commence pas par « fixé » : "+e[0]);
+    const iAtt=e.indexOf("achieved"),iReg=e.indexOf("regressed");
+    if(iAtt<0)throw new Error("aucune atteinte dans l'historique");
+    if(iReg<0)throw new Error("aucune régression dans l'historique");
+    if(!(iAtt<iReg))throw new Error("l'ordre est faux : atteinte en "+iAtt+", recul en "+iReg);
+    if(!r.borne)throw new Error("historique non borné");
+    say("       "+e.join(" → "));
+    say("       valeurs mesurées : "+r.valeurs.join(" · "));
   });
 
   say("\n"+PASS+" contrôles réussis.");

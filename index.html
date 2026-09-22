@@ -1399,7 +1399,7 @@ function mkGoal(o){
   return Object.assign({id:uid(),createdAt:nowISO(),updatedAt:nowISO(),
     scope:"player",playerId:"",
     metric:{kind:"familyEff",family:"attaques",statKey:"",perMatch:false},
-    context:{sections:["matches","tournaments"],eventKinds:[],window:"last5"},
+    context:{sections:["training","matches","tournaments"],eventKinds:[],window:"last5"},
     baseline:0,baselineAt:"",target:0,targetAt:"",minVolume:0,
     achievedAt:null,regressedAt:null,active:true,auto:true,
     history:[]},o||{});
@@ -3017,7 +3017,7 @@ function normalizeGoal(g){
   g.scope=(g.scope==="team")?"team":"player";
   if(g.scope==="team")g.playerId="";
   g.metric=Object.assign({kind:"familyEff",family:"attaques",statKey:"",perMatch:false},g.metric||{});
-  g.context=Object.assign({sections:["matches","tournaments"],eventKinds:[],window:"last5"},g.context||{});
+  g.context=Object.assign({sections:["training","matches","tournaments"],eventKinds:[],window:"last5"},g.context||{});
   g.context.sections=(g.context.sections||[]).filter(function(s){return SECTION_BY_KEY[s]});
   g.context.eventKinds=(g.context.eventKinds||[]).filter(function(k){return EVENT_KINDS[k]});
   g.history=(g.history||[]).filter(function(h){return h&&h.at}).slice(-GOAL_HISTORY_MAX);
@@ -7967,8 +7967,15 @@ function reculMedianEquipe(sq,g){
     var rel=goalReleves(sq,faux),fam=g.metric.family;
     if(rel.length<3)return;
     var recent=fenetreEff(rel,fam);
-    var avant=fenetreEff(rel.slice(0,rel.length-1),fam);
-    if(!recent||!avant)return;
+    if(!recent)return;
+    /* La fenêtre PRÉCÉDENTE, sans recouvrement. Comparer la fenêtre
+       courante à celle d'un relevé plus tôt faisait disparaître la
+       baisse qu'on cherche : les deux partageaient presque tous leurs
+       relevés, donc l'écart mesuré valait une fraction de l'écart réel,
+       et le garde-fou ne se déclenchait jamais. On recule donc d'une
+       fenêtre entière. */
+    var avant=fenetreEff(rel.slice(0,Math.max(0,rel.length-recent.releves)),fam);
+    if(!avant)return;
     reculs.push(avant.eff-recent.eff);
   });
   if(reculs.length<3)return 0;
