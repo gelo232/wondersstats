@@ -811,6 +811,67 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .subRO .sr-toks{display:flex;gap:var(--s1);flex-wrap:wrap;margin-bottom:var(--s2)}
 
 /* ══ fin §12 ══════════════════════════════════════════════════════════ */
+/* ── §15-§17 · la portée de lecture, toujours sous les yeux ───
+   Deux dimensions se croisent dans ces trois parties : le NIVEAU
+   (global → tournoi → match → set) et le SUJET (l'équipe, ou une
+   athlète). La barre porte le niveau et sert à REMONTER ; les volets
+   portent le sujet, et le troisième sert à DESCENDRE. Aucun des deux
+   gestes n'a deux chemins — c'est ce qui évite d'empiler les écrans. */
+.scopeBar{flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--line);
+  padding:var(--s1) var(--gutter) var(--s2)}
+.scopeBar .sc-crumbs{display:flex;align-items:center;gap:2px;overflow-x:auto;
+  -webkit-overflow-scrolling:touch;white-space:nowrap}
+.scopeBar .sc-crumb{flex-shrink:0;min-height:var(--tap);padding:0 var(--s2);background:none;
+  border:none;cursor:pointer;font:inherit;font-size:var(--fs-xs);font-weight:700;
+  color:var(--accent-ink);text-decoration:underline;max-width:44vw;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.scopeBar .sc-here{flex-shrink:0;padding:0 var(--s2);font-size:var(--fs-md);font-weight:800;
+  color:var(--txt-strong);max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scopeBar .sc-sep{flex-shrink:0;color:var(--txt-faint);font-size:var(--fs-xs)}
+.scopeBar .sc-sub{font-size:var(--fs-2xs);color:var(--txt-faint);margin-top:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.scopeBar .seg{margin-top:var(--s2)}
+
+/* ── §15-§17 · une ligne de répartition, du niveau du dessous ──
+   Le chiffre et le signe portent l'information ; la teinte ne fait que
+   la confirmer. Une ligne tapable descend d'un niveau en gardant le
+   sujet — l'équipe, ou l'athlète dont on lit la feuille. */
+.evBreak{display:flex;align-items:center;gap:var(--s2);width:100%;text-align:left;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:var(--s2) var(--s3);margin-bottom:6px;min-height:var(--tap);color:inherit;font:inherit}
+.evBreak.is-tap{cursor:pointer}
+.evBreak.is-tap:active{background:var(--raised);border-color:var(--accent)}
+.evBreak .eb-lbl{flex:1;min-width:0;font-size:var(--fs-sm);font-weight:700;color:var(--txt-strong);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.evBreak .eb-act{flex-shrink:0;font-size:var(--fs-xs);color:var(--txt-dim);
+  font-variant-numeric:tabular-nums}
+.evBreak .eb-eff{flex-shrink:0;min-width:48px;text-align:right;font-size:var(--fs-sm);
+  font-weight:800;font-variant-numeric:tabular-nums}
+.evBreak .eb-arw{flex-shrink:0;color:var(--txt-dim);font-size:var(--fs-md)}
+.evBars{display:flex;flex-direction:column;gap:6px}
+
+/* ── §20 · borner les sets pendant la saisie ─────────────
+   Le bouton est à côté de l'enregistrement, non dedans : clore un set
+   n'enregistre rien, et confondre les deux coûterait un match. */
+.save-bar .markRow{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s2)}
+.save-bar .markRow .mk-note{flex:1;min-width:0;font-size:var(--fs-2xs);color:var(--txt-faint);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ── §15-§17 · ventiler un match après coup ─────────────
+   Une colonne par set, une dernière pour ce qui n'a pas encore trouvé
+   la sienne. Le reste n'est pas saisissable : il se déduit, et c'est ce
+   qui garantit que le total du match ne bouge pas d'un compteur. */
+.splitTbl{width:100%;border-collapse:collapse;font-size:var(--fs-xs)}
+.splitTbl th{padding:var(--s1) 3px;color:var(--txt-faint);font-size:var(--fs-2xs);
+  font-weight:800;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.splitTbl th.who,.splitTbl td.who{text-align:left;color:var(--txt-strong);font-weight:700;
+  font-size:var(--fs-xs);max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.splitTbl td{padding:3px;text-align:center;border-top:1px solid var(--line)}
+.splitTbl input{width:44px;height:var(--tap);border-radius:var(--r-sm);background:var(--sunken);
+  border:1.5px solid var(--line-strong);color:var(--txt-strong);font-size:var(--fs-input);
+  font-weight:700;text-align:center;outline:none;margin:0;padding:0}
+.splitTbl td.rest{font-weight:800;color:var(--warn-ink);font-variant-numeric:tabular-nums}
+.splitTbl td.rest.done{color:var(--ok-ink)}
 </style>
 </head>
 <body>
@@ -1521,6 +1582,7 @@ var state={
   seasonPane:"selection",       // conservé : volets hérités
   seasonSection:null,           // la partie ouverte, ou null pour le tableau de bord
   selPane:"recap",              // volet de la partie Sélection (§14)
+  evScope:{},                   // portée de lecture des parties de rencontres (§15-§17)
   setPane:"seasons",            // volet des Réglages
   lists:{},                     // état des listes, par clé (voir §12)
   evalCampaignId:null,          // filtre de campagne dans Récap → Évaluations
@@ -2812,10 +2874,25 @@ function normalizeSquad(sq,knownPlayers){
         number:cleanNum(en.number),position:en.position||"",stats:normStats(en.stats)}}),
       /* ⚠ Ce littéral DÉTRUIT toute clé qu'il ne nomme pas. Sans ces deux
          lignes, la ventilation par set disparaîtrait à chaque chargement,
-         en silence. */
-      sets:Array.isArray(se.sets)?se.sets:[],
+         en silence.
+
+         Les blocs sont normalisés comme les entries : un import bricolé
+         n'a pas à pouvoir glisser un compteur négatif ou textuel dans un
+         set. Ils ne sont PAS filtrés sur le roster — une athlète partie
+         garde sa ligne dans le match qu'elle a joué, et la filtrer
+         casserait l'égalité entre la somme des sets et le total. */
+      sets:(Array.isArray(se.sets)?se.sets:[]).map(function(s,i){
+        return {index:i,
+          entries:((s&&s.entries)||[]).filter(function(x){return x&&x.playerId})
+            .map(function(x){return {playerId:x.playerId,stats:normStats(x.stats)}}),
+          us:0,them:0,reconciled:!!(s&&s.reconciled)};
+      }),
       splitAt:se.splitAt||null};
   });
+  /* Les scores portés par les sets sont des miroirs de result.sets : on
+     les refait au chargement, sinon un résultat corrigé ailleurs laisse
+     des sets qui affichent l'ancien score. */
+  sq.sessions.forEach(function(se){refreshSetMirrors(se)});
   attachOrphanSessions(sq);
   /* Les réglages du score : normalisés une fois ici, pour qu'une sauvegarde
      d'avant leur existence reparte des valeurs par défaut sans rien casser. */
@@ -3377,7 +3454,11 @@ function loadAll(fromVault){
 var undoStack=[],MAX_UNDO=60;
 function pushUndoStats(label){
   var t=curTeam();if(!t)return;
-  undoStack.push({label:label,kind:"teamStats",teamId:t.id,data:clone(t.stats)});
+  /* Les bornes de set appartiennent à la saisie en cours : restaurer les
+     compteurs sans elles produirait une ventilation qui ne correspond
+     plus à ce qui a été compté. */
+  undoStack.push({label:label,kind:"teamStats",teamId:t.id,data:clone(t.stats),
+                  marks:clone(t.setMarks||[])});
   trimUndo();
 }
 function pushUndoView(label,view){
@@ -3396,7 +3477,7 @@ function doUndo(){
   if(snap.kind==="teamStats"){
     var t=null;
     DB.squads.forEach(function(x){if(x.id===snap.teamId)t=x});
-    if(t)t.stats=snap.data;
+    if(t){t.stats=snap.data;if(snap.marks)t.setMarks=snap.marks}
   } else if(snap.kind==="viewData"){
     var v=findViewAnywhere(snap.viewId);
     if(v)v.data=snap.data;
@@ -3701,13 +3782,18 @@ function kindsPresent(sq){
 function sessionIsSplit(se){return !!(se&&se.sets&&se.sets.length)}
 function setsOfSession(se){
   if(!se)return [];
-  if(sessionIsSplit(se))
+  if(sessionIsSplit(se)){
+    /* Le bloc de correction n'est pas un set : l'appeler « Set 4 »
+       affirmerait une manche qui n'a pas eu lieu. Le compteur ne
+       s'incrémente donc que sur les vrais sets. */
+    var n=0;
     return se.sets.map(function(s,i){
       var sc=((se.result&&se.result.sets)||[])[i]||{us:0,them:0};
       return {index:i,us:sc.us||0,them:sc.them||0,entries:s.entries||[],
               whole:false,reconciled:!!s.reconciled,
-              label:"Set "+(i+1)};
+              label:s.reconciled?"Reste non ventilé":("Set "+(++n))};
     });
+  }
   return [{index:0,us:0,them:0,entries:se.entries||[],whole:true,reconciled:false,
            label:"Match (non ventilé)"}];
 }
@@ -3780,6 +3866,167 @@ function reconcileSessionTotals(se){
   var entries=[];
   Object.keys(ecart).forEach(function(pid){entries.push({playerId:pid,stats:ecart[pid]})});
   se.sets.push({index:se.sets.length,entries:entries,reconciled:true});
+}
+
+/* ── Ventiler une session, avant ou après coup ────────────────────
+   Deux chemins, un seul invariant : la somme des sets vaut le total du
+   match, exactement, et `entries` reste l'autorité de ce total.
+
+   À la SAISIE, le chemin est arithmétique — voir marksToSets.
+   APRÈS COUP, sur un match d'avant la v7 qui n'a pas de sets, personne
+   ne peut les inventer à la place de l'entraîneur. Celui qui a son
+   carnet, lui, peut les reporter — et la seule façon de le laisser
+   faire sans jamais toucher au total est de ne rien ADDITIONNER : on
+   DÉPLACE ce qui est déjà compté, d'un bloc de reste vers les sets.
+
+   Le bloc de reste ne se saisit pas : il se DÉDUIT de la différence, à
+   chaque déplacement, et il disparaît de lui-même quand tout a trouvé
+   son set. C'est ce recalcul, et non la bonne volonté de l'appelant,
+   qui garantit l'invariant. */
+function splitSyncResidual(se){
+  if(!se||!se.sets)return;
+  var reels=se.sets.filter(function(s){return !s.reconciled});
+  var somme={};
+  reels.forEach(function(s){
+    (s.entries||[]).forEach(function(x){
+      if(!x||!x.playerId)return;
+      if(!somme[x.playerId])somme[x.playerId]=emptyS();
+      addStats(somme[x.playerId],x.stats);
+    });
+  });
+  var reste=[];
+  (se.entries||[]).forEach(function(en){
+    var d=emptyS(),n=0,s=somme[en.playerId]||emptyS();
+    for(var i=0;i<ALL_STATS.length;i++){
+      var k=ALL_STATS[i].key,v=(en.stats[k]||0)-(s[k]||0);
+      if(v>0){d[k]=v;n+=v}
+    }
+    if(n>0)reste.push({playerId:en.playerId,stats:d});
+  });
+  se.sets=reels;
+  if(reste.length)
+    se.sets.push({index:reels.length,entries:reste,us:0,them:0,reconciled:true});
+  refreshSetMirrors(se);
+}
+/* Ce qui reste à ventiler, en nombre de gestes. Zéro veut dire que la
+   ventilation est complète — et c'est la seule mesure qui le dise. */
+function splitResidual(se){
+  if(!sessionIsSplit(se))return 0;
+  var n=0;
+  se.sets.forEach(function(s){
+    if(!s.reconciled)return;
+    (s.entries||[]).forEach(function(x){n+=sumStats(normStats(x.stats))});
+  });
+  return n;
+}
+/* Préparer la ventilation : n blocs vides, et tout le total dans le
+   bloc de reste. Le total ne bouge pas d'un compteur. */
+function splitPrepare(se,n){
+  if(!se||sessionIsSplit(se))return false;
+  n=Math.max(1,Math.min(9,n||3));
+  se.sets=[];
+  for(var i=0;i<n;i++)se.sets.push({index:i,entries:[],us:0,them:0,reconciled:false});
+  se.splitAt=nowISO();
+  splitSyncResidual(se);
+  return true;
+}
+/* Changer le nombre de sets. Retirer un set ne perd rien : ce qu'il
+   portait retombe dans le reste, où il attend un autre set. */
+function splitSetCount(se,n){
+  if(!se||!sessionIsSplit(se))return;
+  n=Math.max(1,Math.min(9,n||1));
+  var reels=se.sets.filter(function(s){return !s.reconciled});
+  while(reels.length<n)reels.push({index:reels.length,entries:[],us:0,them:0,reconciled:false});
+  if(reels.length>n)reels=reels.slice(0,n);
+  se.sets=reels;
+  splitSyncResidual(se);
+}
+/* Poser un compteur dans un set. La valeur est bornée par ce que le
+   match compte : on ne peut pas ventiler plus qu'il n'y a eu, et c'est
+   cette borne qui rend l'écriture sûre quoi qu'on tape. Rend la valeur
+   réellement retenue. */
+function splitMove(se,pid,key,i,val){
+  if(!se||!sessionIsSplit(se))return 0;
+  var reels=se.sets.filter(function(s){return !s.reconciled});
+  var bloc=reels[i];if(!bloc)return 0;
+  var tot=0;
+  (se.entries||[]).forEach(function(en){if(en.playerId===pid)tot=en.stats[key]||0});
+  var autres=0;
+  reels.forEach(function(s,j){
+    if(j===i)return;
+    (s.entries||[]).forEach(function(x){if(x.playerId===pid)autres+=x.stats[key]||0});
+  });
+  var v=Math.max(0,Math.min(Math.round(val||0),tot-autres));
+  var ligne=null;
+  bloc.entries=bloc.entries||[];
+  bloc.entries.forEach(function(x){if(x.playerId===pid)ligne=x});
+  if(!ligne){ligne={playerId:pid,stats:emptyS()};bloc.entries.push(ligne)}
+  ligne.stats=normStats(ligne.stats);
+  ligne.stats[key]=v;
+  splitSyncResidual(se);
+  return v;
+}
+/* Défaire la ventilation : la session redevient « non ventilée » et le
+   dira. Son total n'a jamais bougé, il n'y a donc rien à recalculer. */
+function unsplitSession(se){
+  if(!se)return;
+  se.sets=[];se.splitAt=null;
+}
+
+/* ── Bornes de set à la saisie ─────────────────────────────────────
+   « Set suivant » pousse un instantané CUMULATIF des compteurs dans
+   squad.setMarks. Les sets sont les différences successives de ces
+   bornes, la dernière étant le total final : leur somme vaut donc le
+   total exactement, par construction arithmétique. Rien n'est remis à
+   zéro en cours de match, et c'est précisément ce qui permet de
+   corriger un compteur après avoir clos un set.
+
+   Une correction à la baisse rendrait une différence négative. On
+   rabat alors la borne fautive sur la valeur qui la suit (passe
+   arrière) : la baisse s'impute au set où le geste avait été compté en
+   trop — la seule lecture honnête — et la somme reste exacte. */
+function marksToSets(marks,entries){
+  entries=entries||[];
+  var pids=entries.map(function(en){return en.playerId});
+  var bornes=(marks||[]).map(function(m){
+    var o={};
+    pids.forEach(function(pid){o[pid]=normStats((m&&m.stats&&m.stats[pid])||null)});
+    return o;
+  });
+  var total={};
+  entries.forEach(function(en){total[en.playerId]=normStats(en.stats)});
+  /* Passe arrière : chaque borne est rabattue sur celle qui la suit. */
+  var suivant=total;
+  for(var i=bornes.length-1;i>=0;i--){
+    var b=bornes[i];
+    for(var p=0;p<pids.length;p++){
+      var pid=pids[p];
+      for(var j=0;j<ALL_STATS.length;j++){
+        var k=ALL_STATS[j].key;
+        if(b[pid][k]>suivant[pid][k])b[pid][k]=suivant[pid][k];
+      }
+    }
+    suivant=b;
+  }
+  /* Différences successives : borne 1 − 0, borne 2 − borne 1, …, puis
+     total − dernière borne. Il y a donc un set de plus que de bornes. */
+  var prec={};
+  pids.forEach(function(pid){prec[pid]=emptyS()});
+  var sets=[];
+  bornes.concat([total]).forEach(function(b,idx){
+    var lignes=[];
+    pids.forEach(function(pid){
+      var d=emptyS(),n=0;
+      for(var j=0;j<ALL_STATS.length;j++){
+        var k=ALL_STATS[j].key,v=(b[pid][k]||0)-(prec[pid][k]||0);
+        if(v>0){d[k]=v;n+=v}
+      }
+      if(n>0)lignes.push({playerId:pid,stats:d});
+    });
+    sets.push({index:idx,entries:lignes,us:0,them:0,reconciled:false});
+    prec=b;
+  });
+  return sets;
 }
 
 /* ── Les quatre gestes qui engagent ────────────────────────────
@@ -6927,30 +7174,436 @@ function renderPartTournaments(sq){
 }
 /* ══ fin §17 ══════════════════════════════════════════════════ */
 
-/* Le tronc commun des trois parties de rencontres. Elles ne
-   diffèrent que par les natures qu'elles retiennent et par le
-   niveau de lecture le plus haut — le tournoi en a un de plus que
-   le match. Une seule fonction, donc, plutôt que trois écrans à
-   maintenir en parallèle. */
+
+/* ══════════════════════════════════════════════════════════════
+   LE MOTEUR DES TROIS PARTIES DE RENCONTRES
+
+   Entraînements, Matchs et Tournois ne diffèrent que par deux
+   choses : les natures qu'ils retiennent, et le nombre de niveaux
+   qu'on peut descendre. Un tournoi en a un de plus qu'un match,
+   parce qu'il porte plusieurs matchs. Tout le reste — compter,
+   comparer, afficher — est identique, et s'écrit donc une fois.
+
+   Deux axes se croisent :
+     le NIVEAU   global → tournoi → match → set
+     le SUJET    l'équipe entière, ou chaque athlète
+
+   Le niveau est un chemin (state.evPath), le sujet une bascule
+   (state.evSujet). Croiser les deux dans un seul écran évite huit
+   écrans jumeaux — c'est ce que l'utilisateur demandait en disant
+   « sans trop de répétitions ».
+   ══════════════════════════════════════════════════════════════ */
+
+/* Un PÉRIMÈTRE de lecture : les relevés retenus, et éventuellement
+   un seul set d'une seule session. Tout s'en déduit. */
+function mkScope(label,sessions,session,setIdx){
+  return {label:label||"",sessions:sessions||[],
+          session:session||null,setIdx:(setIdx==null?null:setIdx)};
+}
+/* Les compteurs d'une athlète sur le périmètre. Un set précis passe
+   par setsOfSession, seul accesseur autorisé : une session d'avant
+   la ventilation y rend son total, marqué « non ventilé ». */
+function scopeStats(scope,pid){
+  if(scope.session&&scope.setIdx!=null)
+    return statsOfSessionSet(scope.session,scope.setIdx,pid);
+  var out=emptyS();
+  scope.sessions.forEach(function(se){
+    (se.entries||[]).forEach(function(en){
+      if(en.playerId===pid)addStats(out,en.stats);
+    });
+  });
+  return out;
+}
+/* Les compteurs de l'équipe : la somme des athlètes, jamais une
+   donnée à part. */
+function scopeTeamStats(scope){
+  var out=emptyS();
+  if(scope.session&&scope.setIdx!=null){
+    var blocs=setsOfSession(scope.session),b=blocs[scope.setIdx];
+    (b?b.entries:[]).forEach(function(x){addStats(out,x.stats)});
+    return out;
+  }
+  scope.sessions.forEach(function(se){
+    (se.entries||[]).forEach(function(en){addStats(out,en.stats)});
+  });
+  return out;
+}
+/* Les athlètes qui ont un relevé sur le périmètre, dans l'ordre du
+   roster pour que deux écrans ne les rangent pas différemment. */
+function scopePlayers(sq,scope){
+  var vus={};
+  if(scope.session&&scope.setIdx!=null){
+    var blocs=setsOfSession(scope.session),b=blocs[scope.setIdx];
+    (b?b.entries:[]).forEach(function(x){vus[x.playerId]=true});
+  } else {
+    scope.sessions.forEach(function(se){
+      (se.entries||[]).forEach(function(en){vus[en.playerId]=true});
+    });
+  }
+  var out=[];
+  (sq.roster||[]).forEach(function(r){if(vus[r.playerId]){out.push(r.playerId);delete vus[r.playerId]}});
+  Object.keys(vus).forEach(function(pid){out.push(pid)});
+  return out;
+}
+/* Bilan V–D–N du périmètre. Un set n'a pas de bilan : c'est le match
+   qui se gagne. */
+function scopeRecord(scope){
+  var r={win:0,loss:0,draw:0};
+  if(scope.setIdx!=null)return r;
+  scope.sessions.forEach(function(se){
+    var o=resultOutcome(se.result);
+    if(o==="win")r.win++;else if(o==="loss")r.loss++;else if(o==="draw")r.draw++;
+  });
+  return r;
+}
+/* Le profil de familles d'un relevé, dans la forme qu'attend
+   renderStatFamilies — écrite pour la compilation, réutilisée ici
+   plutôt que réécrite. */
+function famProfile(stats){
+  var o={statFams:{}};
+  FAMILY_KEYS.forEach(function(f){
+    var v=familyVolume(stats,f);
+    if(v)o.statFams[f]={eff:familyEff(stats,f),volume:v,scale:null};
+  });
+  return o;
+}
+
+/* ── Le chemin de lecture ─────────────────────────────────────── */
+function evPath(){
+  if(!state.evPath)state.evPath={};
+  return state.evPath;
+}
+function evReset(k){
+  state.evPath={section:k};
+  state.evSujet=state.evSujet||"team";
+}
+function evGo(champ,val){
+  var p=evPath();
+  if(champ==="event"){p.eventId=val;p.sessionId=null;p.setIdx=null}
+  else if(champ==="session"){p.sessionId=val;p.setIdx=null}
+  else if(champ==="set"){p.setIdx=val}
+  saveNow();render();
+}
+function evUp(){
+  var p=evPath();
+  if(p.setIdx!=null){p.setIdx=null}
+  else if(p.sessionId){p.sessionId=null}
+  else if(p.eventId){p.eventId=null}
+  else {navBackToHub();return}
+  saveNow();render();
+}
+
+/* Le périmètre courant, déduit du chemin. C'est la seule fonction
+   qui traduit « où je suis » en « ce que je compte ». */
+function evScope(sq,k){
+  var p=evPath(),ks=sectionKinds(k)||[];
+  var nature=(k==="matches"&&state.cumulKind&&ks.indexOf(state.cumulKind)!==-1)
+    ? [state.cumulKind] : ks;
+  var toutes=(sq.sessions||[]).filter(function(se){
+    var ev=eventOf(sq,se);
+    return ev&&nature.indexOf(ev.kind)!==-1;
+  });
+  if(!p.eventId)return mkScope("Tout",toutes,null,null);
+  var ev=eventById(sq,p.eventId);
+  var dansEv=toutes.filter(function(se){return se.eventId===p.eventId});
+  if(!p.sessionId)return mkScope(ev?eventLabel(ev):"Rencontre",dansEv,null,null);
+  var se=null;
+  dansEv.forEach(function(x){if(x.id===p.sessionId)se=x});
+  if(!se)return mkScope(ev?eventLabel(ev):"Rencontre",dansEv,null,null);
+  if(p.setIdx==null)return mkScope(matchLabel(ev,se),[se],null,null);
+  var blocs=setsOfSession(se),b=blocs[p.setIdx];
+  return mkScope(b?b.label:"Set",[se],se,p.setIdx);
+}
+
+/* ── L'écran ───────────────────────────────────────────────────── */
+
+/* Le résumé d'équipe sur un périmètre : le bilan s'il en a un, les
+   efficacités par famille, et le volume qui dit si l'on peut s'y
+   fier. */
+function evTeamCard(sq,scope){
+  var st=scopeTeamStats(scope),rec=scopeRecord(scope),total=sumStats(st);
+  var wrap=h("div",null);
+  var tuiles=[];
+  if(rec.win+rec.loss+rec.draw)
+    tuiles.push(kpi({label:"Bilan",value:rec.win+"–"+rec.loss+(rec.draw?"–"+rec.draw:""),
+      hint:plural(scope.sessions.length,"match")}));
+  tuiles.push(kpi({label:"Gestes relevés",value:String(total),
+    hint:plural(scopePlayers(sq,scope).length,"athlète")}));
+  var atk=familyEff(st,"attaques");
+  if(atk!=null)tuiles.push(kpi({label:"Efficacité attaque",value:fmtEff(atk),
+    hint:familyVolume(st,"attaques")+" gestes"}));
+  wrap.appendChild(h("div",{className:"kpiGrid"},tuiles));
+  wrap.appendChild(h("div",{className:"card tight"},
+    h("div",{className:"muted",style:{marginBottom:"6px"}},"L'équipe, "+scope.label.toLowerCase()),
+    total?renderStatFamilies(famProfile(st))
+         :h("div",{className:"muted"},"Aucun compteur relevé sur ce périmètre.")));
+  return wrap;
+}
+
+/* La liste des athlètes sur un périmètre. Même barre que partout
+   ailleurs : recherche, tris, filtres. */
+function evPlayersList(sq,scope,cle){
+  var pids=scopePlayers(sq,scope);
+  var items=pids.map(function(pid){
+    var st=scopeStats(scope,pid);
+    return {pid:pid,player:playerById(pid),entry:rosterEntry(sq,pid),
+            stats:st,total:sumStats(st)};
+  }).filter(function(x){return !!x.player});
+
+  function effDe(x){return familyEff(x.stats,"attaques")}
+  var tb=listToolbar({
+    key:cle,items:items,
+    search:{of:function(x){return fullName(x.player)+" "+((x.entry&&x.entry.number)||"")},
+            placeholder:"Rechercher une athlète…"},
+    sorts:[
+      {key:"number",label:"Numéro",get:function(x){
+        var n=parseInt((x.entry&&x.entry.number)||"",10);return isFinite(n)?n:null}},
+      {key:"name",label:"Nom",get:function(x){return fullName(x.player)}},
+      {key:"age",label:"Âge",get:function(x){return ageOf(x.player)}},
+      {key:"result",label:"Résultat",get:function(x){return x.total}}
+    ],
+    filters:[
+      {key:"poste",label:"Poste",get:function(x){return (x.entry&&x.entry.position)||""},
+       options:POS_KEYS.map(function(k){return {k:k,l:POS_LABELS[k]||k}})},
+      {key:"appartenance",label:"Appartenance",
+       get:function(x){return (x.entry&&x.entry.membership)||"active"},
+       options:MEMBERSHIP_ORDER.map(function(k){return {k:k,l:MEMBERSHIPS[k].label}})}
+    ],
+    empty:function(){
+      return emptyState({icon:"👥",title:"Aucun relevé",small:true,
+        sub:"Aucune athlète n'a de compteur sur ce périmètre."});
+    },
+    rows:function(res){
+      return res.map(function(x){
+        var eff=effDe(x),meta=[];
+        if(x.entry&&x.entry.position&&POS_LABELS[x.entry.position])
+          meta.push(tok("dot",{label:x.entry.position,color:"var(--txt-dim)"}));
+        if(x.entry&&MEMBERSHIPS[x.entry.membership]&&x.entry.membership!=="active")
+          meta.push(tok("dot",MEMBERSHIPS[x.entry.membership]));
+        if(eff!=null)meta.push(tok("dot",{label:"Att. "+fmtEff(eff),color:"var(--txt-dim)"}));
+        return listRow({lead:(x.entry&&x.entry.number)||"—",
+          name:fullName(x.player),meta:meta,
+          dim:x.entry&&x.entry.membership==="left",
+          trail:kpiInline(String(x.total),"gestes"),
+          onclick:function(){openModal("evathlete",x.pid)}});
+      });
+    }
+  });
+  return h("div",null,tb,tb.list);
+}
+
+/* La fiche d'une athlète sur le périmètre courant. Elle ne montre
+   QUE ce périmètre : sa saison entière se lit dans le récap global,
+   et mélanger les deux ferait douter de ce qu'on regarde. */
+function renderEvAthleteModal(){
+  var sq=curSquad(),pid=state.modalCtx;
+  if(!sq||!pid)return null;
+  var p=playerById(pid);if(!p)return null;
+  var k=seasonSection()||"matches",scope=evScope(sq,k);
+  var st=scopeStats(scope,pid),e=rosterEntry(sq,pid);
+  var total=sumStats(st);
+  return sheetShell({title:fullName(p),
+    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},
+    h("div",null,
+      h("div",{className:"muted",style:{marginBottom:"8px"}},
+        numLabel((e&&e.number)||"")+" · "+scope.label),
+      total?h("div",null,
+        renderStatFamilies(famProfile(st)),
+        h("div",{className:"card tight",style:{marginTop:"10px"}},
+          h("div",{className:"muted",style:{marginBottom:"6px"}},"Le détail des compteurs"),
+          renderStatMini(st)))
+      :emptyState({icon:"📊",title:"Aucun relevé",small:true,
+        sub:"Cette athlète n'a aucun compteur sur ce périmètre."})));
+}
+defModal("evathlete",renderEvAthleteModal,{autofocus:false});
+
+/* La liste du niveau courant : les rencontres, les matchs d'un
+   tournoi, ou les sets d'un match. */
+function evChildren(sq,k){
+  var p=evPath(),scope=evScope(sq,k);
+  var wrap=h("div",null);
+
+  /* Niveau 3 — un set : il n'a pas d'enfant. */
+  if(p.setIdx!=null)return null;
+
+  /* Niveau 2 — un match : ses sets. */
+  if(p.sessionId){
+    var se=scope.sessions[0];
+    if(!se)return null;
+    var blocs=setsOfSession(se);
+    wrap.appendChild(h("div",{className:"section-title"},
+      sessionIsSplit(se)?plural(blocs.length,"set"):"Ventilation"));
+    if(!sessionIsSplit(se)){
+      wrap.appendChild(h("div",{className:"hint"},
+        "Ce match n'a pas été relevé set par set — il est d'avant cette "+
+        "possibilité, ou il a été saisi d'un bloc. Son total reste exact ; "+
+        "seule la répartition manque."));
+    }
+    blocs.forEach(function(b,i){
+      var tot=b.entries.reduce(function(n,x){return n+sumStats(x.stats)},0);
+      wrap.appendChild(h("button",{className:"navRow",type:"button",
+        onclick:function(){evGo("set",i)}},
+        h("span",{className:"nr-ico","aria-hidden":"true"},b.whole?"📄":"🎽"),
+        h("span",{className:"nr-body"},
+          h("span",{className:"nr-ttl"},b.label),
+          h("span",{className:"nr-sub"},
+            (b.whole?"":(b.us+"–"+b.them+" · "))+plural(tot,"geste"))),
+        h("span",{className:"nr-arw","aria-hidden":"true"},"›")));
+    });
+    return wrap;
+  }
+
+  /* Niveau 1 — un tournoi : ses matchs. */
+  if(p.eventId){
+    var ev=eventById(sq,p.eventId);
+    wrap.appendChild(h("div",{className:"section-title"},
+      plural(scope.sessions.length,"match")));
+    scope.sessions.forEach(function(se){
+      var o=resultOutcome(se.result);
+      wrap.appendChild(h("button",{className:"navRow",type:"button",
+        onclick:function(){evGo("session",se.id)}},
+        h("span",{className:"nr-ico","aria-hidden":"true"},
+          hasResult(se.result)?(o==="win"?"🟢":(o==="loss"?"🔴":"⚪")):"·"),
+        h("span",{className:"nr-body"},
+          h("span",{className:"nr-ttl"},matchLabel(ev,se)),
+          h("span",{className:"nr-sub"},
+            [se.opponent?"contre "+se.opponent:null,
+             hasResult(se.result)?resultLabel(se.result):"score non saisi",
+             sessionIsSplit(se)?plural(se.sets.length,"set"):"non ventilé"]
+            .filter(Boolean).join(" · "))),
+        h("span",{className:"nr-arw","aria-hidden":"true"},"›")));
+    });
+    return wrap;
+  }
+
+  /* Niveau 0 — toutes les rencontres de la partie. */
+  var evs={};
+  scope.sessions.forEach(function(se){
+    var ev=eventOf(sq,se);
+    if(!ev)return;
+    if(!evs[ev.id])evs[ev.id]={event:ev,sessions:[]};
+    evs[ev.id].sessions.push(se);
+  });
+  var liste=Object.keys(evs).map(function(id){return evs[id]});
+  if(!liste.length)return null;
+  liste.sort(function(a,b){
+    return String(b.event.date||"")<String(a.event.date||"")?-1:1;
+  });
+  var tb=listToolbar({
+    key:"ev-"+k,items:liste,
+    search:{of:function(g){return (g.event.name||"")+" "+(g.event.opponent||"")},
+            placeholder:"Rechercher une rencontre…"},
+    sorts:[
+      {key:"date",label:"Date",get:function(g){return g.event.date||""}},
+      {key:"name",label:"Nom",get:function(g){return g.event.name||""}},
+      {key:"result",label:"Résultat",get:function(g){
+        var r=0;g.sessions.forEach(function(se){
+          var o=resultOutcome(se.result);if(o==="win")r++;else if(o==="loss")r--});
+        return r}}
+    ],
+    filters:(k==="matches"&&kindsPresent(sq).indexOf("league")!==-1)?[
+      {key:"nature",label:"Nature",get:function(g){return g.event.kind},
+       options:[{k:"friendly",l:"Amicaux"},{k:"league",l:"Championnat"}]}
+    ]:[],
+    empty:function(){
+      return emptyState({icon:"🔍",title:"Aucune rencontre",small:true,
+        sub:"Aucune rencontre ne correspond à ce que vous cherchez."});
+    },
+    rows:function(res){
+      return res.map(function(g){
+        var ev=g.event,kk=EVENT_KINDS[ev.kind]||EVENT_KINDS.league;
+        var v=0,d=0;
+        g.sessions.forEach(function(se){
+          var o=resultOutcome(se.result);if(o==="win")v++;else if(o==="loss")d++;
+        });
+        var multi=kindIsMulti(ev.kind)||g.sessions.length>1;
+        return h("button",{className:"navRow",type:"button",
+          onclick:function(){
+            /* Un match seul n'a pas de niveau intermédiaire : on descend
+               droit au match, sinon on ferait cliquer sur une liste d'un
+               seul élément. */
+            if(multi)evGo("event",ev.id);
+            else {evGo("event",ev.id);evGo("session",g.sessions[0].id)}
+          }},
+          h("span",{className:"nr-ico","aria-hidden":"true"},kk.icon),
+          h("span",{className:"nr-body"},
+            h("span",{className:"nr-ttl"},ev.name||kk.label),
+            h("span",{className:"nr-sub"},
+              [fmtShortDay(ev.date),
+               multi?plural(g.sessions.length,"match"):(ev.opponent||null),
+               (v||d)?v+"V–"+d+"D":null].filter(Boolean).join(" · "))),
+          h("span",{className:"nr-arw","aria-hidden":"true"},"›"));
+      });
+    }
+  });
+  wrap.appendChild(tb);wrap.appendChild(tb.list);
+  return wrap;
+}
+
 function renderEventPart(sq,k){
   var s=SECTION_BY_KEY[k]||{};
-  var evs=eventsOfSection(sq,k);
-  var body=renderSessionsPane(sq,{kinds:sectionKinds(k),section:k});
-  var corps=h("div",{className:"content pad","data-scroll-key":"part-"+k},body);
-  var sous=evs.length?plural(evs.length,s.key==="tournaments"?"tournoi":"rencontre",
-                             s.key==="tournaments"?"tournois":null):null;
-  /* Relever, c'est l'acte de la partie : sans ce bouton, la saisie
-     n'aurait plus aucune porte d'entrée depuis que la barre du bas ne
-     porte plus d'onglet « Saisie ». */
+  var p=evPath();
+  if(p.section!==k)evReset(k);
+  p=evPath();
+  var scope=evScope(sq,k);
+  var sujet=state.evSujet==="players"?"players":"team";
+
+  /* Relever : l'acte de la partie. Sans ce bouton la saisie n'aurait
+     plus de porte d'entrée. */
   var relever=h("button",{className:"btn btn-primary sm",type:"button",
     "aria-label":"Relever les statistiques",
     onclick:function(){
-      state.inputKind=sectionKinds(k)?sectionKinds(k)[0]:"league";
+      state.inputKind=s.defaultKind||(sectionKinds(k)?sectionKinds(k)[0]:"league");
       navTo(mkRoute("legacy","input"));
     }},"✏️ Relever");
+
+  var profond=!!(p.eventId||p.sessionId||p.setIdx!=null);
+  var tete=h("div",{className:"partHead"},
+    h("button",{className:"ph-back",type:"button",
+      "aria-label":profond?"Remonter d'un niveau":"Retour à la saison",
+      onclick:evUp},profond?"← Remonter":"← Saison"),
+    h("div",{className:"ph-body"},
+      h("div",{className:"ph-ttl"},profond?scope.label:(s.label||"Rencontres")),
+      h("div",{className:"ph-sub"},
+        profond?(s.label||"")+" · "+plural(scope.sessions.length,"match")
+               :plural(scope.sessions.length,"match")+" relevé(s)")),
+    h("div",{className:"ph-act"},relever));
+
+  /* Le sélecteur de nature ne paraît que si la saison porte vraiment
+     du championnat : un club qui n'en joue pas n'a pas à le voir. */
+  var barres=[];
+  if(k==="matches"&&kindsPresent(sq).indexOf("league")!==-1&&!profond){
+    var cour=state.cumulKind||"all";
+    barres.push(h("div",{className:"pill-row tight"},
+      [{k:"all",l:"Tous"},{k:"friendly",l:"Amicaux"},{k:"league",l:"Championnat"}]
+      .map(function(o){
+        return h("button",{className:"pill"+(cour===o.k?" active":""),type:"button",
+          onclick:function(){state.cumulKind=o.k;saveNow();render()}},o.l);
+      })));
+  }
+  barres.push(h("div",{className:"pill-row tight"},
+    segmented({label:"Sujet",value:sujet,
+      options:[{k:"team",l:"📊 L'équipe"},{k:"players",l:"👥 Les athlètes"}],
+      onpick:function(v){state.evSujet=v;saveNow();render()}})));
+
+  var corps=h("div",null);
+  if(!scope.sessions.length){
+    corps.appendChild(emptyState({icon:s.icon||"🏐",
+      title:"Aucun relevé",
+      sub:"Rien n'a encore été relevé pour cette partie. "+
+          "« ✏️ Relever » ouvre la saisie, et l'enregistrement crée la rencontre.",
+      action:relever.cloneNode(true)}));
+  } else if(sujet==="team"){
+    corps.appendChild(evTeamCard(sq,scope));
+    var enfants=evChildren(sq,k);
+    if(enfants)corps.appendChild(enfants);
+  } else {
+    corps.appendChild(evPlayersList(sq,scope,"ev-"+k+"-players"));
+  }
+
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
-    partHeader(s.label||"Rencontres",sous,relever),
-    corps);
+    tete,barres,
+    h("div",{className:"content pad","data-scroll-key":"part-"+k+"-"+(sujet)},corps));
 }
 
 /* ══ §18 PARTIE OBJECTIFS ══════════════════════════════════════
@@ -8777,8 +9430,72 @@ function renderCourtBar(team){
     }},"Toutes sur le terrain")));
 }
 
+/* Deux bornes identiques feraient un set vide qu'on n'a pas voulu : on
+   compare donc les instantanés compteur par compteur avant de clore. */
+function sameMarkStats(a,b){
+  var pids={},i,j;
+  Object.keys(a||{}).forEach(function(p){pids[p]=1});
+  Object.keys(b||{}).forEach(function(p){pids[p]=1});
+  var ks=Object.keys(pids);
+  for(i=0;i<ks.length;i++){
+    var x=(a||{})[ks[i]]||{},y=(b||{})[ks[i]]||{};
+    for(j=0;j<ALL_STATS.length;j++){
+      var k=ALL_STATS[j].key;
+      if((x[k]||0)!==(y[k]||0))return false;
+    }
+  }
+  return true;
+}
+function markSnapshot(team){
+  var o={};
+  Object.keys((team&&team.stats)||{}).forEach(function(pid){
+    if(hasStats(team.stats[pid]))o[pid]=normStats(team.stats[pid]);
+  });
+  return o;
+}
+/* Clore un set : on pousse un instantané CUMULATIF des compteurs, et on
+   ne remet RIEN à zéro. C'est ce qui permet de corriger un compteur
+   après avoir clos le set — la ventilation se calcule à
+   l'enregistrement, par différences, et non ici. */
+function markNextSet(team){
+  if(!team)return;
+  var marks=team.setMarks||(team.setMarks=[]);
+  var snap=markSnapshot(team);
+  if(!Object.keys(snap).length){showToast("⚠️ Aucun compteur relevé : rien à clore");return}
+  if(marks.length&&sameMarkStats(snap,marks[marks.length-1].stats)){
+    showToast("⚠️ Aucun compteur depuis la borne précédente");return;
+  }
+  pushUndoStats("Set "+(marks.length+1)+" clos");
+  marks.push({at:nowISO(),stats:snap});
+  scheduleAutoSave();
+  showToast("⏭ Set "+marks.length+" clos — set "+(marks.length+1)+" en cours",
+    {tone:"ok",action:{label:"Annuler",onclick:doUndo}});
+  render();
+}
+/* Retirer la dernière borne. Les compteurs ne bougent pas : on refuse
+   seulement de couper le match à cet endroit. */
+function unmarkSet(team){
+  var marks=team&&team.setMarks;
+  if(!marks||!marks.length)return;
+  pushUndoStats("Borne du set "+marks.length+" retirée");
+  marks.pop();
+  scheduleAutoSave();
+  showToast("↺ Borne retirée — set "+(marks.length+1)+" en cours");
+  render();
+}
 function saveBar(team){
+  var n=((team&&team.setMarks)||[]).length;
   return h("div",{className:"save-bar"},h("div",{className:"inner"},
+    h("div",{className:"markRow"},
+      h("button",{className:"btn btn-ghost sm",type:"button",
+        "aria-label":"Clore le set "+(n+1)+" et passer au suivant",
+        onclick:function(){markNextSet(team)}},"⏭ Set suivant"),
+      h("div",{className:"mk-note"},
+        n?("Set "+(n+1)+" en cours · "+plural(n,"set")+" borné"+(n>1?"s":""))
+         :"Set 1 en cours — bornez pour ventiler"),
+      n?h("button",{className:"btn btn-ghost xs",type:"button",
+        "aria-label":"Retirer la dernière borne de set",
+        onclick:function(){unmarkSet(team)}},"↺"):null),
     h("div",{style:{display:"flex",gap:"8px",alignItems:"center"}},
       h("button",{className:"btn btn-save",style:{flex:"1"},onclick:function(){
         state.modalDraft=null;openModal("savesession");
@@ -8943,19 +9660,29 @@ function saveSession(team,opts){
   var day=opts.day||ev.date||todayISO();
   var nom=opts.name||ev.name||"Match";
   var adv=opts.opponent||(opts.eventId?"":ev.opponent)||"";
-  team.sessions.unshift({id:uid(),name:nom,
+  /* Ventilation par set : les bornes posées pendant la saisie donnent des
+     différences successives dont la somme vaut le total, exactement.
+     Sans borne, la session reste NON VENTILÉE — on n'invente pas des
+     sets qu'on n'a pas vus passer. */
+  var sets=((squad.setMarks||[]).length)?marksToSets(squad.setMarks,entries):[];
+  var se={id:uid(),name:nom,
     date:nowISO(),          // horodatage de la saisie, conservé pour l'ordre
     day:day,                // date réelle de la rencontre, saisissable
     opponent:adv,           // propre au match : un tournoi en change à chaque tour
     eventId:ev.id,teamName:team.name,
     result:opts.result&&opts.result.sets?opts.result:mkResult(),
-    entries:entries});
+    entries:entries,
+    sets:sets,splitAt:sets.length?nowISO():null};
+  refreshSetMirrors(se);
+  team.sessions.unshift(se);
   team.stats={};
+  squad.setMarks=[];
   var k=EVENT_KINDS[ev.kind]||EVENT_KINDS.league;
   logAct("match",k.label+" « "+nom+" »"+
     (adv?" contre "+adv:"")+
     (hasResult(opts.result)?" — "+resultLabel(opts.result):"")+
-    " · "+plural(entries.length,"joueuse"),
+    " · "+plural(entries.length,"joueuse")+
+    (sets.length?" · ventilé en "+plural(sets.length,"set"):""),
     {teamId:squad.teamId,seasonId:squad.seasonId});
   clearUndo();saveNow();
   return true;
@@ -11473,10 +12200,22 @@ function renderModal(){
        Passé le jour même, le rattachement reste offert mais ne s'impose plus —
        un match isolé quinze jours après ne doit pas atterrir dedans par défaut. */
     var duJour=recentes.filter(function(ev){return ev.date===todayISO()});
+    /* La nature suit la partie d'où l'on a lancé le relevé : une séance
+       relevée depuis « Entraînements » ne doit pas s'enregistrer en
+       championnat et disparaître de la partie qui l'a ouverte. */
+    var nMarks=(sqS.setMarks||[]).length;
     var sd=state.modalDraft||(state.modalDraft={
       eventId:duJour.length?duJour[0].id:"",
-      kind:"league",eventName:"",opponent:"",day:todayISO(),location:"",
-      name:"",sets:[{us:"",them:""},{us:"",them:""},{us:"",them:""}]
+      kind:EVENT_KINDS[state.inputKind]?state.inputKind:"league",
+      eventName:"",opponent:"",day:todayISO(),location:"",
+      name:"",
+      /* Autant de scores que de sets bornés : on ne demande pas trois
+         résultats pour un match qu'on a coupé en quatre. */
+      sets:(function(){
+        var a=[],n=Math.max(3,nMarks+1),i;
+        for(i=0;i<n;i++)a.push({us:"",them:""});
+        return a;
+      })()
     });
     /* Un match rattaché appartient au jour de sa rencontre, pas à celui où
        on le saisit : c'est tout l'objet de la distinction entre les deux. */
@@ -11572,6 +12311,15 @@ function renderModal(){
           sd.sets.pop();render();
         }},"− Set"):null)));
 
+    /* Ce que la ventilation va produire, dit AVANT d'enregistrer : après,
+       le total est figé et les sets ne se redécoupent plus tout seuls. */
+    if(nMarks)body.appendChild(h("div",{className:"hint"},
+      "⏭ "+plural(nMarks,"borne")+" posée"+(nMarks>1?"s":"")+" : ce match sera ventilé en ",
+      h("b",null,plural(nMarks+1,"set")),". La somme des sets vaut le total, par construction."));
+    else body.appendChild(h("div",{className:"muted"},
+      "Aucune borne de set posée : ce match sera enregistré sans ventilation, et "+
+      "s'affichera « Match (non ventilé) ». Vous pourrez le ventiler plus tard."));
+
     body.appendChild(h("div",{className:"muted"},
       "Les compteurs seront remis à zéro pour le match suivant. Le match reste consultable dans Récap → 🏐 Rencontres."));
 
@@ -11658,6 +12406,10 @@ function renderModal(){
       [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
         seR.result={sets:rd.sets.filter(function(x){return x.us!==""&&x.them!==""})
           .map(function(x){return {us:parseInt(x.us,10)||0,them:parseInt(x.them,10)||0}})};
+        /* Les sets portent un MIROIR du score : sans ce rafraîchissement,
+           un match ventilé garderait l'ancien score set par set, et deux
+           écrans se contrediraient sans que rien ne dise lequel a raison. */
+        refreshSetMirrors(seR);
         var sq=curSquad();
         logAct("match","Résultat de « "+seR.name+" » : "+(hasResult(seR.result)?resultLabel(seR.result):"effacé"),
           {teamId:sq.teamId,seasonId:sq.seasonId});

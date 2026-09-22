@@ -463,7 +463,11 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     if(s.sess!==1)throw new Error("matchs="+s.sess);
     if(s.events!==1)throw new Error("rencontres="+s.events);
     if(s.live!==0)throw new Error("compteurs non remis à zéro");
-    if(s.kind!=="league")throw new Error("nature="+s.kind);
+    /* v7 : relever depuis une partie propose la nature de cette partie.
+       On a lancé la saisie depuis « Matchs », dont la nature par défaut
+       est l'amical — c'est cela qu'on vérifie, et c'est plus précis que
+       l'ancien « league » codé en dur dans la modale. */
+    if(s.kind!=="friendly")throw new Error("nature="+s.kind);
     if(s.adv!=="Les Lions")throw new Error("adversaire="+s.adv);
   });
   await step("annuler (undo) restaure les compteurs",async()=>{
