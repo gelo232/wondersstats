@@ -151,14 +151,19 @@ const ERRORS=[];let PASS=0;
     await page.waitForTimeout(150);
   });
   await step("ajout en lot : une ligne fautive n'écrit aucune fiche",async()=>{
+    /* 41, et non 21 : Alice Bouchard porte le 21 depuis le contrôle
+       précédent, et le lot refuse désormais un dossard déjà pris — comme
+       la fiche unique le faisait déjà. Le numéro est la seule information
+       transmise aux sélectionneurs ; deux athlètes qui le partagent
+       rendent chaque relevé ambigu. */
     const avant=await page.evaluate(()=>DB.players.length);
     await page.evaluate(()=>openModal("bulkplayers"));await page.waitForTimeout(140);
-    await page.locator(".modal textarea").fill("Bonne Ligne 2010 21\nMauvaise Ligne 31/02/2011");
+    await page.locator(".modal textarea").fill("Bonne Ligne 2010 41\nMauvaise Ligne 31/02/2011");
     await page.locator(".modal button").filter({hasText:"Ajouter"}).click();await page.waitForTimeout(220);
     if(await page.locator(".modal").count()!==1)throw new Error("le lot fautif est passé");
     const apres=await page.evaluate(()=>DB.players.length);
     if(apres!==avant)throw new Error("fiches écrites malgré la ligne fautive : "+avant+" → "+apres);
-    await page.locator(".modal textarea").fill("Bonne Ligne 2010 21\nAutre Ligne 04/03/2012");
+    await page.locator(".modal textarea").fill("Bonne Ligne 2010 41\nAutre Ligne 04/03/2012");
     await page.locator(".modal button").filter({hasText:"Ajouter"}).click();await page.waitForTimeout(250);
     const r=await page.evaluate(()=>DB.players.slice(-2).map(p=>p.firstName+":"+(p.birthDate||"—")+"/"+p.birthYear));
     if(r.join(",")!=="Bonne:—/2010,Autre:2012-03-04/2012")throw new Error("lot corrigé : "+r.join(","));

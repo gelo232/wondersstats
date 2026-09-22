@@ -142,14 +142,23 @@ button,input,select,textarea{font-family:inherit}
 .ellip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ── HEADER ───────────────────────────────────────── */
-.header{background:linear-gradient(135deg,var(--raised),var(--bg));padding:var(--s3) var(--s3);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);flex-shrink:0;padding-top:max(12px,env(safe-area-inset-top));gap:var(--s2)}
+/* min-height : l'en-tête ne mesurait que 34 px sur les écrans sans bouton,
+   et la pastille de rôle qu'il porte ne pouvait donc PAS avoir les 44 px
+   de toucher que l'application se donne — sa zone élargie mordait sur le
+   bouton « qui suis-je » de la barre en dessous. Dix pixels de plus, et
+   les deux cibles tiennent chacune la leur. */
+.header{background:linear-gradient(135deg,var(--raised),var(--bg));min-height:var(--tap);padding:var(--s1) var(--s3);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);flex-shrink:0;padding-top:max(4px,env(safe-area-inset-top));gap:var(--s2)}
 @media(min-width:600px){.header{padding:var(--s4) var(--s6)}}
 .header h1{margin:0;font-size:var(--fs-lg);font-weight:700;color:var(--txt-strong);letter-spacing:.3px;text-align:center;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media(min-width:600px){.header h1{font-size:var(--fs-xl)}}
 .header .h-sub{display:block;font-size:var(--fs-2xs);font-weight:600;color:var(--txt-dim);letter-spacing:.2px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .header-side{min-width:84px;display:flex;gap:var(--s1);flex-shrink:0;align-items:center}
 .header-side.right{justify-content:flex-end}
-.role-badge{padding:var(--s1) 9px;border-radius:var(--r-pill);font-size:var(--fs-2xs);font-weight:800;border:1.5px solid;cursor:pointer;white-space:nowrap;background:transparent;letter-spacing:.4px}
+.role-badge{position:relative;padding:var(--s1) 9px;border-radius:var(--r-pill);font-size:var(--fs-2xs);font-weight:800;border:1.5px solid;cursor:pointer;white-space:nowrap;background:transparent;letter-spacing:.4px}
+/* La pastille de rôle ouvre le sélecteur de contexte : 80×23 px dessinés,
+   mais 44 px touchables, comme toute cible de l'application. Le dessin ne
+   grossit pas — la zone s'étend, dans la hauteur que l'en-tête a déjà. */
+.role-badge::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:100%;height:var(--tap)}
 .role-badge.coach{border-color:var(--accent-ink);color:var(--accent-ink)}
 .role-badge.selector{border-color:var(--warn-ink);color:var(--warn-ink)}
 .role-badge.admin{border-color:var(--danger-ink);color:var(--danger-ink)}
@@ -160,7 +169,13 @@ button,input,select,textarea{font-family:inherit}
 .backBtn .arw{font-size:var(--fs-lg);font-weight:800}
 
 /* ── CONTEXT BARS ─────────────────────────────────── */
-.ctx-bar{background:var(--surface-2);border-bottom:1px solid var(--surface);padding:7px var(--gutter);display:flex;align-items:center;gap:var(--s2);flex-shrink:0;font-size:var(--fs-xs);color:var(--txt-dim)}
+.ctx-bar{background:var(--surface-2);border-bottom:1px solid var(--surface);padding:0 var(--gutter);display:flex;align-items:center;gap:var(--s1);flex-shrink:0;font-size:var(--fs-xs);color:var(--txt-dim)}
+.ctx-bar button{display:flex;align-items:center;gap:5px;min-height:var(--tap);min-width:0;background:none;border:none;color:inherit;font-size:inherit;font-family:inherit;cursor:pointer;padding:0 4px;border-radius:var(--r-sm)}
+.ctx-bar .cb-ctx{flex:1 1 auto}
+.ctx-bar .cb-sais{flex:0 1 auto;max-width:46%}
+.ctx-bar .cb-moi{flex:0 0 auto;width:var(--tap);justify-content:center}
+.ctx-bar .cb-nom{font-weight:700;color:var(--txt-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ctx-bar .cb-caret{opacity:.55;flex-shrink:0}
 .ctx-bar .grow{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ctx-bar button{background:transparent;border:none;color:inherit;font:inherit;cursor:pointer;display:flex;align-items:center;gap:6px;min-width:0;min-height:var(--tap)}
 .team-bar{background:var(--surface-2);border-bottom:1px solid var(--surface);padding:6px var(--gutter);display:flex;align-items:center;gap:var(--s2);flex-shrink:0;overflow-x:auto}
@@ -206,7 +221,7 @@ button,input,select,textarea{font-family:inherit}
 .tapPad::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:var(--tap);height:var(--tap)}
 
 /* ── PILLS / FILTERS ──────────────────────────────── */
-.pill-row{display:flex;gap:6px;padding:var(--s2) var(--gutter);overflow-x:auto;background:var(--bg);border-bottom:1px solid var(--surface);flex-shrink:0}
+.pill-row{display:flex;gap:6px;padding:var(--s1) var(--gutter);overflow-x:auto;background:var(--bg);border-bottom:1px solid var(--surface);flex-shrink:0}
 /* Rangée d'onglets principale : quatre entrées doivent tenir sans
    défilement, sinon la dernière passe inaperçue. */
 .pill-row.tight{gap:var(--s1);padding-left:var(--s2);padding-right:var(--s2)}
@@ -276,7 +291,47 @@ button,input,select,textarea{font-family:inherit}
 .warnbox b{color:var(--warn-ink)}
 .okbox{background:var(--tint-ok);border:1px solid var(--ok);border-radius:var(--r-sm);padding:var(--s2) var(--s3);
   font-size:var(--fs-xs);color:var(--ok-ink);line-height:1.5}
-.hint{background:var(--tint-accent);border:1px solid var(--accent);border-radius:var(--r-md);padding:var(--s2) var(--s3);font-size:var(--fs-xs);color:var(--focus);line-height:1.5;margin-bottom:var(--s3)}
+/* ── Les explications ───────────────────────────────────────────
+   Elles disent ce que l'écran fait, et c'est précieux la première fois.
+   Mesuré : 72 px chacune, en permanence, en haut du contenu — sur la
+   base de joueuses, l'explication et la rangée de boutons mangeaient
+   168 px avant la première fiche. Une entraîneuse qui ouvre cet écran
+   deux cents fois dans la saison la lit deux cents fois.
+
+   Elles se replient donc à deux lignes, et se déplient d'un geste. Le
+   texte n'est jamais retiré : il est rangé. */
+.hint{position:relative;background:var(--tint-accent);border:1px solid var(--accent);border-radius:var(--r-md);padding:var(--s2) var(--s3);font-size:var(--fs-xs);color:var(--focus);line-height:1.5;margin-bottom:var(--s3)}
+.hint.repliable{padding-right:30px;cursor:pointer}
+.hint.repliable::after{content:"▾";position:absolute;top:var(--s2);right:10px;font-size:var(--fs-sm);opacity:.7}
+.hint.repliable.replie{max-height:calc(1.5em * 2 + var(--s2) * 2);overflow:hidden}
+.hint.repliable.replie::after{content:"▾"}
+.hint.repliable:not(.replie)::after{content:"▴"}
+.hint.repliable.replie::before{content:"";position:absolute;left:0;right:0;bottom:0;height:1.3em;
+  background:linear-gradient(to bottom,transparent,var(--bg));opacity:.85;border-radius:0 0 var(--r-md) var(--r-md);pointer-events:none}
+.hint.repliable:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+/* Une rangée d'actions qui tient sur une ligne : le geste courant
+   garde son nom, les autres se réduisent à leur signe. */
+.btn-row.compact{display:flex;gap:var(--s2);flex-wrap:nowrap}
+.btn-row.compact .grow{flex:1;min-width:0}
+/* Un bouton qui ne porte qu'une icône n'a pas de texte pour le mener au
+   plancher de 44 px : « 🗑️ » mesurait 41 de large, et il supprime une
+   campagne. La classe le pose partout, pas seulement en rangée compacte. */
+.btn.ico{min-width:var(--tap);padding:0 var(--s1);justify-content:center}
+.btn-row.compact .btn.ico{flex:0 0 auto;width:var(--tap);padding:0;justify-content:center;font-size:var(--fs-md)}
+/* ── « Ce qu'on regarde » ───────────────────────────────────────
+   Une commande, pas cinq rangées. Elle dit l'état courant en clair :
+   un réglage caché derrière une roue dentée muette se perd. */
+.lectureBar{padding:0 var(--gutter) var(--s1);background:var(--bg);flex-shrink:0}
+.lb-btn{display:flex;align-items:center;gap:var(--s2);width:100%;min-height:var(--tap);
+  background:var(--sunken);border:1.5px solid var(--line-strong);border-radius:var(--r-md);
+  padding:0 var(--s2);cursor:pointer;color:inherit;text-align:left;font:inherit;position:relative}
+.lb-btn.on{border-color:var(--accent);background:var(--raised)}
+.lb-ico{flex-shrink:0;font-size:var(--fs-md)}
+.lb-body{flex:1;min-width:0;display:flex;align-items:baseline;gap:var(--s2);white-space:nowrap;overflow:hidden}
+.lb-lbl{font-size:var(--fs-2xs);font-weight:800;color:var(--txt-faint);letter-spacing:.6px;text-transform:uppercase;flex-shrink:0}
+.lb-val{font-size:var(--fs-xs);font-weight:700;color:var(--txt-strong);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.lb-arw{flex-shrink:0;color:var(--txt-dim);font-size:var(--fs-sm)}
+.lb-btn .lt-badge{position:static;margin-left:auto}
 .hint.warn{background:var(--tint-warn);border-color:var(--warn);color:var(--warn-ink)}
 .row-between{display:flex;align-items:center;justify-content:space-between;gap:var(--s2)}
 .btn-row{display:flex;gap:var(--s2);flex-wrap:wrap}
@@ -289,7 +344,13 @@ button,input,select,textarea{font-family:inherit}
 .txt.err{border-color:var(--danger)}
 textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .field{margin-bottom:var(--s2)}
-.field label{display:block;font-size:var(--fs-2xs);font-weight:700;color:var(--txt-faint);margin-bottom:var(--s1);letter-spacing:.4px}
+/* Le <label> ENGLOBE son champ : c'est ce qui le nomme pour une synthèse
+   vocale, et ce qui fait du libellé une part de la cible. Dix-neuf
+   champs sur vingt et un n'avaient aucun nom accessible — VoiceOver
+   annonçait « champ de texte », et le repli sur le `placeholder`
+   disparaissait dès la première frappe. */
+.field{display:block}
+.field>span{display:block;font-size:var(--fs-2xs);font-weight:700;color:var(--txt-faint);margin-bottom:var(--s1);letter-spacing:.4px}
 .range{-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;background:var(--line);padding:0;border:0}
 .range::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--eval);border:2px solid var(--bg)}
 .range::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--eval);border:2px solid var(--bg)}
@@ -360,7 +421,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .player-chip{padding:6px var(--s2);border-radius:var(--r-md);border:1.5px solid var(--line-strong);font-size:var(--fs-xs);font-weight:700;min-width:48px;min-height:var(--tap);text-align:center;background:var(--surface);color:var(--txt-dim);cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.2;
   transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
 .player-chip.active{border-color:var(--accent);background:var(--raised);color:var(--on-light)}
-.chip-num{font-size:var(--fs-2xs);color:var(--txt-dim)}
+.chip-num{font-size:var(--fs-2xs);color:var(--txt-soft)}
 .chip-name{font-size:var(--fs-xs);max-width:80px;word-break:break-word}
 .court-bar{padding:var(--s2) var(--gutter);background:var(--surface-2);border-bottom:1px solid var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-sm);color:var(--txt-dim);flex-shrink:0;min-height:var(--tap)}
 .court-panel{padding:var(--s2) var(--gutter);background:var(--bg);border-bottom:1px solid var(--surface);flex-shrink:0;max-height:40vh;overflow-y:auto}
@@ -495,7 +556,11 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .modal input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--eval);border:2px solid var(--bg)}
 .modal input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--eval);border:2px solid var(--bg)}
 /* Feuille du bas : toute liste, tout contenu qui défile. Le pouce y est. */
-.modal.sheet{max-width:none;max-height:92%;border-radius:var(--r-xl) var(--r-xl) 0 0;border-bottom:none;
+/* 92 % d'un écran de 667 px font 614 px, et la feuille se colle au bas :
+   son pied frôlait le bord, au point d'en sortir d'un pixel selon
+   l'arrondi. On lui laisse toujours de quoi respirer. */
+.modal.sheet{max-width:none;max-height:calc(100% - 44px);border-radius:var(--r-xl) var(--r-xl) 0 0;border-bottom:none;
+  overscroll-behavior:contain;
   box-shadow:var(--sh-3);padding:0;display:flex;flex-direction:column;overflow:hidden;
   padding-bottom:env(safe-area-inset-bottom);animation:sheetUp var(--dur) var(--ease)}
 .modal.box{padding:0;display:flex;flex-direction:column;overflow:hidden}
@@ -610,33 +675,49 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 
 /* ── listToolbar : recherche + tris + filtres d'une liste ────── */
 .listToolbar{background:var(--bg);flex-shrink:0}
-.searchBar{position:relative;display:flex;align-items:center;padding:var(--s2) var(--gutter);background:var(--bg);flex-shrink:0}
-.searchBar .ico{position:absolute;left:calc(var(--gutter) + 12px);font-size:var(--fs-md);pointer-events:none}
+/* UNE rangée. Elle en occupait quatre — recherche, filtres, tri,
+   compteur — soit 186 px mesurés sur un écran de 667, et sur l'écran
+   Sélection le contenu ne commençait qu'à 628 px du haut : une ligne
+   de liste visible. Les filtres et les tris vivent désormais dans une
+   feuille, qui a la place de les montrer en entier avec leur chiffre. */
+.lt-bar{display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--gutter);background:var(--bg);flex-shrink:0}
+.lt-bar .grow{flex:1}
+.searchBar{position:relative;display:flex;align-items:center;flex:1;min-width:0}
+.searchBar .ico{position:absolute;left:12px;font-size:var(--fs-md);pointer-events:none}
 .searchBar input{width:100%;height:var(--tap);background:var(--sunken);border:1.5px solid var(--line-strong);
-  border-radius:var(--r-sm);color:var(--txt-strong);font-size:var(--fs-input);padding:0 46px 0 40px;outline:none}
+  border-radius:var(--r-md);padding:0 40px 0 38px;color:var(--txt-strong);font-size:var(--fs-input);outline:none}
+.searchBar input:focus{border-color:var(--focus)}
 .searchBar input::placeholder{color:var(--txt-faint)}
-.searchBar .clear{position:absolute;right:calc(var(--gutter) + 2px);width:var(--tap);height:var(--tap);
-  display:flex;align-items:center;justify-content:center;color:var(--txt-dim);font-size:var(--fs-lg);background:none;border:none;cursor:pointer}
-.lt-count{padding:0 var(--gutter) var(--s2);font-size:var(--fs-xs);color:var(--txt-faint)}
-.sortBar{display:flex;align-items:center;gap:var(--s1);padding:var(--s1) var(--gutter) var(--s2);overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch}
-.sortBar .sb-lead{font-size:var(--fs-2xs);font-weight:800;color:var(--txt-faint);letter-spacing:.6px;text-transform:uppercase;flex-shrink:0;padding-right:var(--s1)}
-.sortBtn{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;min-height:var(--tap);padding:0 var(--s3);
-  border-radius:var(--r-pill);border:1.5px solid var(--line-strong);background:var(--surface);color:var(--txt-dim);
-  font-size:var(--fs-xs);font-weight:700;white-space:nowrap;cursor:pointer;
-  transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
-.sortBtn.on{background:var(--raised);border-color:var(--accent);color:var(--txt-strong)}
-.sortBtn .dir{font-size:var(--fs-sm);font-weight:800;color:var(--accent-ink)}
-.filterBar{background:var(--bg);border-bottom:1px solid var(--line);flex-shrink:0}
-.filterBar .fb-head{display:flex;align-items:center;gap:var(--s2);width:100%;min-height:var(--tap);
-  padding:0 var(--gutter);color:var(--txt-dim);font-size:var(--fs-xs);font-weight:700;text-align:left;background:none;border:none;cursor:pointer}
-.filterBar .fb-head .grow{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.filterBar .fb-count{background:var(--accent-solid);color:var(--on-light);border-radius:var(--r-pill);
-  font-size:var(--fs-2xs);font-weight:800;padding:2px var(--s2);flex-shrink:0}
-.filterBar .fb-body{padding:0 var(--gutter) var(--s2);display:flex;flex-direction:column;gap:var(--s2)}
-.filterBar .fb-group{display:flex;gap:var(--s1);overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
-.filterBar .fb-lbl{font-size:var(--fs-2xs);font-weight:800;color:var(--txt-faint);letter-spacing:.6px;text-transform:uppercase;margin-bottom:2px}
-.filterBar .fb-reset{align-self:flex-start;min-height:var(--tap);color:var(--accent-ink);font-size:var(--fs-xs);
-  font-weight:700;text-decoration:underline;padding:0;background:none;border:none;cursor:pointer}
+.searchBar .clear{position:absolute;right:2px;width:var(--tap);height:var(--tap);
+  display:flex;align-items:center;justify-content:center;background:none;border:none;color:var(--txt-faint);font-size:var(--fs-md);cursor:pointer}
+.lt-btn{position:relative;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;
+  min-height:var(--tap);min-width:var(--tap);padding:0 var(--s2);justify-content:center;
+  background:var(--sunken);border:1.5px solid var(--line-strong);border-radius:var(--r-md);
+  color:var(--txt-dim);font-size:var(--fs-sm);font-weight:700;cursor:pointer}
+.lt-btn.on{background:var(--raised);border-color:var(--accent);color:var(--txt-strong)}
+.lt-btn .dir{font-size:var(--fs-sm);font-weight:800;color:var(--accent-ink)}
+.lt-tri-lbl{max-width:82px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lt-badge{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;
+  display:flex;align-items:center;justify-content:center;border-radius:var(--r-pill);
+  background:var(--accent-solid);color:var(--on-light);font-size:var(--fs-2xs);font-weight:800}
+.lt-extra{display:flex;align-items:center;gap:var(--s1);padding:0 var(--gutter) var(--s2);overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch}
+.lt-count{display:flex;align-items:center;gap:var(--s2);padding:0 var(--gutter) var(--s2);font-size:var(--fs-xs);color:var(--txt-faint)}
+.lt-count .grow{flex:1}
+.lt-clear{background:none;border:none;color:var(--accent-ink);font-size:var(--fs-xs);font-weight:700;cursor:pointer;padding:4px 0;min-height:0}
+/* La feuille : une option par ligne, son chiffre à droite. */
+.modal.listsheet .m-body{padding-top:var(--s2)}
+.ls-grp{margin-bottom:var(--s3)}
+.ls-lbl{font-size:var(--fs-2xs);font-weight:800;color:var(--txt-faint);letter-spacing:.6px;text-transform:uppercase;margin-bottom:var(--s2)}
+.ls-opts{display:flex;flex-direction:column;gap:6px}
+.ls-opt{display:flex;align-items:center;gap:var(--s2);width:100%;min-height:var(--tap-lg);
+  padding:0 var(--s3);background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r-md);
+  color:var(--txt-dim);font-size:var(--fs-md);font-weight:600;text-align:left;cursor:pointer}
+.ls-opt .grow{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ls-opt.on{background:var(--raised);border-color:var(--accent);color:var(--txt-strong);font-weight:700}
+.ls-opt.vide{opacity:.45;cursor:default}
+.ls-opt .ls-ico{flex-shrink:0;font-size:var(--fs-md)}
+.ls-opt .ls-n{flex-shrink:0;font-size:var(--fs-xs);font-weight:800;color:var(--txt-faint);font-variant-numeric:tabular-nums}
+.ls-opt.on .ls-n{color:var(--accent-ink)}
 
 /* ── kpi : une mesure, sa valeur, sa tendance ────────────────── */
 .kpiGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s2)}
@@ -743,16 +824,20 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 /* ── §13 · en-tête d'une partie ─────────────────────────────────
    Le retour porte le nom de son parent : on doit savoir où l'on
    retombe avant d'appuyer, pas après. */
-.partHead{display:flex;align-items:center;gap:var(--s2);flex-shrink:0;
-  padding:var(--s2) var(--gutter);background:var(--surface-2);border-bottom:1px solid var(--line)}
+.partHead{display:flex;align-items:center;gap:var(--s1);flex-shrink:0;
+  padding:0 var(--gutter);background:var(--surface-2);border-bottom:1px solid var(--line)}
+/* Il porte le nom de son parent : on doit savoir où l'on retombe avant
+   d'appuyer, pas après. Et il ne déborde pas de la gouttière — un
+   retrait négatif poussait la rangée onze pixels au-delà du bord. */
 .partHead .ph-back{flex-shrink:0;background:transparent;border:none;cursor:pointer;
   font:inherit;font-size:var(--fs-xs);font-weight:700;color:var(--accent-ink);
-  padding:10px 8px 10px 0;min-height:var(--tap-lg)}
-.partHead .ph-body{flex:1;min-width:0}
-.partHead .ph-ttl{font-size:var(--fs-md);font-weight:800;color:var(--txt-strong);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.partHead .ph-sub{font-size:var(--fs-xs);color:var(--txt-dim);margin-top:1px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  min-height:var(--tap);display:flex;align-items:center;gap:2px;padding:0 var(--s2) 0 0;
+  white-space:nowrap}
+.partHead .ph-body{flex:1;min-width:0;display:flex;align-items:baseline;gap:var(--s2);
+  white-space:nowrap;overflow:hidden}
+.partHead .ph-ttl{font-size:var(--fs-md);font-weight:800;color:var(--txt-strong);flex-shrink:0}
+.partHead .ph-sub{font-size:var(--fs-xs);color:var(--txt-faint);min-width:0;
+  overflow:hidden;text-overflow:ellipsis}
 .partHead .ph-act{flex-shrink:0}
 
 /* ── « Constituer l'équipe » ─────────────────────────────────── */
@@ -784,18 +869,20 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    qu'on en change : sans elle on trancherait la journée 1 en croyant
    trancher la 2, et aucun écran ne rattrape cette erreur après coup. */
 .campBar{display:flex;align-items:center;gap:var(--s2);flex-shrink:0;
-  padding:var(--s1) var(--gutter) var(--s2);background:var(--surface);border-bottom:1px solid var(--line)}
+  padding:0 var(--gutter) var(--s1);background:var(--surface);border-bottom:1px solid var(--line)}
 .campBar .cb-pick{flex:1;min-width:0;display:flex;align-items:center;gap:var(--s2);
   min-height:var(--tap);background:var(--sunken);border:1.5px solid var(--line-strong);
-  border-radius:var(--r-md);padding:var(--s1) var(--s3);cursor:pointer;color:inherit;
+  border-radius:var(--r-md);padding:0 var(--s2);cursor:pointer;color:inherit;
   text-align:left;font:inherit}
-.campBar .cb-ico{font-size:var(--fs-lg);flex-shrink:0;line-height:1}
-.campBar .cb-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-.campBar .cb-name{font-size:var(--fs-md);font-weight:800;color:var(--txt-strong);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.campBar .cb-sub{font-size:var(--fs-2xs);color:var(--txt-faint);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
-.campBar .cb-arw{flex-shrink:0;color:var(--txt-dim);font-size:var(--fs-md)}
+.campBar .cb-ico{font-size:var(--fs-md);flex-shrink:0;line-height:1}
+/* Sur UNE ligne : le nom, puis l'avancement en gris. Deux lignes
+   empilées coûtaient 22 px de plus pour la même information. */
+.campBar .cb-body{flex:1;min-width:0;display:flex;align-items:baseline;gap:var(--s2);
+  white-space:nowrap;overflow:hidden}
+.campBar .cb-name{font-size:var(--fs-sm);font-weight:800;color:var(--txt-strong);flex-shrink:0}
+.campBar .cb-sub{font-size:var(--fs-2xs);color:var(--txt-faint);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.campBar .cb-arw{flex-shrink:0;color:var(--txt-dim);font-size:var(--fs-sm)}
 
 /* ── §14 · cocher dans une liste d'athlètes ───────────────────
    La case remplace le numéro dans le pavé de gauche : deux cibles de
@@ -908,14 +995,19 @@ var POS_LABELS={S:"Passeuse",OH:"Réceptionneuse-attaquante",OPP:"Pointue",MB:"C
 var POS_KEYS=POSITIONS.filter(function(p){return p.key!=="ALL"&&p.key!=="NONE"}).map(function(p){return p.key});
 var POS_SET={};POS_KEYS.forEach(function(k){POS_SET[k]=true});
 
+/* `color` peint les fonds, les bords et les jauges ; `ink` écrit. Une
+   teinte choisie pour remplir n'a aucune raison d'être lisible en
+   petits caractères sur ardoise : mesuré, « passes » tombait à 3,45:1
+   et « attaques » à 3,89 là où il en faut 4,5. Les encres ci-dessous
+   sont toutes au-dessus de 5,2 sur --surface comme sur --bg. */
 var SG={
-  services:{name:"Services",color:"#3B82F6",stats:[{key:"srv_ace",label:"Ace"},{key:"srv_in",label:"En jeu"},{key:"srv_err",label:"Erreur"}]},
-  reception:{name:"Réception",color:"#10B981",stats:[{key:"rec_in",label:"En jeu"},{key:"rec_out",label:"Hors sys."},{key:"rec_err",label:"Erreur"}]},
-  passes:{name:"Passes",color:"#8B5CF6",stats:[{key:"pas_att",label:"Attaquable"},{key:"pas_out",label:"Hors sys."}]},
-  attaques:{name:"Attaques",color:"#EF4444",stats:[{key:"atk_kill",label:"Kill"},{key:"atk_ok",label:"Réussie"},{key:"atk_err",label:"Erreur"}]},
-  blocs:{name:"Blocs",color:"#F59E0B",stats:[{key:"blk_kill",label:"Kill"},{key:"blk_solo",label:"Solo"},{key:"blk_aid",label:"Aide"},{key:"blk_err",label:"Erreur"}]},
-  defense:{name:"Défense",color:"#06B6D4",stats:[{key:"def_ok",label:"Réussie"},{key:"def_out",label:"Hors sys."},{key:"sup_in",label:"Soutien"},{key:"sup_err",label:"Sout. err."}]},
-  habiletes:{name:"Habiletés",color:"#EC4899",stats:[{key:"hab_ctrl",label:"Contrôlée"},{key:"hab_appel",label:"Avec appel"},{key:"hab_couv",label:"Couverture"},{key:"hab_free",label:"Gratuite"}]}
+  services:{name:"Services",color:"#3B82F6",ink:"#60A5FA",stats:[{key:"srv_ace",label:"Ace"},{key:"srv_in",label:"En jeu"},{key:"srv_err",label:"Erreur"}]},
+  reception:{name:"Réception",color:"#10B981",ink:"#34D399",stats:[{key:"rec_in",label:"En jeu"},{key:"rec_out",label:"Hors sys."},{key:"rec_err",label:"Erreur"}]},
+  passes:{name:"Passes",color:"#8B5CF6",ink:"#A78BFA",stats:[{key:"pas_att",label:"Attaquable"},{key:"pas_out",label:"Hors sys."}]},
+  attaques:{name:"Attaques",color:"#EF4444",ink:"#F87171",stats:[{key:"atk_kill",label:"Kill"},{key:"atk_ok",label:"Réussie"},{key:"atk_err",label:"Erreur"}]},
+  blocs:{name:"Blocs",color:"#F59E0B",ink:"#FBBF24",stats:[{key:"blk_kill",label:"Kill"},{key:"blk_solo",label:"Solo"},{key:"blk_aid",label:"Aide"},{key:"blk_err",label:"Erreur"}]},
+  defense:{name:"Défense",color:"#06B6D4",ink:"#22D3EE",stats:[{key:"def_ok",label:"Réussie"},{key:"def_out",label:"Hors sys."},{key:"sup_in",label:"Soutien"},{key:"sup_err",label:"Sout. err."}]},
+  habiletes:{name:"Habiletés",color:"#EC4899",ink:"#F472B6",stats:[{key:"hab_ctrl",label:"Contrôlée"},{key:"hab_appel",label:"Avec appel"},{key:"hab_couv",label:"Couverture"},{key:"hab_free",label:"Gratuite"}]}
 };
 var SG_KEYS=Object.keys(SG);
 var VIEWS=[
@@ -1218,6 +1310,10 @@ var LOG_MAX=500;
    écrit en blanc. C'est calculé et non deviné, parce que les couleurs
    métier sont des données : un club qui les remanie ne doit pas
    fabriquer un libellé illisible.                                  */
+/* L'encre d'une famille : `ink` quand elle en a une, sa teinte sinon —
+   les objets de famille fabriqués à la volée (`Object.assign({},SG[k])`)
+   la portent, mais un appelant pourrait n'avoir que `color`. */
+function encreFam(g){return (g&&g.ink)||(g&&g.color)||"var(--txt-strong)"}
 function onColor(hex){
   var m=/^#?([0-9a-fA-F]{6})/.exec(String(hex||""));
   if(!m)return "#FFFFFF";
@@ -1666,7 +1762,9 @@ var state={
   dbSort:"name", dbSortDir:"old",   // base de données : A→Z, ou par naissance
   numPlayer:null, numFilter:"all",  // numérotation : qui reçoit, et ce qu'on liste
   pickMode:null, picked:[],         // sélection multiple : "db" | "roster"
-  toast:null, modalType:null, modalInput:"", modalInput2:"", modalSel:[], modalCtx:null, modalDraft:null,
+  listSheet:null,               // feuille des filtres / tris d'une liste
+  lectureSheet:false,           // feuille « ce qu'on regarde » du récapitulatif
+  toast:null, toastOpts:null, conflitOnglet:false, modalType:null, modalInput:"", modalInput2:"", modalSel:[], modalCtx:null, modalDraft:null,
   editingSubteamId:null, editViewId:null,
   svViewId:null, svPlayerId:null, svGroupIdx:0,
   svPlayerGroupId:null, svTilesOpen:true, svHideDone:false,
@@ -2626,6 +2724,111 @@ function uiSnapshot(){
     posFilter:state.posFilter,inputMode:state.inputMode,svViewId:state.svViewId};
 }
 var loadFailed=false;
+/* ── Deux onglets sur la même base ─────────────────────────────
+   Chaque onglet tient la base entière en mémoire et la réécrit en
+   entier — à la bascule d'onglet, à la fermeture, après chaque geste.
+   Deux onglets ouverts, c'est donc le dernier qui écrit qui efface le
+   travail de l'autre : une fiche créée à gauche disparaissait sans un
+   mot au premier passage à droite.
+
+   Le marqueur ci-dessous est écrit en clair (un identifiant d'onglet et
+   un compteur, rien d'autre) à chaque sauvegarde réussie. Avant
+   d'écrire, un onglet qui ne reconnaît pas le marqueur sait qu'un autre
+   est passé : il relit le disque et y rejoue SES propres opérations
+   depuis sa dernière écriture — le journal existe déjà pour cela, et
+   chaque opération est idempotente. Les deux onglets convergent au lieu
+   de s'annuler. */
+var SK_GEN="wonderstats_gen_v1";
+var TAB_ID=Math.random().toString(36).slice(2,10)+"-"+Date.now().toString(36);
+var monGen=null,derniereOpSauvee=null,fusionEnCours=false,genCompteur=0;
+/* Vrai dès qu'un geste a touché aux données sans être encore écrit. */
+var modifieDepuisSauvegarde=false,forcerEcriture=false;
+function lireGen(){try{return localStorage.getItem(SK_GEN)}catch(e){return null}}
+function adopterGen(){monGen=lireGen()}
+function poserGen(opAu){
+  /* Si le marqueur n'a pas pu être posé — disque plein — on reprend
+     celui qui est là plutôt que d'en garder un que personne ne verra :
+     un onglet seul s'accuserait sinon d'un conflit imaginaire à chaque
+     sauvegarde. */
+  var g=TAB_ID+":"+(++genCompteur);
+  try{localStorage.setItem(SK_GEN,g);monGen=g}
+  catch(e){monGen=lireGen()}
+  derniereOpSauvee=(opAu===undefined)
+    ?(OPLOG.length?OPLOG[OPLOG.length-1].id:null):opAu;
+  modifieDepuisSauvegarde=false;
+  if(state.conflitOnglet){state.conflitOnglet=false}
+}
+function disqueModifieAilleurs(){return lireGen()!==monGen}
+/* Relire le bloc du disque SANS toucher à l'état d'interface : on
+   rattrape des données, pas l'écran de l'autre onglet. */
+function lireBlobDisque(){
+  if(VAULT.unlocked){
+    var local=null;
+    try{var d=localStorage.getItem(SK_VAULT);if(d)local=JSON.parse(d)}catch(e){}
+    var pBox=local?Promise.resolve(local)
+      :idbLire().then(function(b){return (b&&b.ct)?b:null}).catch(function(){return null});
+    return pBox.then(function(box){
+      if(!box)return null;
+      return vaultDecryptWithKey(box).then(function(d2){
+        return (d2&&d2.db)?{db:d2.db,inbox:d2.inbox,secrets:d2.secrets}:null;
+      });
+    });
+  }
+  try{
+    var raw=localStorage.getItem(SK);
+    if(!raw)return Promise.resolve(null);
+    var ib=null;
+    try{ib=JSON.parse(localStorage.getItem(SK_INBOX)||"null")}catch(e2){}
+    return Promise.resolve({db:JSON.parse(raw),inbox:ib,secrets:null});
+  }catch(e3){return Promise.resolve(null)}
+}
+/* Ce que l'autre onglet a écrit devient notre base. On ne fusionne pas :
+   la plupart des écritures de l'application touchent `DB` directement,
+   sans passer par le journal, et un rejeu ne saurait donc PAS reconstituer
+   ce qui manque. Mieux vaut un état exact qu'un mélange inventé. */
+function adopterDisque(){
+  var avant=DB,avantIn=INBOX;
+  return lireBlobDisque().then(function(lu){
+    if(!lu||!lu.db)return false;
+    try{
+      DB=normalizeDB((lu.db.version>=4)?lu.db:migrateV3(lu.db));
+      if(lu.inbox)INBOX=lu.inbox;
+      if(lu.secrets)SECRETS=Object.assign({github:null,superKey:null},lu.secrets);
+    }catch(e){DB=avant;INBOX=avantIn;return false}
+    return true;
+  }).catch(function(){return false});
+}
+/* Un autre onglet est passé. Deux cas, et un seul est délicat :
+
+   — cet onglet n'a rien modifié depuis sa dernière écriture : il n'a
+     rien à perdre, il relit et se remet à jour, sans un mot ;
+   — cet onglet porte du travail non enregistré : les deux versions
+     divergent, et AUCUNE des deux ne peut être choisie sans perdre
+     l'autre. On refuse alors d'écrire — c'est la règle de la maison,
+     mieux vaut ne rien faire que défaire — et on le DIT, avec les deux
+     issues possibles et ce que chacune coûte. */
+function conflitOnglets(){
+  if(!modifieDepuisSauvegarde){
+    return rattraperPuis(null);
+  }
+  if(!state.conflitOnglet){
+    state.conflitOnglet=true;
+    try{if(document.getElementById("app"))render()}catch(e){}
+  }
+  return null;
+}
+function rattraperPuis(suite){
+  if(fusionEnCours)return Promise.resolve(null);
+  fusionEnCours=true;
+  return adopterDisque().then(function(fait){
+    fusionEnCours=false;
+    adopterGen();
+    /* On ne repeint pas sous les doigts de quelqu'un qui remplit une
+       fenêtre : sa saisie en cours disparaîtrait. */
+    if(fait){try{if(!state.modalType&&document.getElementById("app"))render()}catch(e){}}
+    return suite?suite(fait):fait;
+  },function(){fusionEnCours=false;adopterGen();return suite?suite(false):false});
+}
 function saveAll(){
   /* Voir loadAll : une base qu'on n'a pas su lire reste intouchée. */
   if(loadFailed)return null;
@@ -2638,6 +2841,10 @@ function saveAll(){
      d'invitation : l'invité était accueilli en propriétaire d'un club
      qui n'existait pas. */
   if(gate.mode&&!gate.loaded)return null;
+  /* Un autre onglet a écrit depuis notre dernière sauvegarde : écrire
+     maintenant effacerait son travail sans que personne ne le sache. */
+  if(disqueModifieAilleurs()&&!fusionEnCours&&!forcerEcriture)
+    return conflitOnglets();
   /* Coffre refermé alors qu'un coffre existe : la branche claire
      ci-dessous réécrirait `wonderstats_v3`, que vaultCreate avait
      justement supprimé. Une base vide, certes — mais l'invariant
@@ -2652,11 +2859,12 @@ function saveAll(){
     try{localStorage.setItem(SK_UI,JSON.stringify(uiSnapshot()))}catch(e){}
     return promesse;
   }
+  var opAu=OPLOG.length?OPLOG[OPLOG.length-1].id:null;
   try{
     localStorage.setItem(SK,JSON.stringify(DB));
     localStorage.setItem(SK_INBOX,JSON.stringify(INBOX));
     localStorage.setItem(SK_UI,JSON.stringify(uiSnapshot()));
-    saveFailed=false;
+    saveFailed=false;poserGen(opAu);
   }catch(e){
     if(!saveFailed){saveFailed=true;showToast("⚠️ Sauvegarde impossible (stockage plein)")}
     return Promise.reject(e);
@@ -2674,10 +2882,13 @@ function queueVaultWrite(){
   if(vaultWriting){vaultPending=true;return vaultDone}
   vaultWriting=true;
   var ok=false;
+  /* Le repère est pris AVANT le chiffrement : ce qui sera écrit, c'est
+     l'état d'ici, pas celui d'après l'attente. */
+  var opAu=OPLOG.length?OPLOG[OPLOG.length-1].id:null;
   vaultDone=vaultEncrypt({db:DB,inbox:INBOX,secrets:SECRETS}).then(function(box){
     return ecrireCoffre(box);
   }).then(function(){
-    saveFailed=false;ok=true;
+    saveFailed=false;ok=true;poserGen(opAu);
   }).catch(function(){
     if(!saveFailed){saveFailed=true;showToast("⚠️ Sauvegarde impossible")}
   }).then(function(){
@@ -2692,7 +2903,8 @@ function updateIndicators(saving){
   for(var i=0;i<els.length;i++){
     var el=els[i],txt=el.lastChild;
     if(saving){el.classList.add("saving");if(txt)txt.textContent="Sauvegarde…"}
-    else{el.classList.remove("saving");if(txt)txt.textContent=saveFailed?"Non sauvegardé":"Sauvegardé"}
+    else{el.classList.remove("saving");
+      if(txt)txt.textContent=(saveFailed||state.conflitOnglet)?"Non sauvegardé":"Sauvegardé"}
   }
 }
 /* Sauvegarde progressive, à deux vitesses : le journal d'opérations
@@ -2700,6 +2912,7 @@ function updateIndicators(saving){
    brutale ne coûte donc plus qu'une fraction de seconde de frappe. */
 function scheduleAutoSave(){
   if(autoSaveTimer)clearTimeout(autoSaveTimer);
+  modifieDepuisSauvegarde=true;
   updateIndicators(true);
   scheduleOpsJournal();
   autoSaveTimer=setTimeout(function(){
@@ -2718,11 +2931,15 @@ function purgerApres(promesse){
     return promesse;
   }
   updateIndicators(false);
+  /* Rien n'a été écrit — un autre onglet tient le disque : le journal
+     reste le seul filet, on ne l'efface surtout pas. */
+  if(state.conflitOnglet)return promesse;
   if(promesse!==null||!loadFailed)clearOpsJournal();
   return promesse;
 }
 function saveNow(){
   if(autoSaveTimer){clearTimeout(autoSaveTimer);autoSaveTimer=null}
+  modifieDepuisSauvegarde=true;
   return purgerApres(saveAll());
 }
 /* Changer d'onglet, de volet, de tri ou de filtre ne touche pas à `DB` :
@@ -3776,6 +3993,7 @@ function findViewAnywhere(id){
 
 /* ══ CUMULS & COMPILATION ══════════════════════════════════════ */
 /* Cumul des sessions d'une équipe, agrégé par playerId (identité stable) */
+var CUMUL_N={all:0,last3:3,last5:5,last10:10};
 var CUMUL_SCOPES=[{k:"all",l:"Toute la saison"},{k:"last3",l:"3 derniers"},{k:"last5",l:"5 derniers"},{k:"last10",l:"10 derniers"}];
 /* Trois filtres qui se composent : combien de matchs, de quelle nature,
    et éventuellement un événement précis. Les sessions sont empilées les
@@ -3787,7 +4005,7 @@ function scopedSessions(team){
   else if(state.cumulKind!=="all")list=list.filter(function(se){
     var ev=eventOf(team,se);return ev&&ev.kind===state.cumulKind;
   });
-  var n={all:0,last3:3,last5:5,last10:10}[state.cumulScope]||0;
+  var n=CUMUL_N[state.cumulScope]||0;
   return n?list.slice(0,n):list;
 }
 function cumulScopeLabel(team){
@@ -6035,7 +6253,8 @@ function renderHeader(title,leftEl,rightEl){
 }
 function renderAutoSave(){
   var s=autoSaveTimer!==null;
-  return h("div",{className:"autosave-indicator"+(s?" saving":"")},h("span",{className:"dot"}),s?"Sauvegarde…":(saveFailed?"Non sauvegardé":"Sauvegardé"));
+  return h("div",{className:"autosave-indicator"+(s?" saving":"")},h("span",{className:"dot"}),
+    s?"Sauvegarde…":((saveFailed||state.conflitOnglet)?"Non sauvegardé":"Sauvegardé"));
 }
 /* Sélecteur de contexte : « j'agis en tant que … ». Remplace la bascule
    binaire, qui ne savait pas exprimer « entraîneur des U15 ET
@@ -6105,17 +6324,6 @@ function renderTabBar(){
     }},h("span",{className:"ico"},t.icon),h("span",{className:"lbl"},t.label));
   }));
 }
-function renderSeasonBar(){
-  var s=curSeason(),sq=curSquad(),c=sq?curCampaign(sq):null;
-  return h("div",{className:"ctx-bar"},
-    h("button",{className:"grow",onclick:function(){state.tab="season";state.seasonPane="seasons";render()}},
-      h("span",null,"🗓️"),
-      h("span",{style:{fontWeight:"700",color:"#CBD5E1"}},s?s.name:"Aucune saison"),
-      seasonClosed(s)?h("span",{className:"muted"},"🔒"):null,
-      h("span",{style:{opacity:".6"}},"▾")),
-    c?h("button",{onclick:function(){state.tab="season";state.seasonPane="campaigns";render()},
-      style:{flexShrink:"0"}},h("span",{className:"muted"},campaignLabel(c))):null);
-}
 /* Barre de contexte : qui je suis, et à quel titre j'agis. */
 /* Tant qu'aucun propriétaire n'est déclaré, l'application le dit et
    propose de fonder — sans quoi une installation déjà en service ne
@@ -6173,6 +6381,34 @@ function tailleLisible(n){
   if(n<1024*1024)return Math.round(n/1024)+" Ko";
   return (Math.round(n/1024/1024*10)/10)+" Mo";
 }
+/* Deux fenêtres, deux versions, et rien qui puisse les départager tout
+   seul. On expose le choix, et le prix de chaque côté. */
+function renderConflitBanner(){
+  if(!state.conflitOnglet)return null;
+  return h("div",{className:"card tight",role:"alert",
+    style:{margin:"10px var(--gutter) 0",borderColor:"var(--danger)",
+           background:"var(--tint-danger)"}},
+    h("div",{style:{fontWeight:"700",color:"var(--danger-ink)",fontSize:"14px"}},
+      "⚠️ WonderStats est ouvert dans une autre fenêtre"),
+    h("div",{className:"muted",style:{margin:"3px 0 8px"}},
+      "Elle a enregistré des modifications que cet onglet n'a pas. "+
+      "Pour ne pas effacer son travail, plus rien n'est enregistré ici. "+
+      "Choisissez laquelle des deux versions garder — l'autre sera perdue."),
+    h("div",{className:"btn-row"},
+      h("button",{className:"btn btn-primary sm",type:"button",onclick:function(){
+        location.reload();
+      }},"Reprendre celle de l'autre fenêtre"),
+      h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){
+        confirmAct("Garder ce que porte CET onglet ?\n\n"+
+          "Ce que l'autre fenêtre a enregistré depuis sera effacé, et rien ne le récupère.",
+          function(){
+            forcerEcriture=true;
+            var fin=function(){forcerEcriture=false;state.conflitOnglet=false;render()};
+            var pr=saveNow();
+            if(pr&&pr.then)pr.then(fin,fin);else fin();
+          },{confirm:"Garder celle-ci"});
+      }},"Garder celle-ci")));
+}
 function renderStorageBanner(){
   if(storageMasque&&!saveFailed)return null;
   /* Passé dans IndexedDB, l'espace n'est plus la question. */
@@ -6201,17 +6437,33 @@ function renderStorageBanner(){
            onclick:function(){storageMasque=true;render()}},"✕")));
 }
 
+/* UNE seule barre de contexte. Il y en avait deux de 59 px — l'équipe
+   d'un côté, la saison de l'autre — et l'en-tête répétait déjà le rôle
+   en badge : trois bandes pour dire la même chose. Sur l'écran
+   Sélection, 168 px partaient avant même la première barre de la
+   partie. Tout tient maintenant sur une ligne : le contexte à gauche,
+   la saison à droite, chacun restant son propre bouton. */
 function renderCtxBar(){
   var p=me(),c=state.ctx;
   var others=myContexts().filter(function(x){return !sameCtx(x,c)});
+  var sais=isCoachCtx()?curSeason():null;
   return h("div",{className:"ctx-bar"},
-    h("button",{className:"grow",onclick:function(){openModal("ctxpicker")}},
-      h("span",null,c?ctxIcon(c):"🔑"),
-      h("span",{style:{fontWeight:"700",color:"#CBD5E1"}},
+    h("button",{className:"cb-ctx",onclick:function(){openModal("ctxpicker")},
+      "aria-label":"Changer de contexte"+(p?" — "+p.name:"")},
+      h("span",{"aria-hidden":"true"},c?ctxIcon(c):"🔑"),
+      h("span",{className:"cb-nom"},
         c?ctxLabel(c).replace(/^\S+\s/,""):"Aucun contexte"),
-      others.length?h("span",{style:{opacity:".6"}},"▾"):null),
-    h("button",{onclick:function(){openModal("whoami")},style:{flexShrink:"0"}},
-      h("span",{className:"muted"},p?p.name:"—")));
+      others.length?h("span",{className:"cb-caret","aria-hidden":"true"},"▾"):null),
+    sais?h("button",{className:"cb-sais",
+      onclick:function(){state.tab="season";state.seasonPane="seasons";state.seasonSection=null;saveUI();render()},
+      "aria-label":"Saison "+sais.name+" — changer de saison"},
+      h("span",{"aria-hidden":"true"},"🗓️"),
+      h("span",{className:"cb-nom"},sais.name),
+      seasonClosed(sais)?h("span",{"aria-hidden":"true"},"🔒"):null,
+      h("span",{className:"cb-caret","aria-hidden":"true"},"▾")):null,
+    h("button",{className:"cb-moi",onclick:function(){openModal("whoami")},
+      "aria-label":"Qui suis-je"+(p?" — "+p.name:"")},
+      h("span",{"aria-hidden":"true"},"👤")));
 }
 
 function renderPosFilter(){
@@ -6292,7 +6544,11 @@ function tok(forme,def,opts){
 }
 /* Voiles calculés depuis une couleur métier dynamique. On garde la
    notation hexadécimale à 8 chiffres déjà employée par l'application. */
-function teinte(c){return String(c)+"22"}   /* ~13 % — fond de jeton */
+/* 13 % de teinte sur ardoise ramenait l'encre rouge du jeton
+   « ⛔ Non retenue » à 4,37:1 — la décision la plus lourde était la
+   moins lisible des quatre. À 8 %, aucune des huit teintes métier ne
+   régresse et toutes passent le seuil. */
+function teinte(c){return String(c)+"14"}   /* ~8 % — fond de jeton */
 function voile(c){return String(c)+"55"}    /* ~33 % — bord de jeton */
 
 /* La correspondance décision → tonalité de chip, une fois pour toutes. */
@@ -6639,12 +6895,44 @@ function listApply(cfg){
   }
   return out;
 }
+/* Le chiffre d'un filtre : combien d'entrées il laisserait passer, TOUT
+   LE RESTE étant appliqué — la recherche, et les autres groupes de
+   filtres. C'est le seul comptage qui réponde à la question qu'on se
+   pose en regardant une pastille : « et si je la touchais ? ». Un
+   comptage brut, indifférent au reste, promettrait des résultats qui
+   n'arriveraient pas. */
+function listFacettes(cfg,groupe){
+  var st=listState(cfg.key);
+  var base=(cfg.items||[]).slice();
+  var of=cfg.search&&cfg.search.of;
+  if(st.q&&of){
+    var q=normTexte(st.q);
+    base=base.filter(function(it){return normTexte(of(it)).indexOf(q)!==-1});
+  }
+  (cfg.filters||[]).forEach(function(f){
+    if(f.key===groupe.key)return;              /* tout sauf soi-même */
+    var v=st.filters[f.key];
+    if(!v)return;
+    base=base.filter(function(it){return String(f.get(it))===String(v)});
+  });
+  /* Le total vit dans son propre champ, jamais dans le dictionnaire des
+     valeurs : une entrée sans valeur a la clé "" — la même que l'option
+     « Toutes ». Mélangés, ils s'additionnaient, et « Toutes » annonçait
+     35 là où la liste en rendait 20. */
+  var par={};
+  base.forEach(function(it){
+    var k=String(groupe.get(it));
+    par[k]=(par[k]||0)+1;
+  });
+  return {tout:base.length,par:par};
+}
 function listToolbar(cfg){
   cfg=cfg||{};
   var key=cfg.key||"liste";
   var st=listState(key);
   var node=h("div",{className:"listToolbar"});
   var liste=cfg.rows?h("div",{className:"lt-list"}):null;
+  var barreRech=null;
   node.list=liste;
   node.lstate=st;
 
@@ -6657,13 +6945,24 @@ function listToolbar(cfg){
     liste.innerHTML="";
     var res=node.result;
     if(!res.length&&(cfg.items||[]).length){
+      var actifs=0;
+      (cfg.filters||[]).forEach(function(f){if(st.filters[f.key])actifs++});
+      var sortie=function(){return h("button",{className:"btn btn-ghost sm",type:"button",
+        onclick:function(){listReset(key);rafraichir()}},"Tout effacer")};
       var vide=(typeof cfg.empty==="function")?cfg.empty():cfg.empty;
-      liste.appendChild(vide||emptyState({icon:"🔍",title:"Aucun résultat",
+      if(!vide)vide=emptyState({icon:"🔍",title:"Aucun résultat",
         small:true,
         sub:"Aucune entrée ne correspond"+(st.q?" à « "+st.q+" »":" aux filtres posés")+
             ". Essayez autre chose, ou effacez les filtres.",
-        action:h("button",{className:"btn btn-ghost sm",type:"button",
-          onclick:function(){listReset(key);rafraichir()}},"Tout effacer")}));
+        action:sortie()});
+      /* Un état vide sur mesure dit souvent bien ce qui manque, mais
+         n'offre aucun moyen d'en sortir : une recherche infructueuse
+         devenait un cul-de-sac qu'il fallait vider à la main. On pose la
+         porte de sortie quand c'est la recherche ou un filtre qui a vidé
+         la liste, et seulement dans ce cas. */
+      else if((actifs||st.q)&&!vide.querySelector(".e-act"))
+        vide.appendChild(h("div",{className:"e-act"},sortie()));
+      liste.appendChild(vide);
       return;
     }
     var r=cfg.rows(res);
@@ -6680,90 +6979,118 @@ function listToolbar(cfg){
   }
   node.refresh=rafraichir;
 
+  /* Le tri courant, tel qu'il faut l'écrire sur le bouton. */
+  function triCourant(){
+    var sorts=cfg.sorts||[];
+    var actif=null;
+    for(var i=0;i<sorts.length;i++)if(sorts[i].key===st.sort)actif=sorts[i];
+    if(!actif&&cfg.defaultSort)
+      for(var j=0;j<sorts.length;j++)if(sorts[j].key===cfg.defaultSort)actif=sorts[j];
+    if(!actif)return null;
+    var dir=st.dir||((st.sort===actif.key)?null:cfg.defaultDir)||
+            actif.dir||SORT_NATUREL[actif.key]||"asc";
+    return {o:actif,dir:dir};
+  }
+
+  /* ── La barre : UNE rangée ──────────────────────────────────────
+     Elle en occupait quatre — recherche, filtres, tri, compteur — soit
+     186 px mesurés sur un écran de 667. Sur l'écran Sélection, le
+     contenu commençait à 628 px du haut : on voyait UNE ligne de liste.
+     Les filtres et les tris passent donc dans une feuille, qui a la
+     place de les montrer en entier, AVEC le chiffre de chacun. */
   function peindre(){
-    node.innerHTML="";
+    node.innerHTML="";barreRech=null;
     var of=cfg.search&&cfg.search.of;
-    if(of){
-      var inp=h("input",{type:"search",value:st.q,
-        placeholder:(cfg.search.placeholder||"Rechercher un nom ou un numéro…"),
-        "aria-label":cfg.search.placeholder||"Rechercher",
-        autocomplete:"off",autocorrect:"off",spellcheck:"false"});
-      inp.addEventListener("input",function(ev){
-        st.q=ev.target.value;
-        majResultat();peindreListe();majCompteur();
-        if(cfg.onchange)cfg.onchange(st);
-      });
-      node.appendChild(h("div",{className:"searchBar"},
-        h("span",{className:"ico","aria-hidden":"true"},"🔍"),inp,
-        st.q?h("button",{className:"clear",type:"button","aria-label":"Effacer la recherche",
-          onclick:function(){st.q="";rafraichir()}},"✕"):null));
-    }
-    /* Filtres. Repliés par défaut dès qu'il y a plus d'un groupe ou
-       plus de cinq pastilles : sinon la barre mange un tiers de
-       l'écran d'un téléphone. */
     var groupes=cfg.filters||[];
-    if(groupes.length){
-      var pliable=groupes.length>1||(groupes[0].options||[]).length>5;
-      var ouvert=pliable?!!st.open:true;
-      var actifs=0;
-      groupes.forEach(function(f){if(st.filters[f.key])actifs++});
-      var tete=pliable?h("button",{className:"fb-head",type:"button",
-        "aria-expanded":ouvert?"true":"false",
-        onclick:function(){st.open=!ouvert;rafraichir()}},
-        h("span",{"aria-hidden":"true"},"⚙︎"),
-        h("span",{className:"grow"},"Filtres"),
-        actifs?h("span",{className:"fb-count"},String(actifs)):null,
-        h("span",{"aria-hidden":"true"},ouvert?"▴":"▾")):null;
-      var corps=ouvert?h("div",{className:"fb-body"},
-        groupes.map(function(f){
-          var opts=[{k:"",l:"Toutes"}].concat(f.options||[]);
-          return h("div",null,
-            groupes.length>1?h("div",{className:"fb-lbl"},f.label):null,
-            h("div",{className:"fb-group",role:"group","aria-label":f.label},
-              opts.map(function(o){
-                var on=(st.filters[f.key]||"")===o.k;
-                return chip({label:o.l,icon:o.icon,tone:o.tone,on:on,
-                  ariaLabel:f.label+" : "+o.l,
-                  onclick:function(){st.filters[f.key]=on?"":o.k;rafraichir()}});
-              })));
-        }),
-        actifs?h("button",{className:"fb-reset",type:"button",
-          onclick:function(){listReset(key);rafraichir()}},"Tout effacer"):null):null;
-      node.appendChild(h("div",{className:"filterBar"},tete,corps));
-    }
-    /* Tris. La barre n'apparaît pas sous onze entrées : au-dessous on voit
-       toute la liste, et trier ne sert à rien — sauf là où l'ordre EST
-       l'information. Ranger la base du club par âge sert à composer des
-       tranches, même à cinq fiches : ces listes passent `minSort`. */
     var sorts=cfg.sorts||[];
     var seuilTri=(cfg.minSort!=null)?cfg.minSort:11;
-    if(sorts.length&&(cfg.items||[]).length>=seuilTri){
-      node.appendChild(h("div",{className:"sortBar",role:"group","aria-label":"Trier la liste"},
-        h("span",{className:"sb-lead"},"Trier"),
-        sorts.map(function(o){
-          var on=st.sort?(st.sort===o.key):(cfg.defaultSort===o.key);
-          var dir=st.dir||o.dir||SORT_NATUREL[o.key]||"asc";
-          var suivant=on?(dir==="asc"?"desc":"asc"):(o.dir||SORT_NATUREL[o.key]||"asc");
-          return h("button",{className:"sortBtn"+(on?" on":""),type:"button",
-            "aria-pressed":on?"true":"false",
-            "aria-label":"Trier par "+o.label+(on?(dir==="asc"?", croissant":", décroissant"):""),
-            onclick:function(){st.sort=o.key;st.dir=suivant;rafraichir()}},
-            o.label,on?h("span",{className:"dir","aria-hidden":"true"},dir==="asc"?"↑":"↓"):null);
-        }),
-        cfg.extra||null));
-    } else if(cfg.extra){
-      node.appendChild(h("div",{className:"sortBar"},cfg.extra));
+    var triVisible=sorts.length&&(cfg.items||[]).length>=seuilTri;
+    var actifs=0;
+    groupes.forEach(function(f){if(st.filters[f.key])actifs++});
+
+    var rangee=h("div",{className:"lt-bar"});
+
+    if(of){
+      var inp=h("input",{type:"search",value:st.q,
+        placeholder:(cfg.search.placeholder||"Rechercher…"),
+        "aria-label":cfg.search.placeholder||"Rechercher",
+        autocomplete:"off",autocorrect:"off",spellcheck:"false"});
+      /* On ne repeint pas la barre à chaque frappe : le champ perdrait
+         le focus et le curseur. On met donc à jour à la main les deux
+         choses qui dépendent de la recherche — la croix qui l'efface et
+         la ligne de compteur. Les oublier laissait une recherche
+         infructueuse sans aucune porte de sortie. */
+      inp.addEventListener("input",function(ev){
+        st.q=ev.target.value;
+        majResultat();peindreListe();majCroix();majCompteur();
+        if(cfg.onchange)cfg.onchange(st);
+      });
+      barreRech=h("div",{className:"searchBar"},
+        h("span",{className:"ico","aria-hidden":"true"},"🔍"),inp);
+      rangee.appendChild(barreRech);
+      majCroix();
+    } else rangee.appendChild(h("span",{className:"grow"}));
+
+    if(groupes.length)
+      rangee.appendChild(h("button",{className:"lt-btn"+(actifs?" on":""),type:"button",
+        "aria-label":"Filtrer"+(actifs?" ("+plural(actifs,"filtre")+" posé"+(actifs>1?"s":"")+")":""),
+        onclick:function(){ouvrirFeuille("filtres")}},
+        h("span",{"aria-hidden":"true"},"⚙︎"),
+        actifs?h("span",{className:"lt-badge"},String(actifs)):null));
+
+    if(triVisible){
+      var tc=triCourant();
+      rangee.appendChild(h("button",{className:"lt-btn lt-tri"+(st.sort?" on":""),type:"button",
+        "aria-label":"Trier"+(tc?" — actuellement par "+tc.o.label:""),
+        onclick:function(){ouvrirFeuille("tri")}},
+        h("span",{"aria-hidden":"true"},"⇅"),
+        tc?h("span",{className:"lt-tri-lbl"},tc.o.label):null,
+        tc?h("span",{className:"dir","aria-hidden":"true"},tc.dir==="asc"?"↑":"↓"):null));
     }
-    if(cfg.count!==false){
-      var cpt=h("div",{className:"lt-count"},
-        node.result.length+" sur "+(cfg.items||[]).length);
+    node.appendChild(rangee);
+    if(cfg.extra)node.appendChild(h("div",{className:"lt-extra"},cfg.extra));
+
+    /* Le compteur ne paraît que s'il dit quelque chose : quand rien
+       n'est filtré, « 24 sur 24 » occupe une ligne pour ne rien
+       apprendre. Filtré, il porte aussi de quoi tout effacer. */
+    majCompteur();
+  }
+
+  /* La croix d'effacement, posée ou retirée sans toucher au champ. */
+  function majCroix(){
+    if(!barreRech)return;
+    var croix=barreRech.querySelector(".clear");
+    if(st.q&&!croix)
+      barreRech.appendChild(h("button",{className:"clear",type:"button",
+        "aria-label":"Effacer la recherche",
+        onclick:function(){st.q="";rafraichir()}},"✕"));
+    else if(!st.q&&croix)barreRech.removeChild(croix);
+  }
+
+  /* La feuille : filtres ou tris, en entier, avec leurs chiffres. */
+  function ouvrirFeuille(quoi){
+    state.listSheet={key:key,quoi:quoi,cfg:cfg,refresh:rafraichir};
+    coucheEmpiler();repeindreDialogues();
+  }
+  /* Le compteur paraît, disparaît et se met à jour tout seul. Écrire
+     dans le textContent de la rangée entière effaçait « Tout effacer »
+     dès la première frappe : on ne touche qu'au libellé. */
+  function majCompteur(){
+    var actifs=0;
+    (cfg.filters||[]).forEach(function(f){if(st.filters[f.key])actifs++});
+    var doit=(cfg.count!==false)&&(actifs||st.q);
+    var cpt=node.querySelector(".lt-count");
+    if(!doit){if(cpt)cpt.parentNode.removeChild(cpt);return}
+    if(!cpt){
+      cpt=h("div",{className:"lt-count"},
+        h("span",{className:"grow"},""),
+        h("button",{className:"lt-clear",type:"button",
+          onclick:function(){listReset(key);rafraichir()}},"Tout effacer"));
       cpt.id="lt-count-"+key;
       node.appendChild(cpt);
     }
-  }
-  function majCompteur(){
-    var cpt=node.querySelector(".lt-count");
-    if(cpt)cpt.textContent=node.result.length+" sur "+(cfg.items||[]).length;
+    cpt.querySelector(".grow").textContent=
+      node.result.length+" sur "+(cfg.items||[]).length;
   }
 
   majResultat();peindre();peindreListe();
@@ -6825,7 +7152,7 @@ function sheetShell(opts,corps){
   var fermer=opts.onclose||closeModal;
   var fermerDuFond=opts.onclose?fermer:function(){fermerAvecGarde(fermer)};
   return h("div",{className:"scrim "+(feuille?"bottom":"center"),onclick:fermerDuFond},
-    h("div",{className:"modal "+(feuille?"sheet":"box"),
+    enfermerFocus(h("div",{className:"modal "+(feuille?"sheet":"box"),
       role:"dialog","aria-modal":"true","aria-label":opts.title,
       onclick:function(e){e.stopPropagation()}},
       h("div",{className:"m-head"},
@@ -6833,7 +7160,7 @@ function sheetShell(opts,corps){
         h("button",{className:"m-close",type:"button","aria-label":"Fermer",
           onclick:fermer},"✕")),
       h("div",{className:"m-body"},corps),
-      (opts.buttons&&opts.buttons.length)?h("div",{className:"m-foot"},opts.buttons):null));
+      (opts.buttons&&opts.buttons.length)?h("div",{className:"m-foot"},opts.buttons):null)));
 }
 
 /* ── Registre de modales ────────────────────────────────────────
@@ -6894,7 +7221,7 @@ function defModal(type,fn,opts){
    bouton reprend son entrée (`history.back()`), pour que la pile reste
    fidèle à ce que l'écran montre. */
 var coucheHist=false;
-function couchesOuvertes(){return !!(state.prompt||state.confirm||state.modalType)}
+function couchesOuvertes(){return !!(state.prompt||state.confirm||state.listSheet||state.lectureSheet||state.modalType)}
 function coucheEmpiler(){
   if(coucheHist)return;
   try{history.pushState({wsCouche:1},"");coucheHist=true}catch(e){}
@@ -6909,6 +7236,12 @@ function fermerCoucheDuDessus(){
      feuille se referme sans emporter la feuille. */
   if(state.prompt){state.prompt=null;repeindreDialogues();return true}
   if(state.confirm){state.confirm=null;repeindreDialogues();return true}
+  if(state.listSheet){
+    var l=state.listSheet;state.listSheet=null;repeindreDialogues();
+    if(l.refresh)l.refresh();
+    return true;
+  }
+  if(state.lectureSheet){state.lectureSheet=false;repeindreDialogues();render();return true}
   if(state.modalType){closeModal();return true}
   return false;
 }
@@ -6972,7 +7305,7 @@ function renderPrompt(){
         onclick:valider},p.confirm||"Valider")]},
     h("div",null,
       p.body?h("p",{className:"muted",style:{marginBottom:"10px"}},p.body):null,
-      p.label?h("div",{className:"field"},h("label",null,p.label)):null,
+      p.label?h("label",{className:"field"},h("span",null,p.label)):null,
       inp));
   var box=n.querySelector(".modal");if(box)box.className+=" prompt";
   return n;
@@ -6982,11 +7315,228 @@ function renderPrompt(){
    de saisie détruirait ce champ — et le clavier avec. L'écran de garde
    les accueille aussi : « effacer les données de cet appareil » s'y
    confirme, et sans cela le bouton ne ferait plus rien. */
+/* ── La feuille des filtres et des tris ─────────────────────────────
+   Elle vit à côté des dialogues, hors du cycle de rendu des écrans :
+   la barre de liste se repeint seule (`rafraichir`), et un render()
+   complet détruirait le champ de recherche, donc le focus, donc le
+   clavier. C'est la même raison qui fait vivre confirm et prompt ici.
+
+   Chaque option porte SON CHIFFRE : combien d'entrées elle laisserait
+   passer, tout le reste étant appliqué. Une option qui n'en laisse
+   aucune est désactivée plutôt que menteuse. */
+function fermerListSheet(){
+  var l=state.listSheet;
+  state.listSheet=null;
+  repeindreDialogues();
+  if(l&&l.refresh)l.refresh();
+  if(!couchesOuvertes())coucheDepiler();
+}
+/* ── Ce qu'on regarde ───────────────────────────────────────────────
+   Le récapitulatif empilait cinq rangées de sélecteurs — modes, vues,
+   poste, famille, nature, période, échelle — soit 286 px mesurés avant
+   un tableau qui n'avait plus que 159 px pour lui sur un écran de 667.
+   Les deux premières sont de la navigation et restent visibles ; les
+   autres règlent la LECTURE et tiennent dans une feuille, où elles ont
+   la place de dire leur chiffre. */
+function ouvrirLecture(){
+  state.lectureSheet=true;coucheEmpiler();repeindreDialogues();
+}
+function fermerLecture(){
+  state.lectureSheet=false;repeindreDialogues();render();
+  if(!couchesOuvertes())coucheDepiler();
+}
+function lectureGroupes(team){
+  var isG=state.summaryMode==="global";
+  var players=isG?computeGlobalPlayers(team):teamViewPlayers(team);
+  var parPos={};
+  players.forEach(function(p){var k=p.position||"NONE";parPos[k]=(parPos[k]||0)+1});
+  var gs=[{
+    cle:"pos",label:"Poste",
+    options:POSITIONS.map(function(o){
+      return {k:o.key,l:o.label,n:o.key==="ALL"?players.length:(parPos[o.key]||0)};
+    }),
+    val:function(){return state.posFilter},
+    set:function(v){state.posFilter=v;state.sortBy=null}
+  }];
+  var view=VIEWS[state.viewIdx],gKeys=view.groups;
+  if(gKeys.length>1)gs.push({
+    cle:"fam",label:"Famille de compteurs",
+    options:gKeys.map(function(k,i){return {k:String(i),l:SG[k].name,n:null}}),
+    val:function(){return String(state.groupIdx)},
+    set:function(v){state.groupIdx=+v;state.sortBy=null}
+  });
+  if(!isG)return gs;
+  /* Le chiffre d'une nature doit annoncer ce qui sera réellement
+     cumulé, période comprise : « 🏆 Champ. = 4 » suivi d'un tableau
+     « cumulé sur 3 matchs » est un chiffre qui ment. On applique donc la
+     période déjà posée, comme scopedSessions le fera. */
+  var coupe=function(c){var n=CUMUL_N[state.cumulScope]||0;return n?Math.min(c,n):c};
+  var parNature={};
+  (team.sessions||[]).forEach(function(se){
+    var ev=eventOf(team,se);if(ev)parNature[ev.kind]=(parNature[ev.kind]||0)+1;
+  });
+  var natures=[{k:"all",l:"Toutes",n:coupe((team.sessions||[]).length)}].concat(
+    EVENT_KEYS.filter(function(k){return parNature[k]}).map(function(k){
+      return {k:k,l:EVENT_KINDS[k].icon+" "+EVENT_KINDS[k].short,n:coupe(parNature[k])};
+    }));
+  if(natures.length>1)gs.push({
+    cle:"nature",label:"Nature de rencontre",options:natures,
+    val:function(){return state.cumulEventId?"":state.cumulKind},
+    set:function(v){state.cumulKind=v;state.cumulEventId=null;state.sortBy=null}
+  });
+  /* Symétriquement, la période annonce ce qu'elle laisserait, la nature
+     déjà posée étant appliquée. */
+  var sousNature=state.cumulEventId?1
+    :(state.cumulKind==="all"?(team.sessions||[]).length:(parNature[state.cumulKind]||0));
+  gs.push({
+    cle:"periode",label:"Période",
+    options:CUMUL_SCOPES.map(function(sc){
+      var n=CUMUL_N[sc.k]||0;
+      return {k:sc.k,l:sc.l,n:n?Math.min(sousNature,n):sousNature};
+    }),
+    val:function(){return state.cumulScope},
+    set:function(v){state.cumulScope=v;state.sortBy=null}
+  });
+  gs.push({
+    cle:"echelle",label:"Échelle",
+    options:[{k:"total",l:"Σ Totaux",n:null},{k:"avg",l:"÷ Par match",n:null}],
+    val:function(){return state.cumulMode},
+    set:function(v){state.cumulMode=v;state.sortBy=null}
+  });
+  return gs;
+}
+function lectureResume(team){
+  var bits=[];
+  var pos=POSITIONS.filter(function(o){return o.key===state.posFilter})[0];
+  if(pos&&pos.key!=="ALL")bits.push(pos.label);
+  if(state.summaryMode==="global"){
+    if(state.cumulEventId)bits.push(cumulScopeLabel(team));
+    else if(state.cumulKind!=="all"&&EVENT_KINDS[state.cumulKind])
+      bits.push(EVENT_KINDS[state.cumulKind].short);
+    var sc=CUMUL_SCOPES.filter(function(x){return x.k===state.cumulScope})[0];
+    if(sc&&sc.k!=="all")bits.push(sc.l);
+    if(state.cumulMode==="avg")bits.push("÷ par match");
+  }
+  return bits.length?bits.join(" · "):"Tout";
+}
+function lectureActifs(){
+  var n=0;
+  if(state.posFilter&&state.posFilter!=="ALL")n++;
+  if(state.summaryMode==="global"){
+    if(state.cumulEventId||state.cumulKind!=="all")n++;
+    if(state.cumulScope!=="all")n++;
+    if(state.cumulMode!=="total")n++;
+  }
+  return n;
+}
+function renderLectureSheet(){
+  if(!state.lectureSheet)return null;
+  var team=curSquad();if(!team)return null;
+  var gs=lectureGroupes(team);
+  var corps=h("div",null,gs.map(function(g){
+    var cur=g.val();
+    return h("div",{className:"ls-grp"},
+      h("div",{className:"ls-lbl"},g.label),
+      h("div",{className:"ls-opts",role:"group","aria-label":g.label},
+        g.options.map(function(o){
+          var on=String(cur)===String(o.k);
+          var vide=!on&&o.n===0;
+          return h("button",{className:"ls-opt"+(on?" on":"")+(vide?" vide":""),
+            type:"button",disabled:vide,"aria-pressed":on?"true":"false",
+            "aria-label":g.label+" : "+o.l+(o.n!=null?" — "+plural(o.n,"entrée"):""),
+            onclick:function(){g.set(o.k);repeindreDialogues()}},
+            h("span",{className:"grow"},o.l),
+            o.n!=null?h("span",{className:"ls-n"},String(o.n)):null);
+        })));
+  }));
+  var boutons=[h("button",{className:"btn btn-primary full",type:"button",
+    onclick:fermerLecture},"Voir")];
+  if(lectureActifs())boutons.unshift(h("button",{className:"btn btn-ghost full",type:"button",
+    onclick:function(){
+      state.posFilter="ALL";state.cumulKind="all";state.cumulEventId=null;
+      state.cumulScope="all";state.cumulMode="total";state.sortBy=null;
+      repeindreDialogues();
+    }},"Tout effacer"));
+  var n=sheetShell({title:"Ce qu'on regarde",onclose:fermerLecture,buttons:boutons},corps);
+  var b=n.querySelector(".modal");if(b)b.className+=" listsheet";
+  return n;
+}
+function renderListSheet(){
+  var L=state.listSheet;if(!L)return null;
+  var cfg=L.cfg,st=listState(L.key);
+  var corps=h("div",null);
+
+  if(L.quoi==="filtres"){
+    (cfg.filters||[]).forEach(function(f){
+      var n=listFacettes(cfg,f);
+      var opts=[{k:"",l:"Toutes"}].concat(f.options||[]);
+      corps.appendChild(h("div",{className:"ls-grp"},
+        h("div",{className:"ls-lbl"},f.label),
+        h("div",{className:"ls-opts",role:"group","aria-label":f.label},
+          opts.map(function(o){
+            var on=(st.filters[f.key]||"")===o.k;
+            var c=o.k===""?n.tout:(n.par[String(o.k)]||0);
+            var vide=!on&&!c;
+            var b=h("button",{className:"ls-opt"+(on?" on":"")+(vide?" vide":""),
+              type:"button",disabled:vide,
+              "aria-pressed":on?"true":"false",
+              "aria-label":f.label+" : "+o.l+" — "+plural(c,"entrée"),
+              onclick:function(){
+                st.filters[f.key]=on?"":o.k;
+                if(L.refresh)L.refresh();
+                repeindreDialogues();
+              }},
+              o.icon?h("span",{className:"ls-ico","aria-hidden":"true"},o.icon):null,
+              h("span",{className:"grow"},o.l),
+              h("span",{className:"ls-n"},String(c)));
+            return b;
+          }))));
+    });
+    if(!(cfg.filters||[]).length)
+      corps.appendChild(h("div",{className:"hint"},"Cette liste n'a pas de filtre."));
+  } else {
+    var sorts=cfg.sorts||[];
+    corps.appendChild(h("div",{className:"ls-grp"},
+      h("div",{className:"ls-lbl"},"Trier par"),
+      h("div",{className:"ls-opts",role:"group","aria-label":"Trier"},
+        sorts.map(function(o){
+          var on=st.sort?(st.sort===o.key):(cfg.defaultSort===o.key);
+          var dir=on?(st.dir||o.dir||SORT_NATUREL[o.key]||"asc")
+                    :(o.dir||SORT_NATUREL[o.key]||"asc");
+          var suivant=on?(dir==="asc"?"desc":"asc"):dir;
+          return h("button",{className:"ls-opt"+(on?" on":""),type:"button",
+            "aria-pressed":on?"true":"false",
+            "aria-label":"Trier par "+o.label+(on?(dir==="asc"?", croissant":", décroissant"):""),
+            onclick:function(){
+              st.sort=o.key;st.dir=suivant;
+              if(L.refresh)L.refresh();
+              repeindreDialogues();
+            }},
+            h("span",{className:"grow"},o.label),
+            h("span",{className:"ls-n"},on?(dir==="asc"?"↑ croissant":"↓ décroissant"):""));
+        }))));
+    corps.appendChild(h("div",{className:"hint"},
+      "Toucher l'ordre déjà choisi l'inverse."));
+  }
+
+  var actifs=0;
+  (cfg.filters||[]).forEach(function(f){if(st.filters[f.key])actifs++});
+  var boutons=[h("button",{className:"btn btn-primary full",type:"button",
+    onclick:fermerListSheet},"Voir les résultats ("+listApply(cfg).length+")")];
+  if(actifs||st.q)boutons.unshift(h("button",{className:"btn btn-ghost full",type:"button",
+    onclick:function(){listReset(L.key);if(L.refresh)L.refresh();repeindreDialogues()}},
+    "Tout effacer"));
+
+  var n=sheetShell({title:L.quoi==="filtres"?"Filtrer":"Trier",
+    onclose:fermerListSheet,buttons:boutons},corps);
+  var b=n.querySelector(".modal");if(b)b.className+=" listsheet";
+  return n;
+}
 function repeindreDialogues(){
   var app=document.getElementById("app");if(!app)return;
   var vieux=app.querySelectorAll(".scrim.dlg");
   for(var i=0;i<vieux.length;i++)vieux[i].parentNode.removeChild(vieux[i]);
-  var n=renderConfirm()||renderPrompt();
+  var n=renderConfirm()||renderPrompt()||renderListSheet()||renderLectureSheet();
   if(n){n.className+=" dlg";app.appendChild(n)}
 }
 
@@ -6997,25 +7547,38 @@ function repeindreDialogues(){
    doUndo : un geste pour l'utilisateur pressé, là où une confirmation
    en coûte un à chacun, y compris quand tout va bien.
    L'ancienne signature (msg, durée) reste acceptée. */
+/* Le bandeau vit dans l'état, pas seulement dans le DOM : presque tous
+   les appelants font un render() juste après, qui vide #app. Reconstruit
+   à partir du seul texte, il perdait son ton ET son bouton « Annuler » —
+   le filet de sécurité de douze actions destructrices, offert puis
+   retiré avant qu'on ait pu le voir. */
+function toastNode(){
+  if(!state.toast)return null;
+  var o=state.toastOpts||{};
+  return h("div",{className:"toast"+(o.tone?" "+o.tone:""),
+    role:"status","aria-live":"polite"},
+    h("span",{className:"grow"},state.toast),
+    o.action?h("button",{className:"t-act",type:"button",
+      onclick:function(){var f=o.action.onclick;fermerToast();f()}},
+      o.action.label):null);
+}
+function fermerToast(){
+  state.toast=null;state.toastOpts=null;
+  if(toastTimer){clearTimeout(toastTimer);toastTimer=null}
+  var app=document.getElementById("app");
+  var t=app&&app.querySelector(".toast");
+  if(t&&t.parentNode)t.parentNode.removeChild(t);
+}
 function showToast(msg,opts){
   if(typeof opts==="number")opts={duree:opts};
   opts=opts||{};
-  state.toast=msg;
+  state.toast=msg;state.toastOpts=opts;
   var app=document.getElementById("app");if(!app)return;
   var old=app.querySelector(".toast");if(old)old.parentNode.removeChild(old);
-  var el=h("div",{className:"toast"+(opts.tone?" "+opts.tone:""),
-    role:"status","aria-live":"polite"},
-    h("span",{className:"grow"},msg),
-    opts.action?h("button",{className:"t-act",type:"button",
-      onclick:function(){if(el.parentNode)el.parentNode.removeChild(el);opts.action.onclick()}},
-      opts.action.label):null);
-  app.appendChild(el);
+  app.appendChild(toastNode());
   if(toastTimer)clearTimeout(toastTimer);
-  toastTimer=setTimeout(function(){
-    state.toast=null;
-    var t=app.querySelector(".toast");if(t&&t.parentNode)t.parentNode.removeChild(t);
-    toastTimer=null;
-  },opts.duree||(opts.action?5200:2600));
+  toastTimer=setTimeout(function(){toastTimer=null;fermerToast()},
+    opts.duree||(opts.action?5200:2600));
 }
 /* ══ fin §12 ══════════════════════════════════════════════════════════ */
 
@@ -7164,13 +7727,17 @@ function renderSeasonHub(sq){
 /* En-tête d'une partie : le retour porte le nom de son parent, et
    non une flèche seule — on doit savoir où l'on retombe avant
    d'appuyer. */
+/* Une rangée. Elle en faisait deux — titre puis sous-titre — pour
+   73 px, au-dessus d'une barre de campagne de 62 px qui redisait la
+   même chose sur deux lignes elle aussi. Le sous-titre suit le titre
+   sur la même ligne, en gris : c'est une précision, pas un titre. */
 function partHeader(titre,sousTitre,actions){
   return h("div",{className:"partHead"},
     h("button",{className:"ph-back",type:"button","aria-label":"Retour à la saison",
-      onclick:navBackToHub},"← Saison"),
+      onclick:navBackToHub},"‹ Saison"),
     h("div",{className:"ph-body"},
-      h("div",{className:"ph-ttl"},titre),
-      sousTitre?h("div",{className:"ph-sub"},sousTitre):null),
+      h("span",{className:"ph-ttl"},titre),
+      sousTitre?h("span",{className:"ph-sub"},sousTitre):null),
     actions?h("div",{className:"ph-act"},actions):null);
 }
 
@@ -8212,8 +8779,9 @@ function evPlayersList(sq,scope,cle){
       {key:"result",label:"Résultat",get:function(x){return x.total}}
     ],
     filters:[
-      {key:"poste",label:"Poste",get:function(x){return (x.entry&&x.entry.position)||""},
-       options:POS_KEYS.map(function(k){return {k:k,l:POS_LABELS[k]||k}})},
+      {key:"poste",label:"Poste",get:function(x){return (x.entry&&x.entry.position)||"none"},
+       options:[{k:"none",l:"— Sans poste"}].concat(
+         POS_KEYS.map(function(k){return {k:k,l:POS_LABELS[k]||k}}))},
       {key:"appartenance",label:"Appartenance",
        get:function(x){return (x.entry&&x.entry.membership)||"active"},
        options:MEMBERSHIP_ORDER.map(function(k){return {k:k,l:MEMBERSHIPS[k].label}})}
@@ -9079,7 +9647,7 @@ function goalCard(sq,g,r){
   return h("div",{className:"card goalCard"},
     h("div",{className:"row-between"},
       h("div",{style:{minWidth:"0"}},
-        h("div",{style:{fontWeight:"800",color:gfam.color}},gfam.name),
+        h("div",{style:{fontWeight:"800",color:encreFam(gfam)}},gfam.name),
         h("div",{className:"muted",style:{marginTop:"2px"}},
           "Cible "+fmtEff(g.target)+" · départ "+fmtEff(g.baseline))),
       h("span",{className:"badge",style:{background:"transparent",color:et.color,
@@ -9182,7 +9750,7 @@ function renderNewGoalModal(){
           }},
           h("span",{className:"nr-ico","aria-hidden":"true"},"🎯"),
           h("span",{className:"nr-body"},
-            h("span",{className:"nr-ttl",style:{color:g.color}},g.name),
+            h("span",{className:"nr-ttl",style:{color:encreFam(g)}},g.name),
             h("span",{className:"nr-sub"},
               deja?"Un objectif est déjà en cours"
                   :(dep==null?"Aucun repère encore — l'équipe n'a pas assez joué, "+
@@ -9419,7 +9987,9 @@ function renderPartRecap(sq){
       h("div",{className:"ph-sub"},
         plural((sq.sessions||[]).length,"relevé")+" · "+
         plural((sq.playerIds||[]).length,"athlète"))),
-    null);
+    (sq.sessions||[]).length?h("button",{className:"btn btn-ghost xs",type:"button",
+      "aria-label":"Tableau détaillé — athlètes et compteurs",
+      onclick:function(){navTo(mkRoute("legacy","summary"))}},"📊 Tableau"):null);
 
   var barres=h("div",{className:"pill-row tight"},
     segmented({label:"Sujet",value:sujet,
@@ -9529,8 +10099,9 @@ function renderPartRecap(sq){
     filters:[
       {key:"decision",label:"Décision",get:function(x){return x.entry.status},
        options:STATUS_ORDER.map(function(k){return {k:k,l:STATUSES[k].label}})},
-      {key:"offre",label:"Offre",get:function(x){return offerStatusOf(sq,x.pid)},
-       options:OFFER_KEYS.map(function(k){return {k:k,l:OFFER_STATUS[k].label}})},
+      {key:"offre",label:"Offre",get:function(x){return offerStatusOf(sq,x.pid)||"none"},
+       options:[{k:"none",l:"— Aucune"}].concat(
+         OFFER_KEYS.map(function(k){return {k:k,l:OFFER_STATUS[k].label}}))},
       {key:"equipe",label:"Effectif",get:function(x){return x.dansEquipe?"oui":"non"},
        options:[{k:"oui",l:"Dans l'équipe"},{k:"non",l:"Hors effectif"}]}
     ],
@@ -9761,7 +10332,7 @@ function renderChangePassModal(){
     var inp=h("input",{type:type||"password",placeholder:ph||"",value:d[cle]||"",
       autocomplete:"off",autocapitalize:"off",spellcheck:"false"});
     inp.addEventListener("input",function(e){d[cle]=e.target.value});
-    return h("div",{className:"field"},h("label",null,libelle),inp);
+    return h("label",{className:"field"},h("span",null,libelle),inp);
   }
   var force=passScore(d.p1);
   var corps=h("div",null,
@@ -9819,7 +10390,7 @@ function renderPlayerSheet(squad,entry,p){
   var box=h("div",{className:"card",style:{marginBottom:"10px"}});
 
   /* Position */
-  box.appendChild(h("div",{className:"field"},h("label",null,"Position"),
+  box.appendChild(h("label",{className:"field"},h("span",null,"Position"),
     h("div",{className:"pos-btns"},POSITIONS.filter(function(x){return x.key!=="ALL"}).map(function(pos){
       var v=pos.key==="NONE"?"":pos.key;
       return h("button",{className:"pos-btn"+(entry.position===v?" active":""),onclick:function(){entry.position=v;scheduleAutoSave();render()}},pos.label);
@@ -9827,7 +10398,7 @@ function renderPlayerSheet(squad,entry,p){
 
   /* Statut d'effectif — seulement une fois retenue */
   if(entry.status==="selected"){
-    box.appendChild(h("div",{className:"field"},h("label",null,"Dans l'effectif"),
+    box.appendChild(h("label",{className:"field"},h("span",null,"Dans l'effectif"),
       h("div",{className:"reco-row"},MEMBERSHIP_ORDER.map(function(k){
         var m=MEMBERSHIPS[k],on=entry.membership===k;
         var b=h("button",{className:"reco-btn"+(on?" on":""),onclick:function(){
@@ -9966,7 +10537,7 @@ function renderBaselineCompare(squad,pid){
   cmp.lignes.forEach(function(l){
     var g=SG[l.family];
     wrap.appendChild(h("div",{className:"fam-row"},
-      h("span",{className:"fam-name",style:{color:g.color}},g.name),
+      h("span",{className:"fam-name",style:{color:encreFam(g)}},g.name),
       h("span",{className:"fam-eff",title:l.fromVol+" gestes"},fmtEff(l.fromEff)),
       h("span",{className:"fam-eff",title:l.toVol+" gestes"},fmtEff(l.toEff)),
       h("span",{className:"fam-vol",style:{textAlign:"right"}},
@@ -10036,7 +10607,7 @@ function renderStatFamilies(c){
   fams.forEach(function(f){
     var fam=c.statFams[f],g=SG[f];
     wrap.appendChild(h("div",{className:"fam-row"},
-      h("span",{className:"fam-name",style:{color:g.color}},g.name),
+      h("span",{className:"fam-name",style:{color:encreFam(g)}},g.name),
       h("span",{className:"fam-eff"},fmtEff(fam.eff)),
       h("span",{className:"fam-vol"},fam.volume+" gestes"),
       fam.scale!=null
@@ -10053,7 +10624,7 @@ function renderStatMini(stats){
     var g=SG[k];
     g.stats.forEach(function(s){
       if(!stats[s.key])return;any=true;
-      wrap.appendChild(h("span",{style:{color:g.color}},g.name.slice(0,3)+" "+s.label+" : "+stats[s.key]));
+      wrap.appendChild(h("span",{style:{color:encreFam(g)}},g.name.slice(0,3)+" "+s.label+" : "+stats[s.key]));
     });
   });
   if(!any)wrap.appendChild(h("span",null,"Aucune statistique"));
@@ -10283,6 +10854,13 @@ function deletePlayersFromDb(pids){
     (sq.submissions||[]).forEach(function(sub){
       sub.entries=(sub.entries||[]).filter(function(en){return !ids[en.playerId]});
     });
+    /* Un retrait de saison garde les offres tranchées — elles ont eu
+       lieu, elles sont datées. La destruction de la FICHE est autre
+       chose : ce qui reste désigne alors une athlète que plus rien ne
+       résout, et se fait compter parmi les pertes d'une campagne
+       supprimée plus tard. */
+    sq.offers=(sq.offers||[]).filter(function(o){return !ids[o.playerId]});
+    sq.goals=(sq.goals||[]).filter(function(g){return !ids[g.playerId]});
   });
   DB.players=DB.players.filter(function(p){return !ids[p.id]});
   var liste=noms.slice(0,8).join(", ")+(noms.length>8?", et "+plural(noms.length-8,"autre"):"");
@@ -10511,14 +11089,18 @@ function renderCampaignsPane(squad){
           state.modalType=null;state.modalCtx=null;
           setActiveCampaign(squad,c.id);
         }},"Ouvrir"):null,
-        h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("renamecampaign",c.id,c.name)}},"✏️"),
-        h("button",{className:"btn btn-ghost xs",onclick:function(){
+        h("button",{className:"btn btn-ghost xs ico","aria-label":"Renommer la campagne "+c.name,
+          onclick:function(){openModal("renamecampaign",c.id,c.name)}},"✏️"),
+        h("button",{className:"btn btn-ghost xs ico",
+          "aria-label":(c.closedAt?"Rouvrir":"Clore")+" la campagne "+c.name,
+          onclick:function(){
           c.closedAt=c.closedAt?null:nowISO();
           logAct("campaign","Campagne « "+c.name+" » "+(c.closedAt?"close":"rouverte"),
             {teamId:squad.teamId,seasonId:squad.seasonId});
           saveNow();showToast(c.closedAt?"🔒 Campagne close":"🔓 Campagne rouverte");render();
         }},c.closedAt?"🔓":"🔒"),
-        squad.campaigns.length>1?h("button",{className:"btn btn-danger-o xs",onclick:function(){
+        squad.campaigns.length>1?h("button",{className:"btn btn-danger-o xs ico",
+          "aria-label":"Supprimer la campagne "+c.name,onclick:function(){
           /* Ce qu'une campagne emporte : ses vues, ses soumissions, mais
              aussi ses CONVOCATIONS et ses OFFRES. Les laisser derrière
              ferait des convocations orphelines — checkV7 les signale — et
@@ -10695,7 +11277,7 @@ function renderAdminPeople(){
           p.revoked?h("span",{className:"badge",style:{background:"#33415530",color:"#94A3B8"}},"révoquée"):null,
           p.token?h("span",{className:"badge",style:{background:"#10B98122",color:"#34D399"}},"🔑 jeton émis"):null)),
       h("div",{className:"btn-row"},
-        h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("editperson",p.id)}},"✏️"),
+        h("button",{className:"btn btn-ghost xs ico","aria-label":"Modifier "+(p.name||"cette personne"),onclick:function(){openModal("editperson",p.id)}},"✏️"),
         h("button",{className:"btn btn-danger-o xs",onclick:function(){
           if(personIsSuper(p)){showToast("⚠️ Le propriétaire ne se supprime pas");return}
           var seul=adminClubsOf(p).filter(function(c){return adminsOfClub(c.id).length<=1});
@@ -10791,7 +11373,7 @@ function renderAdminTeams(){
           plural(coaches.length,"entraîneur")+" · "+plural(scouts.length,"sélectionneur")+
           (sq?" · "+plural(sq.roster.length,"convoquée")+" cette saison":""))),
       h("div",{className:"btn-row"},
-        h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("editteam",t.id)}},"✏️"),
+        h("button",{className:"btn btn-ghost xs ico","aria-label":"Modifier l'équipe "+(t.name||""),onclick:function(){openModal("editteam",t.id)}},"✏️"),
         h("button",{className:"btn btn-danger-o xs",onclick:function(){
           var n=DB.squads.filter(function(x){return x.teamId===t.id}).length;
           confirmAct("Supprimer l'équipe « "+t.name+" » ?\n"+plural(n,"saison")+" de données seront perdues.\n(Les joueuses restent dans la base du club.)",
@@ -10836,7 +11418,7 @@ function renderAdminSeasons(){
         !active?h("button",{className:"btn btn-primary xs",onclick:function(){
           DB.activeSeasonId=x.id;clearUndo();saveNow();render();
         }},"Activer"):null,
-        h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("editseason",x.id)}},"✏️"),
+        h("button",{className:"btn btn-ghost xs ico","aria-label":"Modifier la saison "+(x.name||""),onclick:function(){openModal("editseason",x.id)}},"✏️"),
         h("button",{className:"btn btn-ghost xs",onclick:function(){
           function basculer(){
             x.closedAt=closed?null:nowISO();x.archived=!closed;
@@ -11299,10 +11881,17 @@ function renderDbPane(squad){
         h("button",{className:"btn btn-ghost sm",onclick:function(){pickSet(visibles)}},
           "Tout ("+visibles.length+")"),
         h("button",{className:"btn btn-ghost sm",onclick:function(){pickSet([])}},"Aucune"))
-    : h("div",{className:"btn-row",style:{marginBottom:"12px"}},
-        h("button",{className:"btn btn-primary sm",onclick:function(){openModal("newplayer")}},"+ Nouvelle athlète"),
-        h("button",{className:"btn btn-ghost sm",onclick:function(){openModal("bulkplayers")}},"⚡ Ajout en lot"),
-        DB.players.length?h("button",{className:"btn btn-ghost sm",onclick:function(){pickStart("db")}},"☑️ Sélectionner"):null);
+    /* Trois boutons qui passaient à la ligne : 96 px pour trois gestes
+       dont un seul est courant. Le principal garde son nom, les deux
+       autres se réduisent à leur signe — ils gardent leur libellé pour
+       la synthèse vocale. */
+    : h("div",{className:"btn-row compact",style:{marginBottom:"var(--s2)"}},
+        h("button",{className:"btn btn-primary sm grow",onclick:function(){openModal("newplayer")}},"+ Nouvelle athlète"),
+        h("button",{className:"btn btn-ghost sm ico",onclick:function(){openModal("bulkplayers")},
+          "aria-label":"Ajout en lot",title:"Ajout en lot"},"⚡"),
+        DB.players.length?h("button",{className:"btn btn-ghost sm ico",onclick:function(){pickStart("db")},
+          "aria-label":"Sélectionner plusieurs athlètes",
+          title:"Sélectionner plusieurs athlètes"},"☑️"):null);
 
   var st=listState("db-players");
   return h("div",null,
@@ -11640,7 +12229,12 @@ function renderCourtBar(team){
   var all=teamViewPlayers(team);
   var allOn=!team.lineup||!team.lineup.length;
   var count=allOn?all.length:team.lineup.length;
-  var bar=h("div",{className:"court-bar",onclick:function(){state.courtPanelOpen=!state.courtPanelOpen;render()}},
+  /* Un <button>, pas un <div> : le premier geste de chaque match était
+     inatteignable au clavier, jamais annoncé comme un bouton, et ne
+     disait pas s'il était ouvert. */
+  var bar=h("button",{className:"court-bar",type:"button",
+    "aria-expanded":state.courtPanelOpen?"true":"false",
+    onclick:function(){state.courtPanelOpen=!state.courtPanelOpen;render()}},
     h("span",null,"🏐 Terrain : "+count+"/"+all.length+" joueuses"),
     h("span",null,state.courtPanelOpen?"▲":"▼"));
   if(!state.courtPanelOpen)return bar;
@@ -11669,7 +12263,8 @@ function renderCourtBar(team){
 
   var toggles=h("div",{className:"court-toggle-grid"},all.map(function(p){
     var on=allOn||team.lineup.indexOf(p.id)!==-1;
-    return h("button",{className:"court-toggle"+(on?" on":""),onclick:function(){
+    return h("button",{className:"court-toggle"+(on?" on":""),
+      "aria-pressed":on?"true":"false",onclick:function(){
       if(allOn)team.lineup=all.map(function(x){return x.id});
       var i=team.lineup.indexOf(p.id);
       if(i!==-1)team.lineup.splice(i,1);else team.lineup.push(p.id);
@@ -11777,7 +12372,7 @@ function renderQuickInput(team){
     panel=h("div",{className:"quick-panel","data-scroll-key":"quick-panel"},SG_KEYS.map(function(k){
       var g=SG[k];
       return h("div",{className:"qp-group"},
-        h("div",{className:"qp-group-title",style:{background:g.color+"20",color:g.color}},g.name),
+        h("div",{className:"qp-group-title",style:{background:g.color+"20",color:encreFam(g)}},g.name),
         h("div",{className:"qp-stats-row"},g.stats.map(function(s){
           var countSpan=h("span",{className:"count"},String(sel.stats[s.key]));
           var btn=h("button",{className:"qp-stat-btn",style:{borderColor:g.color,background:g.color+"15",color:"#F8FAFC"},onclick:function(){
@@ -11812,7 +12407,7 @@ function renderGridInput(team){
     var b=h("button",{className:"pill"+(i===state.viewIdx?" active":""),onclick:function(){
       state.viewIdx=i;state.expandedGroup=null;saveUI();render();
     }},v.label);
-    if(i===state.viewIdx)b.style.background="#F59E0B";
+    if(i===state.viewIdx)paintOn(b,"#F59E0B");
     return b;
   }));
   var filterBar=h("div",{className:"filter-bar"},renderPosFilter(),
@@ -11829,7 +12424,7 @@ function renderGridInput(team){
     var header=h("div",{className:"grid-header"},
       h("div",{className:"lbl",style:{width:nw}},"JOUEUSE"),
       h("div",{className:"stat-labels"},g.stats.map(function(s){
-        return h("div",{className:"stat-lbl",style:{color:g.color,width:(100/g.stats.length)+"%"}},s.label);
+        return h("div",{className:"stat-lbl",style:{color:encreFam(g),width:(100/g.stats.length)+"%"}},s.label);
       })));
     var rows=filtered.map(function(p){
       return h("div",{className:"grid-row"},
@@ -11878,7 +12473,7 @@ function renderGridInput(team){
           h("span",{style:{fontWeight:"400",color:"#94A3B8",fontSize:"11px"}},p.position||"")),
         h("div",{className:"tags"},groups.map(function(g){
           var tot=g.stats.reduce(function(s,st){return s+p.stats[st.key]},0);
-          return h("button",{className:"tag-btn",style:{background:g.color+"15",color:g.color,border:"1px solid "+g.color+"40"},onclick:function(){
+          return h("button",{className:"tag-btn",style:{background:g.color+"15",color:encreFam(g),border:"1px solid "+g.color+"40"},onclick:function(){
             state.expandedGroup=g.id;render();
           }},g.name+" "+tot);
         })));
@@ -11957,6 +12552,21 @@ function renderSummaryTab(){
     {k:"evals",l:"⭐ Évaluations",c:"#F59E0B"},
     {k:"sessions",l:"🏐 Rencontres",c:"#10B981"}
   ];
+  /* Cet écran n'avait plus de porte : rien ne posait state.tab="summary",
+     et le seul bouton qui y menait vivait dedans. On y entre depuis
+     « Récap global », et on en ressort par où l'on est entré. */
+  var tete=h("div",{className:"partHead"},
+    h("button",{className:"ph-back",type:"button","aria-label":"Retour au récap global",
+      onclick:function(){
+        state.tab="season";state.seasonSection="recap";
+        state.sortBy=null;saveUI();render();
+      }},"← Récap"),
+    h("div",{className:"ph-body"},
+      h("div",{className:"ph-ttl"},"Tableau détaillé"),
+      h("div",{className:"ph-sub"},
+        plural((team.sessions||[]).length,"relevé")+" · "+
+        plural((team.playerIds||[]).length,"athlète"))),
+    null);
   var modeRow=h("div",{className:"pill-row tight"},modes.map(function(m){
     var b=h("button",{className:"pill"+(state.summaryMode===m.k?" active":""),onclick:function(){
       if(m.k==="global"&&!team.sessions.length){showToast("Aucune session enregistrée");return}
@@ -11966,15 +12576,15 @@ function renderSummaryTab(){
     return b;
   }));
   if(state.summaryMode==="sessions")
-    return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},modeRow,
+    return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},tete,modeRow,
       h("div",{className:"content pad","data-scroll-key":"sessions"},renderSessionsPane(team)));
   if(state.summaryMode==="evals")
-    return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},modeRow,
+    return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},tete,modeRow,
       h("div",{className:"content pad","data-scroll-key":"evals"},renderEvalsPane(season)));
-  return renderStatsTable(team,modeRow);
+  return renderStatsTable(team,modeRow,tete);
 }
 
-function renderStatsTable(team,modeRow){
+function renderStatsTable(team,modeRow,tete){
   var isG=state.summaryMode==="global";
   var players=isG?computeGlobalPlayers(team):teamViewPlayers(team);
   var view=VIEWS[state.viewIdx],gKeys=view.groups,gk=gKeys[state.groupIdx]||gKeys[0],g=SG[gk];
@@ -12004,20 +12614,27 @@ function renderStatsTable(team,modeRow){
     var b=h("button",{className:"pill"+(i===state.viewIdx?" active":""),onclick:function(){
       state.viewIdx=i;state.groupIdx=0;state.sortBy=null;saveUI();render();
     }},v.label);
-    if(i===state.viewIdx)b.style.background="#F59E0B";
+    if(i===state.viewIdx)paintOn(b,"#F59E0B");
     return b;
   }));
-  var filterBar=h("div",{className:"filter-bar"},renderPosFilter(),
-    gKeys.length>1?h("div",{className:"sub-pills"},gKeys.map(function(k,i){
-      var b=h("button",{className:"pill sm"+(state.groupIdx===i?" active":""),onclick:function(){state.groupIdx=i;state.sortBy=null;render()}},SG[k].name);
-      if(state.groupIdx===i)paintOn(b,SG[k].color);
-      return b;
-    })):null);
+  /* Une seule commande au lieu de cinq rangées empilées — poste,
+     famille, nature, période, échelle. Elle dit en clair ce qu'on
+     regarde, et porte un chiffre quand des réglages sont posés. */
+  var filterBar=h("div",{className:"lectureBar"},
+    h("button",{className:"lb-btn"+(lectureActifs()?" on":""),type:"button",
+      "aria-label":"Régler ce qu'on regarde — actuellement "+lectureResume(team),
+      onclick:ouvrirLecture},
+      h("span",{className:"lb-ico","aria-hidden":"true"},"⚙︎"),
+      h("span",{className:"lb-body"},
+        h("span",{className:"lb-lbl"},"Lecture"),
+        h("span",{className:"lb-val"},lectureResume(team))),
+      lectureActifs()?h("span",{className:"lt-badge"},String(lectureActifs())):null,
+      h("span",{className:"lb-arw","aria-hidden":"true"},"▾")));
 
   var thead=h("tr",null,
     h("th",{className:"sticky",style:{textAlign:"left",color:"#94A3B8",fontWeight:"600"}},"Joueuse"),
     g.stats.map(function(s){
-      return h("th",{className:"sortable",style:{textAlign:"center",color:g.color,fontWeight:"700",whiteSpace:"nowrap"},onclick:function(){
+      return h("th",{className:"sortable",style:{textAlign:"center",color:encreFam(g),fontWeight:"700",whiteSpace:"nowrap"},onclick:function(){
         if(state.sortBy===s.key)state.sortDir=state.sortDir==="desc"?"asc":"desc";
         else{state.sortBy=s.key;state.sortDir="desc"}
         render();
@@ -12041,7 +12658,7 @@ function renderStatsTable(team,modeRow){
   var totals=h("div",{className:"totals-bar"},g.stats.map(function(s){
     var t=filtered.reduce(function(sum,p){return sum+val(p,s.key)},0);
     return h("div",{style:{textAlign:"center"}},h("div",{className:"t-lbl"},s.label),
-      h("div",{className:"t-val",style:{color:g.color}},fmtVal(t)));
+      h("div",{className:"t-val",style:{color:encreFam(g)}},fmtVal(t)));
   }));
   var info=null;
   if(isG){
@@ -12050,41 +12667,17 @@ function renderStatsTable(team,modeRow){
       return team.sessions.some(function(se){var ev=eventOf(team,se);return ev&&ev.kind===k});
     }).map(function(k){return {k:k,l:EVENT_KINDS[k].icon+" "+EVENT_KINDS[k].short}}));
 
-    info=h("div",null,
-      /* Nature de rencontre — la lecture que le bilan de fin de saison réclamait */
-      natures.length>1?h("div",{className:"sub-pills",style:{padding:"0 12px 4px"}},natures.map(function(f){
-        var on=!state.cumulEventId&&state.cumulKind===f.k;
-        var b=h("button",{className:"pill sm"+(on?" active":""),onclick:function(){
-          state.cumulKind=f.k;state.cumulEventId=null;state.sortBy=null;render();
-        }},f.l);
-        if(on)paintOn(b,f.k==="all"?"#6D28D9":EVENT_KINDS[f.k].color);
-        return b;
-      })):null,
-      /* Combien de matchs, et sous quelle échelle */
-      h("div",{className:"sub-pills",style:{padding:"0 12px 4px"}},
-        CUMUL_SCOPES.map(function(sc){
-          var b=h("button",{className:"pill sm"+(state.cumulScope===sc.k?" active":""),onclick:function(){
-            state.cumulScope=sc.k;state.sortBy=null;render();
-          }},sc.l);
-          if(state.cumulScope===sc.k)b.style.background="#475569";
-          return b;
-        }).concat([
-          h("button",{className:"pill sm"+(state.cumulMode==="avg"?" active":""),
-            style:state.cumulMode==="avg"?{background:"#0EA5E9"}:{},onclick:function(){
-              state.cumulMode=state.cumulMode==="avg"?"total":"avg";state.sortBy=null;render();
-            }},state.cumulMode==="avg"?"÷ Par match":"Σ Totaux")
-        ])),
-      state.cumulEventId?h("div",{style:{padding:"0 12px 4px"}},
-        h("button",{className:"pill sm active",style:{background:"#F59E0B"},onclick:function(){
-          state.cumulEventId=null;state.sortBy=null;render();
-        }},"✕ "+cumulScopeLabel(team))):null,
-      h("div",{className:"sess-count"},
-        (state.cumulMode==="avg"?"Moyenne par match sur ":"Cumulé sur ")+plural(used,"match")+
-        (used<team.sessions.length?(" sur "+team.sessions.length):"")+" · "+cumulScopeLabel(team)));
+    /* Nature, période et échelle vivent dans la feuille « Lecture » :
+       elles occupaient trois rangées, soit 123 px, au-dessus d'un
+       tableau qui n'avait plus que 159 px pour lui. Ne reste que la
+       phrase qui dit sur quoi porte le chiffre affiché. */
+    info=h("div",{className:"sess-count"},
+      (state.cumulMode==="avg"?"Moyenne par match sur ":"Cumulé sur ")+plural(used,"match")+
+      (used<team.sessions.length?(" sur "+team.sessions.length):"")+" · "+cumulScopeLabel(team));
   }
 
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
-    modeRow,viewRow,filterBar,info,
+    tete||null,modeRow,viewRow,filterBar,info,
     h("div",{className:"content",style:{overflowX:"auto"},"data-scroll-key":"summary-scroll"},
       h("table",{className:"sum-table"},h("thead",null,thead),h("tbody",null,tbody))),
     totals);
@@ -12121,7 +12714,7 @@ function renderEvalsPane(squad){
       var b=h("button",{className:"pill sm"+(state.evalCampaignId===c.id?" active":""),onclick:function(){
         state.evalCampaignId=c.id;state.expandedPlayerId=null;render();
       }},campaignLabel(c)+" ("+campaignSubs(squad,c.id).length+")");
-      if(state.evalCampaignId===c.id)b.style.background="#F59E0B";
+      if(state.evalCampaignId===c.id)paintOn(b,"#F59E0B");
       return b;
     }),
     h("button",{className:"pill sm"+(state.evalCampaignId==="__all"?" active":""),onclick:function(){
@@ -12261,7 +12854,7 @@ function renderProgressPane(squad,withSubs,wrap){
     var sel=h("select",{className:"txt"},withSubs.map(function(c){return h("option",{value:c.id},campaignLabel(c))}));
     sel.value=state[key];
     sel.addEventListener("change",function(e){state[key]=e.target.value;render()});
-    return h("div",{className:"field"},h("label",null,label),sel);
+    return h("label",{className:"field"},h("span",null,label),sel);
   }
   wrap.appendChild(h("div",{className:"hint"},"Comparaison de deux campagnes, critère par critère. Une joueuse n'apparaît avec un écart que si elle a été évaluée dans les deux."));
   wrap.appendChild(h("div",{className:"grid2"},picker("De","progressFrom"),picker("À","progressTo")));
@@ -12505,8 +13098,14 @@ function renderSessionsPane(squad,opts){
       card.appendChild(h("div",{className:"ev-match"},
         h("button",{className:"score",style:o?{background:OUTCOMES[o].color+"22",color:OUTCOMES[o].color}
                                           :{background:"#0F172A",color:"#94A3B8",border:"1px dashed #334155"},
+          "aria-label":hasResult(se.result)
+            ? "Résultat "+resultLabel(se.result)+" · "+OUTCOMES[o].label+" — modifier"
+            : "Score non saisi — le saisir",
           onclick:function(){state.modalDraft=null;openModal("editresult",se.id)}},
-          hasResult(se.result)?resultLabel(se.result):"—"),
+          /* Le rapport de sets seul, teinté en vert ou en rouge, faisait
+             reposer l'issue sur la couleur. `OUTCOMES[].short` existait
+             depuis toujours et n'était employé nulle part. */
+          hasResult(se.result)?(resultLabel(se.result)+" "+OUTCOMES[o].short):"—"),
         h("div",{className:"grow"},
           h("div",{style:{fontSize:"13px",fontWeight:"600",color:"#E2E8F0"}},matchLabel(ev,se)),
           h("div",{className:"ev-sub"},[se.opponent?"contre "+se.opponent:null,
@@ -12533,7 +13132,7 @@ function renderSelectionTab(){
   var panes=[{k:"views",l:"🎯 Vues ("+season.selectorViews.length+")"},{k:"submissions",l:"📥 Soumissions ("+season.submissions.length+")"}];
   var row=h("div",{className:"pill-row"},panes.map(function(p){
     var b=h("button",{className:"pill"+(state.selectionPane===p.k?" active":""),onclick:function(){state.selectionPane=p.k;render()}},p.l);
-    if(state.selectionPane===p.k)b.style.background="#F59E0B";
+    if(state.selectionPane===p.k)paintOn(b,"#F59E0B");
     return b;
   }));
   var body=state.selectionPane==="submissions"?renderSubmissionsPane(season):renderViewsPane(season);
@@ -12647,7 +13246,7 @@ function renderViewCard(squad,camp,v){
           "🧩 "+plural(v.playerGroups.length,"groupe")):null,
         v.context?h("span",{className:"badge",style:{background:"#0F172A",color:"#94A3B8",borderColor:"#334155"}},v.context):null)),
     h("div",{className:"btn-row"},
-      h("button",{className:"btn btn-ghost xs",onclick:function(){state.editViewId=v.id;state.modalSel=v.playerIds.slice();openModal("editview")}},"✏️"),
+      h("button",{className:"btn btn-ghost xs ico","aria-label":"Modifier la vue "+(v.name||""),onclick:function(){state.editViewId=v.id;state.modalSel=v.playerIds.slice();openModal("editview")}},"✏️"),
       h("button",{className:"btn btn-danger-o xs",onclick:function(){
         confirmAct("Supprimer la vue « "+v.name+" » ?\nLes soumissions déjà reçues sont conservées.",
           function(){
@@ -12708,7 +13307,7 @@ function renderSyncPanel(squad){
       h("div",{style:{fontWeight:"700",color:"#34D399",fontSize:"14px"}},"📡 Synchronisation active"),
       h("div",{className:"muted",style:{marginTop:"3px",wordBreak:"break-all"}},"Salon "+SYNC.room),
       SYNC.lastSyncAt?h("div",{className:"muted",style:{marginTop:"2px"}},"Dernier échange : "+fmtDate(SYNC.lastSyncAt)):null),
-    h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("syncconfig")}},"⚙️")));
+    h("button",{className:"btn btn-ghost xs ico","aria-label":"Réglages du relais",onclick:function(){openModal("syncconfig")}},"⚙️")));
   box.appendChild(h("div",{className:"btn-row",style:{marginTop:"10px"}},
     h("button",{className:"btn btn-save sm",disabled:syncBusy,onclick:function(){pullSubmissions(squad)}},
       syncBusy?"⏳ En cours…":"📥 Relever les soumissions"),
@@ -12931,7 +13530,7 @@ function renderSvViews(){
         h("div",{style:{fontWeight:"700",color:"#34D399",fontSize:"14px"}},"📡 Connecté"),
         h("div",{className:"muted",style:{marginTop:"3px"}},"Salon "+SYNC.room),
         SYNC.lastSyncAt?h("div",{className:"muted",style:{marginTop:"2px"}},"Dernier échange : "+fmtDate(SYNC.lastSyncAt)):null),
-      h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("syncconfig")}},"⚙️")));
+      h("button",{className:"btn btn-ghost xs ico","aria-label":"Réglages du relais",onclick:function(){openModal("syncconfig")}},"⚙️")));
     syncBox.appendChild(h("div",{className:"btn-row",style:{marginTop:"10px"}},
       h("button",{className:"btn btn-save sm",disabled:syncBusy,onclick:pullForSelector},
         syncBusy?"⏳ En cours…":"📥 Récupérer mes vues")));
@@ -13115,8 +13714,8 @@ function renderSvPlayerPanel(src,pid,ordered){
       h("span",{style:{fontSize:src.view.anonymous!==false?"30px":"20px",fontWeight:"800",color:"#FDE68A"}},svDisplay(src,pid)),
       h("span",{className:"muted"},"athlète "+(idx+1)+"/"+ordered.length)),
     h("div",{className:"btn-row"},
-      h("button",{className:"btn btn-ghost xs",disabled:idx<=0,onclick:function(){state.svPlayerId=ordered[idx-1];render()}},"←"),
-      h("button",{className:"btn btn-ghost xs",disabled:idx>=ordered.length-1,onclick:function(){state.svPlayerId=ordered[idx+1];render()}},"→"))));
+      h("button",{className:"btn btn-ghost xs ico","aria-label":"Athlète précédente",disabled:idx<=0,onclick:function(){state.svPlayerId=ordered[idx-1];render()}},"←"),
+      h("button",{className:"btn btn-ghost xs ico","aria-label":"Athlète suivante",disabled:idx>=ordered.length-1,onclick:function(){state.svPlayerId=ordered[idx+1];render()}},"→"))));
 
   /* Critères notés 1–5 */
   var crits=v.criteria.filter(function(k){return CRIT_BY_KEY[k]});
@@ -13150,7 +13749,7 @@ function renderSvPlayerPanel(src,pid,ordered){
     groups.forEach(function(gk){
       var g=SG[gk];
       panel.appendChild(h("div",{className:"qp-group"},
-        h("div",{className:"qp-group-title",style:{background:g.color+"20",color:g.color}},g.name),
+        h("div",{className:"qp-group-title",style:{background:g.color+"20",color:encreFam(g)}},g.name),
         h("div",{className:"qp-stats-row"},g.stats.map(function(s){
           var countSpan=h("span",{className:"count"},String(d.stats[s.key]||0));
           var btn=h("button",{className:"qp-stat-btn",style:{borderColor:g.color,background:g.color+"15",color:"#F8FAFC"},onclick:function(){
@@ -13240,7 +13839,7 @@ function renderSvSubmit(){
     src.kind==="local"?"La soumission est transmise directement à l'entraîneur sur cet appareil."
     :(canUpload?"Vos données seront téléversées vers l'entraîneur."
                :"Vous n'êtes pas connecté au salon : un fichier de soumission sera généré, à transmettre à l'entraîneur.")));
-  wrap.appendChild(h("div",{className:"field"},h("label",null,"Sélectionneur"),nameInp));
+  wrap.appendChild(h("label",{className:"field"},h("span",null,"Sélectionneur"),nameInp));
   wrap.appendChild(h("div",{className:"card tight"},
     h("div",{className:"row-between"},
       h("div",null,h("div",{style:{color:"#F8FAFC",fontWeight:"700"}},v.name),
@@ -13349,13 +13948,30 @@ function closeModal(){state.modalType=null;state.modalCtx=null;state.modalInput=
   if(state.pickMode==="offers"){state.pickMode=null;state.picked=[]}
   render();
   if(!couchesOuvertes())coucheDepiler();}
+/* Le focus ne sort pas d'une couche ouverte. Sans cela, sur un iPad
+   avec clavier, tabuler dans « Enregistrer le match » finissait par
+   piloter l'écran resté DERRIÈRE le voile — sans le voir, puisqu'il est
+   assombri. Mesuré : vingt-sept tabulations suffisaient. */
+var FOCUSABLES='button:not([disabled]),input:not([disabled]),select:not([disabled]),'+
+  'textarea:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])';
+function enfermerFocus(noeud){
+  noeud.addEventListener("keydown",function(e){
+    if(e.key!=="Tab")return;
+    var els=noeud.querySelectorAll(FOCUSABLES);
+    if(!els.length)return;
+    var prem=els[0],der=els[els.length-1],a=document.activeElement;
+    if(e.shiftKey&&(a===prem||!noeud.contains(a))){e.preventDefault();der.focus()}
+    else if(!e.shiftKey&&(a===der||!noeud.contains(a))){e.preventDefault();prem.focus()}
+  });
+  return noeud;
+}
 function modalShell(title,body,buttons,maxWidth){
   return h("div",{className:"modal-bg",
     onclick:function(){fermerAvecGarde(closeModal)}},
-    h("div",{className:"modal",role:"dialog","aria-modal":"true","aria-label":title,
+    enfermerFocus(h("div",{className:"modal",role:"dialog","aria-modal":"true","aria-label":title,
       style:maxWidth?{maxWidth:maxWidth}:null,onclick:function(e){e.stopPropagation()}},
       h("h3",null,title),body,
-      h("div",{style:{display:"flex",gap:"8px",marginTop:"6px",flexWrap:"wrap"}},buttons)));
+      h("div",{style:{display:"flex",gap:"8px",marginTop:"6px",flexWrap:"wrap"}},buttons))));
 }
 /* Le numéro d'une athlète tel qu'il faut le lire pour une campagne : celui
    qu'elle porte aujourd'hui, et celui qu'elle portait alors s'il a changé.
@@ -13400,7 +14016,7 @@ function textField(placeholder,value,onchange,label){
   var inp=h("input",{placeholder:placeholder,value:value||""});
   inp.addEventListener("input",function(e){onchange(e.target.value)});
   inp.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();var b=document.getElementById("modalOk");if(b)b.click()}});
-  return label?h("div",{className:"field"},h("label",null,label),inp):inp;
+  return label?h("label",{className:"field"},h("span",null,label),inp):inp;
 }
 function toggleGrid(items,isOn,onToggle){
   var grid=h("div",{className:"court-toggle-grid"});
@@ -13473,7 +14089,9 @@ function renderBuildTeamModal(){
   var items=retenuesDe(sq);
 
   function score(x){var c=comp[x.entry.playerId];return c?c.score:null}
-  function statutOffre(x){return x.offer?x.offer.status:""}
+  /* "none", jamais "" : la chaîne vide est la clé de l'option « Toutes »
+     dans la feuille de filtres, et une valeur absente s'y confondrait. */
+  function statutOffre(x){return x.offer?x.offer.status:"none"}
 
   /* Remettre en attente : le geste manquant. « Archiver » sortait bien
      une athlète de l'équipe, mais en la disant refusée — ce qu'elle
@@ -13524,7 +14142,8 @@ function renderBuildTeamModal(){
       {key:"decision",label:"Décision",get:function(x){return x.entry.status},
        options:STATUS_ORDER.map(function(k){return {k:k,l:STATUSES[k].label}})},
       {key:"offre",label:"Offre",get:statutOffre,
-       options:OFFER_KEYS.map(function(k){return {k:k,l:OFFER_STATUS[k].label}})}
+       options:[{k:"none",l:"— Aucune"}].concat(
+         OFFER_KEYS.map(function(k){return {k:k,l:OFFER_STATUS[k].label}}))}
     ],
     empty:function(){
       return emptyState({icon:"🎯",title:"Aucune athlète retenue",small:true,
@@ -13710,7 +14329,7 @@ function renderModal(){
     function sf(key,label,ph,attrs){
       var inp=h("input",Object.assign({placeholder:ph,value:d[key]||""},attrs||{}));
       inp.addEventListener("input",function(e){d[key]=e.target.value});
-      return h("div",{className:"field"},h("label",null,label),inp);
+      return h("label",{className:"field"},h("span",null,label),inp);
     }
     var nts=h("textarea",{placeholder:"Objectifs, contexte, remarques…",rows:"2"});
     nts.value=d.notes;
@@ -13721,14 +14340,14 @@ function renderModal(){
       h("div",{className:"grid2"},
         sf("startDate","Début","",{type:"date"}),
         sf("endDate","Fin","",{type:"date"})),
-      h("div",{className:"field"},h("label",null,"Objectifs / notes"),nts));
+      h("label",{className:"field"},h("span",null,"Objectifs / notes"),nts));
 
     if(!s1){
       var cpy=h("select",null,h("option",{value:""},"Partir d'une base vide"),
         DB.seasons.map(function(x){return h("option",{value:x.id},"Reprendre l'effectif de « "+x.name+" »")}));
       cpy.value=d.copyFrom;
       cpy.addEventListener("change",function(e){d.copyFrom=e.target.value});
-      body.appendChild(h("div",{className:"field"},h("label",null,"Effectif de départ"),cpy));
+      body.appendChild(h("label",{className:"field"},h("span",null,"Effectif de départ"),cpy));
       body.appendChild(h("div",{className:"muted"},"Chaque équipe engagée dans la saison choisie retrouve ses convoquées, avec leur numéro et leur poste, au statut « Candidate ». La base de joueuses reste commune au club."));
     }
 
@@ -13815,8 +14434,8 @@ function renderModal(){
     }
     return modalShell(per?"Modifier la personne":"Nouvelle personne",
       h("div",null,
-        h("div",{className:"field"},h("label",null,"Nom"),nInp),
-        per?h("div",{className:"field"},h("label",null,"Compte"),toggleBtn("Révoquée",'revoked')):null,
+        h("label",{className:"field"},h("span",null,"Nom"),nInp),
+        per?h("label",{className:"field"},h("span",null,"Compte"),toggleBtn("Révoquée",'revoked')):null,
         per&&adminClubsOf(per).length
           ?h("div",{className:"muted"},"🛡️ Administratrice de "+adminClubsOf(per).map(function(c){return c.name}).join(", "))
           :null,
@@ -13849,8 +14468,8 @@ function renderModal(){
     rSel.addEventListener("change",function(e){ad.role=e.target.value});
     return modalShell("Affecter "+ap.name,
       h("div",null,
-        h("div",{className:"field"},h("label",null,"Équipe"),tSel),
-        h("div",{className:"field"},h("label",null,"Rôle"),rSel),
+        h("label",{className:"field"},h("span",null,"Équipe"),tSel),
+        h("label",{className:"field"},h("span",null,"Rôle"),rSel),
         h("div",{className:"muted"},"Une personne peut cumuler plusieurs affectations : entraîner une équipe et en évaluer une autre.")),
       [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
         if(!ad.teamId){showToast("⚠️ Choisissez une équipe");return}
@@ -13899,9 +14518,9 @@ function renderModal(){
           h("button",{className:"btn btn-primary sm full",style:{marginTop:"8px"},onclick:function(){
             closeModal();state.tab="adm_sync";render();
           }},"📡 Brancher le relais")):null,
-        adminClubsOf(ip).length?null:(ia.length?h("div",{className:"field"},h("label",null,"Au titre de"),aSel)
+        adminClubsOf(ip).length?null:(ia.length?h("label",{className:"field"},h("span",null,"Au titre de"),aSel)
           :h("div",{className:"hint warn"},"Affectez d'abord cette personne à une équipe.")),
-        syncReady()?h("div",{className:"field"},h("label",null,"Lien personnel"),linkBox,
+        syncReady()?h("label",{className:"field"},h("span",null,"Lien personnel"),linkBox,
           (ip.token&&!lien)?h("div",{className:"muted",style:{marginTop:"5px"}},
             "Le jeton existe mais le lien ne peut pas se composer — réémettez-le."):null):null,
         syncReady()?h("div",{className:"btn-row"},
@@ -13951,9 +14570,9 @@ function renderModal(){
     };
     return modalShell(tRec?"Modifier l'équipe":"Nouvelle équipe",
       h("div",null,
-        h("div",{className:"field"},h("label",null,"Nom"),tnInp),
-        h("div",{className:"field"},h("label",null,"Catégorie"),tcSel),
-        h("div",{className:"field"},h("label",null,"Composition des vues"),fvBtn,
+        h("label",{className:"field"},h("span",null,"Nom"),tnInp),
+        h("label",{className:"field"},h("span",null,"Catégorie"),tcSel),
+        h("label",{className:"field"},h("span",null,"Composition des vues"),fvBtn,
           h("div",{className:"muted",style:{marginTop:"5px"}},
             "En vue libre, l'entraîneur publie le catalogue de l'équipe et chaque sélectionneur choisit les athlètes qu'il observe."))),
       [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
@@ -14038,8 +14657,8 @@ function renderModal(){
     });
     return modalShell("Nouvelle campagne d'évaluation",
       h("div",null,
-        h("div",{className:"field"},h("label",null,"Type"),kSel),
-        h("div",{className:"field"},h("label",null,"Nom"),nameInpC),
+        h("label",{className:"field"},h("span",null,"Type"),kSel),
+        h("label",{className:"field"},h("span",null,"Nom"),nameInpC),
         h("div",{className:"muted"},"Les évaluations d'une campagne ne se mélangent jamais avec celles d'une autre. C'est ce qui permet de comparer la sélection au bilan de fin de saison.")),
       [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
         var n=(state.modalInput||"").trim();
@@ -14082,7 +14701,7 @@ function renderModal(){
         h("div",{className:"muted",style:{marginBottom:"10px"}},
           "Une vue déjà soumise n'est jamais réutilisée telle quelle : ses notes appartiennent à sa campagne. ",
           "On en crée une copie ",h("b",null,"vierge")," dans la campagne choisie, avec les mêmes athlètes et les mêmes critères."),
-        h("div",{className:"field"},h("label",null,"Campagne cible"),tSel),
+        h("label",{className:"field"},h("span",null,"Campagne cible"),tSel),
         others.length<2?h("div",{className:"hint warn"},"Une seule campagne ouverte. Créez-en une nouvelle (🗓️ Saison → Campagnes) pour comparer deux moments."):null),
       [cancel,h("button",{id:"modalOk",className:"btn btn-save full",disabled:!others.length,onclick:function(){
         var cid=state.modalInput2||target;
@@ -14187,7 +14806,7 @@ function renderModal(){
     function cf(key,label,ph){
       var inp=h("input",{placeholder:ph,value:cd[key]||""});
       inp.addEventListener("input",function(e){cd[key]=e.target.value});
-      return h("div",{className:"field"},h("label",null,label),inp);
+      return h("label",{className:"field"},h("span",null,label),inp);
     }
     return modalShell(cl?"Modifier le club":"Nouveau club",
       h("div",null,
@@ -14252,12 +14871,12 @@ function renderModal(){
     }
     return modalShell("Nommer un administrateur",
       h("div",null,
-        h("div",{className:"field"},h("label",null,"Club"),clubSel),
+        h("label",{className:"field"},h("span",null,"Club"),clubSel),
         h("div",{style:{display:"flex",gap:"6px",marginBottom:"10px"}},
           onglet("existing","Quelqu'un de connu"),onglet("new","Une nouvelle personne")),
         ad.mode==="existing"
-          ? h("div",{className:"field"},h("label",null,"Personne"),persSel)
-          : h("div",{className:"field"},h("label",null,"Nom"),nomInp),
+          ? h("label",{className:"field"},h("span",null,"Personne"),persSel)
+          : h("label",{className:"field"},h("span",null,"Nom"),nomInp),
         h("div",{className:"hint"},
           "Un entraîneur peut être administrateur de son club : les deux rôles se cumulent sans se confondre. ",
           "Une personne qui n'entraîne rien le peut tout autant.")),
@@ -14301,7 +14920,7 @@ function renderModal(){
           try{e.target.setSelectionRange(pos,pos)}catch(x){}
         }
       });
-      return h("div",{className:"field"},h("label",null,label),inp);
+      return h("label",{className:"field"},h("span",null,label),inp);
     }
     var gTest=null;
     if(gd.test&&gd.test.ok)gTest=h("div",{className:"okbox"},
@@ -14382,7 +15001,7 @@ function renderModal(){
           try{e.target.setSelectionRange(pos,pos)}catch(x){}
         }
       });
-      return h("div",{className:"field"},h("label",null,label),inp);
+      return h("label",{className:"field"},h("span",null,label),inp);
     }
 
     if(sd.step==="intro"){
@@ -14527,10 +15146,20 @@ function renderModal(){
     var draft=state.modalDraft||(state.modalDraft=p0
       ?{firstName:p0.firstName,lastName:p0.lastName,birth:fmtBirth(p0),notes:p0.notes,number:entry0?entry0.number:""}
       :{firstName:"",lastName:"",birth:"",notes:"",number:""});
-    function fld(key,label,ph,attrs){
+    /* `nettoie` rend visible ce qui sera gardé : le dossard ne retient
+       que les chiffres, et « -5 » devenu 5 en silence faisait ensuite
+       refuser « le numéro 5 », qui ne ressemblait à rien de ce qu'on
+       avait tapé. Le champ corrige donc sous les doigts. */
+    function fld(key,label,ph,attrs,nettoie){
       var inp=h("input",Object.assign({placeholder:ph,value:draft[key]||""},attrs||{}));
-      inp.addEventListener("input",function(e){draft[key]=e.target.value});
-      return h("div",{className:"field"},h("label",null,label),inp);
+      inp.addEventListener("input",function(e){
+        if(nettoie){
+          var v=nettoie(e.target.value);
+          if(v!==e.target.value)e.target.value=v;
+        }
+        draft[key]=e.target.value;
+      });
+      return h("label",{className:"field"},h("span",null,label),inp);
     }
     var notes=h("textarea",{placeholder:"Notes libres…",rows:"2"});
     notes.value=draft.notes||"";
@@ -14569,10 +15198,11 @@ function renderModal(){
     return modalShell(p0?"Fiche joueuse":"Nouvelle joueuse",
       h("div",null,fld("firstName","Prénom","Prénom"),fld("lastName","Nom","Nom de famille"),
         fld("birth","Date de naissance","26/10/2011 — ou 2011",{maxlength:"10"}),
-        (season&&(!p0||entry0))?fld("number","Numéro d'athlète","À saisir",{inputmode:"numeric",maxlength:"3"}):null,
+        (season&&(!p0||entry0))?fld("number","Numéro d'athlète","À saisir",
+          {inputmode:"numeric",maxlength:"3"},cleanNum):null,
         (season&&(!p0||entry0))?h("div",{className:"muted",style:{margin:"-4px 0 10px"}},
           "Vous pouvez le laisser vide et le renseigner plus tard dans le tableau de sélection."):null,
-        h("div",{className:"field"},h("label",null,"Notes"),notes),
+        h("label",{className:"field"},h("span",null,"Notes"),notes),
         p0?h("div",{className:"muted"},"Présente dans "+plural(squadsOf(p0.id).length,"équipe-saison")):null),
       btns);
   }
@@ -14599,6 +15229,24 @@ function renderModal(){
           lues.push(r);
         });
         if(mauvaise){showToast("⚠️ Date illisible : « "+mauvaise+" »",4000);return}
+        /* Le dossard est la seule information que les sélectionneurs
+           reçoivent : deux athlètes qui le partagent rendent chaque
+           relevé ambigu. La fiche unique le refusait depuis toujours ;
+           le lot, lui, les créait en silence — y compris deux fois le
+           même numéro dans la même saisie. */
+        var pris=null,vus={};
+        lues.forEach(function(r){
+          if(pris)return;
+          var num=cleanNum(r.number);
+          if(!num)return;
+          if(vus[num]||(season&&numberTaken(season,num,null)))pris=num;
+          vus[num]=true;
+        });
+        if(pris){
+          showToast("⚠️ Le numéro "+pris+" est déjà pris dans cette saison"+
+            " — aucune ligne n'a été ajoutée",4600);
+          return;
+        }
         lues.forEach(function(r){
           var np=mkDbPlayer({firstName:r.firstName,lastName:r.lastName,
             birthDate:r.birthDate,birthYear:r.birthYear});
@@ -14675,7 +15323,7 @@ function renderModal(){
         state.modalDraft.day=(evc&&evc.date)||todayISO();
         render();
       });
-      body.appendChild(h("div",{className:"field"},h("label",null,"Rattacher à"),evSel));
+      body.appendChild(h("label",{className:"field"},h("span",null,"Rattacher à"),evSel));
     }
 
     if(!sd.eventId){
@@ -14687,9 +15335,9 @@ function renderModal(){
       function f(key,label,ph,attrs){
         var inp=h("input",Object.assign({placeholder:ph,value:sd[key]||""},attrs||{}));
         inp.addEventListener("input",function(e){sd[key]=e.target.value});
-        return h("div",{className:"field"},h("label",null,label),inp);
+        return h("label",{className:"field"},h("span",null,label),inp);
       }
-      body.appendChild(h("div",{className:"field"},h("label",null,"Nature"),kSel));
+      body.appendChild(h("label",{className:"field"},h("span",null,"Nature"),kSel));
       body.appendChild(f("eventName",kindIsMulti(sd.kind)?"Nom du tournoi":"Nom de la rencontre",
         kindIsMulti(sd.kind)?"Ex. Tournoi de Sherbrooke":"Ex. Journée 3"));
       body.appendChild(f("opponent",kindIsMulti(sd.kind)?"Adversaire de ce match":"Adversaire",
@@ -14708,12 +15356,12 @@ function renderModal(){
          se repose même quand la rencontre est déjà ouverte. */
       var advInp=h("input",{placeholder:"Ex. Les Lions",value:sd.opponent||""});
       advInp.addEventListener("input",function(e){sd.opponent=e.target.value});
-      body.appendChild(h("div",{className:"field"},h("label",null,"Adversaire de ce match"),advInp));
+      body.appendChild(h("label",{className:"field"},h("span",null,"Adversaire de ce match"),advInp));
     }
 
     var nomInp=h("input",{placeholder:sd.eventId?"Ex. contre les Aigles":"Laisser vide pour reprendre le nom",value:sd.name});
     nomInp.addEventListener("input",function(e){sd.name=e.target.value});
-    body.appendChild(h("div",{className:"field"},h("label",null,"Ce match"),nomInp));
+    body.appendChild(h("label",{className:"field"},h("span",null,"Ce match"),nomInp));
 
     /* Résultat : les sets, dont l'issue se déduit. */
     var setsWrap=h("div",{className:"sets-row"});
@@ -14787,11 +15435,11 @@ function renderModal(){
     function fe(key,label,ph,attrs){
       var inp=h("input",Object.assign({placeholder:ph,value:ed[key]||""},attrs||{}));
       inp.addEventListener("input",function(e){ed[key]=e.target.value});
-      return h("div",{className:"field"},h("label",null,label),inp);
+      return h("label",{className:"field"},h("span",null,label),inp);
     }
     return modalShell("Modifier la rencontre",
       h("div",null,
-        h("div",{className:"field"},h("label",null,"Nature"),kSel2),
+        h("label",{className:"field"},h("span",null,"Nature"),kSel2),
         fe("name","Nom","Ex. Tournoi de Sherbrooke"),
         fe("opponent","Adversaire","Ex. Les Lions"),
         h("div",{className:"grid2"},fe("day","Date",null,{type:"date"}),fe("location","Lieu","Ex. Laval")),
@@ -14934,21 +15582,21 @@ function renderModal(){
     var body4=h("div",null,
       textField("Ex. Tryouts – groupe A",draft2.name,function(x){draft2.name=x},"Nom de la vue"),
       textField("Nom du sélectionneur (optionnel)",draft2.selectorName,function(x){draft2.selectorName=x},"Sélectionneur"),
-      h("div",{className:"field"},h("label",null,"Campagne"),campSel),
+      h("label",{className:"field"},h("span",null,"Campagne"),campSel),
       textField("Ex. Match vs Lions, 12 nov.",draft2.context,function(x){draft2.context=x},"Contexte (optionnel)"),
-      h("div",{className:"field"},h("label",null,"Anonymat"),anonBtn,
+      h("label",{className:"field"},h("span",null,"Anonymat"),anonBtn,
         h("div",{className:"muted",style:{marginTop:"5px"}},
           "Anonyme en sélection, pour un regard neutre. Nominative pour un bilan de fin de saison, où l'évaluateur connaît déjà l'équipe.")),
-      h("div",{className:"field"},h("label",null,"Athlètes de la vue"),quick,selCount(),
+      h("label",{className:"field"},h("span",null,"Athlètes de la vue"),quick,selCount(),
         toggleGrid(items4,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){toggleSel(it.id)}),
         h("div",{className:"muted",style:{marginTop:"5px"}},
           "Une vue de vingt-huit numéros se saisit par groupes — mais c'est l'évaluateur qui les "+
           "compose, sur son écran : lui seul sait dans quel ordre les vagues passent.")),
-      h("div",{className:"field"},h("label",null,"Critères d'évaluation"),
+      h("label",{className:"field"},h("span",null,"Critères d'évaluation"),
         toggleGrid(CRITERIA.map(function(c){return {id:c.key,label:c.label}}),
           function(it){return draft2.criteria.indexOf(it.id)!==-1},
           function(it){var i=draft2.criteria.indexOf(it.id);if(i!==-1)draft2.criteria.splice(i,1);else draft2.criteria.push(it.id)})),
-      h("div",{className:"field"},h("label",null,"Groupes de statistiques"),
+      h("label",{className:"field"},h("span",null,"Groupes de statistiques"),
         toggleGrid(SG_KEYS.map(function(k){return {id:k,label:SG[k].name}}),
           function(it){return draft2.groups.indexOf(it.id)!==-1},
           function(it){var i=draft2.groups.indexOf(it.id);if(i!==-1)draft2.groups.splice(i,1);else draft2.groups.push(it.id)}),
@@ -15067,7 +15715,7 @@ function renderModal(){
         (vI.playerGroups||[]).length
           ? "🧩 "+plural(vI.playerGroups.length,"groupe")+" partent avec la vue. L'évaluateur pourra les recomposer ; une republication ne touchera pas les siens."
           : "Aucun groupe : l'évaluateur composera les siens sur son écran. Pour les préparer ici, ouvrez la vue avec 🎯 Ouvrir ici."),
-      h("div",{className:"field"},h("label",null,"Qui évalue cette vue ?"),nomInpI),
+      h("label",{className:"field"},h("span",null,"Qui évalue cette vue ?"),nomInpI),
       connus.length?h("div",{className:"muted",style:{margin:"-6px 0 4px"}},"Déjà connus de l'équipe :"):null,
       connus.length?h("div",{className:"sub-pills",style:{marginBottom:"10px"}},
         connus.map(function(p){
@@ -15153,11 +15801,11 @@ function renderModal(){
       h("div",{className:"muted",style:{marginBottom:"8px"}},
         "Découpez d'un geste dans l'ordre des numéros, ou composez vos groupes vous-même : ",
         "choisissez un groupe, puis touchez les numéros à y mettre."),
-      h("div",{className:"field"},h("label",null,"Découper la vue"),decoupe,
+      h("label",{className:"field"},h("span",null,"Découper la vue"),decoupe,
         h("div",{className:"muted"},plural(ordreG.length,"athlète")+" dans cette vue"+
           (dG.groupes.length?(" · "+plural(dG.groupes.length,"groupe")+
             (sansGroupe()?" · "+sansGroupe()+" sans groupe":"")):" · aucun groupe"))),
-      h("div",{className:"field"},h("label",null,"Mes groupes"),rangee));
+      h("label",{className:"field"},h("span",null,"Mes groupes"),rangee));
 
     if(gsel){
       var nomInp=h("input",{placeholder:"Nom du groupe",value:gsel.name,maxlength:"40"});
@@ -15362,8 +16010,52 @@ function saveScrollPos(){
   var els=document.querySelectorAll(".content,.quick-panel,[data-scroll-key]");
   for(var i=0;i<els.length;i++){var k=scrollKeyOf(els[i]);if(k)scrollPositions[k]=els[i].scrollTop}
 }
+/* Replie les explications trop longues, une fois la mise en page faite.
+   On mesure ici, hors du chemin de construction : un `scrollHeight` lu
+   pendant le rendu forcerait un calcul de mise en page par nœud. */
+var hintsOuvertes={};
+function replierHints(){
+  var els=document.querySelectorAll("#app .hint");
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    if(el.dataset&&el.dataset.hintVu)continue;
+    var cle=(el.textContent||"").slice(0,60);
+    /* On replie D'ABORD, puis on regarde si quelque chose dépassait :
+       un bloc non replié n'a par définition aucun débordement à
+       mesurer, et le test naïf ne repliait donc jamais rien. */
+    el.classList.add("repliable","replie");
+    if(el.scrollHeight<=el.clientHeight+2){
+      el.classList.remove("repliable","replie");
+      if(el.dataset)el.dataset.hintVu="1";
+      continue;
+    }
+    if(hintsOuvertes[cle])el.classList.remove("replie");
+    el.setAttribute("role","button");
+    el.setAttribute("tabindex","0");
+    el.setAttribute("aria-expanded",hintsOuvertes[cle]?"true":"false");
+    if(el.dataset)el.dataset.hintVu="1";
+    if(el.dataset)el.dataset.hintCle=cle;
+  }
+}
+function basculerHint(el){
+  var cle=(el.dataset&&el.dataset.hintCle)||(el.textContent||"").slice(0,60);
+  var ouvert=!el.classList.contains("replie");
+  if(ouvert){el.classList.add("replie");delete hintsOuvertes[cle]}
+  else {el.classList.remove("replie");hintsOuvertes[cle]=1}
+  el.setAttribute("aria-expanded",ouvert?"false":"true");
+}
+document.addEventListener("click",function(e){
+  var el=e.target&&e.target.closest&&e.target.closest(".hint.repliable");
+  if(el)basculerHint(el);
+});
+document.addEventListener("keydown",function(e){
+  if(e.key!=="Enter"&&e.key!==" ")return;
+  var el=document.activeElement;
+  if(el&&el.classList&&el.classList.contains("repliable")){e.preventDefault();basculerHint(el)}
+});
 function restoreScrollPos(){
   requestAnimationFrame(function(){
+    replierHints();
     var els=document.querySelectorAll(".content,.quick-panel,[data-scroll-key]");
     for(var i=0;i<els.length;i++){
       var k=scrollKeyOf(els[i]);
@@ -15424,11 +16116,13 @@ function render(){
 
   app.appendChild(renderHeader(title,leftEl,rightEl));
   app.appendChild(renderCtxBar());
+  var cb=renderConflitBanner();
+  if(cb)app.appendChild(cb);
   var sb=renderStorageBanner();
   if(sb)app.appendChild(sb);
   var fb=renderFoundBanner();
   if(fb)app.appendChild(fb);
-  if(isCoachCtx()&&season)app.appendChild(renderSeasonBar());
+  /* La saison a rejoint la barre de contexte : une bande de moins. */
 
   /* Contenu */
   var content;
@@ -15471,7 +16165,7 @@ function render(){
   app.appendChild(renderTabBar());
 
   var modal=renderModal();if(modal)app.appendChild(modal);
-  if(state.toast)app.appendChild(h("div",{className:"toast"},state.toast));
+  var tn=toastNode();if(tn)app.appendChild(tn);
   if(state.updateReady)app.appendChild(h("div",{className:"update-bar"},
     h("span",null,"Une nouvelle version est disponible."),
     h("button",{className:"btn btn-primary xs",onclick:function(e){
@@ -15529,7 +16223,7 @@ function gateField(label,key,ph,type){
     }
   });
   inp.addEventListener("keydown",function(e){if(e.key==="Enter")gateSubmit()});
-  return h("div",{className:"field"},h("label",null,label),inp);
+  return h("label",{className:"field"},h("span",null,label),inp);
 }
 function gateErr(){return h("div",{className:"err"},gate.err||"")}
 
@@ -15575,7 +16269,7 @@ function renderGate(){
              derrière lui le journal d'opérations (chiffré, mais plein de
              la base), l'INBOX, ni surtout le jeton de relais — qui donne
              un accès RÉSEAU vivant à qui reprend l'appareil. */
-          [SK_VAULT,SK_UI,SK,SK_INBOX,SK_OPS,SK_SYNC,SK_DEV]
+          [SK_VAULT,SK_UI,SK,SK_INBOX,SK_OPS,SK_SYNC,SK_DEV,SK_GEN]
             .concat(LEGACY_ALL)
             .forEach(function(k){try{localStorage.removeItem(k)}catch(e){}});
           idbEffacer().then(function(){location.reload()});
@@ -15967,6 +16661,9 @@ function joinWithConfig(cfg){
 /* Sortie de l'écran de garde : on charge, on branche le reste, on rend. */
 function gateFinishOpen(data,already){
   if(!already&&!(gate.loaded&&!data))loadAll(data||null);
+  /* Ce qu'on vient de lire EST le disque : on en adopte le marqueur,
+     sinon la première sauvegarde croirait qu'un autre onglet est passé. */
+  adopterGen();
   gate.loaded=true;
   gate.mode=null;
   bootRest();
@@ -16003,6 +16700,7 @@ function boot(){
   if(enClair&&baseSansPersonne(enClair)&&readShareLink())enClair=null;
   if(enClair){
     loadAll();
+    adopterGen();
     gate.loaded=true;
     /* Une base d'avant les rôles ne contient aucune personne : celui qui
        la migre est son propriétaire, mais il doit se nommer — on ne le
@@ -16180,6 +16878,15 @@ window.addEventListener("hashchange",function(){
    aboutit en mode clair — mais on NE TOUCHE PAS au journal, qui est
    alors la seule chose qui survivra, et que le prochain démarrage
    rejouera. */
+/* Un autre onglet vient d'écrire : on le rattrape tout de suite, sans
+   attendre notre propre sauvegarde. Ce qu'on a en cours n'est pas perdu
+   — la fusion rejoue nos opérations par-dessus ce qu'on relit. */
+window.addEventListener("storage",function(e){
+  if(!e||e.key!==SK_GEN||!e.newValue)return;
+  if(e.newValue===monGen||fusionEnCours)return;
+  if(loadFailed||(gate.mode&&!gate.loaded))return;
+  conflitOnglets();
+});
 window.addEventListener("beforeunload",function(){try{saveAll()}catch(e){}});
 document.addEventListener("visibilitychange",function(){
   if(document.visibilityState==="hidden"){try{saveAll()}catch(e){}}

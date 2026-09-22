@@ -662,6 +662,119 @@ un appareil qui marche n'a rien à gagner à changer — mais il ne se perd
 plus. Mesuré après correction : la même saison de 5,06 Mo s'enregistre en
 171 ms et revient entière.
 
+### K. L'écran mangé par ses propres barres
+
+Mesuré au pixel, sur un téléphone de 375 × 667 — le plus petit visé —
+avec une saison ordinaire : vingt-quatre athlètes, six relevés.
+
+| Écran | Avant | Après |
+|---|---|---|
+| Saison · tableau de bord | 264 px | **163 px** |
+| Sélection · récap | **628 px** | **372 px** |
+| Entraînements | 407 px | **290 px** |
+| Joueuses · base | 619 px | **328 px** |
+| Joueuses · convocation | 381 px | **272 px** |
+| Récapitulatif · cumul | 489 px | **287 px** |
+| Réglages · saisons | 325 px | **216 px** |
+
+*(La colonne « Après » a été mesurée avant la correction des cibles de la
+section M : l'en-tête y a depuis gagné **10 px** — il ne mesurait que
+34 px, et la pastille de rôle qu'il porte ne pouvait donc pas atteindre
+les 44 px de toucher. Chaque valeur ci-dessus est donc à lire +10.)*
+
+628 px sur 667 : sur l'écran Sélection, **94 % de la hauteur était de la
+chrome**, et il restait de quoi afficher UNE ligne de liste. Le détail,
+bande par bande : en-tête 50, barre de contexte 59, barre de saison 59,
+en-tête de partie 73, barre de campagne 62, rangée de volets 61, barre de
+liste **186**. Plus, en bas, la barre d'onglets et la barre d'action.
+
+Ce qui a été fait :
+
+- **la barre de liste passe de quatre rangées à une** — recherche,
+  filtres, tri et compteur s'empilaient ; il reste un champ de recherche,
+  un bouton `⚙︎` portant le **nombre de filtres posés**, et un bouton `⇅`
+  portant le tri courant. Filtres et tris s'ouvrent dans une feuille, où
+  ils ont enfin la place de porter **le chiffre de chaque option** : non
+  pas un comptage brut, mais ce que l'option laisserait passer TOUT LE
+  RESTE étant appliqué — la seule réponse à la question qu'on se pose en
+  la regardant. Une option qui ne laisserait rien passer est désactivée
+  plutôt que menteuse ;
+- **les deux barres de contexte n'en font plus qu'une** : l'équipe et la
+  saison tiennent sur une ligne, et l'en-tête ne répète plus le rôle ;
+- **l'en-tête de partie et la barre de campagne** tenaient chacun sur
+  deux lignes empilées ; chacun tient sur une ;
+- **les explications se replient à deux lignes** et se déplient d'un
+  geste. Elles sont précieuses la première fois, pas la deux centième ;
+- **le récapitulatif** empilait cinq rangées de sélecteurs — poste,
+  famille, nature, période, échelle — soit 180 px au-dessus d'un tableau
+  qui n'avait plus que 159 px. Une seule commande les remplace, qui dit
+  en clair ce qu'on regarde.
+
+Deux garde-fous posés en chemin, parce que la compression peut trop bien
+réussir : le retour d'une partie **redit où il mène** (« ‹ Saison », et
+non une flèche muette), et les deux gestes secondaires de la base de
+joueuses, réduits à leur signe, **gardent un nom accessible explicite** —
+que les suites vérifient désormais en les visant par ce nom.
+
+### L. Ce qu'un audit d'ergonomie mesuré a trouvé
+
+Quarante et un écrans, neuf modales et deux feuilles, mesurés au pixel à
+375 × 667, puis repassés à 320, 768, 1024 et 188 px (zoom 200 %).
+
+**Contrastes.** La palette de texte tient partout (9,3 à 17,9:1). Ce qui
+ne tenait pas, ce sont les teintes MÉTIER employées comme encre :
+
+| | mesuré | seuil |
+|---|---|---|
+| blanc sur l'ambre de la pilule active | **2,15** | 4,5 |
+| « passes » #8B5CF6 sur ardoise | **3,45** | 4,5 |
+| « attaques » #EF4444 sur ardoise | **3,89** | 4,5 |
+| « services » #3B82F6 sur ardoise | **3,98** | 4,5 |
+| jeton rouge « ⛔ Non retenue » | **4,37** | 4,5 |
+
+Corrigé : les sept familles portent désormais une **encre** distincte de
+leur teinte — `color` peint les fonds, les bords et les jauges, `ink`
+écrit — et toutes passent au-dessus de 5,2 ; la pilule active passe par
+`paintOn()`, qui existait déjà pour cela et était appelé partout ailleurs
+(2,15 → 8,72) ; le voile des jetons descend de 13 % à 8 %, ce qui les
+fait tous passer sans en dégrader aucun.
+
+**Cibles tactiles.** Le plancher de 44 px était écrit, et tenu partout
+où il était écrit. Il ne l'était pas là où cela comptait le plus :
+
+| contrôle | mesuré | risque |
+|---|---|---|
+| `−` de la saisie grille | **23 × 20 px** | à 2 px du `+1`, et à **11 px du `+1` de l'athlète suivante** |
+| `−` de la saisie rapide | **23 × 44** | sous un bouton de 70, collé à lui |
+| crayon de sous-équipe | **19 × 14** | **0 px** d'écart avec le chip |
+| filtre de poste (`L`, `S`) | **25 et 26 px** | 3 à 5 px entre six cibles |
+| `🗑️`, `✏️`, `↩` | 36 à 41 px de large | voisins d'actions irréversibles |
+| badge de rôle, bouton « qui suis-je » | 23 px de haut, 36 de large | présents sur **tous** les écrans |
+
+Le premier est le plus grave : corriger un compteur mal tapé est le geste
+le plus courant au bord d'un terrain, et une visée basse l'inscrivait chez
+la mauvaise athlète, sans toast et sans nom. Tous corrigés — le dessin ne
+grossit pas, c'est la zone de toucher qui s'étend, comme le faisait déjà
+`.pick-box`.
+
+**Accessibilité.** Dix-neuf champs de formulaire sur vingt et un
+n'avaient **aucun nom accessible** : le `<label>` n'avait ni `for`, ni
+n'englobait son champ. VoiceOver annonçait « champ de texte ». Corrigé
+dans le patron partagé — le `<label>` englobe désormais, ce qui le nomme
+*et* agrandit sa cible. Les modales n'enfermaient pas le focus : vingt-sept
+tabulations suffisaient à se retrouver à piloter l'écran resté derrière le
+voile, sans le voir. La barre « Terrain » — le premier geste de chaque
+match — était un `<div onclick>`, inatteignable au clavier. L'issue d'un
+match ne tenait qu'à la couleur du score, alors que `OUTCOMES[].short`
+existait depuis toujours sans être employé nulle part.
+
+**Ce qui était déjà bon, et vérifié comme tel** : aucun débordement
+horizontal sur 41 écrans, à 320 comme à 1024 ; `prefers-reduced-motion`
+complet — zéro animation résiduelle ; l'information ne repose jamais sur
+la couleur seule pour les huit familles de jetons métier, qui portent
+tous glyphe *et* mot ; les champs à 16 px, donc pas de zoom iOS ; soixante
+pas d'annulation couvrant compteurs et bornes de set.
+
 ### I. Vérification
 
 Deux suites sont nées de cet audit. `tests/sauvegarde.js` — quinze
@@ -671,3 +784,135 @@ plus : une saison de deux cent soixante relevés qui revient entière.
 `tests/ventilation.js` — onze contrôles sur le report d'une feuille de
 match après coup, tous articulés autour d'un seul invariant : le total
 du match ne bouge jamais d'un compteur.
+
+### M. Ce qu'une exploration au navigateur a trouvé, écran par écran
+
+Les sections précédentes lisaient le code, mesuraient des pixels et
+rejouaient des scénarios écrits d'avance. Ce dernier passage a fait
+l'inverse : ouvrir l'application dans un vrai Chromium et **toucher
+chaque bouton de chaque écran** — dix-neuf écrans entraîneur, treize
+onglets pour les trois autres rôles, trois tailles d'écran, entrées
+hostiles, hors ligne. Compteur d'erreurs JavaScript sur toute la
+campagne : **zéro**. Aucun des neuf défauts trouvés ne lève d'exception.
+C'est précisément ce qui les rendait invisibles.
+
+**1. Deux onglets, et le dernier qui écrit gagnait.** Le plus lourd.
+Chaque onglet tient la base entière en mémoire et la réécrit **en
+entier** — à chaque bascule d'onglet, à chaque fermeture. Deux onglets
+ouverts sur le même club, une fiche créée dans l'un, un aller-retour, et
+elle n'existait plus. Ni message, ni ligne au journal. Aucun écouteur
+`storage`, aucun jeton de version : rien ne comparait ce qu'on allait
+écrire à ce qui était sur le disque — alors que la sauvegarde GitHub,
+elle, refuse depuis toujours d'écraser un dépôt modifié ailleurs.
+
+La correction ne fusionne pas, et c'est délibéré : la plupart des
+écritures de l'application touchent `DB` directement, sans passer par le
+journal d'opérations, qu'un rejeu ne saurait donc pas reconstituer. Un
+marqueur en clair (un identifiant d'onglet et un compteur, rien d'autre)
+est posé à chaque sauvegarde réussie. Un onglet qui ne le reconnaît plus
+sait qu'un autre est passé, et il y a alors deux cas :
+
+- il n'a **rien modifié** depuis sa dernière écriture — c'est le cas
+  courant, un onglet laissé ouvert : il relit le disque et se remet à
+  jour tout seul, sans un mot ;
+- il porte du **travail non enregistré** : les deux versions divergent et
+  aucune ne peut être choisie sans perdre l'autre. Il cesse d'écrire —
+  mieux vaut ne rien faire que défaire — garde son journal de secours,
+  affiche « Non sauvegardé », et pose la question à l'écran avec les deux
+  issues et ce que chacune coûte.
+
+**2. Le chiffre de « Toutes » comptait deux fois les lignes sans
+valeur.** La clé `""` servait à la fois de total et de seau pour les
+valeurs absentes : sur vingt athlètes dont quinze sans offre, la feuille
+annonçait `Toutes = 35` au-dessus d'un bouton qui disait « Voir les
+résultats (20) ». Les trois filtres dont le `get` pouvait rendre `""`
+n'offraient de surcroît **aucune option pour isoler les lignes sans
+valeur** : elles ont désormais la leur — « — Sans poste », « — Aucune ».
+
+**3. Un chiffre qui ignorait la période déjà posée.** Dans « Ce qu'on
+regarde », « 🏆 Champ. = 4 » suivi d'un tableau « cumulé sur 3 matchs ».
+Le groupe *Poste* respectait pourtant la règle. Nature et période se
+comptent maintenant l'une l'autre, comme `listFacettes` l'exige.
+
+**4. Une recherche infructueuse était un cul-de-sac.** Ni croix
+d'effacement, ni ligne « 0 sur 20 · Tout effacer », alors que les deux
+existent dans le code : l'écouteur de frappe ne repeignait pas la barre
+(pour ne pas perdre le focus, ce qui est juste) et rien ne rattrapait les
+deux éléments qui en dépendent. Preuve que ce n'était pas un choix :
+ouvrir puis refermer la feuille de filtres les faisait paraître. Les
+états vides sur mesure — « Aucune athlète » — n'offraient eux non plus
+aucune sortie ; ils en portent une dès qu'une recherche ou un filtre est
+en cause.
+
+**5. Taper détruisait « Tout effacer ».** `textContent` posé sur la
+rangée entière du compteur remplaçait ses deux enfants par du texte.
+
+**6. Le « Annuler » des bandeaux n'était jamais offert.** `showToast`
+construisait bien le bouton, puis le `render()` de l'appelant vidait
+`#app` et réinstallait un bandeau nu — texte seul, ton perdu.
+**Douze appelants** dans ce cas, tous des actions destructrices :
+remise en attente, suppression d'un match, d'une soumission, retrait de
+saison, retrait d'une convocation, réinitialisation. Le filet existait,
+`undoStack` était bien rempli — il n'était simplement plus atteignable.
+
+**7. L'ajout en lot créait des dossards en double.** La fiche unique les
+refuse depuis toujours ; le lot en créait deux d'un coup, en silence, y
+compris deux fois le même numéro dans la même saisie — alors que le
+dossard est *la seule information transmise aux sélectionneurs*. Le
+contrôle a lieu à la lecture, avant la moindre écriture. Accessoirement,
+le champ numéro ne gardait que les chiffres sans le dire : `-5` devenait
+5, et le refus parlait alors d'un « numéro 5 » qu'on n'avait pas tapé ;
+il corrige désormais sous les doigts.
+
+**8. Supprimer une fiche laissait une offre qui la désignait.** Garder
+les offres tranchées a un sens pour un *retrait de saison* : elles ont eu
+lieu, elles sont datées. Pas quand la fiche elle-même est détruite —
+l'offre survivante désignait alors un identifiant que `playerById` ne
+résout plus, et se faisait compter parmi les pertes d'une campagne
+supprimée plus tard.
+
+**9. Deux cibles sous 44 px, sur tous les écrans et pour tous les
+rôles.** La pastille de rôle (80 × 23) et le bouton « qui suis-je »
+(36 × 44) : la règle `.ctx-bar button::after` censée agrandir leur zone
+n'avait ni dimensions ni `inset` — elle était sans effet depuis sa
+création. Un clic 6 px sous la pastille n'ouvrait rien. Et dans la
+feuille des campagnes, `🗑️` mesurait 41 px de large.
+
+**Un écran orphelin.** Rien dans l'application ne posait plus
+`state.tab = "summary"` : le tableau détaillé — athlètes × compteurs,
+triable, par match ou cumulé, avec la barre « Ce qu'on regarde » — n'était
+plus atteignable que par un état d'interface relu au démarrage. Une
+installation mise à jour y retombait, une installation neuve n'y accédait
+jamais. Il a de nouveau sa porte, depuis « Récap global », et un retour
+qui ramène d'où l'on vient.
+
+**Une exception assumée.** Le volet « 👥 Athlètes → 📋 Convoquées » reste
+le seul écran de liste sans barre de liste — ni recherche, ni tri, ni
+filtre — alors qu'il porte l'effectif entier. C'est cohérent avec le
+glisser-déposer qu'il propose : l'ordre y est l'information, et une liste
+filtrée qu'on réordonne ne veut rien dire. Le trou dans la promesse
+« toute liste passe par `listToolbar` » est donc conservé, mais il est
+désormais écrit.
+
+**Ce qui a tenu.** Fermetures et focus des feuilles (Échap, fond, retour
+système, couches empilées) ; chiffres exacts sur cinq listes, option par
+option, comparés au nombre de lignes rendues ; explications repliables au
+clavier ; les quatre refus de la phrase de passe et le cycle verrouiller
+/ déverrouiller ; la ventilation après coup, dont le total n'a pas bougé
+d'un compteur sous `-4`, `999`, `1e9`, `abc` ; les dates impossibles
+(`31/02/2010`, `01/01/1800`) toutes refusées ; 500 caractères, balises et
+emoji acceptés sans injection — le DOM est construit par
+`createTextNode`, aucun `innerHTML` ne reçoit de donnée utilisateur ;
+hors ligne, les six écrans se rendent et le rechargement est servi par le
+service worker ; aucun débordement de page à 375, 768 et 1024, et la
+barre du bas ne masque jamais la dernière ligne.
+
+### N. Vérification de ce dernier passage
+
+`tests/onglets.js` — onze contrôles, dont **dix échouent** sur la version
+d'avant. Les quatre premiers ouvrent réellement deux pages sur le même
+`localStorage` et vérifient, en rechargeant depuis une troisième, ce qui
+est vraiment sur le disque : que l'onglet resté ouvert rattrape le
+travail de l'autre, qu'aucun des deux ne l'efface en cas de divergence,
+que le journal de secours survit, et qu'un choix explicite — et lui seul
+— écrit par-dessus.

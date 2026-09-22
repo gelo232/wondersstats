@@ -707,6 +707,41 @@ désormais sa feuille de match compteur par compteur, dans un tableau où le res
 se déduit tout seul — rien ne s'additionne, on **déplace** ce qui est déjà
 compté, et le total du match ne peut pas bouger.
 
+**Lisible au soleil, touchable avec des gants.** Un audit mesuré au pixel
+sur quarante et un écrans a trouvé du blanc sur ambre à **2,15:1** là où
+il en faut 4,5 — la pilule de vue active, illisible sous une visière — et
+quatre des sept couleurs de famille employées comme encre sur fond
+sombre, entre 3,45 et 4,15. Elles ont désormais une encre distincte de
+leur teinte. Côté doigts : le « − » qui corrige un compteur mal tapé
+faisait **23 × 20 pixels**, à 2 px du « +1 » et à **11 px du « +1 » de
+l'athlète suivante** — une visée basse s'inscrivait chez la mauvaise
+joueuse, sans un mot. Le crayon d'une sous-équipe faisait 19 × 14 px,
+collé à son libellé. Le filtre de poste offrait six cibles de 25 à 43 px
+séparées de 3. Tout cela respecte maintenant le plancher de 44 px que
+l'application s'était donné — le dessin n'a pas grossi, c'est la zone de
+toucher qui s'est étendue.
+
+**Et ce que l'application ne disait pas à voix haute.** Dix-neuf champs
+de formulaire sur vingt et un n'avaient aucun nom lisible par une
+synthèse vocale. Les fenêtres ne retenaient pas le focus : au clavier
+d'un iPad, on finissait par piloter l'écran resté derrière le voile, sans
+le voir. La barre « Terrain » — le premier geste de chaque match —
+n'était pas atteignable au clavier. Et l'issue d'un match ne tenait qu'à
+la couleur de son score.
+
+**L'écran rendu au contenu.** Mesuré sur un téléphone de 375 × 667 :
+l'écran Sélection consacrait **628 pixels sur 667** à ses propres barres —
+94 % de la hauteur — et il restait de quoi afficher une ligne de liste.
+La barre de recherche, les filtres, les tris et le compteur occupaient
+quatre rangées à eux seuls ; deux barres de contexte redisaient ce que
+l'en-tête affichait déjà ; le récapitulatif empilait cinq rangées de
+réglages au-dessus de son tableau. Tout cela tient maintenant sur une
+ligne chacun, et les filtres comme les tris s'ouvrent dans une feuille —
+où **chaque option porte son chiffre** : combien d'athlètes elle laissera
+passer, compte tenu de tout le reste. Une option qui n'en laisserait
+aucune est grisée plutôt que de promettre une liste vide. Selon les
+écrans, le contenu gagne de 30 à 47 % de hauteur.
+
 **Une saison entière tient de nouveau sur l'appareil.** C'est le défaut
 le plus lourd, et il ne se voyait qu'à l'échelle réelle : deux équipes,
 soixante-dix athlètes, deux cent soixante relevés font 5 Mo de données —
@@ -765,6 +800,46 @@ se pose n'importe où, et un formulaire à moitié rempli disparaissait sans un 
 **Et la remise en attente d'une offre**, à l'unité ou pour vingt athlètes d'un
 seul geste : « Archiver » sortait bien une athlète de l'équipe, mais en la disant
 *refusée*, ce qu'elle n'est pas quand on veut seulement lui reposer la question.
+
+**Deux onglets ne s'effacent plus l'un l'autre.** Chaque fenêtre tient la
+base entière en mémoire et la réécrit en entier dès qu'elle passe en
+arrière-plan : il suffisait donc de basculer d'un onglet à l'autre pour que
+celui qu'on quitte écrase le travail de celui qu'on rejoint. Une fiche créée
+à gauche, un aller-retour, et elle n'existait plus — sans un message, sans
+une ligne au journal. Désormais, une fenêtre qui n'a rien modifié se remet
+à jour toute seule quand l'autre enregistre ; et si les deux ont du travail
+que l'autre n'a pas, aucune n'écrit : l'application le dit à l'écran, avec
+les deux issues possibles et ce que chacune coûte. Mieux vaut poser la
+question que défaire.
+
+**Les chiffres des filtres disent enfin ce que la liste rendra.** L'option
+« Toutes » comptait deux fois les lignes sans valeur — 35 annoncés pour
+20 lignes rendues — et les filtres dont la valeur peut manquer n'offraient
+aucun moyen d'isoler ces lignes : ils ont maintenant leur « — Sans poste »,
+leur « — Aucune ». Dans « Ce qu'on regarde », le chiffre d'une nature
+ignorait la période déjà posée.
+
+**Une recherche infructueuse n'était plus un cul-de-sac.** Ni croix pour
+l'effacer, ni ligne « 0 sur 20 · Tout effacer », et les écrans vides sur
+mesure n'offraient aucune sortie : il fallait vider le champ à la main.
+Taper une lettre détruisait au passage le bouton « Tout effacer » du
+compteur.
+
+**Le « Annuler » des bandeaux est enfin offert.** Douze actions
+destructrices — remise en attente, suppression d'un match, d'une
+soumission, retrait d'une convocation, réinitialisation — annonçaient un
+bandeau avec son bouton d'annulation, aussitôt détruit par le rafraîchis-
+sement qui suivait. Le filet existait et était bien armé ; il n'était
+simplement plus atteignable.
+
+**Un dossard ne peut plus être porté deux fois.** L'ajout en lot créait les
+doublons que la fiche unique refuse depuis toujours — alors que le numéro
+est la seule information transmise aux sélectionneurs. Et supprimer une
+fiche ne laisse plus derrière elle une offre qui la désigne.
+
+**Le tableau détaillé a retrouvé sa porte** : athlètes × compteurs, triable,
+par match ou cumulé. Plus rien n'y menait — on y accède depuis « Récap
+global », et « ← Récap » ramène d'où l'on vient.
 
 ---
 

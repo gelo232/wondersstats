@@ -5,7 +5,8 @@
    soit EXACTEMENT celui que rendent les parties dont il sort. Un récap
    qui dérive de son détail est un récap qui ment. */
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde}=require("./gate-helper");
+const {sansRacine,franchirGarde,ouvrirFiltres,ouvrirTris,choisirOption,
+       fermerFeuilleListe,texteFeuilleListe,toutEffacerFeuille}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -189,14 +190,22 @@ const ERRORS=[];let PASS=0;
     /* Le libellé de recherche vit dans un placeholder, pas dans le texte. */
     const ph=await page.getAttribute(".searchBar input","placeholder");
     if(!ph||!/Rechercher/.test(ph))throw new Error("pas de champ de recherche : "+ph);
-    const sb=await page.textContent(".sortBar").catch(()=>"");
-    for(const s of ["Numéro","Nom","Âge","Résultat"])
-      if(sb&&!sb.includes(s))throw new Error("tri absent : "+s);
-    await page.locator(".fb-head").first().click();
-    await page.waitForTimeout(200);
-    const f=await page.textContent(".fb-body");
+    /* Le bouton de tri ne paraît qu'au-delà de onze entrées : au-dessous
+       on voit toute la liste, et trier ne sert à rien. Cette liste-ci
+       n'en a que quatre — on ne l'exige donc pas, mais s'il est là il
+       doit porter les quatre ordres. */
+    if(await page.locator(".lt-tri").count()){
+      await ouvrirTris(page);
+      const sb=await texteFeuilleListe(page);
+      for(const s of ["Numéro","Nom","Âge","Résultat"])
+        if(!sb.includes(s))throw new Error("tri absent : "+s);
+      await fermerFeuilleListe(page);
+    }
+    await ouvrirFiltres(page);
+    const f=await texteFeuilleListe(page);
     for(const g of ["Décision","Offre","Effectif"])
       if(!f.includes(g))throw new Error("filtre absent : "+g);
+    await fermerFeuilleListe(page);
   });
   await step("filtrer par statut d'offre réduit la liste au bon compte",async()=>{
     const attendu=await page.evaluate(()=>{
@@ -204,12 +213,29 @@ const ERRORS=[];let PASS=0;
       (sq.roster||[]).forEach(function(e){if(offerStatusOf(sq,e.playerId)==="pending")n++});
       return n;
     });
-    await page.locator(".fb-body button").filter({hasText:"En attente"}).first().click();
-    await page.waitForTimeout(300);
+    await ouvrirFiltres(page);
+    /* Le chiffre porté par l'option DOIT être ce que la liste rendra :
+       une pastille qui promet un compte et en donne un autre est pire
+       que pas de chiffre du tout. */
+    const opt=page.locator(".modal.listsheet .ls-opt").filter({hasText:"En attente"}).first();
+    const promis=+(await opt.locator(".ls-n").textContent());
+    if(promis!==attendu)
+      throw new Error("le chiffre du filtre annonce "+promis+" pour "+attendu);
+    if(!attendu){
+      /* Aucune offre en attente : l'option est désactivée plutôt que de
+         promettre une liste vide. */
+      if(!(await opt.getAttribute("disabled"))!==false&&await opt.isEnabled())
+        throw new Error("une option à zéro devrait être désactivée");
+      await fermerFeuilleListe(page);
+      return;
+    }
+    await choisirOption(page,"En attente");
+    await fermerFeuilleListe(page);
     const n=await page.locator(".listRow").count();
     if(n!==attendu)throw new Error("lignes="+n+" pour "+attendu+" offre(s) en attente");
-    await page.locator(".fb-reset").first().click();
-    await page.waitForTimeout(250);
+    await ouvrirFiltres(page);
+    await toutEffacerFeuille(page);
+    await fermerFeuilleListe(page);
   });
   await step("la fiche d'une athlète réunit les cinq parties",async()=>{
     await page.locator(".listRow .body").first().click();

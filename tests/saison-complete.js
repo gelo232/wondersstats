@@ -9,7 +9,8 @@
    Elle démarre sur une application NON VIERGE : une saison précédente
    avec ses données est déjà là, et rien de ce qui suit ne doit y toucher. */
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde,accepterDialogue,accepterSiDialogue}=require("./gate-helper");
+const {sansRacine,franchirGarde,accepterDialogue,accepterSiDialogue,
+       ouvrirTris,choisirOption,fermerFeuilleListe}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const SHOTS=process.env.SHOT_DIR||"";
@@ -1029,8 +1030,8 @@ const ERRORS=[];let PASS=0;
     if(n<10)throw new Error("athlètes listées="+n);
     await pasDeDebordement("Récap → athlètes");
     /* Le tri par résultat doit vraiment ranger. */
-    await page.locator(".sortBtn").filter({hasText:"Résultat"}).first().click();
-    await page.waitForTimeout(400);
+    await ouvrirTris(page);await choisirOption(page,"Résultat");await fermerFeuilleListe(page);
+    await page.waitForTimeout(200);
     const vals=await page.evaluate(()=>
       Array.prototype.slice.call(document.querySelectorAll(".listRow .trail"))
         .map(function(e){return parseInt(e.textContent,10)}).filter(function(x){return !isNaN(x)}));

@@ -137,7 +137,7 @@ async function serveRelay(route,request){
     await coach.page.waitForTimeout(200);
     const lignes=[];
     for(let i=1;i<=28;i++)lignes.push("Athlète"+i+" Test"+i+" "+(2010+(i%3))+" "+i);
-    await coach.page.locator("button").filter({hasText:"Ajout en lot"}).first().click();
+    await coach.page.locator('button[aria-label="Ajout en lot"]').first().click();
     await coach.page.waitForTimeout(200);
     await coach.page.locator(".modal textarea").fill(lignes.join("\n"));
     await coach.page.locator("#modalOk").click();await coach.page.waitForTimeout(400);

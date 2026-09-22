@@ -6,7 +6,8 @@
    saison se décide, et le seul endroit d'où une athlète entre dans
    l'effectif ou en sort. */
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde,accepterDialogue}=require("./gate-helper");
+const {sansRacine,franchirGarde,accepterDialogue,ouvrirFiltres,ouvrirTris,
+       choisirOption,fermerFeuilleListe,texteFeuilleListe,toutEffacerFeuille}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -129,21 +130,26 @@ const ERRORS=[];let PASS=0;
   await step("on peut filtrer par décision et par statut d'offre",async()=>{
     /* Deux groupes de filtres : la barre se replie, pour ne pas manger
        un tiers de l'écran d'un téléphone. On l'ouvre. */
-    await page.locator(".modal .fb-head").first().click();
-    await page.waitForTimeout(200);
-    const t=await page.textContent(".modal .fb-body");
+    await ouvrirFiltres(page,".modal");
+    const t=await texteFeuilleListe(page);
     if(!/Offre/.test(t))throw new Error("filtre d'offre absent");
     if(!/Décision/.test(t))throw new Error("filtre de décision absent");
     for(const o of ["En attente","Acceptée","Refusée"])
       if(!t.includes(o))throw new Error("statut d'offre absent du filtre : "+o);
+    await fermerFeuilleListe(page);
   });
   await step("filtrer par offre réduit bien la liste",async()=>{
-    await page.locator(".modal .fb-body button").filter({hasText:"En attente"}).first().click();
-    await page.waitForTimeout(250);
+    await ouvrirFiltres(page,".modal");
+    const promis=await page.locator(".modal.listsheet .ls-opt")
+      .filter({hasText:"En attente"}).first().locator(".ls-n").textContent();
+    await choisirOption(page,"En attente");
+    await fermerFeuilleListe(page);
     const n=await page.locator(".bt-row").count();
     if(n!==3)throw new Error("en attente="+n);
-    await page.locator(".modal .fb-reset").first().click();
-    await page.waitForTimeout(250);
+    if(+promis!==3)throw new Error("le chiffre du filtre annonce "+promis+" pour 3");
+    await ouvrirFiltres(page,".modal");
+    await toutEffacerFeuille(page);
+    await fermerFeuilleListe(page);
   });
   await step("la recherche réduit la liste",async()=>{
     await page.fill(".modal input[type=search]","sofia");
@@ -273,19 +279,19 @@ const ERRORS=[];let PASS=0;
     await ouvrirPartie("Sélection");
     await page.locator("button").filter({hasText:"Constituer l'équipe"}).first().click();
     await page.waitForTimeout(350);
-    const t=await page.textContent(".modal .sortBar");
+    await ouvrirTris(page,".modal");
+    const t=await texteFeuilleListe(page);
     for(const s of ["Numéro","Nom","Âge","Résultat"])
       if(!t.includes(s))throw new Error("tri absent : "+s);
+    await fermerFeuilleListe(page);
   });
   await step("trier par numéro range vraiment, et le sens s'inverse",async()=>{
     const nums=async()=>await page.evaluate(()=>
       Array.prototype.slice.call(document.querySelectorAll(".modal .bt-row .lead"))
         .map(function(e){return e.textContent}).slice(0,4).join(","));
-    await page.locator(".modal .sortBtn").filter({hasText:"Numéro"}).first().click();
-    await page.waitForTimeout(250);
+    await ouvrirTris(page,".modal");await choisirOption(page,"Numéro");await fermerFeuilleListe(page);
     const croissant=await nums();
-    await page.locator(".modal .sortBtn").filter({hasText:"Numéro"}).first().click();
-    await page.waitForTimeout(250);
+    await ouvrirTris(page,".modal");await choisirOption(page,"Numéro");await fermerFeuilleListe(page);
     const decroissant=await nums();
     if(croissant===decroissant)throw new Error("le sens ne s'inverse pas : "+croissant);
     const a=croissant.split(",").map(Number);
@@ -293,8 +299,7 @@ const ERRORS=[];let PASS=0;
       if(a[i]<a[i-1])throw new Error("ordre croissant faux : "+croissant);
   });
   await step("trier par âge range du plus jeune au plus vieux",async()=>{
-    await page.locator(".modal .sortBtn").filter({hasText:"Âge"}).first().click();
-    await page.waitForTimeout(250);
+    await ouvrirTris(page,".modal");await choisirOption(page,"Âge");await fermerFeuilleListe(page);
     const ages=await page.evaluate(()=>
       Array.prototype.slice.call(document.querySelectorAll(".modal .bt-row"))
         .map(function(e){var m=/(\d+) ans/.exec(e.textContent);return m?+m[1]:null})
@@ -323,16 +328,10 @@ const ERRORS=[];let PASS=0;
   /* La barre de filtres est repliée par défaut dès qu'il y a deux groupes :
      on l'ouvre. Son absence est une ERREUR, pas un saut — sans cela un
      écran qui aurait perdu sa barre passerait le contrôle en silence. */
-  const ouvrirFiltres=async()=>{
-    const t=await page.locator(".listToolbar .fb-head").count();
-    if(!t)throw new Error("aucune barre de filtres sur cette liste");
-    const ouvert=await page.locator(".listToolbar .fb-head").first()
-      .getAttribute("aria-expanded");
-    if(ouvert!=="true"){
-      await page.locator(".listToolbar .fb-head").first().click();
-      await page.waitForTimeout(250);
-    }
-  };
+  /* La feuille des filtres. Son absence est une ERREUR, pas un saut :
+     sans cela un écran qui aurait perdu ses filtres passerait le
+     contrôle en silence. */
+  const ouvrirFiltresIci=async()=>{await ouvrirFiltres(page,".listToolbar")};
 
   say("\n── Chaque campagne porte son propre déroulement");
   await fermerFeuille();
@@ -449,17 +448,20 @@ const ERRORS=[];let PASS=0;
         " (une athlète déjà dans l'équipe n'a rien à réaccepter)");
   });
   await step("la liste porte les deux filtres et les quatre tris",async()=>{
-    await ouvrirFiltres();
+    await ouvrirFiltresIci();
     /* textContent, et non innerText : le libellé d'un groupe est en
        capitales par CSS, et innerText rendrait « DÉCISION ». */
-    const f=await page.textContent(".listToolbar .fb-body");
+    const f=await texteFeuilleListe(page);
     if(!/Décision/.test(f))throw new Error("filtre de décision absent");
     if(!/Offre/.test(f))throw new Error("filtre d'offre absent");
     for(const o of ["En attente","Acceptée","Refusée"])
       if(!f.includes(o))throw new Error("statut d'offre absent du filtre : "+o);
-    const s=await page.locator(".listToolbar .sortBar").first().innerText();
+    await fermerFeuilleListe(page);
+    await ouvrirTris(page,".listToolbar");
+    const s=await texteFeuilleListe(page);
     for(const k of ["Numéro","Nom","Âge","Résultat"])
       if(!s.includes(k))throw new Error("tri absent : "+k);
+    await fermerFeuilleListe(page);
   });
   await step("filtrer par statut d'offre ne garde que celles qui l'ont",async()=>{
     const attendu=await page.evaluate(()=>{
@@ -475,45 +477,50 @@ const ERRORS=[];let PASS=0;
       throw new Error("le montage n'a pas d'offre en attente ET d'offre acceptée : "+
         JSON.stringify(attendu));
     for(const [cle,libelle] of [["pending","En attente"],["accepted","Acceptée"]]){
-      await ouvrirFiltres();
-      await page.locator(".listToolbar .fb-body button").filter({hasText:libelle})
-        .first().click();
-      await page.waitForTimeout(300);
+      await ouvrirFiltresIci();
+      /* Le chiffre porté par l'option DOIT être ce que la liste rendra :
+         une pastille qui promet un compte et en donne un autre est pire
+         que pas de chiffre du tout. */
+      const promis=await page.locator(".modal.listsheet .ls-opt")
+        .filter({hasText:libelle}).first().locator(".ls-n").textContent();
+      await choisirOption(page,libelle);
+      await fermerFeuilleListe(page);
       const n=await page.locator(".content .listRow").count();
       if(n!==attendu[cle])
         throw new Error("filtre « "+libelle+" » : "+n+" ligne(s) pour "+attendu[cle]+" attendue(s)");
+      if(+promis!==attendu[cle])
+        throw new Error("le chiffre de « "+libelle+" » annonce "+promis+" pour "+attendu[cle]);
       if(n>=attendu.total)
         throw new Error("filtre « "+libelle+" » ne réduit rien : "+n+"/"+attendu.total);
-      await page.locator(".listToolbar .fb-reset").first().click();
-      await page.waitForTimeout(300);
+      await ouvrirFiltresIci();
+      await toutEffacerFeuille(page);
+      await fermerFeuilleListe(page);
     }
   });
   await step("filtrer par décision « À trancher » écarte les trois tranchées",async()=>{
     /* Pas de « Tout effacer » ici : le bouton ne paraît que si un filtre
        est actif, et l'étape précédente a rendu la liste entière. */
     const total=await page.locator(".content .listRow").count();
-    await ouvrirFiltres();
-    await page.locator(".listToolbar .fb-body button").filter({hasText:"À trancher"})
-      .first().click();
-    await page.waitForTimeout(300);
+    await ouvrirFiltresIci();
+    await choisirOption(page,"À trancher");
+    await fermerFeuilleListe(page);
     const n=await page.locator(".content .listRow").count();
     if(n!==total-3)throw new Error("à trancher="+n+" sur "+total);
-    await page.locator(".listToolbar .fb-reset").first().click();
-    await page.waitForTimeout(300);
+    await ouvrirFiltresIci();
+    await toutEffacerFeuille(page);
+    await fermerFeuilleListe(page);
   });
   await step("trier par numéro range vraiment, et le sens s'inverse",async()=>{
     const nums=async()=>await page.evaluate(()=>
       Array.prototype.slice.call(document.querySelectorAll(".content .listRow .lead"))
         .map(function(e){return e.value!=null&&e.value!==""?e.value:e.textContent})
         .slice(0,5).join(","));
-    await page.locator(".listToolbar .sortBtn").filter({hasText:"Numéro"}).first().click();
-    await page.waitForTimeout(300);
+    await ouvrirTris(page,".listToolbar");await choisirOption(page,"Numéro");await fermerFeuilleListe(page);
     const croissant=await nums();
     const a=croissant.split(",").map(Number);
     for(let i=1;i<a.length;i++)
       if(a[i]<a[i-1])throw new Error("ordre croissant faux : "+croissant);
-    await page.locator(".listToolbar .sortBtn").filter({hasText:"Numéro"}).first().click();
-    await page.waitForTimeout(300);
+    await ouvrirTris(page,".listToolbar");await choisirOption(page,"Numéro");await fermerFeuilleListe(page);
     if(await nums()===croissant)throw new Error("le sens ne s'inverse pas : "+croissant);
   });
   await step("retirer une convocation en lot ne touche que cette campagne",async()=>{

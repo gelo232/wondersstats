@@ -164,7 +164,78 @@ async function repondreDialogue(page, valeur) {
   await page.waitForTimeout(200);
 }
 
+/* ─── La barre de liste, depuis la v7.2 ───────────────────────────────
+   Elle occupait quatre rangées — recherche, filtres, tri, compteur —
+   soit 186 px mesurés sur un écran de 667, et sur l'écran Sélection le
+   contenu ne commençait qu'à 628 px du haut. Filtres et tris vivent
+   maintenant dans une feuille, où ils ont la place de porter leur
+   chiffre. Les suites la pilotent par ces trois gestes. */
+async function ouvrirFiltres(page, racine) {
+  const r = racine || "";
+  const b = page.locator(r + " .lt-btn").filter({ hasText: "⚙︎" });
+  if (!(await b.count())) throw new Error("aucun bouton de filtres sur cette liste");
+  await b.first().click();
+  await page.waitForSelector(".modal.listsheet", { timeout: 4000 });
+  await page.waitForTimeout(150);
+}
+async function ouvrirTris(page, racine) {
+  const r = racine || "";
+  const b = page.locator(r + " .lt-tri");
+  if (!(await b.count())) throw new Error("aucun bouton de tri sur cette liste");
+  await b.first().click();
+  await page.waitForSelector(".modal.listsheet", { timeout: 4000 });
+  await page.waitForTimeout(150);
+}
+/* Choisit une option dans la feuille ouverte, sans la refermer : c'est
+   ce qui permet d'en enchaîner deux (inverser un sens, par exemple). */
+async function choisirOption(page, libelle) {
+  /* La feuille défile : une option du bas doit être amenée sous les
+     yeux avant d'être touchée, sinon le clic retombe sur celle qui
+     occupait la place. Et on écarte les options désactivées — celles
+     qui ne laisseraient passer aucune entrée. */
+  const o = page.locator(".modal.listsheet .ls-opt:not([disabled])")
+    .filter({ hasText: libelle }).first();
+  if (!(await o.count())) {
+    const dispo = await page.locator(".modal.listsheet .ls-opt")
+      .allTextContents().catch(() => []);
+    throw new Error("option « " + libelle + " » absente ou vide — options : " +
+      dispo.map((t) => t.trim()).join(" | "));
+  }
+  await o.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(80);
+  /* Clic natif plutôt que clic par coordonnées : la feuille défile, et
+     Playwright vise parfois la place qu'occupait une autre option avant
+     le défilement. On a déjà vérifié que le bouton existe et qu'il
+     n'est pas désactivé — c'est ce qui compte. */
+  await o.evaluate((el) => el.click());
+  await page.waitForTimeout(250);
+}
+async function fermerFeuilleListe(page) {
+  const b = page.locator(".modal.listsheet .m-foot .btn-primary").first();
+  if (!(await b.count())) throw new Error("la feuille n'a pas de bouton de fermeture");
+  await b.evaluate((el) => el.click());
+  await page.waitForSelector(".modal.listsheet", { state: "detached", timeout: 4000 });
+  await page.waitForTimeout(250);
+}
+/* « Tout effacer », dans le pied de la feuille. Clic natif pour la même
+   raison que choisirOption : la feuille défile sous le pointeur. */
+async function toutEffacerFeuille(page) {
+  const b = page.locator(".modal.listsheet .m-foot .btn-ghost")
+    .filter({ hasText: "Tout effacer" }).first();
+  if (!(await b.count())) throw new Error("la feuille n'offre pas « Tout effacer »");
+  await b.evaluate((el) => el.click());
+  await page.waitForTimeout(200);
+}
+
+/* Le texte de la feuille — ce que les suites lisaient sur .sortBar ou
+   .fb-body avant qu'elles n'existent plus. */
+async function texteFeuilleListe(page) {
+  return page.textContent(".modal.listsheet .m-body");
+}
+
 module.exports = { PASS, sansRacine, franchirGarde, ouvrirClub, installerClubParDefaut,
+  ouvrirFiltres, ouvrirTris, choisirOption, fermerFeuilleListe, texteFeuilleListe,
+  toutEffacerFeuille,
   deverrouiller, rechargerEtOuvrir,
   dialogueOuvert, texteDialogue, accepterDialogue, accepterSiDialogue,
   refuserDialogue, repondreDialogue };

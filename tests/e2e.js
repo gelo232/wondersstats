@@ -1,5 +1,5 @@
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde,accepterSiDialogue}=require("./gate-helper");
+const {ouvrirTris,choisirOption,fermerFeuilleListe,sansRacine,franchirGarde,accepterSiDialogue}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -45,6 +45,13 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   const step=async(name,fn)=>{try{await fn();PASS++;say("  ✓ "+name)}catch(e){say("  ✗ "+name+" → "+e.message);ERRORS.push(name+": "+e.message)}};
   const tab=async t=>{await page.locator(".tab-btn").filter({hasText:t}).first().click();await page.waitForTimeout(150)};
   const btn=async t=>{await page.locator("button").filter({hasText:t}).first().click();await page.waitForTimeout(150)};
+  /* Un bouton à icône n'a pas de texte : on le vise par son nom
+     accessible, ce qui vérifie du même coup qu'il en porte un. */
+  const btnNomme=async t=>{
+    const b=page.locator('button[aria-label="'+t+'"]');
+    if(!await b.count())throw new Error("aucun bouton nommé « "+t+" »");
+    await b.first().click();await page.waitForTimeout(150);
+  };
   const dom=async()=>await page.innerHTML("#app");
   /* v7 : la barre du bas porte trois axes ; les six parties de la saison
      s'ouvrent depuis le tableau de bord de l'onglet Saison. */
@@ -80,7 +87,7 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
   });
   await step("ajout en lot : nom, naissance et numéro sur la même ligne",async()=>{
     await tab("Athlètes");
-    await btn("Ajout en lot");
+    await btnNomme("Ajout en lot");
     /* Trois formes sur cinq lignes : date complète, année seule, rien.
        Le dossard reste le nombre de fin de ligne. */
     await page.locator(".modal textarea").fill(
@@ -129,15 +136,13 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     /* Zoé 04/03/2011, Léa 26/10/2011, Sofia l'année seule : le jour
        départage, et l'année seule se range après les dates de son année.
        Alice, sans naissance, ferme la marche. */
-    await page.locator(".sortBtn").filter({hasText:"Âge"}).first().click();
-    await page.waitForTimeout(200);
+    await ouvrirTris(page);await choisirOption(page,"Âge");await fermerFeuilleListe(page);
     const vieilles=await noms();
     if(vieilles!=="Zoé,Léa,Sofia,Maya,Alice")throw new Error("plus âgées d'abord : "+vieilles);
     /* Second clic : le sens s'inverse — mais ni la fiche sans date ni
        celle qui n'a que l'année ne remontent, on ne leur invente pas un
        jour de naissance. */
-    await page.locator(".sortBtn").filter({hasText:"Âge"}).first().click();
-    await page.waitForTimeout(200);
+    await ouvrirTris(page);await choisirOption(page,"Âge");await fermerFeuilleListe(page);
     const jeunes=await noms();
     if(jeunes!=="Maya,Léa,Zoé,Sofia,Alice")throw new Error("plus jeunes d'abord : "+jeunes);
     const sens=await page.evaluate(()=>state.lists["db-players"].dir);
