@@ -628,8 +628,46 @@ rempli disparaissait sans un mot.
 retour système referment la couche du dessus ; le fond demande
 confirmation quand un brouillon a été saisi.
 
+### J. Une saison entière ne tenait plus sur l'appareil
+
+Le défaut le plus lourd de tous, et le seul qui ne se voyait qu'à
+l'échelle réelle. `localStorage` n'accepte que des chaînes, compte son
+quota en UTF-16, et s'arrête vers 5 Mo. Le bloc chiffré doit donc passer
+par base64, qui l'enfle d'un tiers.
+
+Mesuré sur une saison de club — deux équipes, soixante-dix athlètes,
+deux cent soixante relevés :
+
+| | |
+|---|---|
+| base sérialisée | 5,06 Mo |
+| coffre après base64 | ~6,7 M caractères |
+| quota consommé (UTF-16) | ~13 Mo |
+| `localStorage.setItem` | **QuotaExceededError** |
+| après rechargement | **0 athlète, 0 relevé** |
+
+L'écriture échouait, et la saison entière disparaissait au rechargement
+suivant. Deux aggravations : la bannière « l'espace se remplit » mesurait
+ce qui est **sur le disque**, donc se taisait précisément au moment où
+l'écriture échouait ; et `b64()` concaténait caractère par caractère —
+365 ms par sauvegarde sur un portable, 2 274 ms sur un vieil iPad, soit
+77 % du coût total, pour une fonction de trois lignes.
+
+**Corrigé.** `b64()` travaille par tranches de 32 Ko — sortie identique,
+octet pour octet, neuf fois et demie plus vite. La bannière mesure ce
+qu'il **faut écrire**, et devient un avertissement bloquant quand
+l'écriture a échoué. Et le coffre bascule sur **IndexedDB** dès que
+`localStorage` refuse : tant qu'il tient, il reste où il a toujours été —
+un appareil qui marche n'a rien à gagner à changer — mais il ne se perd
+plus. Mesuré après correction : la même saison de 5,06 Mo s'enregistre en
+171 ms et revient entière.
+
 ### I. Vérification
 
-La suite `tests/sauvegarde.js` est née de cet audit : douze contrôles sur
-le cycle sauvegarder → restaurer → annuler, dont neuf **échouent** sur la
-version d'avant. C'est la mesure de ce qui a été corrigé.
+Deux suites sont nées de cet audit. `tests/sauvegarde.js` — quinze
+contrôles sur le cycle sauvegarder → restaurer → annuler, dont **douze
+échouent** sur la version d'avant, le dernier étant celui qui compte le
+plus : une saison de deux cent soixante relevés qui revient entière.
+`tests/ventilation.js` — onze contrôles sur le report d'une feuille de
+match après coup, tous articulés autour d'un seul invariant : le total
+du match ne bouge jamais d'un compteur.

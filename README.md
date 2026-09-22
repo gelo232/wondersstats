@@ -707,6 +707,17 @@ désormais sa feuille de match compteur par compteur, dans un tableau où le res
 se déduit tout seul — rien ne s'additionne, on **déplace** ce qui est déjà
 compté, et le total du match ne peut pas bouger.
 
+**Une saison entière tient de nouveau sur l'appareil.** C'est le défaut
+le plus lourd, et il ne se voyait qu'à l'échelle réelle : deux équipes,
+soixante-dix athlètes, deux cent soixante relevés font 5 Mo de données —
+et plus de 13 Mo une fois chiffrées et encodées, là où un navigateur en
+accorde 5. L'écriture échouait, et **la saison disparaissait au
+rechargement suivant**. Le coffre bascule désormais sur une autre réserve
+du navigateur dès que la première refuse ; tant qu'elle suffit, rien ne
+change. Et l'avertissement « l'espace se remplit » mesurait ce qui est
+déjà sur le disque — il se taisait donc au moment précis où l'écriture ne
+passait plus.
+
 **Ce que les objectifs disaient de travers.** Un recul était déclaré pour une
 athlète parfaitement stable, au seul motif qu'elle est sous la médiane de son
 équipe : la médiane sert à fixer la cible, elle ne peut pas servir de référence

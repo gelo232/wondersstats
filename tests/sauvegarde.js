@@ -245,6 +245,68 @@ const ERRORS=[];let PASS=0;
     if(!trouve)throw new Error("la fiche enregistrée a disparu au rechargement");
   });
 
+  say("\n── Une saison entière, et le plafond de localStorage");
+  const D=await ouvrir("Diane");
+  await step("une base ordinaire reste dans localStorage",async()=>{
+    const r=await D.evaluate(()=>({idb:!!boxIDB,
+      local:!!localStorage.getItem("wonderstats_vault_v1")}));
+    if(r.idb)throw new Error("une petite base a basculé sans raison");
+    if(!r.local)throw new Error("rien dans localStorage");
+  });
+  await step("⚑ une saison qui dépasse le quota bascule au lieu d'échouer",async()=>{
+    /* Deux équipes, soixante-dix athlètes, deux cent soixante relevés :
+       l'échelle d'un vrai club. Sérialisée puis passée en base64, elle
+       fait plus de onze mégaoctets de quota — localStorage s'arrête vers
+       cinq, et l'écriture échouait purement et simplement : la saison
+       entière était perdue au rechargement suivant. */
+    await D.evaluate(()=>{
+      const s=curSeason();
+      ["U18","U16"].forEach((nom,ti)=>{
+        const t=mkTeamRecord({name:nom,clubId:DB.clubs[0].id});
+        DB.teams.push(t);
+        const sq=ensureSquad(t.id,s.id),pids=[];
+        for(let i=1;i<=35;i++){
+          const p=mkDbPlayer({firstName:"A"+ti+"_"+i,lastName:"T",birthYear:2009});
+          DB.players.push(p);pids.push(p.id);
+          sq.roster.push(mkRosterEntry(p.id,String(i),"OH"));
+          sq.playerIds.push(p.id);
+        }
+        const st=()=>normStats({srv_ace:3,srv_in:20,srv_err:2,rec_in:18,rec_out:5,rec_err:3,
+          pas_att:12,pas_out:3,atk_kill:9,atk_ok:14,atk_err:4,blk_kill:2,blk_solo:1,
+          blk_aid:3,blk_err:1,def_ok:11,def_out:4,sup_in:6,sup_err:2,
+          hab_ctrl:5,hab_appel:4,hab_couv:3,hab_free:2});
+        for(let j=1;j<=190;j++){
+          const ev=mkEvent({kind:"training",name:"S"+j,day:todayISO()});
+          sq.events.push(ev);
+          sq.sessions.unshift({id:uid(),name:"S"+j,date:nowISO(),day:todayISO(),
+            opponent:"",eventId:ev.id,teamName:t.name,result:mkResult(),
+            entries:pids.map((pid,i)=>({playerId:pid,name:fullName(playerById(pid)),
+              number:String(i+1),position:"OH",stats:st()})),
+            sets:[],splitAt:null});
+        }
+      });
+    });
+    const r=await D.evaluate(async()=>{
+      const p=saveNow();
+      let err=null;
+      try{if(p&&p.then)await p}catch(e){err=String(e&&e.message||e)}
+      return {err,echoue:saveFailed,idb:!!boxIDB,
+        octets:JSON.stringify(DB).length,
+        local:!!localStorage.getItem("wonderstats_vault_v1")};
+    });
+    if(r.octets<4.5e6)throw new Error("la base de test est trop petite : "+r.octets);
+    if(r.echoue||r.err)throw new Error("la sauvegarde a échoué : "+(r.err||"saveFailed"));
+    if(!r.idb)throw new Error("elle n'a pas basculé sur IndexedDB");
+    if(r.local)throw new Error("la copie périmée de localStorage n'a pas été retirée");
+  });
+  await step("et elle revient entière au rechargement",async()=>{
+    await rechargerEtOuvrir(D,900);
+    const r=await D.evaluate(()=>({joueuses:DB.players.length,
+      releves:DB.squads.reduce((n,s)=>n+(s.sessions||[]).length,0)}));
+    if(r.joueuses<70)throw new Error("joueuses="+r.joueuses);
+    if(r.releves!==380)throw new Error("relevés="+r.releves+" (attendu 380)");
+  });
+
   say("\n── Une base illisible n'est jamais écrasée par une base vide");
   const C=await ouvrir("Carl");
   await step("⚑ loadAll qui échoue interdit toute écriture",async()=>{

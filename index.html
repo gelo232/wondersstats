@@ -2151,8 +2151,89 @@ function vaultDecryptWithKey(box){
   return Promise.resolve(subtle().decrypt({name:"AES-GCM",iv:unb64(box.iv)},VAULT.key,unb64(box.ct)))
     .then(function(plain){return JSON.parse(new TextDecoder().decode(plain))});
 }
+/* ── Où dort le coffre ──────────────────────────────────────────────
+   `localStorage` n'accepte que des chaînes, compte son quota en UTF-16,
+   et s'arrête vers 5 Mo. Le bloc chiffré doit donc passer par base64,
+   qui l'enfle d'un tiers. Mesuré sur une saison RÉELLE — deux équipes,
+   soixante-dix athlètes, cent cinquante-huit relevés, sept campagnes —
+   cela fait 5,5 millions de caractères, soit 11 Mo de quota pour 4,3 Mo
+   de données : l'écriture ÉCHOUE, et l'application ne peut tout
+   simplement pas enregistrer une saison complète.
+
+   IndexedDB n'a pas ce plafond. On ne bascule pas tout le monde pour
+   autant : tant que le coffre tient dans `localStorage`, il y reste —
+   c'est l'emplacement historique, lu sans attendre, et un appareil qui
+   marche n'a rien à gagner à changer. Dès qu'il déborde, IndexedDB
+   prend le relais et la clé locale est retirée. La lecture regarde les
+   deux, l'ancienne d'abord. */
+var IDB_NOM="wonderstats", IDB_TABLE="coffre", IDB_CLE="vault";
+var idbHS=false, boxIDB=null, boxIDBLu=false;
+
+function idbOuvrir(){
+  return new Promise(function(ok,ko){
+    if(idbHS||typeof indexedDB==="undefined"||!indexedDB){
+      ko(new Error("IndexedDB indisponible"));return;
+    }
+    var r;
+    try{r=indexedDB.open(IDB_NOM,1)}catch(e){idbHS=true;ko(e);return}
+    r.onupgradeneeded=function(){
+      try{r.result.createObjectStore(IDB_TABLE)}catch(e){}
+    };
+    r.onsuccess=function(){ok(r.result)};
+    r.onerror=function(){idbHS=true;ko(r.error||new Error("IndexedDB"))};
+    r.onblocked=function(){ko(new Error("IndexedDB bloquée"))};
+  });
+}
+function idbTx(mode,fn){
+  return idbOuvrir().then(function(db){
+    return new Promise(function(ok,ko){
+      var tx,st;
+      try{tx=db.transaction(IDB_TABLE,mode);st=tx.objectStore(IDB_TABLE)}
+      catch(e){db.close();ko(e);return}
+      var res;
+      var dem=fn(st);
+      if(dem)dem.onsuccess=function(){res=dem.result};
+      tx.oncomplete=function(){db.close();ok(res)};
+      tx.onerror=function(){db.close();ko(tx.error||new Error("IndexedDB"))};
+      tx.onabort=function(){db.close();ko(tx.error||new Error("IndexedDB"))};
+    });
+  });
+}
+function idbLire(){return idbTx("readonly",function(st){return st.get(IDB_CLE)})}
+function idbEcrire(box){return idbTx("readwrite",function(st){st.put(box,IDB_CLE);return null})}
+function idbEffacer(){return idbTx("readwrite",function(st){st.delete(IDB_CLE);return null})
+  .catch(function(){})}
+
+/* Appelée AVANT boot : l'écran de garde a besoin de savoir s'il existe
+   un coffre, et cette question ne peut plus se répondre sans attendre
+   quand le coffre est passé dans IndexedDB. */
+function precharger(){
+  return idbLire().then(function(b){
+    boxIDB=(b&&b.ct)?b:null;boxIDBLu=true;
+  }).catch(function(){boxIDB=null;boxIDBLu=true});
+}
 function readVaultBox(){
-  try{var d=localStorage.getItem(SK_VAULT);return d?JSON.parse(d):null}catch(e){return null}
+  try{var d=localStorage.getItem(SK_VAULT);if(d)return JSON.parse(d)}catch(e){}
+  return boxIDB;
+}
+/* Écrire : localStorage tant qu'il accepte, IndexedDB dès qu'il refuse.
+   Le basculement est définitif pour cette base — repasser en arrière
+   échouerait au même endroit. */
+function ecrireCoffre(box){
+  var txt;
+  try{txt=JSON.stringify(box)}catch(e){return Promise.reject(e)}
+  if(!boxIDB){
+    try{
+      localStorage.setItem(SK_VAULT,txt);
+      boxIDB=null;
+      return Promise.resolve();
+    }catch(e){ /* quota dépassé : on passe à IndexedDB */ }
+  }
+  return idbEcrire(box).then(function(){
+    boxIDB=box;
+    /* La copie locale est périmée et occupe la place qui manque. */
+    try{localStorage.removeItem(SK_VAULT)}catch(e){}
+  });
 }
 function vaultExists(){return !!readVaultBox()}
 
@@ -2166,7 +2247,8 @@ function vaultCreate(pass,hint,who,payload){
       VAULT.meta={kdf:{salt:b64(salt),iter:iter,hash:"SHA-256"},hint:hint||"",who:who||""};
       VAULT.unlocked=true;VAULT.noCrypto=false;
       return vaultEncrypt(payload).then(function(box){
-        localStorage.setItem(SK_VAULT,JSON.stringify(box));
+        return ecrireCoffre(box).then(function(){return box});
+      }).then(function(box){
         /* La copie en clair n'a plus lieu d'être — et « la copie », ce
            n'est pas seulement `wonderstats_v3`. L'INBOX d'un
            sélectionneur porte ses vues et ses commentaires libres sur
@@ -2593,7 +2675,8 @@ function queueVaultWrite(){
   vaultWriting=true;
   var ok=false;
   vaultDone=vaultEncrypt({db:DB,inbox:INBOX,secrets:SECRETS}).then(function(box){
-    localStorage.setItem(SK_VAULT,JSON.stringify(box));
+    return ecrireCoffre(box);
+  }).then(function(){
     saveFailed=false;ok=true;
   }).catch(function(){
     if(!saveFailed){saveFailed=true;showToast("⚠️ Sauvegarde impossible")}
@@ -4311,16 +4394,6 @@ function setCampaignDecision(sq,campaignId,pid,reco,who){
     snapshotSquad(sq);
     var e=ensureCampaignRosterEntry(sq,campaignId,pid,who);
     if(e.decision===(reco||""))return;         // idempotent
-    /* Écarter une athlète dont l'offre a été ACCEPTÉE ne pouvait rien
-       faire : `derivedStatus` rend « retenue » dès qu'une offre acceptée
-       vit, et l'écran laissait croire qu'on avait tranché. Le chemin
-       `setRosterStatus` traitait déjà le cas ; celui-ci l'ignorait. Les
-       deux mutateurs ne peuvent pas diverger sur une décision. */
-    if(reco&&reco!=="select"){
-      var acc=currentOffer(sq,pid);
-      if(acc&&acc.status==="accepted"&&offerIsLive(acc))
-        declineOffer(sq,acc.id,who||null);
-    }
     /* Le journal dit la transition, pas l'état d'arrivée seul : « Candidate
        → Retenue » se relit six mois plus tard, « Retenue » ne dit rien. Le
        numéro est celui du jour des faits — logWho s'en charge. */
@@ -4330,6 +4403,22 @@ function setCampaignDecision(sq,campaignId,pid,reco,who){
       decidedAt:reco?nowISO():null,decidedBy:reco?(who||null):null},sq);
     if(reco==="select")ensureOffer(sq,campaignId,pid);
     else voidPendingOffer(sq,campaignId,pid);
+    /* Écarter une athlète dont l'offre a été ACCEPTÉE ne faisait rien :
+       `derivedStatus` rend « retenue » tant qu'une offre acceptée vit, et
+       l'écran laissait croire qu'on avait tranché. C'est ICI que le cas
+       se traite, pour que les deux chemins de décision ne divergent pas.
+
+       L'archivage est fait SANS journal, et sa ligne est écrite plus
+       bas : le journal doit se lire dans l'ordre des faits — on a écarté
+       l'athlète, DONC son offre a été archivée, et non l'inverse. */
+    var archivee=false;
+    if(reco&&reco!=="select"){
+      var acc=currentOffer(sq,pid);
+      if(acc&&acc.status==="accepted"&&offerIsLive(acc)){
+        declineOffer(sq,acc.id,who||null,{silencieux:true});
+        archivee=true;
+      }
+    }
     recomputeRosterStatus(sq,pid);
     var apres=(rosterEntry(sq,pid)||{}).status||"candidate",c=campaignById(sq,campaignId);
     if(avant!==apres||reco)logAct("status",
@@ -4337,6 +4426,11 @@ function setCampaignDecision(sq,campaignId,pid,reco,who){
       (c?" · "+campaignLabel(c):"")+
       (reco==="select"?" · offre envoyée":""),
       {teamId:sq.teamId,seasonId:sq.seasonId,playerId:pid});
+    if(archivee){
+      var pp=playerById(pid);
+      logAct("roster",(pp?fullName(pp):"Athlète")+" — offre archivée",
+        {teamId:sq.teamId,seasonId:sq.seasonId,playerId:pid});
+    }
   },"Décision de sélection");
 }
 
@@ -4395,7 +4489,7 @@ function acceptOffer(sq,offerId,who){
 /* « Archiver » : l'offre est refusée. L'athlète sort de l'équipe, mais
    ni sa fiche, ni ses statistiques, ni ses matchs ne sont touchés — elle
    a joué, cela reste vrai. */
-function declineOffer(sq,offerId,who){
+function declineOffer(sq,offerId,who,opts){
   Store.tx(function(){
     var o=offerById(sq,offerId);
     /* En attente ou déjà acceptée : dans les deux cas archiver la sort de
@@ -4411,9 +4505,11 @@ function declineOffer(sq,offerId,who){
       st.playerIds=(st.playerIds||[]).filter(function(x){return x!==pid});
     });
     recomputeRosterStatus(sq,pid);
-    var p=playerById(pid);
-    logAct("roster",(p?fullName(p):"Athlète")+" — offre archivée",
-      {teamId:sq.teamId,seasonId:sq.seasonId});
+    if(!(opts&&opts.silencieux)){
+      var p=playerById(pid);
+      logAct("roster",(p?fullName(p):"Athlète")+" — offre archivée",
+        {teamId:sq.teamId,seasonId:sq.seasonId,playerId:pid});
+    }
   },"Offre archivée");
 }
 /* Rouvrir une offre tranchée : le seul moyen de défaire une acceptation,
@@ -6069,6 +6165,9 @@ function tailleAEcrire(){
   try{return Math.round(JSON.stringify(DB).length*1.34)}catch(e){return 0}
 }
 function taillePertinente(){return Math.max(tailleStockage(),tailleAEcrire())}
+/* Le coffre a-t-il dû quitter localStorage ? Alors le plafond des 5 Mo
+   ne s'applique plus, et l'avertissement n'a plus lieu d'être. */
+function coffreAuLarge(){return !!boxIDB}
 function tailleLisible(n){
   if(n<1024)return n+" o";
   if(n<1024*1024)return Math.round(n/1024)+" Ko";
@@ -6076,6 +6175,8 @@ function tailleLisible(n){
 }
 function renderStorageBanner(){
   if(storageMasque&&!saveFailed)return null;
+  /* Passé dans IndexedDB, l'espace n'est plus la question. */
+  if(coffreAuLarge()&&!saveFailed)return null;
   var n=taillePertinente();
   if(n<STORAGE_SEUIL&&!saveFailed)return null;
   return h("div",{className:"card tight",role:"status",
@@ -9979,11 +10080,11 @@ function setRosterStatus(squad,entry,status,campaignId){
   var cid=campaignId&&campaignById(squad,campaignId)?campaignId:squad.activeCampaignId;
   setCampaignDecision(squad,cid,pid,STATUS_TO_RECO[status]||"",state.meId||null);
   if(status!=="selected"){
-    /* Écarter quelqu'un qui avait accepté demande d'archiver son offre :
-       c'est le seul chemin qui la sorte de l'équipe, et il est tracé. */
+    /* L'archivage d'une offre acceptée est fait par setCampaignDecision,
+       qui est le point unique de la décision. Il reste à sortir de
+       l'effectif celles qui n'avaient pas d'offre à archiver. */
     var o=currentOffer(squad,pid);
-    if(o&&o.status==="accepted")declineOffer(squad,o.id,state.meId||null);
-    else detachFromTeam(squad,pid);
+    if(!(o&&o.status==="accepted"))detachFromTeam(squad,pid);
   }
   scheduleAutoSave();
 }
@@ -15477,7 +15578,7 @@ function renderGate(){
           [SK_VAULT,SK_UI,SK,SK_INBOX,SK_OPS,SK_SYNC,SK_DEV]
             .concat(LEGACY_ALL)
             .forEach(function(k){try{localStorage.removeItem(k)}catch(e){}});
-          location.reload();
+          idbEffacer().then(function(){location.reload()});
         }});
     }},"Phrase oubliée — repartir de zéro"));
     app.appendChild(wrap);return;
@@ -15886,7 +15987,7 @@ loadSync();
    un coffre est là et il faut la phrase ; des données sont là en clair
    et il faut proposer de les protéger ; rien n'est là et il faut
    savoir qui s'inscrit. Aucun ne donne l'administration d'office. */
-loadRoot().then(boot);
+loadRoot().then(precharger).then(boot);
 
 function boot(){
   var box=readVaultBox();
