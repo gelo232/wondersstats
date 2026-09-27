@@ -164,49 +164,84 @@ const GARNIR=(n)=>{
     if(r.appui.lesDeux!==1)throw new Error("appui faux : "+JSON.stringify(r.appui));
   });
 
-  await step("convoquée à UNE AUTRE campagne, elle est quand même dans les vagues",async()=>{
+  await step("une retenue non convoquée à cette campagne est dans les vagues",async()=>{
     const r=await page.evaluate(()=>{
       const sq=curSquad(),camp=curCampaign(sq);
-      /* Une athlète convoquée à une campagne passée, jamais à celle-ci :
-         elle est en lice, donc elle prend place dans une vague. */
-      const vieille=mkCampaign({kind:"tryout",name:"Journée 0",seq:0});
-      sq.campaigns.push(vieille);
-      const pl=mkDbPlayer({firstName:"Autre",lastName:"Campagne",birthYear:2010});
+      /* Retenue, offre acceptée, mais pas convoquée à CETTE campagne :
+         elle fait partie de l'équipe, donc elle prend place dans une vague. */
+      const pl=mkDbPlayer({firstName:"Deja",lastName:"Retenue",birthYear:2010});
       DB.players.push(pl);
-      sq.roster.push(mkRosterEntry(pl.id,"99","OH"));
-      ensureCampaignRosterEntry(sq,vieille.id,pl.id,null);
+      sq.roster.push(mkRosterEntry(pl.id,"98","OH"));
+      const e=rosterEntry(sq,pl.id);
+      setRosterStatus(sq,e,"selected");
+      const o=currentOffer(sq,pl.id);if(o)acceptOffer(sq,o.id);
+      /* On la retire de la convocation de la campagne active, pour que le
+         seul motif de sa présence soit son statut de retenue. */
+      sq.campaignRoster=(sq.campaignRoster||[]).filter(x=>
+        !(x.campaignId===camp.id&&x.playerId===pl.id));
       DB=normalizeDB(DB);
-      return {eligible:effectifDesVagues(sq).indexOf(pl.id)!==-1,
-        convoqueeIci:!!campaignEntry(sq,camp.id,pl.id),
+      return {convoqueeIci:!!campaignEntry(sq,camp.id,pl.id),
+        statut:rosterEntry(sq,pl.id).status,
+        offre:offerStatusOf(sq,pl.id),
+        eligible:effectifDesVagues(sq,camp.id).indexOf(pl.id)!==-1,
         dansGroupes:composerGroupesEquilibres(sq,camp.id,4)
           .reduce((t,g)=>t+g.playerIds.filter(x=>x===pl.id).length,0)};
     });
-    if(r.convoqueeIci)throw new Error("le jeu d'essai ne prouve rien : elle est convoquée ici");
-    if(!r.eligible)throw new Error("une convoquée d'une autre campagne est exclue");
-    if(r.dansGroupes!==1)
-      throw new Error("elle n'a pas reçu de vague ("+r.dansGroupes+")");
+    if(r.convoqueeIci)
+      throw new Error("le jeu d'essai ne prouve rien : elle est convoquée à cette campagne");
+    if(r.statut!=="selected")throw new Error("elle n'est pas retenue : "+r.statut);
+    if(!r.eligible)throw new Error("une retenue est absente de l'effectif des vagues");
+    if(r.dansGroupes!==1)throw new Error("elle n'a pas reçu de vague ("+r.dansGroupes+")");
   });
 
-  await step("une athlète non retenue est écartée des vagues",async()=>{
+  await step("une offre refusée sort des vagues, une offre en attente y reste",async()=>{
     const r=await page.evaluate(()=>{
       const sq=curSquad(),camp=curCampaign(sq);
-      const pid=effectifDesVagues(sq)[0];
-      const avant=composerGroupesEquilibres(sq,camp.id,4)
-        .reduce((t,g)=>t+g.playerIds.length,0);
-      const e=rosterEntry(sq,pid);
-      setRosterStatus(sq,e,"cut");
+      /* Sa propre athlète, retenue et non convoquée ici : le contrôle ne
+         dépend ainsi d'aucun état laissé par ses voisins. */
+      const pl=mkDbPlayer({firstName:"Va",lastName:"Refuser",birthYear:2010});
+      DB.players.push(pl);
+      sq.roster.push(mkRosterEntry(pl.id,"96","OH"));
+      setRosterStatus(sq,rosterEntry(sq,pl.id),"selected");
+      const oa=currentOffer(sq,pl.id);if(oa)acceptOffer(sq,oa.id);
+      sq.campaignRoster=(sq.campaignRoster||[]).filter(x=>
+        !(x.campaignId===camp.id&&x.playerId===pl.id));
       DB=normalizeDB(DB);
-      const apres=composerGroupesEquilibres(sq,camp.id,4);
-      return {avant,apres:apres.reduce((t,g)=>t+g.playerIds.length,0),
-        dedans:effectifDesVagues(sq).indexOf(pid)!==-1,
-        ecartees:ecarteesDesVagues(sq).cut,
-        dansUneVague:apres.some(g=>g.playerIds.indexOf(pid)!==-1)};
+      const pid=pl.id;
+      const avant=effectifDesVagues(sq,camp.id).indexOf(pid)!==-1;
+      const o=currentOffer(sq,pid);
+      declineOffer(sq,o.id,null,{silencieux:true});
+      DB=normalizeDB(DB);
+      const apres=effectifDesVagues(sq,camp.id).indexOf(pid)!==-1;
+      return {avant,apres,offre:offerStatusOf(sq,pid),
+        ecartees:ecarteesDesVagues(sq,camp.id).refusees,
+        dansUneVague:composerGroupesEquilibres(sq,camp.id,4)
+          .some(g=>g.playerIds.indexOf(pid)!==-1)};
     });
-    if(r.dedans)throw new Error("la non retenue est restée dans l'effectif des vagues");
-    if(r.dansUneVague)throw new Error("la non retenue a reçu une vague");
-    if(r.apres!==r.avant-1)
-      throw new Error("l'effectif des vagues n'a pas diminué : "+r.avant+" → "+r.apres);
-    if(r.ecartees<1)throw new Error("l'écran ne compte pas les écartées");
+    if(!r.avant)throw new Error("le jeu d'essai ne prouve rien : elle n'y était pas");
+    if(r.offre!=="declined")throw new Error("l'offre n'est pas refusée : "+r.offre);
+    if(r.apres)throw new Error("une offre refusée est restée dans l'effectif des vagues");
+    if(r.dansUneVague)throw new Error("une offre refusée a reçu une vague");
+    if(r.ecartees<1)throw new Error("l'écran ne compte pas les offres refusées");
+  });
+
+  await step("convoquée à cette campagne, elle entre quel que soit son statut",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=curSquad(),camp=curCampaign(sq);
+      const pl=mkDbPlayer({firstName:"Simple",lastName:"Candidate",birthYear:2010});
+      DB.players.push(pl);
+      sq.roster.push(mkRosterEntry(pl.id,"97","OH"));
+      ensureCampaignRosterEntry(sq,camp.id,pl.id,null);
+      DB=normalizeDB(DB);
+      return {statut:rosterEntry(sq,pl.id).status,
+        eligible:effectifDesVagues(sq,camp.id).indexOf(pl.id)!==-1,
+        dansGroupes:composerGroupesEquilibres(sq,camp.id,4)
+          .reduce((t,g)=>t+g.playerIds.filter(x=>x===pl.id).length,0)};
+    });
+    if(r.statut==="selected")
+      throw new Error("le jeu d'essai ne prouve rien : elle est déjà retenue");
+    if(!r.eligible)throw new Error("une convoquée de la campagne active est exclue");
+    if(r.dansGroupes!==1)throw new Error("elle n'a pas reçu de vague ("+r.dansGroupes+")");
   });
 
   say("\n── La deuxième journée n'est pas aveugle");
@@ -415,32 +450,36 @@ const GARNIR=(n)=>{
     if(!apres)throw new Error("les groupes ont disparu");
   });
 
-  await step("décommander d'UNE campagne ne retire pas des vagues",async()=>{
-    /* Les vagues portent l'effectif de la saison : ne plus être convoquée
-       à cette journée-là n'en fait pas sortir. C'est le retrait du ROSTER
-       qui en fait sortir, et lui seul. */
+  await step("décommander une RETENUE ne la sort pas des vagues",async()=>{
+    /* Deux motifs de présence, et il suffit d'un : décommander une
+       retenue la laisse dans les vagues — elle fait partie de l'équipe.
+       Décommander une simple candidate l'en sort, c'était son seul titre. */
     const r=await page.evaluate(()=>{
       const sq=curSquad(),camp=curCampaign(sq);
-      const avant=(camp.playerGroups||[]).reduce((t,g)=>t+g.playerIds.length,0);
-      const pid=(camp.playerGroups||[])[0].playerIds[0];
+      const retenue=(sq.roster||[]).filter(e=>e.status==="selected"&&
+        offerStatusOf(sq,e.playerId)!=="declined")[0].playerId;
+      const candidate=(sq.roster||[]).filter(e=>e.status!=="selected"&&
+        !!campaignEntry(sq,camp.id,e.playerId))[0].playerId;
       sq.campaignRoster=(sq.campaignRoster||[]).filter(e=>
-        !(e.campaignId===camp.id&&e.playerId===pid));
+        !(e.campaignId===camp.id&&(e.playerId===retenue||e.playerId===candidate)));
       DB=normalizeDB(DB);
-      const c2=curCampaign(curSquad());
-      return {avant,pid,
-        reste:(c2.playerGroups||[]).some(g=>g.playerIds.indexOf(pid)!==-1),
-        apres:(c2.playerGroups||[]).reduce((t,g)=>t+g.playerIds.length,0)};
+      const sq2=curSquad(),c2=curCampaign(sq2);
+      const el=effectifDesVagues(sq2,c2.id);
+      return {retenueReste:el.indexOf(retenue)!==-1,
+              candidateSortie:el.indexOf(candidate)===-1};
     });
-    if(!r.reste)throw new Error("décommander d'une campagne l'a sortie des vagues");
-    if(r.apres!==r.avant)
-      throw new Error("les vagues ont bougé : "+r.avant+" → "+r.apres);
+    if(!r.retenueReste)throw new Error("décommander une retenue l'a sortie des vagues");
+    if(!r.candidateSortie)
+      throw new Error("décommander une candidate ne l'a pas sortie des vagues");
   });
 
   await step("retirée du roster de la saison, elle sort des vagues",async()=>{
     const r=await page.evaluate(()=>{
       const sq=curSquad(),camp=curCampaign(sq);
+      const dedans=effectifDesVagues(sq,camp.id);
       const avant=(camp.playerGroups||[]).reduce((t,g)=>t+g.playerIds.length,0);
-      const pid=(camp.playerGroups||[])[0].playerIds[0];
+      const pid=((camp.playerGroups||[])[0].playerIds
+        .filter(x=>dedans.indexOf(x)!==-1))[0];
       sq.roster=(sq.roster||[]).filter(e=>e.playerId!==pid);
       DB=normalizeDB(DB);
       const c2=curCampaign(curSquad());

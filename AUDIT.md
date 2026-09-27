@@ -991,17 +991,26 @@ Conséquence assumée : un jugement récent ne chasse plus un ancien, il
 s'y ajoute. C'est ce que « toutes les stats connues » veut dire, et une
 pondération par fraîcheur serait un autre choix, à demander.
 
-*Toutes les convoquées, de toutes les campagnes.* L'échelle se calculait
-sur les seules convoquées du soir : une campagne de six athlètes ne
-fournit aucune distribution digne de ce nom, et l'échelle changeait de
-sens d'une journée à l'autre. L'effectif est désormais l'union des
-convocations de TOUTES les campagnes, non retenues et parties exceptées —
-et il sert des deux côtés, pour l'échelle et pour les vagues. Le point
-qui n'allait pas de soi est la normalisation : bornée aux convoquées de
-la campagne ouverte, elle aurait vidé les vagues de tous les autres au
-premier rechargement, en silence. Trois contrôles la tiennent —
-décommander d'une journée ne retire pas des vagues, une non retenue en
-sort, un retrait du roster aussi.
+*L'effectif des vagues, après trois passes.* L'échelle se calculait sur
+les seules convoquées du soir : une campagne de six athlètes ne fournit
+aucune distribution digne de ce nom, et l'échelle changeait de sens d'une
+journée à l'autre. Elle porte sur le même effectif que les vagues, et cet
+effectif a été précisé trois fois avant de tomber juste — d'abord les
+convoquées de la campagne ouverte, puis le roster entier de la saison,
+puis l'union des convocations de toutes les campagnes. La règle retenue
+est la bonne parce qu'elle décrit ce qu'est vraiment une soirée de
+sélection : **les retenues dont l'offre n'est pas refusée** — l'équipe
+telle qu'elle se constitue — **et les convoquées de la campagne active**
+— celles qui postulent. Il suffit d'un des deux titres.
+
+Le point qui n'allait pas de soi est la normalisation : bornée aux
+convoquées de la campagne ouverte, elle aurait vidé les vagues de
+l'équipe déjà constituée au premier rechargement, en silence. Et elle lit
+les offres, donc elle passe APRÈS leur propre normalisation — un ordre
+qui ne se voit pas et qui aurait rendu le filtre muet. Cinq contrôles la
+tiennent : une retenue non convoquée y est, une convoquée non retenue y
+est, une offre refusée en sort, décommander une retenue ne l'en sort pas
+mais décommander une candidate si, et un retrait du roster en sort.
 
 **Et un défaut de livraison, pas de code.** `sw.js` porte en commentaire
 sa propre règle : « le nom du cache est ce qui déclenche la mise à jour,
@@ -1073,8 +1082,8 @@ que le journal de secours survit, et qu'un choix explicite — et lui seul
 — écrit par-dessus. Le douzième pose un filtre puis un ordre dans la même
 visite, et vérifie que la liste rendue est bien filtrée ET triée.
 
-`tests/groupes.js` — quinze contrôles, dont les neuf premiers **tous** en
-échec sur la version d'avant la fonctionnalité. Le deuxième est celui qui porte la démonstration : il compose le
+`tests/groupes.js` — dix-sept contrôles, dont les neuf premiers **tous**
+en échec sur la version d'avant la fonctionnalité. Le deuxième est celui qui porte la démonstration : il compose le
 même effectif des deux façons et exige que l'équilibrage divise l'écart
 par au moins quatre. Les autres tiennent les invariants qu'un entraîneur
 ne vérifiera pas lui-même — chaque athlète placée une fois et une seule,

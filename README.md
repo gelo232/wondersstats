@@ -846,15 +846,16 @@ l'effacer. L'écran **dit** sur quoi il s'est appuyé : « Équilibré sur
 compteurs ». Un équilibrage sans repère n'est qu'une répartition, et
 mieux vaut l'annoncer que le laisser croire.
 
-**Sur qui ?** Sur **toutes les athlètes convoquées à une campagne de
-sélection** — celle-ci ou une autre — **sauf les non retenues**, et sauf
-celles marquées « partie ». Une athlète vue à la journée 1 et reconvoquée
-à la 3 compte aussi à la 2 : c'est le même processus, seules les soirées
-diffèrent. C'est vrai des deux côtés — l'échelle se calcule sur cet
-effectif, parce qu'une échelle tirée de six présentes changerait de sens
-d'une journée à l'autre ; et les vagues le couvrent en entier. L'écran
-dit ce qu'il a écarté, et pourquoi. Chaque campagne garde ses propres
-vagues : la journée 2 se recompose sans toucher à celles de la journée 1.
+**Sur qui ?** Sur deux ensembles réunis : **les retenues dont l'offre
+n'est pas refusée** — l'équipe telle qu'elle se constitue — et **les
+convoquées de la campagne active** — celles qui postulent ce soir-là. Une
+soirée de sélection réunit exactement ces deux populations. Il suffit
+d'un des deux titres : une retenue non convoquée à cette journée y est
+quand même, une candidate convoquée y est quel que soit son statut. Une
+athlète qui a décliné son offre n'en fait plus partie et cesse d'occuper
+une place. L'écran dit qui reste dehors, et pourquoi. Chaque campagne
+garde ses propres vagues : la journée 2 se recompose sans toucher à
+celles de la journée 1.
 
 **Et celles dont on ne sait rien ?** — ni note reçue, ni assez de gestes
 relevés pour en tirer une efficacité. Elles sont **nommées**, dossard par
