@@ -244,6 +244,92 @@ const GARNIR=(n)=>{
     if(r.dansGroupes!==1)throw new Error("elle n'a pas reçu de vague ("+r.dansGroupes+")");
   });
 
+  await step("la table complète : qui entre dans les vagues, et qui non",async()=>{
+    /* Les cinq situations d'une soirée de sélection, tranchées à la
+       journée 1, jugées à la journée 2 où personne n'est convoqué. Deux
+       titres d'entrée seulement : être retenue avec une offre qui tient,
+       ou être convoquée à la journée en cours. Une recallée qu'on ne fait
+       pas venir n'en a aucun — elle n'est pas dans l'équipe, et elle
+       n'est pas au gymnase ce soir. */
+    const r=await page.evaluate(()=>{
+      const sq=curSquad();
+      /* Ce contrôle déplace la campagne active et ajoute cinq athlètes :
+         il remet tout en place avant de rendre la main, sinon ses voisins
+         travaillent sur une saison qu'ils ne reconnaissent plus. */
+      const campAvant=sq.activeCampaignId;
+      const j1=mkCampaign({kind:"tryout",name:"Table J1",seq:90});
+      sq.campaigns.push(j1);sq.activeCampaignId=j1.id;state.evalCampaignId=j1.id;
+      const cas={};
+      const faire=(nom,statut)=>{
+        const pl=mkDbPlayer({firstName:nom,lastName:"Table",birthYear:2010});
+        DB.players.push(pl);
+        sq.roster.push(mkRosterEntry(pl.id,String(200+Object.keys(cas).length),"OH"));
+        ensureCampaignRosterEntry(sq,j1.id,pl.id,null);
+        if(statut)setRosterStatus(sq,rosterEntry(sq,pl.id),statut);
+        cas[nom]=pl.id;
+      };
+      faire("Recallee","recalled");
+      faire("Retenue","selected");
+      faire("RetenueRefus","selected");
+      faire("Candidate",null);
+      faire("NonRetenue","cut");
+      const o=currentOffer(sq,cas.RetenueRefus);
+      if(o)declineOffer(sq,o.id,null,{silencieux:true});
+      /* Journée 2 : personne n'est convoqué. */
+      const j2=mkCampaign({kind:"tryout",name:"Table J2",seq:91});
+      sq.campaigns.push(j2);sq.activeCampaignId=j2.id;state.evalCampaignId=j2.id;
+      DB=normalizeDB(DB);
+      const sq2=curSquad(),el=effectifDesVagues(sq2,j2.id);
+      const vagues=composerGroupesEquilibres(sq2,j2.id,4);
+      const out={};
+      Object.keys(cas).forEach(k=>{
+        const pid=cas[k],e=rosterEntry(sq2,pid);
+        out[k]={statut:e?e.status:"—",offre:offerStatusOf(sq2,pid),
+          convoquee:!!campaignEntry(sq2,j2.id,pid),
+          dedans:el.indexOf(pid)!==-1,
+          enVague:vagues.some(g=>g.playerIds.indexOf(pid)!==-1)};
+      });
+      /* Et la même recallée, cette fois convoquée : elle entre. */
+      ensureCampaignRosterEntry(sq2,j2.id,cas.Recallee,null);
+      DB=normalizeDB(DB);
+      out.RecalleeConvoquee={
+        dedans:effectifDesVagues(curSquad(),j2.id).indexOf(cas.Recallee)!==-1};
+      /* Remise en état : on retire ce que ce contrôle a posé. */
+      const sq3=curSquad();
+      const miennes={};Object.keys(cas).forEach(k=>{miennes[cas[k]]=1});
+      const campsTest={};
+      sq3.campaigns.filter(c=>/^Table J/.test(c.name)).forEach(c=>{campsTest[c.id]=1});
+      sq3.campaigns=sq3.campaigns.filter(c=>!campsTest[c.id]);
+      sq3.campaignRoster=(sq3.campaignRoster||[]).filter(e=>
+        !campsTest[e.campaignId]&&!miennes[e.playerId]);
+      sq3.offers=(sq3.offers||[]).filter(o=>
+        !campsTest[o.campaignId]&&!miennes[o.playerId]);
+      sq3.roster=(sq3.roster||[]).filter(e=>!miennes[e.playerId]);
+      sq3.playerIds=(sq3.playerIds||[]).filter(pid=>!miennes[pid]);
+      DB.players=DB.players.filter(pl=>!miennes[pl.id]);
+      sq3.activeCampaignId=campAvant;state.evalCampaignId=campAvant;
+      DB=normalizeDB(DB);
+      out.remisEnPlace=(curSquad().activeCampaignId===campAvant);
+      return out;
+    });
+    const attendu={Recallee:false,Retenue:true,RetenueRefus:false,
+                   Candidate:false,NonRetenue:false};
+    Object.keys(attendu).forEach(k=>{
+      if(r[k].convoquee)
+        throw new Error(k+" : le jeu d'essai la convoque, il ne prouve rien");
+      if(r[k].dedans!==attendu[k])
+        throw new Error(k+" (statut "+r[k].statut+", offre « "+r[k].offre+" ») : "+
+          "attendu "+(attendu[k]?"dans":"hors")+" les vagues, obtenu "+
+          (r[k].dedans?"dans":"hors"));
+      if(r[k].enVague!==attendu[k])
+        throw new Error(k+" : l'effectif et la composition ne disent pas la même chose");
+    });
+    if(!r.RecalleeConvoquee.dedans)
+      throw new Error("une recallée CONVOQUÉE devrait entrer dans les vagues");
+    if(!r.remisEnPlace)throw new Error("la campagne active n'a pas été rendue");
+    say("       recallée non convoquée : hors · recallée convoquée : dans");
+  });
+
   say("\n── La deuxième journée n'est pas aveugle");
   await step("ce qui a été jugé une autre journée compte encore",async()=>{
     const r=await page.evaluate(()=>{

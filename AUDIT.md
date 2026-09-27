@@ -1010,7 +1010,30 @@ les offres, donc elle passe APRÈS leur propre normalisation — un ordre
 qui ne se voit pas et qui aurait rendu le filtre muet. Cinq contrôles la
 tiennent : une retenue non convoquée y est, une convoquée non retenue y
 est, une offre refusée en sort, décommander une retenue ne l'en sort pas
-mais décommander une candidate si, et un retrait du roster en sort.
+mais décommander une candidate si, et un retrait du roster en sort. Un
+sixième tient la table entière, les cinq situations d'une soirée jugées
+d'un coup :
+
+| statut au roster | offre | convoquée ce soir | dans les vagues |
+|---|---|---|---|
+| Retenue | en attente ou acceptée | non | **oui** |
+| Retenue | refusée | non | non |
+| Recallée | — | non | non |
+| Recallée | — | **oui** | **oui** |
+| Candidate | — | non | non |
+| Non retenue | — | non | non |
+
+**Une surprise trouvée en vérifiant.** `migrateSquadV6` tourne à CHAQUE
+normalisation, pas une fois : toute athlète du roster qui n'appartient à
+aucune campagne y est reconvoquée à la première. C'est la règle de
+reprise v6 → v7, et elle a un effet de bord qui n'a rien d'une
+migration : décommander une athlète de sa SEULE campagne est défait au
+rechargement suivant, sans un mot. Dans une saison à plusieurs campagnes
+le cas ne se présente pas — l'athlète garde son ancrage ailleurs — mais
+il rend « non convoquée » impossible à obtenir dans une saison qui n'en
+compte qu'une. Non corrigé ici : la reprise sert aussi de filet aux
+athlètes ajoutées au roster sans convocation, et couper ce filet demande
+de décider par où elles entrent. Signalé plutôt que traité en silence.
 
 **Et un défaut de livraison, pas de code.** `sw.js` porte en commentaire
 sa propre règle : « le nom du cache est ce qui déclenche la mise à jour,
@@ -1082,7 +1105,7 @@ que le journal de secours survit, et qu'un choix explicite — et lui seul
 — écrit par-dessus. Le douzième pose un filtre puis un ordre dans la même
 visite, et vérifie que la liste rendue est bien filtrée ET triée.
 
-`tests/groupes.js` — dix-sept contrôles, dont les neuf premiers **tous**
+`tests/groupes.js` — dix-huit contrôles, dont les neuf premiers **tous**
 en échec sur la version d'avant la fonctionnalité. Le deuxième est celui qui porte la démonstration : il compose le
 même effectif des deux façons et exige que l'équilibrage divise l'écart
 par au moins quatre. Les autres tiennent les invariants qu'un entraîneur
