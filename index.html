@@ -1754,78 +1754,62 @@ function decouperEnGroupes(idsOrdonnes,taille){
    pour que ce qu'on voit d'une vague soit comparable à ce qu'on voit
    d'une autre. ═══════════════════════════════════════════════════ */
 
-/* Les compteurs de la saison, athlète par athlète, toutes rencontres
-   confondues. Volontairement pas `scopedSessions` : celui-là applique
-   les filtres d'affichage du récap, et l'équilibrage d'une soirée de
-   sélection ne doit pas dépendre de ce qu'on regardait juste avant. */
-function statsSaisonParAthlete(sq){
-  var map={};
+/* TOUT ce qu'on a relevé sur une athlète : les rencontres de la saison ET
+   les compteurs de chaque soumission, campagne par campagne. Un geste
+   compté reste un geste compté — qu'il l'ait été un mardi soir de
+   championnat ou par un évaluateur au tryout de septembre.
+
+   Volontairement pas `scopedSessions` : celui-là applique les filtres
+   d'affichage du récap, et l'équilibrage d'une soirée de sélection ne
+   doit pas dépendre de ce qu'on regardait juste avant. Et les
+   soumissions corrigées ne comptent pas — c'est tout l'objet d'une
+   correction. */
+function statsConnuesParAthlete(sq){
+  var map={},pose=function(pid,st){
+    if(!hasStats(st))return;
+    if(!map[pid])map[pid]=emptyS();
+    addStats(map[pid],st);
+  };
   (sq&&sq.sessions||[]).forEach(function(se){
-    (se.entries||[]).forEach(function(en){
-      if(!hasStats(en.stats))return;
-      if(!map[en.playerId])map[en.playerId]=emptyS();
-      addStats(map[en.playerId],en.stats);
-    });
+    (se.entries||[]).forEach(function(en){pose(en.playerId,en.stats)});
+  });
+  var mortes=soumissionsRemplacees(sq);
+  (sq&&sq.submissions||[]).forEach(function(sub){
+    if(mortes[sub.id])return;
+    (sub.entries||[]).forEach(function(en){pose(en.playerId,en.stats)});
   });
   return map;
 }
 
-/* La force d'une athlète, dans l'ordre de ce qui est le plus sûr :
+/* La force d'une athlète pour l'équilibrage. Elle ne choisit plus UNE
+   source parmi plusieurs : elle prend TOUT ce qu'on sait, et le mêle.
 
-   1. le SCORE compilé de la campagne. C'est déjà le mélange des notes
-      des évaluateurs et des compteurs relevés, corrigé de la sévérité
-      et amorti selon le nombre de regards — rien de mieux à construire ;
-   2. à défaut, son score d'une campagne PRÉCÉDENTE, la plus récente qui
-      en porte un. Sans lui, la journée 2 repartait aveugle : personne
-      n'y a encore été évalué, et ce qu'on avait appris la veille — la
-      seule chose qui distingue vraiment ces athlètes — ne comptait pas ;
-   3. à défaut, ses COMPTEURS de la saison, ramenés à la même échelle
-      1–5 par la distribution des convoquées. C'est le cas d'une athlète
-      du club que personne n'a encore jugée en sélection ;
-   4. à défaut, rien. On ne devine pas une force : l'écran la nomme, et
-      l'équilibrage la traite comme une athlète MOYENNE — voir plus bas.
+   · les NOTES — moyenne des critères de tous les évaluateurs, toutes
+     campagnes confondues, corrigée de la sévérité propre à chacun ;
+   · les COMPTEURS — efficacité par famille sur tout ce qui a été relevé :
+     les rencontres de la saison ET les soumissions de toutes les
+     campagnes, ramenée à l'échelle 1–5 par la distribution de
+     l'effectif ;
+   · mêlés à la part que le club a fixée (`statShare`), puis amortis vers
+     la moyenne selon le nombre de regards — une athlète vue une fois ne
+     coiffe pas celles que trois personnes ont jugées.
 
-   La formule du club — poids des familles, volume minimal — est celle de
-   la saison : la même qui fait le score. */
+   La population de référence est L'EFFECTIF DE LA SAISON : toutes les
+   convoquées de l'équipe, quelle que soit la campagne. Une échelle
+   calculée sur les seules présentes d'un soir changerait de sens d'une
+   journée à l'autre, et une campagne de six athlètes ne fournit aucune
+   distribution digne de ce nom. */
 function forceDeSelection(sq,cid){
   var out={};
-  if(!sq||!cid)return out;
-  var ids=rosterOfCampaign(sq,cid).map(function(e){return e.playerId});
+  if(!sq)return out;
+  var ids=(sq.roster||[]).map(function(e){return e.playerId});
   if(!ids.length)return out;
-  var comp=compileSubmissions(sq,cid);
-  ids.forEach(function(pid){
-    var c=comp[pid];
-    if(c&&(c.critScore!=null||c.statScore!=null))out[pid]={force:c.score,source:"score"};
-  });
-  var manquent=ids.filter(function(pid){return !out[pid]});
-  if(!manquent.length)return out;
+  var sc=scoringOf(sq);
+  var comp=compileSubmissions(sq,null);          /* toutes les campagnes */
+  var stats=statsConnuesParAthlete(sq);
 
-  /* Ce qu'on a appris aux journées d'avant. On remonte de la plus récente
-     à la plus ancienne : le jugement le plus frais l'emporte. Les scores
-     de deux campagnes sont sur la même échelle — même formule de club,
-     même barème 1–5 — mais ils ne sont pas du même jour, et l'écran le
-     dit plutôt que de les confondre avec ceux d'aujourd'hui. */
-  var ordre=campaignOrder(sq),rang={};
-  ordre.forEach(function(c,i){rang[c.id]=i});
-  var monRang=(rang[cid]!=null)?rang[cid]:ordre.length;
-  var avant=ordre.slice(0,monRang).reverse();
-  for(var a=0;a<avant.length&&manquent.length;a++){
-    var compAv=compileSubmissions(sq,avant[a].id),nom=avant[a].name;
-    manquent=manquent.filter(function(pid){
-      var c=compAv[pid];
-      if(c&&(c.critScore!=null||c.statScore!=null)){
-        out[pid]={force:c.score,source:"passe",campagne:nom};
-        return false;
-      }
-      return true;
-    });
-  }
-  if(!manquent.length)return out;
-
-  /* L'échelle se calcule sur TOUTES les convoquées, pas seulement sur
-     celles qui manquent : sinon une athlète serait « moyenne » d'un
-     groupe de trois, et comparée à des scores tirés d'un autre étalon. */
-  var sc=scoringOf(sq),stats=statsSaisonParAthlete(sq),dist={};
+  /* L'échelle, famille par famille, sur tout l'effectif. */
+  var dist={};
   FAMILY_KEYS.forEach(function(f){
     var vals=[];
     ids.forEach(function(pid){
@@ -1838,33 +1822,79 @@ function forceDeSelection(sq,cid){
     var va=vals.reduce(function(t,v){return t+(v-moy)*(v-moy)},0)/vals.length;
     dist[f]={moyenne:moy,ecart:Math.sqrt(va)};
   });
-  manquent.forEach(function(pid){
-    var st=stats[pid];if(!st)return;
-    var t=0,poids=0;
-    FAMILY_KEYS.forEach(function(f){
-      if(!dist[f])return;
-      if(familyVolume(st,f)<sc.minVolume)return;
-      var e=familyEff(st,f);if(e==null)return;
-      var w=sc.statWeights[f];if(!(w>0))return;
-      t+=w*effToScale(e,dist[f].moyenne,dist[f].ecart);poids+=w;
-    });
-    if(poids)out[pid]={force:t/poids,source:"stats"};
+
+  var brut={},regards={};
+  ids.forEach(function(pid){
+    var st=stats[pid],c=comp[pid];
+    /* compteurs */
+    var sNote=null;
+    if(st){
+      var t=0,poids=0;
+      FAMILY_KEYS.forEach(function(f){
+        if(!dist[f])return;
+        if(familyVolume(st,f)<sc.minVolume)return;
+        var e=familyEff(st,f);if(e==null)return;
+        var w=sc.statWeights[f];if(!(w>0))return;
+        t+=w*effToScale(e,dist[f].moyenne,dist[f].ecart);poids+=w;
+      });
+      if(poids)sNote=t/poids;
+    }
+    /* notes */
+    var cNote=(c&&c.critScore!=null)?c.critScore:null;
+    if(cNote==null&&sNote==null)return;
+    var v;
+    if(cNote==null)v=sNote;
+    else if(sNote==null)v=cNote;
+    else v=(1-sc.statShare)*cNote+sc.statShare*sNote;
+    brut[pid]=v;
+    regards[pid]=(c&&(c.selectors.length||c.n))||0;
+    out[pid]={force:v,source:(cNote!=null&&sNote!=null)?"les-deux"
+                            :(cNote!=null?"notes":"compteurs")};
   });
+
+  /* Amortissement : un jugement tiré d'un seul regard revient vers la
+     moyenne, à proportion du peu sur quoi il repose. Les athlètes qu'on
+     ne connaît que par leurs compteurs n'y sont pas soumises — un volume
+     de trente gestes n'est pas « un regard ». */
+  if(sc.reliability>0){
+    var somme=0,pds=0;
+    Object.keys(brut).forEach(function(pid){
+      var w=regards[pid];if(!w)return;
+      somme+=brut[pid]*w;pds+=w;
+    });
+    if(pds){
+      var refer=somme/pds;
+      Object.keys(brut).forEach(function(pid){
+        var n=regards[pid];if(!n)return;
+        out[pid].force=(n*brut[pid]+sc.reliability*refer)/(n+sc.reliability);
+      });
+    }
+  }
   return out;
 }
 
 /* Ce sur quoi l'équilibrage a pu s'appuyer — dit à l'écran, parce qu'un
    équilibrage sans repère n'est qu'une répartition, et qu'il vaut mieux
    l'annoncer que le laisser croire. */
+/* Qui entre dans les vagues : TOUT l'effectif convoqué à la saison, quelle
+   que soit la campagne. Borné aux athlètes encore là — une joueuse partie
+   en janvier reste au roster, datée, mais elle n'est pas au gymnase ce
+   soir. Si aucune ne répond à ce critère, on ne filtre pas : mieux vaut
+   des vagues que rien du tout. */
+function effectifDesVagues(sq){
+  var r=(sq&&sq.roster)||[];
+  var la=r.filter(function(e){return e.membership!=="left"});
+  return (la.length?la:r).map(function(e){return e.playerId});
+}
 function appuiEquilibrage(sq,cid,forces){
-  var out={total:0,score:0,passe:0,stats:0,sans:0,sansIds:[],dou:""};
-  rosterOfCampaign(sq,cid).forEach(function(e){
+  var out={total:0,lesDeux:0,notes:0,compteurs:0,sans:0,sansIds:[]};
+  effectifDesVagues(sq).map(function(pid){return {playerId:pid}}).forEach(function(e){
     out.total++;
     var f=forces[e.playerId];
     if(!f){out.sans++;out.sansIds.push(e.playerId);return}
-    if(f.source==="score")out.score++;
-    else if(f.source==="passe"){out.passe++;if(!out.dou)out.dou=f.campagne||""}
-    else out.stats++;
+    if(f.source==="les-deux")out.lesDeux++;
+    else if(f.source==="notes")out.notes++;
+    else out.compteurs++;
   });
   return out;
 }
@@ -1886,12 +1916,12 @@ function taillesDeGroupes(n,taille){
   return out;
 }
 function composerGroupesEquilibres(sq,cid,taille){
-  var entrees=rosterOfCampaign(sq,cid);
+  var entrees=effectifDesVagues(sq);
   if(!entrees.length)return [];
   var tailles=taillesDeGroupes(entrees.length,taille);
   if(!tailles.length)return [];
   var forces=forceDeSelection(sq,cid);
-  var parNum=entrees.map(function(e){return e.playerId}).sort(function(a,b){
+  var parNum=entrees.slice().sort(function(a,b){
     var na=parseInt(numOf(sq,a),10),nb=parseInt(numOf(sq,b),10);
     if(isNaN(na))na=9999;if(isNaN(nb))nb=9999;
     return na-nb;
@@ -3665,14 +3695,13 @@ function normalizeSquad(sq,knownPlayers){
   });
   sq.campaignRoster=crOut;
 
-  /* Les groupes d'une campagne ne tiennent que ses convoquées : une
-     athlète décommandée ne doit pas rester dans une vague qu'on appelle. */
-  var parCampagne={};
-  sq.campaignRoster.forEach(function(e){
-    (parCampagne[e.campaignId]=parCampagne[e.campaignId]||[]).push(e.playerId);
-  });
+  /* Les vagues tiennent l'effectif de la SAISON, quelle que soit la
+     campagne : une athlète retirée du roster en sort, une athlète non
+     convoquée à cette campagne-là y reste. Les borner aux convoquées de
+     la campagne les aurait vidées au premier rechargement. */
+  var auRoster=sq.roster.map(function(e){return e.playerId});
   sq.campaigns.forEach(function(c){
-    c.playerGroups=normPlayerGroups(c.playerGroups,parCampagne[c.id]||[]);
+    c.playerGroups=normPlayerGroups(c.playerGroups,auRoster);
   });
 
   sq.offers=(sq.offers||[]).filter(function(o){
@@ -8914,7 +8943,7 @@ function renderCampGroupsModal(){
   var sq=curSquad();if(!sq)return null;
   var cid=state.modalCtx||sq.activeCampaignId;
   var camp=campaignById(sq,cid);if(!camp)return null;
-  var entrees=rosterOfCampaign(sq,cid);
+  var entrees=effectifDesVagues(sq);
   var forces=forceDeSelection(sq,cid);
   var appui=appuiEquilibrage(sq,cid,forces);
 
@@ -8925,7 +8954,7 @@ function renderCampGroupsModal(){
     }),
     sel:(camp.playerGroups&&camp.playerGroups[0])?camp.playerGroups[0].id:""
   });
-  var ordre=entrees.map(function(e){return e.playerId}).sort(function(a,b){
+  var ordre=entrees.slice().sort(function(a,b){
     var na=parseInt(numOf(sq,a),10),nb=parseInt(numOf(sq,b),10);
     if(isNaN(na))na=9999;if(isNaN(nb))nb=9999;
     return na-nb;
@@ -8948,29 +8977,32 @@ function renderCampGroupsModal(){
   var corps=h("div",null);
 
   if(!entrees.length){
-    corps.appendChild(emptyState({icon:"👥",title:"Aucune convoquée",small:true,
-      sub:"Convoquez des athlètes dans cette campagne : les groupes se composent sur elles."}));
+    corps.appendChild(emptyState({icon:"👥",title:"Aucune athlète",small:true,
+      sub:"Convoquez des athlètes à la saison — volet 👥 Convoquées : "+
+          "les vagues se composent sur tout l'effectif."}));
     return sheetShell({title:"Groupes d'évaluation",onclose:closeModal,
       buttons:[h("button",{className:"btn btn-ghost full",type:"button",
         onclick:closeModal},"Fermer")]},corps);
   }
 
   corps.appendChild(h("div",{className:"hint"},
-    "Une journée de sélection se déroule en vagues. Composées ici, elles "+
-    "valent pour ",h("b",null,"toutes les vues de la campagne")," : « groupe B » "+
-    "désigne les mêmes athlètes dans le carnet de chaque évaluateur, et ce "+
-    "qu'on voit d'une vague est comparable à ce qu'on voit d'une autre."));
+    "Une journée de sélection se déroule en vagues. Elles portent sur ",
+    h("b",null,"tout l'effectif de la saison")," — pas seulement sur les "+
+    "convoquées de cette campagne — et valent pour ",
+    h("b",null,"toutes les vues de la campagne")," : « groupe B » désigne les "+
+    "mêmes athlètes dans le carnet de chaque évaluateur, et ce qu'on voit "+
+    "d'une vague est comparable à ce qu'on voit d'une autre."));
 
   /* Sur quoi l'équilibrage s'appuie — dit avant de le lancer. */
   var appuiTxt,bouts=[];
-  if(appui.score)bouts.push(h("b",null,
-    plural(appui.score,"score")+" compilé"+(appui.score>1?"s":"")+" de cette campagne"));
-  if(appui.passe)bouts.push(h("b",null,
-    plural(appui.passe,"score")+" repris"+(appui.passe>1?"":"")+
-    (appui.dou?" de « "+appui.dou+" »":" d'une campagne passée")));
-  if(appui.stats)bouts.push(h("b",null,
-    "les compteurs de "+plural(appui.stats,"athlète")));
-  var avecRepere=appui.score+appui.passe+appui.stats;
+  if(appui.lesDeux)bouts.push(h("b",null,
+    plural(appui.lesDeux,"athlète")+" jugée"+(appui.lesDeux>1?"s":"")+
+    " sur notes ET compteurs"));
+  if(appui.notes)bouts.push(h("b",null,
+    plural(appui.notes,"athlète")+" sur les seules notes"));
+  if(appui.compteurs)bouts.push(h("b",null,
+    plural(appui.compteurs,"athlète")+" sur les seuls compteurs"));
+  var avecRepere=appui.lesDeux+appui.notes+appui.compteurs;
   if(!bouts.length)
     appuiTxt=["Aucun repère pour l'instant : ni score, ni compteurs. ",
       "Les groupes seront simplement répartis, à parts égales — c'est une ",
@@ -8993,8 +9025,8 @@ function renderCampGroupsModal(){
     corps.appendChild(h("div",{className:"hint warn"},
       h("b",null,plural(appui.sans,"athlète")+" sans repère"),
       " : ",nums,
-      ". "+(appui.sans>1?"Elles n'ont":"Elle n'a")+" ni score d'une campagne, "+
-      "ni assez de compteurs cette saison"+
+      ". "+(appui.sans>1?"Elles n'ont":"Elle n'a")+" reçu aucune note, "+
+      "et pas assez de gestes relevés pour en tirer une efficacité"+
       (avecRepere?". L'équilibrage "+(appui.sans>1?"les":"la")+
         " compte pour une athlète moyenne — "+
         (appui.sans>1?"elles se répartissent":"elle se répartit")+
@@ -9013,7 +9045,7 @@ function renderCampGroupsModal(){
   corps.appendChild(h("label",{className:"field"},
     h("span",null,"Athlètes par groupe"),inpT,
     h("div",{className:"muted"},
-      plural(entrees.length,"convoquée")+" → "+
+      plural(entrees.length,"athlète")+" → "+
       (prevu.length?plural(prevu.length,"groupe")+" de "+prevu.join(", ")
                    :"aucun groupe possible"))));
   corps.appendChild(h("button",{className:"btn btn-primary full",type:"button",
@@ -9061,7 +9093,7 @@ function renderCampGroupsModal(){
   corps.appendChild(h("label",{className:"field"},h("span",null,"Les groupes"),rangee,
     h("div",{className:"muted"},sansGroupe()
       ?plural(sansGroupe(),"athlète")+" sans groupe"
-      :"toutes les convoquées ont un groupe")));
+      :"toutes les athlètes ont un groupe")));
 
   var gsel=groupeSel();
   if(gsel){
@@ -9108,7 +9140,7 @@ function renderCampGroupsModal(){
         var propres=d.groupes.map(function(g){
           return {id:g.id,name:(g.name||"").trim()||"Groupe",playerIds:g.playerIds.slice()};
         }).filter(function(g){return g.playerIds.length});
-        var ids=rosterOfCampaign(sq,cid).map(function(e){return e.playerId});
+        var ids=effectifDesVagues(sq);
         Store.tx(function(){
           Store.patch("campaigns",cid,{playerGroups:normPlayerGroups(propres,ids)},sq);
         },"Groupes d'évaluation");

@@ -832,18 +832,31 @@ l'autre, et personne ne le savait.
 Les groupes se composent maintenant **une fois pour la campagne**, d'un
 geste : on donne le nombre d'athlètes par groupe, et l'application les
 répartit en équilibrant. Le même jeu d'essai tombe à **0,17**. Elle
-s'appuie, dans cet ordre : sur le **score compilé de la campagne** —
-notes des évaluateurs et compteurs mêlés, corrigés de la sévérité ; à
-défaut sur le **score d'une journée précédente**, la plus récente qui en
-porte un, si bien que la journée 2 part avec ce qu'on a appris la veille
-au lieu de repartir aveugle ; à défaut sur les **compteurs de la saison**
-ramenés à la même échelle. L'écran **dit** sur quoi il s'est appuyé :
-« Équilibré sur 4 scores compilés de cette campagne, 9 scores repris de
-« Journée 1 » et les compteurs de 5 athlètes ». Un équilibrage sans
-repère n'est qu'une répartition, et mieux vaut l'annoncer que le laisser
-croire.
+ne choisit pas une source : elle prend **tout ce qu'on sait** de
+l'athlète et le mêle. Les **notes** de tous les évaluateurs, toutes
+journées confondues, corrigées de la sévérité propre à chacun. Les
+**compteurs** de tout ce qui a été relevé — les rencontres de la saison
+*et* les soumissions de toutes les campagnes — ramenés à l'échelle 1–5.
+Les deux mêlés à la part que le club a fixée, puis amortis selon le
+nombre de regards : une athlète vue une fois ne coiffe pas celles que
+trois personnes ont jugées. Une journée 2 part donc avec ce qu'on a
+appris la veille, et un nouveau jugement s'ajoute au précédent au lieu de
+l'effacer. L'écran **dit** sur quoi il s'est appuyé : « Équilibré sur
+9 athlètes jugées sur notes ET compteurs et 5 athlètes sur les seuls
+compteurs ». Un équilibrage sans repère n'est qu'une répartition, et
+mieux vaut l'annoncer que le laisser croire.
 
-**Et celles dont on ne sait rien ?** Elles sont **nommées**, dossard par
+**Sur qui ?** Sur **tout l'effectif de la saison** — toutes les athlètes
+convoquées à l'équipe, quelle que soit la campagne — et non sur les
+seules convoquées du soir. C'est vrai des deux côtés : l'échelle se
+calcule sur cet effectif, parce qu'une échelle tirée de six présentes
+changerait de sens d'une journée à l'autre ; et les vagues le couvrent en
+entier. Seules les athlètes marquées « partie » en sont écartées. Chaque
+campagne garde ses propres vagues : la journée 2 peut être recomposée
+sans toucher à celles de la journée 1.
+
+**Et celles dont on ne sait rien ?** — ni note reçue, ni assez de gestes
+relevés pour en tirer une efficacité. Elles sont **nommées**, dossard par
 dossard, pas seulement comptées : un chiffre ne se travaille pas, ce
 qu'un entraîneur veut savoir c'est lesquelles — pour les placer lui-même,
 ou pour aller les faire évaluer en premier. L'équilibrage, lui, les

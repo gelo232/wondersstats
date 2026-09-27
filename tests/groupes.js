@@ -78,7 +78,7 @@ const GARNIR=(n)=>{
               sources:Object.keys(f).map(k=>f[k].source)};
     });
     if(r.appui.total!==14)throw new Error("14 convoquées attendues, "+r.appui.total);
-    if(r.appui.stats!==14)
+    if(r.appui.compteurs!==14)
       throw new Error("les compteurs devaient suffire : "+JSON.stringify(r.appui));
     if(!(r.min>=1&&r.max<=5))throw new Error("force hors de l'échelle 1–5 : "+r.min+"–"+r.max);
     if(!(r.max-r.min>1))throw new Error("l'écart de niveau n'est pas vu : "+(r.max-r.min));
@@ -130,34 +130,80 @@ const GARNIR=(n)=>{
     });
   });
 
-  await step("un score compilé prend le pas sur les compteurs",async()=>{
+  await step("les notes s'ajoutent aux compteurs, aucune ne chasse l'autre",async()=>{
     const r=await page.evaluate(()=>{
       const sq=curSquad(),camp=curCampaign(sq);
-      const pid=rosterOfCampaign(sq,camp.id)[0].playerId;
+      /* La DERNIÈRE du classement — la plus faible sur ses compteurs —
+         reçoit d'excellentes notes. Sa force doit MONTER sans atteindre
+         le sommet : les deux sources se mêlent, elles ne se remplacent
+         pas. */
+      const ids=rosterOfCampaign(sq,camp.id).map(e=>e.playerId);
+      const f0=forceDeSelection(sq,camp.id);
+      const pid=ids.slice().sort((a,b)=>f0[a].force-f0[b].force)[0];
+      const avant=f0[pid].force;
       const v=mkSelectorView({name:"Vue test",campaignId:camp.id,campaignName:camp.name});
       v.playerIds=[pid];v.data[pid]=mkEntryData();
       sq.selectorViews.push(v);
-      const sub={id:uid(),viewId:v.id,viewName:v.name,campaignId:camp.id,
+      sq.submissions.push({id:uid(),viewId:v.id,viewName:v.name,campaignId:camp.id,
         selectorName:"Marie",submittedAt:nowISO(),
         entries:[{playerId:pid,number:numOf(sq,pid),stats:emptyS(),
-          ratings:{tech:5,phys:5,tact:5,ment:5},reco:"select",pos:"",note:""}]};
-      sq.submissions.push(sub);
+          ratings:{tech:5,phys:5,tact:5,ment:5},reco:"select",pos:"",note:""}]});
+      DB=normalizeDB(DB);
+      const f1=forceDeSelection(sq,camp.id);
+      return {source:f1[pid]?f1[pid].source:null,avant,apres:f1[pid].force,
+        appui:appuiEquilibrage(sq,camp.id,f1),
+        maxAutres:Math.max(...ids.filter(x=>x!==pid).map(x=>f1[x].force))};
+    });
+    if(r.source!=="les-deux")
+      throw new Error("les deux sources ne sont pas mêlées : "+r.source);
+    if(!(r.apres>r.avant))
+      throw new Error("les notes n'ont rien changé : "+r.avant.toFixed(2)+" → "+r.apres.toFixed(2));
+    if(r.apres>=r.maxAutres)
+      throw new Error("les notes ont EFFACÉ les compteurs : "+r.apres.toFixed(2)+
+        " dépasse toute l'équipe alors que ses compteurs sont les plus faibles");
+    if(r.appui.lesDeux!==1)throw new Error("appui faux : "+JSON.stringify(r.appui));
+  });
+
+  await step("les vagues couvrent tout l'effectif, convoquée à cette campagne ou non",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=curSquad(),camp=curCampaign(sq);
+      /* Une athlète au roster de la SAISON mais convoquée à aucune
+         campagne compte dans l'échelle ET prend place dans une vague. */
+      const avant=Object.keys(forceDeSelection(sq,camp.id)).length;
+      const pl=mkDbPlayer({firstName:"Hors",lastName:"Campagne",birthYear:2010});
+      DB.players.push(pl);
+      sq.roster.push(mkRosterEntry(pl.id,"99","OH"));
+      const ev=mkEvent({kind:"league",name:"JX",day:todayISO()});
+      sq.events.push(ev);
+      sq.sessions.unshift({id:uid(),name:"JX",date:nowISO(),day:todayISO(),
+        opponent:"T",eventId:ev.id,teamName:"Équipe A",result:mkResult(),
+        entries:[{playerId:pl.id,name:fullName(pl),number:"99",position:"OH",
+          stats:normStats({atk_kill:60,atk_err:1,atk_blk:1,srv_ace:20,srv_err:1,
+            srv_ok:30,rec_perf:40,rec_ok:10,rec_err:1})}],
+        sets:[],splitAt:nowISO()});
       DB=normalizeDB(DB);
       const f=forceDeSelection(sq,camp.id);
-      return {source:f[pid]?f[pid].source:null,
-              appui:appuiEquilibrage(sq,camp.id,f)};
+      return {avant,apres:Object.keys(f).length,
+        horsCampagne:!!f[pl.id],
+        dansAppui:appuiEquilibrage(sq,camp.id,f).total,
+        dansGroupes:composerGroupesEquilibres(sq,camp.id,4)
+          .reduce((t,g)=>t+g.playerIds.filter(x=>x===pl.id).length,0)};
     });
-    if(r.source!=="score")
-      throw new Error("le score compilé n'a pas pris le pas : "+r.source);
-    if(r.appui.score!==1)throw new Error("appui faux : "+JSON.stringify(r.appui));
+    if(!r.horsCampagne)
+      throw new Error("une athlète du roster hors campagne n'a pas de force calculée");
+    if(r.apres<=r.avant)
+      throw new Error("l'effectif de référence ne s'est pas élargi");
+    if(r.dansGroupes!==1)
+      throw new Error("une athlète du roster non convoquée à cette campagne "+
+        "n'a pas reçu de vague ("+r.dansGroupes+")");
   });
 
   say("\n── La deuxième journée n'est pas aveugle");
-  await step("le score d'une campagne passée sert de repère à la suivante",async()=>{
+  await step("ce qui a été jugé une autre journée compte encore",async()=>{
     const r=await page.evaluate(()=>{
       const sq=curSquad(),j1=curCampaign(sq);
       j1.name="Journée 1";j1.seq=1;
-      /* Une seconde campagne, mêmes convoquées, aucune soumission encore. */
+      /* Une seconde campagne, mêmes convoquées, aucune soumission à elle. */
       const j2=mkCampaign({kind:"tryout",name:"Journée 2",seq:2});
       sq.campaigns.push(j2);
       rosterOfCampaign(sq,j1.id).forEach(e=>ensureCampaignRosterEntry(sq,j2.id,e.playerId,null));
@@ -165,34 +211,40 @@ const GARNIR=(n)=>{
       DB=normalizeDB(DB);
       const f=forceDeSelection(sq,j2.id);
       const a=appuiEquilibrage(sq,j2.id,f);
-      return {appui:a,sources:{}, repris:Object.keys(f).filter(k=>f[k].source==="passe").length,
-              dou:a.dou,total:Object.keys(f).length};
+      return {appui:a,avecNotes:Object.keys(f).filter(k=>
+        f[k].source==="notes"||f[k].source==="les-deux").length};
     });
-    if(!r.repris)
-      throw new Error("la journée 2 repart aveugle : rien n'est repris de la journée 1");
-    if(r.dou!=="Journée 1")
-      throw new Error("la campagne d'origine n'est pas nommée : "+r.dou);
-    if(r.appui.passe!==r.repris)
-      throw new Error("l'écran ne compte pas les scores repris : "+JSON.stringify(r.appui));
+    if(!r.avecNotes)
+      throw new Error("la journée 2 repart aveugle : les notes de la journée 1 ne comptent pas");
+    if(r.appui.sans===r.appui.total)
+      throw new Error("aucun repère à la journée 2 : "+JSON.stringify(r.appui));
   });
 
-  await step("un score de la journée en cours l'emporte sur celui de la veille",async()=>{
+  await step("un nouveau jugement s'ajoute au précédent, il ne l'efface pas",async()=>{
     const r=await page.evaluate(()=>{
       const sq=curSquad(),j2=curCampaign(sq);
-      const pid=rosterOfCampaign(sq,j2.id)[0].playerId;
+      /* Une athlète notée au plus haut la veille est notée au plus bas
+         aujourd'hui : sa force doit se poser ENTRE les deux. */
+      const ids=rosterOfCampaign(sq,j2.id).map(e=>e.playerId);
+      const f0=forceDeSelection(sq,j2.id);
+      const pid=ids.filter(x=>f0[x]).sort((a,b)=>f0[b].force-f0[a].force)[0];
+      const avant=f0[pid].force;
       const v=mkSelectorView({name:"Vue J2",campaignId:j2.id,campaignName:j2.name});
       v.playerIds=[pid];v.data[pid]=mkEntryData();
       sq.selectorViews.push(v);
       sq.submissions.push({id:uid(),viewId:v.id,viewName:v.name,campaignId:j2.id,
         selectorName:"Sophie",submittedAt:nowISO(),
         entries:[{playerId:pid,number:numOf(sq,pid),stats:emptyS(),
-          ratings:{tech:2,phys:2,tact:2,ment:2},reco:"cut",pos:"",note:""}]});
+          ratings:{tech:1,phys:1,tact:1,ment:1},reco:"cut",pos:"",note:""}]});
       DB=normalizeDB(DB);
-      const f=forceDeSelection(sq,j2.id);
-      return {source:f[pid]?f[pid].source:null};
+      const f1=forceDeSelection(sq,j2.id);
+      return {avant,apres:f1[pid].force};
     });
-    if(r.source!=="score")
-      throw new Error("le jugement du jour n'a pas pris le pas : "+r.source);
+    if(!(r.apres<r.avant))
+      throw new Error("le jugement du jour n'a rien changé : "+
+        r.avant.toFixed(2)+" → "+r.apres.toFixed(2));
+    if(r.apres<=1.2)
+      throw new Error("le jugement du jour a EFFACÉ celui de la veille : "+r.apres.toFixed(2));
   });
 
   await step("les athlètes sans repère sont nommées, pas seulement comptées",async()=>{
@@ -330,20 +382,41 @@ const GARNIR=(n)=>{
     if(!apres)throw new Error("les groupes ont disparu");
   });
 
-  await step("une athlète décommandée sort de sa vague",async()=>{
+  await step("décommander d'UNE campagne ne retire pas des vagues",async()=>{
+    /* Les vagues portent l'effectif de la saison : ne plus être convoquée
+       à cette journée-là n'en fait pas sortir. C'est le retrait du ROSTER
+       qui en fait sortir, et lui seul. */
     const r=await page.evaluate(()=>{
       const sq=curSquad(),camp=curCampaign(sq);
-      const g0=(camp.playerGroups||[])[0];
-      const pid=g0.playerIds[0];
+      const avant=(camp.playerGroups||[]).reduce((t,g)=>t+g.playerIds.length,0);
+      const pid=(camp.playerGroups||[])[0].playerIds[0];
       sq.campaignRoster=(sq.campaignRoster||[]).filter(e=>
         !(e.campaignId===camp.id&&e.playerId===pid));
       DB=normalizeDB(DB);
       const c2=curCampaign(curSquad());
-      return {reste:(c2.playerGroups||[]).some(g=>g.playerIds.indexOf(pid)!==-1),
-              total:(c2.playerGroups||[]).reduce((t,g)=>t+g.playerIds.length,0)};
+      return {avant,pid,
+        reste:(c2.playerGroups||[]).some(g=>g.playerIds.indexOf(pid)!==-1),
+        apres:(c2.playerGroups||[]).reduce((t,g)=>t+g.playerIds.length,0)};
     });
-    if(r.reste)throw new Error("la décommandée est restée dans sa vague");
-    if(r.total!==13)throw new Error("13 attendues dans les vagues, "+r.total);
+    if(!r.reste)throw new Error("décommander d'une campagne l'a sortie des vagues");
+    if(r.apres!==r.avant)
+      throw new Error("les vagues ont bougé : "+r.avant+" → "+r.apres);
+  });
+
+  await step("retirée du roster de la saison, elle sort des vagues",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=curSquad(),camp=curCampaign(sq);
+      const avant=(camp.playerGroups||[]).reduce((t,g)=>t+g.playerIds.length,0);
+      const pid=(camp.playerGroups||[])[0].playerIds[0];
+      sq.roster=(sq.roster||[]).filter(e=>e.playerId!==pid);
+      DB=normalizeDB(DB);
+      const c2=curCampaign(curSquad());
+      return {avant,reste:(c2.playerGroups||[]).some(g=>g.playerIds.indexOf(pid)!==-1),
+              apres:(c2.playerGroups||[]).reduce((t,g)=>t+g.playerIds.length,0)};
+    });
+    if(r.reste)throw new Error("la retirée est restée dans sa vague");
+    if(r.apres!==r.avant-1)
+      throw new Error("les vagues devaient perdre une place : "+r.avant+" → "+r.apres);
   });
 
   await ctx.close();

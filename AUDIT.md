@@ -976,11 +976,39 @@ l'autre, c'est un niveau moyen.
 Le nombre demandé est un **plafond**, jamais une part laissée pour
 compte : quatorze par six donnent 5-5-4, et non 6-6-2.
 
+**La base élargie, sur les deux axes.** Demandé après coup, et juste : la
+composition partait d'une cascade — le premier repère trouvé gagnait,
+les autres étaient ignorés — et d'une population réduite aux convoquées
+de la campagne ouverte. Deux rétrécissements, corrigés ensemble.
+
+*Toutes les stats connues, mêlées.* Plus de cascade. Les notes de tous
+les évaluateurs, toutes campagnes confondues et corrigées de la
+sévérité, d'un côté ; de l'autre, l'efficacité par famille calculée sur
+TOUT ce qui a été relevé — les rencontres de la saison et les compteurs
+de chaque soumission, les soumissions corrigées exclues. Les deux mêlés
+à `statShare`, puis amortis vers la moyenne selon le nombre de regards.
+Conséquence assumée : un jugement récent ne chasse plus un ancien, il
+s'y ajoute. C'est ce que « toutes les stats connues » veut dire, et une
+pondération par fraîcheur serait un autre choix, à demander.
+
+*Tout l'effectif de la saison.* L'échelle se calculait sur les seules
+convoquées du soir : une campagne de six athlètes ne fournit aucune
+distribution digne de ce nom, et l'échelle changeait de sens d'une
+journée à l'autre. Elle porte désormais sur `sq.roster` entier. Et les
+vagues aussi : elles couvrent tout l'effectif, quelle que soit la
+campagne, les athlètes marquées « partie » exceptées. Le point qui
+n'allait pas de soi est la normalisation — bornée aux convoquées de la
+campagne, elle aurait vidé les vagues de tous les non-convoqués au
+premier rechargement, en silence. Un test le tient : décommander d'une
+journée ne retire pas des vagues, retirer du roster si.
+
 **Deux défauts trouvés en répondant à « et pour la deuxième journée ? ».**
 Mesurés, tous les deux.
 
-*La journée 2 repartait aveugle.* La force se lisait dans les
-soumissions de LA campagne en cours — et à l'ouverture d'une journée 2,
+*La journée 2 repartait aveugle* (corrigé une première fois par une
+reprise des campagnes passées, puis rendu sans objet par le mélange
+ci-dessus, qui compile toutes les campagnes d'emblée). La force se
+lisait dans les soumissions de LA campagne en cours — et à l'ouverture d'une journée 2,
 il n'y en a aucune. Sur douze convoquées dont six évaluées la veille :
 `score 0 · stats 0 · sans repère 12`. Ce qu'on avait appris la veille —
 la seule chose qui distingue vraiment ces athlètes — ne comptait pas. La
@@ -1031,7 +1059,7 @@ que le journal de secours survit, et qu'un choix explicite — et lui seul
 — écrit par-dessus. Le douzième pose un filtre puis un ordre dans la même
 visite, et vérifie que la liste rendue est bien filtrée ET triée.
 
-`tests/groupes.js` — treize contrôles, dont les neuf premiers **tous** en
+`tests/groupes.js` — quinze contrôles, dont les neuf premiers **tous** en
 échec sur la version d'avant la fonctionnalité. Le deuxième est celui qui porte la démonstration : il compose le
 même effectif des deux façons et exige que l'équilibrage divise l'écart
 par au moins quatre. Les autres tiennent les invariants qu'un entraîneur
