@@ -1775,11 +1775,15 @@ function statsSaisonParAthlete(sq){
    1. le SCORE compilé de la campagne. C'est déjà le mélange des notes
       des évaluateurs et des compteurs relevés, corrigé de la sévérité
       et amorti selon le nombre de regards — rien de mieux à construire ;
-   2. à défaut, ses COMPTEURS de la saison, ramenés à la même échelle
-      1–5 par la distribution des convoquées. C'est le cas de la première
-      journée, où personne n'a encore été vu ;
-   3. à défaut, rien. On ne devine pas une force : l'athlète se répartit
-      sans peser, et l'écran dit combien sont dans ce cas.
+   2. à défaut, son score d'une campagne PRÉCÉDENTE, la plus récente qui
+      en porte un. Sans lui, la journée 2 repartait aveugle : personne
+      n'y a encore été évalué, et ce qu'on avait appris la veille — la
+      seule chose qui distingue vraiment ces athlètes — ne comptait pas ;
+   3. à défaut, ses COMPTEURS de la saison, ramenés à la même échelle
+      1–5 par la distribution des convoquées. C'est le cas d'une athlète
+      du club que personne n'a encore jugée en sélection ;
+   4. à défaut, rien. On ne devine pas une force : l'écran la nomme, et
+      l'équilibrage la traite comme une athlète MOYENNE — voir plus bas.
 
    La formule du club — poids des familles, volume minimal — est celle de
    la saison : la même qui fait le score. */
@@ -1794,6 +1798,28 @@ function forceDeSelection(sq,cid){
     if(c&&(c.critScore!=null||c.statScore!=null))out[pid]={force:c.score,source:"score"};
   });
   var manquent=ids.filter(function(pid){return !out[pid]});
+  if(!manquent.length)return out;
+
+  /* Ce qu'on a appris aux journées d'avant. On remonte de la plus récente
+     à la plus ancienne : le jugement le plus frais l'emporte. Les scores
+     de deux campagnes sont sur la même échelle — même formule de club,
+     même barème 1–5 — mais ils ne sont pas du même jour, et l'écran le
+     dit plutôt que de les confondre avec ceux d'aujourd'hui. */
+  var ordre=campaignOrder(sq),rang={};
+  ordre.forEach(function(c,i){rang[c.id]=i});
+  var monRang=(rang[cid]!=null)?rang[cid]:ordre.length;
+  var avant=ordre.slice(0,monRang).reverse();
+  for(var a=0;a<avant.length&&manquent.length;a++){
+    var compAv=compileSubmissions(sq,avant[a].id),nom=avant[a].name;
+    manquent=manquent.filter(function(pid){
+      var c=compAv[pid];
+      if(c&&(c.critScore!=null||c.statScore!=null)){
+        out[pid]={force:c.score,source:"passe",campagne:nom};
+        return false;
+      }
+      return true;
+    });
+  }
   if(!manquent.length)return out;
 
   /* L'échelle se calcule sur TOUTES les convoquées, pas seulement sur
@@ -1831,12 +1857,13 @@ function forceDeSelection(sq,cid){
    équilibrage sans repère n'est qu'une répartition, et qu'il vaut mieux
    l'annoncer que le laisser croire. */
 function appuiEquilibrage(sq,cid,forces){
-  var out={total:0,score:0,stats:0,sans:0};
+  var out={total:0,score:0,passe:0,stats:0,sans:0,sansIds:[],dou:""};
   rosterOfCampaign(sq,cid).forEach(function(e){
     out.total++;
     var f=forces[e.playerId];
-    if(!f)out.sans++;
-    else if(f.source==="score")out.score++;
+    if(!f){out.sans++;out.sansIds.push(e.playerId);return}
+    if(f.source==="score")out.score++;
+    else if(f.source==="passe"){out.passe++;if(!out.dou)out.dou=f.campagne||""}
     else out.stats++;
   });
   return out;
@@ -1869,12 +1896,30 @@ function composerGroupesEquilibres(sq,cid,taille){
     if(isNaN(na))na=9999;if(isNaN(nb))nb=9999;
     return na-nb;
   });
-  /* Les forces connues d'abord, décroissantes ; les inconnues ensuite,
-     dans l'ordre des dossards — elles se répartissent une par groupe. */
-  var connues=[],inconnues=[];
-  parNum.forEach(function(pid){(forces[pid]?connues:inconnues).push(pid)});
-  connues.sort(function(a,b){
-    var d=forces[b].force-forces[a].force;
+  /* Une athlète sans repère ne vaut pas ZÉRO : elle vaut ce qu'on ignore,
+     c'est-à-dire, en espérance, une athlète moyenne. On lui prête donc la
+     moyenne des forces connues, et elle prend place dans le MÊME ordre que
+     les autres — au milieu, là où son niveau espéré la met.
+
+     Les placer en dernier, comptées pour rien, revenait à composer les
+     groupes sur les seules connues puis à boucher les trous : les vagues
+     qui héritaient le plus d'inconnues étaient traitées comme les plus
+     légères, et on leur ajoutait encore des connues faibles. Mesuré sur
+     six connues étagées et six inconnues, l'écart de force espérée entre
+     vagues valait 1,10 ; en les mêlant, 0,10. Sur quatre connues très
+     écartées et huit inconnues : 1,375 contre 0. Quand presque tout le
+     monde est connu, les deux se valent — c'est exactement quand il y a
+     des inconnues que cela compte. */
+  var connues=[];
+  parNum.forEach(function(pid){if(forces[pid])connues.push(pid)});
+  var moyConnue=(function(){
+    var t=0;
+    connues.forEach(function(pid){t+=forces[pid].force});
+    return connues.length?(t/connues.length):0;
+  })();
+  function poids(pid){return forces[pid]?forces[pid].force:moyConnue}
+  var ordre=parNum.slice().sort(function(a,b){
+    var d=poids(b)-poids(a);
     return d||(parNum.indexOf(a)-parNum.indexOf(b));
   });
   var g=[],i;
@@ -1893,10 +1938,9 @@ function composerGroupesEquilibres(sq,cid,taille){
     }
     if(choix===-1)return;
     g[choix].playerIds.push(pid);
-    g[choix].somme+=forces[pid]?forces[pid].force:0;
+    g[choix].somme+=poids(pid);
   }
-  connues.forEach(placer);
-  inconnues.forEach(placer);
+  ordre.forEach(placer);
   /* Dans un groupe, l'ordre reste celui des dossards : c'est celui dans
      lequel on les appelle, et celui qu'on relit. */
   return g.filter(function(x){return x.playerIds.length}).map(function(x){
@@ -8920,26 +8964,43 @@ function renderCampGroupsModal(){
   /* Sur quoi l'équilibrage s'appuie — dit avant de le lancer. */
   var appuiTxt,bouts=[];
   if(appui.score)bouts.push(h("b",null,
-    plural(appui.score,"score")+" compilé"+(appui.score>1?"s":"")));
+    plural(appui.score,"score")+" compilé"+(appui.score>1?"s":"")+" de cette campagne"));
+  if(appui.passe)bouts.push(h("b",null,
+    plural(appui.passe,"score")+" repris"+(appui.passe>1?"":"")+
+    (appui.dou?" de « "+appui.dou+" »":" d'une campagne passée")));
   if(appui.stats)bouts.push(h("b",null,
     "les compteurs de "+plural(appui.stats,"athlète")));
+  var avecRepere=appui.score+appui.passe+appui.stats;
   if(!bouts.length)
-    appuiTxt=["Aucun repère pour l'instant : ni score compilé, ni compteurs. ",
+    appuiTxt=["Aucun repère pour l'instant : ni score, ni compteurs. ",
       "Les groupes seront simplement répartis, à parts égales — c'est une ",
       "répartition, pas un équilibrage, et il vaut mieux le savoir."];
   else {
     appuiTxt=["Équilibré sur "];
     bouts.forEach(function(b,i){
-      if(i)appuiTxt.push(" et ");
+      if(i)appuiTxt.push(i===bouts.length-1?" et ":", ");
       appuiTxt.push(b);
     });
-    appuiTxt.push(appui.sans
-      ? ". "+plural(appui.sans,"athlète")+
-        (appui.sans>1?" n'ont":" n'a")+" aucun repère : "+
-        (appui.sans>1?"elles se répartissent":"elle se répartit")+" sans peser."
-      : ".");
+    appuiTxt.push(".");
   }
-  corps.appendChild(h("div",{className:"hint"+((appui.score+appui.stats)?"":" warn")},appuiTxt));
+  corps.appendChild(h("div",{className:"hint"+(avecRepere?"":" warn")},appuiTxt));
+
+  /* Les athlètes sans repère, NOMMÉES. Un chiffre ne se travaille pas :
+     ce que l'entraîneur veut savoir, c'est lesquelles — pour les placer
+     lui-même, ou pour aller les faire évaluer en premier. */
+  if(appui.sans){
+    var nums=appui.sansIds.map(function(pid){return numLabel(numOf(sq,pid))}).join("  ");
+    corps.appendChild(h("div",{className:"hint warn"},
+      h("b",null,plural(appui.sans,"athlète")+" sans repère"),
+      " : ",nums,
+      ". "+(appui.sans>1?"Elles n'ont":"Elle n'a")+" ni score d'une campagne, "+
+      "ni assez de compteurs cette saison"+
+      (avecRepere?". L'équilibrage "+(appui.sans>1?"les":"la")+
+        " compte pour une athlète moyenne — "+
+        (appui.sans>1?"elles se répartissent":"elle se répartit")+
+        " entre les groupes plutôt que de s'entasser dans le plus faible."
+       :".")));
+  }
 
   /* Composer. */
   var inpT=h("input",{type:"number",inputmode:"numeric",min:"2",max:"20",

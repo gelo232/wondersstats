@@ -152,6 +152,98 @@ const GARNIR=(n)=>{
     if(r.appui.score!==1)throw new Error("appui faux : "+JSON.stringify(r.appui));
   });
 
+  say("\n── La deuxième journée n'est pas aveugle");
+  await step("le score d'une campagne passée sert de repère à la suivante",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=curSquad(),j1=curCampaign(sq);
+      j1.name="Journée 1";j1.seq=1;
+      /* Une seconde campagne, mêmes convoquées, aucune soumission encore. */
+      const j2=mkCampaign({kind:"tryout",name:"Journée 2",seq:2});
+      sq.campaigns.push(j2);
+      rosterOfCampaign(sq,j1.id).forEach(e=>ensureCampaignRosterEntry(sq,j2.id,e.playerId,null));
+      sq.activeCampaignId=j2.id;state.evalCampaignId=j2.id;
+      DB=normalizeDB(DB);
+      const f=forceDeSelection(sq,j2.id);
+      const a=appuiEquilibrage(sq,j2.id,f);
+      return {appui:a,sources:{}, repris:Object.keys(f).filter(k=>f[k].source==="passe").length,
+              dou:a.dou,total:Object.keys(f).length};
+    });
+    if(!r.repris)
+      throw new Error("la journée 2 repart aveugle : rien n'est repris de la journée 1");
+    if(r.dou!=="Journée 1")
+      throw new Error("la campagne d'origine n'est pas nommée : "+r.dou);
+    if(r.appui.passe!==r.repris)
+      throw new Error("l'écran ne compte pas les scores repris : "+JSON.stringify(r.appui));
+  });
+
+  await step("un score de la journée en cours l'emporte sur celui de la veille",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=curSquad(),j2=curCampaign(sq);
+      const pid=rosterOfCampaign(sq,j2.id)[0].playerId;
+      const v=mkSelectorView({name:"Vue J2",campaignId:j2.id,campaignName:j2.name});
+      v.playerIds=[pid];v.data[pid]=mkEntryData();
+      sq.selectorViews.push(v);
+      sq.submissions.push({id:uid(),viewId:v.id,viewName:v.name,campaignId:j2.id,
+        selectorName:"Sophie",submittedAt:nowISO(),
+        entries:[{playerId:pid,number:numOf(sq,pid),stats:emptyS(),
+          ratings:{tech:2,phys:2,tact:2,ment:2},reco:"cut",pos:"",note:""}]});
+      DB=normalizeDB(DB);
+      const f=forceDeSelection(sq,j2.id);
+      return {source:f[pid]?f[pid].source:null};
+    });
+    if(r.source!=="score")
+      throw new Error("le jugement du jour n'a pas pris le pas : "+r.source);
+  });
+
+  await step("les athlètes sans repère sont nommées, pas seulement comptées",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=curSquad(),cid=curCampaign(sq).id;
+      const a=appuiEquilibrage(sq,cid,forceDeSelection(sq,cid));
+      return {sans:a.sans,nommees:(a.sansIds||[]).length};
+    });
+    if(r.sans!==r.nommees)
+      throw new Error(r.sans+" sans repère mais "+r.nommees+" nommée(s)");
+  });
+
+  await step("une inconnue vaut une athlète moyenne, et non zéro",async()=>{
+    /* Comptées pour rien, les inconnues étaient versées dans les vagues
+       déjà les plus faibles, qu'on chargeait ensuite de connues faibles.
+       On compare les deux placements sur la même table de forces. */
+    const r=await page.evaluate(()=>{
+      const tailles=taillesDeGroupes(12,3);
+      const forcesK=[4.8,4.4,3.9,2.6,2.1,1.4];
+      const f={};forcesK.forEach((v,i)=>{f["k"+i]=v});
+      const inconnues=[];for(let i=0;i<6;i++)inconnues.push("u"+i);
+      const moy=forcesK.reduce((t,v)=>t+v,0)/forcesK.length;
+      const poser=(ordre,valeur)=>{
+        const g=tailles.map(()=>({ids:[],somme:0}));
+        ordre.forEach(id=>{
+          let c=-1;
+          for(let k=0;k<g.length;k++){
+            if(g[k].ids.length>=tailles[k])continue;
+            if(c===-1||(g[k].somme/tailles[k])<(g[c].somme/tailles[c]))c=k;
+          }
+          if(c!==-1){g[c].ids.push(id);g[c].somme+=valeur(id)}
+        });
+        return g;
+      };
+      const esp=(g)=>g.ids.reduce((t,id)=>t+(f[id]!=null?f[id]:moy),0)/g.ids.length;
+      const ec=(gs)=>{const v=gs.map(esp);return Math.max(...v)-Math.min(...v)};
+      const connues=forcesK.map((v,i)=>"k"+i).sort((a,b)=>f[b]-f[a]);
+      const avant=ec(poser(connues.concat(inconnues),id=>f[id]!=null?f[id]:0));
+      const tout=connues.concat(inconnues)
+        .sort((x,y)=>(f[y]!=null?f[y]:moy)-(f[x]!=null?f[x]:moy));
+      const apres=ec(poser(tout,id=>f[id]!=null?f[id]:moy));
+      return {avant,apres};
+    });
+    if(!(r.avant>0.5))throw new Error("le jeu d'essai ne montre pas le défaut : "+r.avant);
+    if(!(r.apres<r.avant/3))
+      throw new Error("mêler les inconnues n'apporte rien : "+
+        r.avant.toFixed(2)+" → "+r.apres.toFixed(2));
+    say("       écart de force espérée : "+r.avant.toFixed(2)+
+        " comptées pour zéro → "+r.apres.toFixed(2)+" comptées pour la moyenne");
+  });
+
   say("\n── Les mêmes groupes dans toutes les vues");
   await step("composer depuis l'écran, et les vues les reçoivent",async()=>{
     await page.evaluate(()=>{

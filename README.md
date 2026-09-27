@@ -832,13 +832,26 @@ l'autre, et personne ne le savait.
 Les groupes se composent maintenant **une fois pour la campagne**, d'un
 geste : on donne le nombre d'athlètes par groupe, et l'application les
 répartit en équilibrant. Le même jeu d'essai tombe à **0,17**. Elle
-s'appuie d'abord sur le score compilé de la campagne — notes des
-évaluateurs et compteurs mêlés, corrigés de la sévérité — et, pour celles
-que personne n'a encore vues, sur leurs compteurs de la saison ramenés à
-la même échelle. Celles dont on ne sait rien se répartissent sans peser,
-et l'écran **dit** sur quoi il s'est appuyé : « Équilibré sur 9 scores
-compilés et les compteurs de 5 athlètes ». Un équilibrage sans repère
-n'est qu'une répartition, et mieux vaut l'annoncer que le laisser croire.
+s'appuie, dans cet ordre : sur le **score compilé de la campagne** —
+notes des évaluateurs et compteurs mêlés, corrigés de la sévérité ; à
+défaut sur le **score d'une journée précédente**, la plus récente qui en
+porte un, si bien que la journée 2 part avec ce qu'on a appris la veille
+au lieu de repartir aveugle ; à défaut sur les **compteurs de la saison**
+ramenés à la même échelle. L'écran **dit** sur quoi il s'est appuyé :
+« Équilibré sur 4 scores compilés de cette campagne, 9 scores repris de
+« Journée 1 » et les compteurs de 5 athlètes ». Un équilibrage sans
+repère n'est qu'une répartition, et mieux vaut l'annoncer que le laisser
+croire.
+
+**Et celles dont on ne sait rien ?** Elles sont **nommées**, dossard par
+dossard, pas seulement comptées : un chiffre ne se travaille pas, ce
+qu'un entraîneur veut savoir c'est lesquelles — pour les placer lui-même,
+ou pour aller les faire évaluer en premier. L'équilibrage, lui, les
+compte pour une athlète **moyenne** et non pour zéro, et les mêle aux
+autres dans l'ordre. Comptées pour rien, elles étaient versées dans les
+vagues déjà les plus faibles, qu'on chargeait ensuite de connues faibles :
+mesuré sur six connues étagées et six inconnues, l'écart de force espérée
+entre vagues valait **1,10** ; en les mêlant, **0,10**.
 
 Ces groupes appartiennent à la campagne, pas à une vue : **toutes les
 vues les reçoivent**, réduits à leurs propres athlètes. « Groupe B »

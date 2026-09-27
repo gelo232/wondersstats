@@ -976,6 +976,44 @@ l'autre, c'est un niveau moyen.
 Le nombre demandé est un **plafond**, jamais une part laissée pour
 compte : quatorze par six donnent 5-5-4, et non 6-6-2.
 
+**Deux défauts trouvés en répondant à « et pour la deuxième journée ? ».**
+Mesurés, tous les deux.
+
+*La journée 2 repartait aveugle.* La force se lisait dans les
+soumissions de LA campagne en cours — et à l'ouverture d'une journée 2,
+il n'y en a aucune. Sur douze convoquées dont six évaluées la veille :
+`score 0 · stats 0 · sans repère 12`. Ce qu'on avait appris la veille —
+la seule chose qui distingue vraiment ces athlètes — ne comptait pas. La
+cascade remonte maintenant aux campagnes précédentes, de la plus récente
+à la plus ancienne, et l'écran nomme celle d'où vient le repère : sur le
+même jeu, `repris 6 · de « Journée 1 »`. Un jugement du jour l'emporte
+toujours sur celui de la veille.
+
+*Une athlète sans repère valait zéro.* Elle était donc placée en dernier,
+sans peser — ce qui revenait à composer les vagues sur les seules
+connues, puis à boucher les trous. Les vagues qui héritaient le plus
+d'inconnues étaient tenues pour les plus légères, et on leur ajoutait
+encore des connues faibles. Une inconnue ne vaut pas zéro : elle vaut ce
+qu'on ignore, c'est-à-dire, en espérance, une athlète moyenne. On lui
+prête donc la moyenne des forces connues et on la mêle aux autres dans
+l'ordre. Écart de force espérée entre vagues, mesuré :
+
+| jeu d'essai | comptées pour zéro | comptées pour la moyenne |
+|---|---|---|
+| 6 connues étagées, 6 inconnues, par 3 | 1,10 | **0,10** |
+| 4 connues très écartées, 8 inconnues, par 4 | 1,375 | **0** |
+| 2 connues, 10 inconnues, par 4 | 0,925 | **0** |
+| 9 connues, 3 inconnues, par 4 | 0,200 | 0,217 |
+
+La dernière ligne est honnête : quand presque tout le monde est connu,
+les deux se valent, à 0,017 près. C'est exactement quand il y a des
+inconnues que cela compte — donc à une première journée de tryout.
+
+Et elles ne sont plus seulement comptées : l'écran les NOMME, dossard par
+dossard. Un chiffre ne se travaille pas ; ce qu'un entraîneur veut
+savoir, c'est lesquelles — pour les placer lui-même, ou pour aller les
+faire évaluer en premier.
+
 **Ce qui n'a pas été fait, et c'est délibéré.** Les groupes ne sont pas
 équilibrés par poste. La demande portait sur les stats et les scores, et
 un critère de poste ajouté d'office aurait produit des groupes que
@@ -993,13 +1031,15 @@ que le journal de secours survit, et qu'un choix explicite — et lui seul
 — écrit par-dessus. Le douzième pose un filtre puis un ordre dans la même
 visite, et vérifie que la liste rendue est bien filtrée ET triée.
 
-`tests/groupes.js` — neuf contrôles, **tous** en échec sur la version
-d'avant. Le deuxième est celui qui porte la démonstration : il compose le
+`tests/groupes.js` — treize contrôles, dont les neuf premiers **tous** en
+échec sur la version d'avant la fonctionnalité. Le deuxième est celui qui porte la démonstration : il compose le
 même effectif des deux façons et exige que l'équilibrage divise l'écart
 par au moins quatre. Les autres tiennent les invariants qu'un entraîneur
 ne vérifiera pas lui-même — chaque athlète placée une fois et une seule,
 aucun groupe au-delà du nombre demandé, aucun groupe laissé pour compte,
 les mêmes identifiants de groupe dans la campagne et dans ses vues,
+la reprise du score de la veille et sa préséance par le jugement du jour,
+le placement des inconnues qui divise l'écart espéré par au moins trois,
 aucune athlète d'une vue qui n'y figure pas, le paquet du sélectionneur
 qui les emporte, la survie au rechargement, et la sortie d'une
 décommandée de sa vague.
