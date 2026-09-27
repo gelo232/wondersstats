@@ -819,6 +819,36 @@ aucun moyen d'isoler ces lignes : ils ont maintenant leur « — Sans poste »,
 leur « — Aucune ». Dans « Ce qu'on regarde », le chiffre d'une nature
 ignorait la période déjà posée.
 
+**Des vagues équilibrées, et les mêmes pour tout le monde.** Une journée
+de sélection se déroule en vagues : on ne fait pas passer vingt-huit
+athlètes d'un bloc devant un évaluateur. Ces vagues se découpaient vue
+par vue, dans l'ordre des dossards — et l'ordre des dossards n'est pas un
+hasard : les numéros bas d'un club sont souvent ses anciennes. Mesuré sur
+quatorze convoquées de niveaux inégaux, l'écart de niveau moyen entre la
+première vague et la dernière valait **2,55 point sur 5**. Ce qu'un
+évaluateur voyait d'un groupe n'était pas comparable à ce qu'il voyait de
+l'autre, et personne ne le savait.
+
+Les groupes se composent maintenant **une fois pour la campagne**, d'un
+geste : on donne le nombre d'athlètes par groupe, et l'application les
+répartit en équilibrant. Le même jeu d'essai tombe à **0,17**. Elle
+s'appuie d'abord sur le score compilé de la campagne — notes des
+évaluateurs et compteurs mêlés, corrigés de la sévérité — et, pour celles
+que personne n'a encore vues, sur leurs compteurs de la saison ramenés à
+la même échelle. Celles dont on ne sait rien se répartissent sans peser,
+et l'écran **dit** sur quoi il s'est appuyé : « Équilibré sur 9 scores
+compilés et les compteurs de 5 athlètes ». Un équilibrage sans repère
+n'est qu'une répartition, et mieux vaut l'annoncer que le laisser croire.
+
+Ces groupes appartiennent à la campagne, pas à une vue : **toutes les
+vues les reçoivent**, réduits à leurs propres athlètes. « Groupe B »
+désigne les mêmes athlètes dans le carnet de chaque évaluateur, et le
+restera pour une vue créée le lendemain. La composition se retouche à la
+main — on choisit un groupe, on touche les dossards — et chaque groupe
+affiche sa force moyenne, pour qu'on **voie** l'équilibre au lieu d'avoir
+à croire l'application sur parole. Cela se trouve dans 🎯 Sélection →
+Vues → « 🧩 Composer des groupes ».
+
 **Filtrer et trier ne sont plus deux voyages.** Une liste réduite à ce
 qui reste à trancher est précisément celle qu'on veut ranger — et il
 fallait refermer la feuille des filtres, retrouver le bouton de tri, la

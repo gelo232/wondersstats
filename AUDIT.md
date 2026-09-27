@@ -932,6 +932,56 @@ une feuille qui porte les deux sections, choisir une option en bas
 ramenait le regard en tête de liste. Le défilement garde sa place, et
 seulement si c'est bien la même feuille qui revient.
 
+### M ter. Les vagues d'une journée de sélection
+
+Demandé, et le défaut trouvé en le faisant : les groupes d'évaluation se
+découpaient **vue par vue, dans l'ordre des dossards**. Deux
+conséquences, dont la seconde est la plus lourde.
+
+L'ordre des dossards n'est pas un hasard — les numéros bas d'un club sont
+souvent ses anciennes. Mesuré sur un jeu de quatorze convoquées aux
+niveaux volontairement étagés, l'écart de force moyenne entre la première
+vague et la dernière valait **2,55 point sur une échelle de 5**. Le même
+jeu, composé en équilibrant : **0,17**. Un évaluateur n'était donc pas
+en train de juger le même niveau qu'un autre, et rien ne le disait.
+
+Et chaque vue portait SES groupes : « groupe B » ne désignait pas les
+mêmes athlètes d'un carnet à l'autre.
+
+**Ce qui a été fait.** Les groupes appartiennent à la campagne et
+descendent dans toutes ses vues, réduits à leurs propres athlètes, en
+gardant leurs identifiants — « groupe B » est le même objet partout, et
+le reste pour une vue créée le lendemain. La composition s'appuie, dans
+cet ordre : sur le score compilé de la campagne quand il existe (il mêle
+déjà notes et compteurs, corrigés de la sévérité et amortis selon le
+nombre de regards) ; sinon sur les compteurs de la saison, ramenés à la
+même échelle 1–5 par la distribution des convoquées, avec le volume
+minimal du club ; sinon sur rien, et l'athlète se répartit sans peser.
+L'écran dit lequel des trois cas s'applique et pour combien d'athlètes :
+sans repère, ce n'est plus un équilibrage mais une répartition, et cela
+se dit.
+
+**Deux choix d'algorithme, et pourquoi.** Le placement est celui du plus
+lourd d'abord — on range de la plus forte à la plus faible, et chacune
+va dans le groupe le moins chargé qui n'est pas plein. C'est ce qui
+rapproche le plus les sommes, et surtout cela se raconte en une phrase,
+ce qui compte pour un entraîneur qui doit pouvoir défendre sa
+composition. Et la comparaison porte sur la somme **rapportée à la taille
+visée**, non sur la somme brute : quatorze athlètes par quatre donnent
+des groupes de 4-4-3-3, et un groupe de trois qui porte autant qu'un
+groupe de quatre est en réalité le plus fort des deux. Corrigé, l'écart
+mesuré passe de 0,47 à 0,17 — ce qu'un évaluateur compare d'une vague à
+l'autre, c'est un niveau moyen.
+
+Le nombre demandé est un **plafond**, jamais une part laissée pour
+compte : quatorze par six donnent 5-5-4, et non 6-6-2.
+
+**Ce qui n'a pas été fait, et c'est délibéré.** Les groupes ne sont pas
+équilibrés par poste. La demande portait sur les stats et les scores, et
+un critère de poste ajouté d'office aurait produit des groupes que
+personne n'a demandés et dont le compromis avec la force serait resté
+invisible. La retouche à la main est là pour cela.
+
 ### N. Vérification de ce dernier passage
 
 `tests/onglets.js` — douze contrôles, dont **onze échouent** sur la
@@ -942,3 +992,14 @@ travail de l'autre, qu'aucun des deux ne l'efface en cas de divergence,
 que le journal de secours survit, et qu'un choix explicite — et lui seul
 — écrit par-dessus. Le douzième pose un filtre puis un ordre dans la même
 visite, et vérifie que la liste rendue est bien filtrée ET triée.
+
+`tests/groupes.js` — neuf contrôles, **tous** en échec sur la version
+d'avant. Le deuxième est celui qui porte la démonstration : il compose le
+même effectif des deux façons et exige que l'équilibrage divise l'écart
+par au moins quatre. Les autres tiennent les invariants qu'un entraîneur
+ne vérifiera pas lui-même — chaque athlète placée une fois et une seule,
+aucun groupe au-delà du nombre demandé, aucun groupe laissé pour compte,
+les mêmes identifiants de groupe dans la campagne et dans ses vues,
+aucune athlète d'une vue qui n'y figure pas, le paquet du sélectionneur
+qui les emporte, la survie au rechargement, et la sortie d'une
+décommandée de sa vague.

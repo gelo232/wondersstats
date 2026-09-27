@@ -754,14 +754,21 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 @media(min-width:600px){.bar .b-lbl{width:150px}}
 
 /* ── segmented : 2 à 4 choix exclusifs ───────────────────────── */
-.seg{display:flex;background:var(--sunken);border:1.5px solid var(--line-strong);border-radius:var(--r-sm);padding:3px;gap:3px;flex-shrink:0}
-.seg button{position:relative;flex:1;min-width:0;min-height:38px;border-radius:calc(var(--r-sm) - 2px);
+/* Il n'occupait que la largeur de son texte — 198 px sur une rangée de
+   375 — si bien que « 👥 Les athlètes » ne tenait pas dans ses 93 px et
+   se lisait « Les athl… », tronqué de 11 px. Il prend sa rangée : les
+   libellés tiennent, et chaque cible passe de 93 à 166 px de large. */
+.seg{display:flex;flex:1;min-width:0;background:var(--sunken);border:1.5px solid var(--line-strong);border-radius:var(--r-sm);padding:3px;gap:3px}
+.seg button{position:relative;flex:1;min-width:0;min-height:var(--tap);border-radius:calc(var(--r-sm) - 2px);
   font-size:var(--fs-xs);font-weight:700;color:var(--txt-dim);white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis;padding:0 var(--s2);background:none;border:none;cursor:pointer;
   transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
-.seg button::after{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+/* Pas de pseudo-élément pour élargir la zone ici : le bouton est en
+   `overflow:hidden` (c'est lui qui pose l'ellipse), et il clipait donc
+   l'agrandissement qu'on croyait lui donner. C'est `min-height` qui
+   fait le travail. */
 .seg button.on{background:var(--accent-solid);color:var(--on-light)}
-@media(min-width:600px){.seg button{min-height:var(--tap);font-size:var(--fs-sm)}}
+@media(min-width:600px){.seg button{font-size:var(--fs-sm)}}
 
 /* ── emptyState : un seul écran vide, deux tailles ───────────── */
 .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:var(--s8) var(--s5);gap:var(--s2);color:var(--txt-dim);font-size:var(--fs-sm)}
@@ -809,9 +816,17 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
   min-height:var(--tap-lg);text-align:left;cursor:pointer;color:inherit}
 .navRow .nr-ico{font-size:var(--fs-xl);flex-shrink:0}
 .navRow .nr-body{flex:1;min-width:0}
-.navRow .nr-ttl{font-size:var(--fs-md);font-weight:700;color:var(--txt-strong)}
-.navRow .nr-sub{font-size:var(--fs-xs);color:var(--txt-dim);margin-top:2px}
+/* `display:block` : ce sont des <span>, et sans lui le nom de la famille
+   et sa description se lisaient collés sur une seule ligne —
+   « ServicesDéjà à l'équilibre — il n'y a rien à viser au-dessus ». Le
+   `margin-top` de la description n'avait aucun effet non plus. */
+.navRow .nr-ttl{display:block;font-size:var(--fs-md);font-weight:700;color:var(--txt-strong)}
+.navRow .nr-sub{display:block;font-size:var(--fs-xs);color:var(--txt-dim);margin-top:2px;line-height:1.45}
 .navRow .nr-arw{flex-shrink:0;color:var(--txt-dim);font-size:var(--fs-lg)}
+/* Une ligne qu'on ne peut pas toucher doit se voir comme telle : dans
+   « Nouvel objectif », quatre familles sur six étaient hors d'atteinte et
+   se dessinaient exactement comme celle qui, seule, menait quelque part. */
+.navRow:disabled{cursor:default;background:var(--sunken);border-style:dashed;opacity:.62}
 
 /* ── §13 · la tuile dit son humeur par son bord gauche ──────────
    La couleur ne porte jamais seule : elle double le chiffre et son
@@ -1585,6 +1600,11 @@ function mkCampaign(o){
   var kind=(o&&o.kind)||"custom";
   return Object.assign({id:uid(),kind:kind,name:(KIND_BY_KEY[kind]||{}).label||"Campagne",
     createdAt:nowISO(),closedAt:null,
+    /* Les vagues du gymnase, composées UNE fois pour la campagne. Elles
+       vivaient dans chaque vue, si bien que deux évaluateurs d'une même
+       journée n'appelaient pas les mêmes groupes, et qu'un « groupe B »
+       ne désignait pas les mêmes athlètes d'un carnet à l'autre. */
+    playerGroups:[],
     /* seq : le rang voulu par l'entraîneur — « journée 1 », « journée 2 ».
        0 veut dire « pas encore rangée » ; la normalisation le renumérote. */
     seq:0,date:"",note:"",decisionsClosedAt:null},o||{});
@@ -1719,6 +1739,200 @@ function decouperEnGroupes(idsOrdonnes,taille){
   for(var i=0;i<ids.length;i+=taille)
     out.push({id:uid(),name:nomDeGroupe(out.length),playerIds:ids.slice(i,i+taille)});
   return out;
+}
+
+/* ═══ Groupes équilibrés d'une campagne ════════════════════════
+   Une journée de sélection se déroule en vagues : on ne fait pas passer
+   vingt-huit athlètes d'un bloc devant un évaluateur. Ces vagues étaient
+   découpées vue par vue, dans l'ordre des dossards — donc différentes
+   d'un évaluateur à l'autre, et surtout de niveaux très inégaux : les
+   numéros bas d'un club sont souvent ses anciennes.
+
+   Deux choses changent. Les groupes appartiennent à la CAMPAGNE, et
+   toutes ses vues les reçoivent : « groupe B » désigne les mêmes
+   athlètes dans tous les carnets. Et ils se composent en ÉQUILIBRANT,
+   pour que ce qu'on voit d'une vague soit comparable à ce qu'on voit
+   d'une autre. ═══════════════════════════════════════════════════ */
+
+/* Les compteurs de la saison, athlète par athlète, toutes rencontres
+   confondues. Volontairement pas `scopedSessions` : celui-là applique
+   les filtres d'affichage du récap, et l'équilibrage d'une soirée de
+   sélection ne doit pas dépendre de ce qu'on regardait juste avant. */
+function statsSaisonParAthlete(sq){
+  var map={};
+  (sq&&sq.sessions||[]).forEach(function(se){
+    (se.entries||[]).forEach(function(en){
+      if(!hasStats(en.stats))return;
+      if(!map[en.playerId])map[en.playerId]=emptyS();
+      addStats(map[en.playerId],en.stats);
+    });
+  });
+  return map;
+}
+
+/* La force d'une athlète, dans l'ordre de ce qui est le plus sûr :
+
+   1. le SCORE compilé de la campagne. C'est déjà le mélange des notes
+      des évaluateurs et des compteurs relevés, corrigé de la sévérité
+      et amorti selon le nombre de regards — rien de mieux à construire ;
+   2. à défaut, ses COMPTEURS de la saison, ramenés à la même échelle
+      1–5 par la distribution des convoquées. C'est le cas de la première
+      journée, où personne n'a encore été vu ;
+   3. à défaut, rien. On ne devine pas une force : l'athlète se répartit
+      sans peser, et l'écran dit combien sont dans ce cas.
+
+   La formule du club — poids des familles, volume minimal — est celle de
+   la saison : la même qui fait le score. */
+function forceDeSelection(sq,cid){
+  var out={};
+  if(!sq||!cid)return out;
+  var ids=rosterOfCampaign(sq,cid).map(function(e){return e.playerId});
+  if(!ids.length)return out;
+  var comp=compileSubmissions(sq,cid);
+  ids.forEach(function(pid){
+    var c=comp[pid];
+    if(c&&(c.critScore!=null||c.statScore!=null))out[pid]={force:c.score,source:"score"};
+  });
+  var manquent=ids.filter(function(pid){return !out[pid]});
+  if(!manquent.length)return out;
+
+  /* L'échelle se calcule sur TOUTES les convoquées, pas seulement sur
+     celles qui manquent : sinon une athlète serait « moyenne » d'un
+     groupe de trois, et comparée à des scores tirés d'un autre étalon. */
+  var sc=scoringOf(sq),stats=statsSaisonParAthlete(sq),dist={};
+  FAMILY_KEYS.forEach(function(f){
+    var vals=[];
+    ids.forEach(function(pid){
+      var st=stats[pid];if(!st)return;
+      if(familyVolume(st,f)<sc.minVolume)return;
+      var e=familyEff(st,f);if(e!=null)vals.push(e);
+    });
+    if(!vals.length)return;
+    var moy=vals.reduce(function(t,v){return t+v},0)/vals.length;
+    var va=vals.reduce(function(t,v){return t+(v-moy)*(v-moy)},0)/vals.length;
+    dist[f]={moyenne:moy,ecart:Math.sqrt(va)};
+  });
+  manquent.forEach(function(pid){
+    var st=stats[pid];if(!st)return;
+    var t=0,poids=0;
+    FAMILY_KEYS.forEach(function(f){
+      if(!dist[f])return;
+      if(familyVolume(st,f)<sc.minVolume)return;
+      var e=familyEff(st,f);if(e==null)return;
+      var w=sc.statWeights[f];if(!(w>0))return;
+      t+=w*effToScale(e,dist[f].moyenne,dist[f].ecart);poids+=w;
+    });
+    if(poids)out[pid]={force:t/poids,source:"stats"};
+  });
+  return out;
+}
+
+/* Ce sur quoi l'équilibrage a pu s'appuyer — dit à l'écran, parce qu'un
+   équilibrage sans repère n'est qu'une répartition, et qu'il vaut mieux
+   l'annoncer que le laisser croire. */
+function appuiEquilibrage(sq,cid,forces){
+  var out={total:0,score:0,stats:0,sans:0};
+  rosterOfCampaign(sq,cid).forEach(function(e){
+    out.total++;
+    var f=forces[e.playerId];
+    if(!f)out.sans++;
+    else if(f.source==="score")out.score++;
+    else out.stats++;
+  });
+  return out;
+}
+
+/* Composer. L'heuristique est celle du plus lourd d'abord : on range les
+   athlètes de la plus forte à la plus faible et on pose chacune dans le
+   groupe le moins chargé qui n'est pas plein. C'est ce qui rapproche le
+   plus les sommes, et cela se raconte en une phrase — ce qui compte pour
+   un entraîneur qui doit pouvoir défendre sa composition.
+
+   Les tailles ne sont pas « N, N, N, et ce qui reste » : quatorze
+   athlètes par groupes de quatre donnent 4-4-3-3, et non 4-4-4-2. Le
+   nombre demandé est un plafond, jamais une part laissée pour compte. */
+function taillesDeGroupes(n,taille){
+  taille=parseInt(taille,10)||0;
+  if(taille<1||n<1)return [];
+  var K=Math.ceil(n/taille),base=Math.floor(n/K),reste=n%K,out=[],i;
+  for(i=0;i<K;i++)out.push(base+(i<reste?1:0));
+  return out;
+}
+function composerGroupesEquilibres(sq,cid,taille){
+  var entrees=rosterOfCampaign(sq,cid);
+  if(!entrees.length)return [];
+  var tailles=taillesDeGroupes(entrees.length,taille);
+  if(!tailles.length)return [];
+  var forces=forceDeSelection(sq,cid);
+  var parNum=entrees.map(function(e){return e.playerId}).sort(function(a,b){
+    var na=parseInt(numOf(sq,a),10),nb=parseInt(numOf(sq,b),10);
+    if(isNaN(na))na=9999;if(isNaN(nb))nb=9999;
+    return na-nb;
+  });
+  /* Les forces connues d'abord, décroissantes ; les inconnues ensuite,
+     dans l'ordre des dossards — elles se répartissent une par groupe. */
+  var connues=[],inconnues=[];
+  parNum.forEach(function(pid){(forces[pid]?connues:inconnues).push(pid)});
+  connues.sort(function(a,b){
+    var d=forces[b].force-forces[a].force;
+    return d||(parNum.indexOf(a)-parNum.indexOf(b));
+  });
+  var g=[],i;
+  for(i=0;i<tailles.length;i++)
+    g.push({id:uid(),name:nomDeGroupe(i),playerIds:[],somme:0});
+  /* On compare les sommes RAPPORTÉES à la taille visée, et non les sommes
+     brutes : quatorze athlètes par quatre donnent des groupes de 4-4-3-3,
+     et un groupe de trois qui porte autant qu'un groupe de quatre est en
+     réalité le plus fort des deux. Ce qu'un évaluateur compare d'une
+     vague à l'autre, c'est un niveau moyen. */
+  function placer(pid){
+    var choix=-1;
+    for(var k=0;k<g.length;k++){
+      if(g[k].playerIds.length>=tailles[k])continue;
+      if(choix===-1||(g[k].somme/tailles[k])<(g[choix].somme/tailles[choix]))choix=k;
+    }
+    if(choix===-1)return;
+    g[choix].playerIds.push(pid);
+    g[choix].somme+=forces[pid]?forces[pid].force:0;
+  }
+  connues.forEach(placer);
+  inconnues.forEach(placer);
+  /* Dans un groupe, l'ordre reste celui des dossards : c'est celui dans
+     lequel on les appelle, et celui qu'on relit. */
+  return g.filter(function(x){return x.playerIds.length}).map(function(x){
+    return {id:x.id,name:x.name,
+      playerIds:x.playerIds.slice().sort(function(a,b){
+        return parNum.indexOf(a)-parNum.indexOf(b)})};
+  });
+}
+/* La force moyenne d'un groupe — ce qui permet de VOIR l'équilibre, au
+   lieu d'avoir à croire l'application sur parole. */
+function forceMoyenne(ids,forces){
+  var t=0,n=0;
+  (ids||[]).forEach(function(pid){var f=forces[pid];if(f){t+=f.force;n++}});
+  return n?(t/n):null;
+}
+
+/* Partager : chaque vue de la campagne reçoit les groupes, réduits à ses
+   propres athlètes. Les identifiants sont les mêmes partout — « groupe
+   B » est le même objet dans tous les carnets, et le restera si la vue
+   change de main. */
+function groupesPourVue(camp,view){
+  var dans={};(view&&view.playerIds||[]).forEach(function(p){dans[p]=1});
+  return ((camp&&camp.playerGroups)||[]).map(function(g){
+    return {id:g.id,name:g.name,
+      playerIds:(g.playerIds||[]).filter(function(p){return dans[p]})};
+  }).filter(function(g){return g.playerIds.length});
+}
+function appliquerGroupesCampagne(sq,cid){
+  var camp=campaignById(sq,cid);
+  if(!camp||!(camp.playerGroups||[]).length)return 0;
+  var n=0;
+  (sq.selectorViews||[]).forEach(function(v){
+    if(v.campaignId!==cid)return;
+    v.playerGroups=groupesPourVue(camp,v);n++;
+  });
+  return n;
 }
 
 /* ─── Base de données ───────────────────────────────────────── */
@@ -3406,6 +3620,16 @@ function normalizeSquad(sq,knownPlayers){
     }
   });
   sq.campaignRoster=crOut;
+
+  /* Les groupes d'une campagne ne tiennent que ses convoquées : une
+     athlète décommandée ne doit pas rester dans une vague qu'on appelle. */
+  var parCampagne={};
+  sq.campaignRoster.forEach(function(e){
+    (parCampagne[e.campaignId]=parCampagne[e.campaignId]||[]).push(e.playerId);
+  });
+  sq.campaigns.forEach(function(c){
+    c.playerGroups=normPlayerGroups(c.playerGroups,parCampagne[c.id]||[]);
+  });
 
   sq.offers=(sq.offers||[]).filter(function(o){
       return o&&campKnown[o.campaignId]&&inRoster[o.playerId];
@@ -5505,6 +5729,12 @@ function mergeDB(inc){
        les offres étaient refabriquées, et la ventilation d'un match
        basculait entière dans « Reste non ventilé ». */
     (sq.campaignRoster||[]).forEach(function(e){e.playerId=rp(e.playerId)});
+    /* Les vagues d'une campagne portent des identifiants d'athlètes : sans
+       remappage, une sauvegarde restaurée ailleurs les perdait toutes au
+       premier passage de normalizeSquad. */
+    (sq.campaigns||[]).forEach(function(c){
+      (c.playerGroups||[]).forEach(function(g){g.playerIds=(g.playerIds||[]).map(rp)});
+    });
     (sq.offers||[]).forEach(function(o){o.playerId=rp(o.playerId)});
     (sq.goals||[]).forEach(function(g){if(g.playerId)g.playerId=rp(g.playerId)});
     (sq.sessions||[]).forEach(function(se){
@@ -7230,14 +7460,25 @@ function defModal(type,fn,opts){
    fidèle à ce que l'écran montre. */
 var coucheHist=false;
 function couchesOuvertes(){return !!(state.prompt||state.confirm||state.listSheet||state.lectureSheet||state.modalType)}
+/* `history.back()` n'agit pas tout de suite : l'événement `popstate`
+   arrive au tour suivant. Fermer une fenêtre puis en ouvrir une autre
+   dans le même geste — ce que fait n'importe quel « ouvrir l'historique
+   de cet objectif » depuis une fiche — laissait donc le retour en vol
+   atterrir SUR la nouvelle fenêtre et la refermer aussitôt : le geste
+   n'avait aucun effet visible, et rien dans la console. On compte les
+   retours en vol, et celui qui atterrit ne ferme rien s'il est le nôtre. */
+var retourEnVol=0;
 function coucheEmpiler(){
   if(coucheHist)return;
+  /* Un retour est en vol : il nous rendra l'entrée qu'il emporte, plutôt
+     que d'en empiler une de plus par-dessus. */
+  if(retourEnVol>0){coucheHist=true;return}
   try{history.pushState({wsCouche:1},"");coucheHist=true}catch(e){}
 }
 function coucheDepiler(){
   if(!coucheHist)return;
-  coucheHist=false;
-  try{history.back()}catch(e){}
+  coucheHist=false;retourEnVol++;
+  try{history.back()}catch(e){retourEnVol--}
 }
 function fermerCoucheDuDessus(){
   /* Du plus haut au plus bas : une confirmation ouverte DEPUIS une
@@ -7254,6 +7495,14 @@ function fermerCoucheDuDessus(){
   return false;
 }
 window.addEventListener("popstate",function(){
+  /* Notre propre retour qui atterrit : il ne ferme rien. Si une couche a
+     été rouverte entre-temps, elle a besoin de son entrée — on la
+     réempile, l'entrée d'origine étant partie avec ce retour. */
+  if(retourEnVol>0){
+    retourEnVol--;
+    if(couchesOuvertes()&&coucheHist){coucheHist=false;coucheEmpiler()}
+    return;
+  }
   coucheHist=false;
   if(!couchesOuvertes())return;             /* déjà fermée au bouton */
   fermerCoucheDuDessus();
@@ -8014,7 +8263,7 @@ function selMeta(x){
   return m;
 }
 function selSearch(){
-  return {placeholder:"Rechercher un nom ou un numéro…",
+  return {placeholder:"Nom ou dossard",
     of:function(x){return fullName(x.player)+" "+(x.entry.number||"")}};
 }
 function selRowDecision(x){
@@ -8525,7 +8774,7 @@ function renderConvokeModal(){
   var tb=listToolbar({
     key:"sel-convoke",
     items:items,
-    search:{placeholder:"Rechercher un nom ou un numéro…",
+    search:{placeholder:"Nom ou dossard",
       of:function(x){return fullName(x.player)+" "+(x.entry.number||"")}},
     sorts:[
       {key:"number",label:"Numéro",get:function(x){
@@ -8612,6 +8861,210 @@ function renderCampaignsModal(){
       onclick:closeModal},"Fermer")]},renderCampaignsPane(sq));
 }
 defModal("campaigns",renderCampaignsModal,{autofocus:false});
+
+/* ── Les vagues de la campagne ────────────────────────────────
+   Composer d'un geste, voir l'équilibre obtenu, retoucher si besoin.
+   Ce qui sort d'ici part dans TOUTES les vues de la campagne : c'est le
+   point de la chose. */
+function renderCampGroupsModal(){
+  var sq=curSquad();if(!sq)return null;
+  var cid=state.modalCtx||sq.activeCampaignId;
+  var camp=campaignById(sq,cid);if(!camp)return null;
+  var entrees=rosterOfCampaign(sq,cid);
+  var forces=forceDeSelection(sq,cid);
+  var appui=appuiEquilibrage(sq,cid,forces);
+
+  var d=state.modalDraft||(state.modalDraft={
+    taille:6,
+    groupes:(camp.playerGroups||[]).map(function(g){
+      return {id:g.id,name:g.name,playerIds:g.playerIds.slice()};
+    }),
+    sel:(camp.playerGroups&&camp.playerGroups[0])?camp.playerGroups[0].id:""
+  });
+  var ordre=entrees.map(function(e){return e.playerId}).sort(function(a,b){
+    var na=parseInt(numOf(sq,a),10),nb=parseInt(numOf(sq,b),10);
+    if(isNaN(na))na=9999;if(isNaN(nb))nb=9999;
+    return na-nb;
+  });
+  function groupeDe(pid){
+    for(var i=0;i<d.groupes.length;i++)
+      if(d.groupes[i].playerIds.indexOf(pid)!==-1)return d.groupes[i];
+    return null;
+  }
+  function groupeSel(){
+    for(var i=0;i<d.groupes.length;i++)if(d.groupes[i].id===d.sel)return d.groupes[i];
+    return null;
+  }
+  function sansGroupe(){return ordre.filter(function(p){return !groupeDe(p)}).length}
+  function etiquette(pid){
+    var f=forces[pid];
+    return numLabel(numOf(sq,pid))+(f?" · "+f.force.toFixed(1):"");
+  }
+
+  var corps=h("div",null);
+
+  if(!entrees.length){
+    corps.appendChild(emptyState({icon:"👥",title:"Aucune convoquée",small:true,
+      sub:"Convoquez des athlètes dans cette campagne : les groupes se composent sur elles."}));
+    return sheetShell({title:"Groupes d'évaluation",onclose:closeModal,
+      buttons:[h("button",{className:"btn btn-ghost full",type:"button",
+        onclick:closeModal},"Fermer")]},corps);
+  }
+
+  corps.appendChild(h("div",{className:"hint"},
+    "Une journée de sélection se déroule en vagues. Composées ici, elles "+
+    "valent pour ",h("b",null,"toutes les vues de la campagne")," : « groupe B » "+
+    "désigne les mêmes athlètes dans le carnet de chaque évaluateur, et ce "+
+    "qu'on voit d'une vague est comparable à ce qu'on voit d'une autre."));
+
+  /* Sur quoi l'équilibrage s'appuie — dit avant de le lancer. */
+  var appuiTxt,bouts=[];
+  if(appui.score)bouts.push(h("b",null,
+    plural(appui.score,"score")+" compilé"+(appui.score>1?"s":"")));
+  if(appui.stats)bouts.push(h("b",null,
+    "les compteurs de "+plural(appui.stats,"athlète")));
+  if(!bouts.length)
+    appuiTxt=["Aucun repère pour l'instant : ni score compilé, ni compteurs. ",
+      "Les groupes seront simplement répartis, à parts égales — c'est une ",
+      "répartition, pas un équilibrage, et il vaut mieux le savoir."];
+  else {
+    appuiTxt=["Équilibré sur "];
+    bouts.forEach(function(b,i){
+      if(i)appuiTxt.push(" et ");
+      appuiTxt.push(b);
+    });
+    appuiTxt.push(appui.sans
+      ? ". "+plural(appui.sans,"athlète")+
+        (appui.sans>1?" n'ont":" n'a")+" aucun repère : "+
+        (appui.sans>1?"elles se répartissent":"elle se répartit")+" sans peser."
+      : ".");
+  }
+  corps.appendChild(h("div",{className:"hint"+((appui.score+appui.stats)?"":" warn")},appuiTxt));
+
+  /* Composer. */
+  var inpT=h("input",{type:"number",inputmode:"numeric",min:"2",max:"20",
+    value:String(d.taille)});
+  inpT.addEventListener("input",function(e){
+    var v=parseInt(e.target.value,10);
+    d.taille=isFinite(v)?Math.max(2,Math.min(20,v)):2;
+  });
+  var prevu=taillesDeGroupes(entrees.length,d.taille);
+  corps.appendChild(h("label",{className:"field"},
+    h("span",null,"Athlètes par groupe"),inpT,
+    h("div",{className:"muted"},
+      plural(entrees.length,"convoquée")+" → "+
+      (prevu.length?plural(prevu.length,"groupe")+" de "+prevu.join(", ")
+                   :"aucun groupe possible"))));
+  corps.appendChild(h("button",{className:"btn btn-primary full",type:"button",
+    style:{marginBottom:"10px"},
+    onclick:function(){
+      var g=composerGroupesEquilibres(sq,cid,d.taille);
+      if(!g.length){showToast("⚠️ Rien à composer");return}
+      d.groupes=g;d.sel=g[0].id;
+      repeindreDialogues();
+    }},"⚖️ Composer automatiquement"));
+
+  if(!d.groupes.length){
+    corps.appendChild(h("div",{className:"muted"},
+      "Aucun groupe pour l'instant : la campagne se saisit d'une seule liste."));
+  } else {
+    /* Ce que la composition donne, groupe par groupe : c'est là qu'on
+       VOIT l'équilibre, au lieu d'avoir à croire l'application. */
+    var tableau=h("div",{className:"card tight",style:{marginBottom:"10px"}});
+    d.groupes.forEach(function(g){
+      var moy=forceMoyenne(g.playerIds,forces);
+      tableau.appendChild(h("div",{className:"row-between",style:{padding:"3px 0"}},
+        h("span",{style:{fontWeight:"700"}},g.name),
+        h("span",{className:"muted"},
+          plural(g.playerIds.length,"athlète")+
+          (moy==null?" · sans repère":" · force moyenne "+moy.toFixed(2)))));
+    });
+    corps.appendChild(tableau);
+  }
+
+  /* Retoucher : on choisit un groupe, puis on touche les dossards. */
+  var rangee=h("div",{className:"sub-pills",style:{marginBottom:"8px"}},
+    d.groupes.map(function(g){
+      var on=g.id===d.sel;
+      var b=h("button",{className:"pill sm"+(on?" active":""),type:"button",
+        onclick:function(){d.sel=g.id;repeindreDialogues()}},
+        g.name+" "+g.playerIds.length);
+      if(on)b.style.background="#2563EB";
+      return b;
+    }),
+    h("button",{className:"pill sm",type:"button",style:{borderStyle:"dashed",flexShrink:"0"},
+      onclick:function(){
+        var g={id:uid(),name:nomDeGroupe(d.groupes.length),playerIds:[]};
+        d.groupes.push(g);d.sel=g.id;repeindreDialogues();
+      }},"+ Groupe"));
+  corps.appendChild(h("label",{className:"field"},h("span",null,"Les groupes"),rangee,
+    h("div",{className:"muted"},sansGroupe()
+      ?plural(sansGroupe(),"athlète")+" sans groupe"
+      :"toutes les convoquées ont un groupe")));
+
+  var gsel=groupeSel();
+  if(gsel){
+    var nomInp=h("input",{placeholder:"Nom du groupe",value:gsel.name,maxlength:"40"});
+    nomInp.addEventListener("input",function(e){gsel.name=e.target.value});
+    corps.appendChild(h("div",{className:"field"},
+      h("div",{className:"row-between",style:{marginBottom:"6px"}},
+        h("span",{style:{fontWeight:"700"}},"Athlètes de « "+gsel.name+" »"),
+        h("button",{className:"btn btn-danger-o xs ico",type:"button",
+          "aria-label":"Supprimer le groupe "+gsel.name,
+          onclick:function(){
+            d.groupes=d.groupes.filter(function(g){return g.id!==gsel.id});
+            d.sel=d.groupes.length?d.groupes[0].id:"";
+            repeindreDialogues();
+          }},"🗑️")),
+      nomInp,
+      h("div",{className:"muted",style:{margin:"6px 0 4px"}},
+        "Un dossard n'appartient qu'à un groupe : le toucher ici le retire du sien. "+
+        "Le chiffre qui suit est la force sur laquelle l'équilibrage s'est appuyé."),
+      toggleGrid(ordre.map(function(pid){
+        var g=groupeDe(pid),ailleurs=g&&g.id!==gsel.id;
+        return {id:pid,label:etiquette(pid)+(ailleurs?" · "+g.name.replace(/^Groupe /,""):"")};
+      }),function(it){
+        var g=groupeDe(it.id);return !!g&&g.id===gsel.id;
+      },function(it){
+        var g=groupeDe(it.id);
+        if(g&&g.id===gsel.id){
+          g.playerIds=g.playerIds.filter(function(x){return x!==it.id});
+        } else {
+          if(g)g.playerIds=g.playerIds.filter(function(x){return x!==it.id});
+          gsel.playerIds.push(it.id);
+          gsel.playerIds.sort(function(a,b){return ordre.indexOf(a)-ordre.indexOf(b)});
+        }
+        repeindreDialogues();
+      })));
+  } else if(d.groupes.length){
+    corps.appendChild(h("div",{className:"muted"},"Choisissez un groupe pour y affecter des dossards."));
+  }
+
+  return sheetShell({title:"Groupes d'évaluation",onclose:closeModal,
+    buttons:[
+      h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Annuler"),
+      h("button",{id:"modalOk",className:"btn btn-save full",type:"button",onclick:function(){
+        var propres=d.groupes.map(function(g){
+          return {id:g.id,name:(g.name||"").trim()||"Groupe",playerIds:g.playerIds.slice()};
+        }).filter(function(g){return g.playerIds.length});
+        var ids=rosterOfCampaign(sq,cid).map(function(e){return e.playerId});
+        Store.tx(function(){
+          Store.patch("campaigns",cid,{playerGroups:normPlayerGroups(propres,ids)},sq);
+        },"Groupes d'évaluation");
+        var n=appliquerGroupesCampagne(sq,cid);
+        logAct("campaign",(camp.playerGroups||[]).length
+          ? plural((camp.playerGroups||[]).length,"groupe")+" composé"+
+            ((camp.playerGroups||[]).length>1?"s":"")+" pour « "+camp.name+" »"
+          : "Groupes effacés pour « "+camp.name+" »",
+          {teamId:sq.teamId,seasonId:sq.seasonId});
+        state.modalDraft=null;closeModal();saveNow();
+        showToast((camp.playerGroups||[]).length
+          ? "🧩 "+plural((camp.playerGroups||[]).length,"groupe")+" · partagé"+
+            (n>1?"s dans "+plural(n,"vue"):(n?"s dans 1 vue":"s"))
+          : "Groupes effacés",{tone:"ok"});
+      }},"Enregistrer")]},corps);
+}
+defModal("campgroups",renderCampGroupsModal,{autofocus:false});
 /* ══ fin §14 ══════════════════════════════════════════════════ */
 
 /* ══ §15 PARTIE ENTRAÎNEMENTS ══════════════════════════════════
@@ -8819,7 +9272,7 @@ function evPlayersList(sq,scope,cle){
   var tb=listToolbar({
     key:cle,items:items,
     search:{of:function(x){return fullName(x.player)+" "+((x.entry&&x.entry.number)||"")},
-            placeholder:"Rechercher une athlète…"},
+            placeholder:"Nom ou dossard"},
     sorts:[
       {key:"number",label:"Numéro",get:function(x){
         var n=parseInt((x.entry&&x.entry.number)||"",10);return isFinite(n)?n:null}},
@@ -9109,7 +9562,7 @@ function evChildren(sq,k){
   var tb=listToolbar({
     key:"ev-"+k,items:liste,
     search:{of:function(g){return (g.event.name||"")+" "+(g.event.opponent||"")},
-            placeholder:"Rechercher une rencontre…"},
+            placeholder:"Nom ou adversaire"},
     sorts:[
       {key:"date",label:"Date",get:function(g){return g.event.date||""}},
       {key:"name",label:"Nom",get:function(g){return g.event.name||""}},
@@ -9704,7 +10157,12 @@ function goalCard(sq,g,r){
     h("div",{style:{marginTop:"8px"}},
       bar({value:(val==null)?0:(val-bas),max:etendue,goal:(g.target-bas),
            state:(r.etat==="atteint")?"reached":((r.etat==="regression"||r.etat==="regression-a-confirmer")?"down":"running"),
-           label:val==null?"Pas encore mesurable":("Aujourd'hui "+fmtEff(val)),
+           /* « Pas encore mesurable » demandait 121 px pour une boîte de
+              104, et se lisait « Pas encore mes… ». Élargir la boîte
+              n'était pas possible : à 320 px, la piste tombait sous son
+              minimum. C'est donc le libellé qui raccourcit — le pourquoi
+              est dit juste en dessous, en toutes lettres. */
+           label:val==null?"Pas de mesure":("Aujourd'hui "+fmtEff(val)),
            text:val==null?"—":(fmtEff(val)+" / "+fmtEff(g.target))})),
     (r.etat==="volume-insuffisant")
       ? h("div",{className:"muted",style:{marginTop:"6px"}},
@@ -9771,6 +10229,66 @@ function renderNewGoalModal(){
   var sq=curSquad();if(!sq)return null;
   var ctx=state.modalCtx||{},scope=ctx.scope||"player",pid=ctx.playerId||"";
   var qui=scope==="team"?"l'équipe":fullName(playerById(pid)||{});
+
+  /* Ce qui mène quelque part d'abord. Sur une équipe qui vient de
+     commencer sa saison, une seule famille sur six est ouverte, et elle
+     se retrouvait quatrième, entre quatre lignes mortes dessinées
+     exactement comme elle. */
+  function lireFamille(fam){
+    var ctxDef=mkGoal().context;
+    var g=SG[fam],dep=objectifDepart(sq,fam,ctxDef),pas=pasObjectif(sq,fam,ctxDef);
+    /* Une cible qui n'excède pas le départ — le service déjà à
+       l'équilibre — ne demande rien : l'écran le dit au lieu d'offrir un
+       objectif qui naîtrait « atteint ». */
+    var plafonne=dep!=null&&plafonner(fam,dep+(pas||0))<=dep;
+    var deja=(sq.goals||[]).some(function(x){
+      return x.active&&x.scope===scope&&x.playerId===(scope==="team"?"":pid)&&
+             x.metric.family===fam;
+    });
+    return {fam:fam,g:g,dep:dep,pas:pas,
+      hors:deja||dep==null||plafonne,
+      pourquoi:deja?"Un objectif est déjà en cours"
+        :(dep==null?"Aucun repère encore — l'équipe n'a pas assez joué, "+
+                    "ou sa catégorie n'est pas reconnue"
+         :(plafonne?"Déjà à l'équilibre — il n'y a rien à viser au-dessus"
+                   :("Départ "+fmtEff(dep)+" · pas "+fmtEff(pas))))};
+  }
+  function ligneFamille(f){
+    return h("button",{className:"navRow",type:"button",disabled:f.hors,
+      "aria-label":f.g.name+" — "+f.pourquoi,
+      onclick:function(){
+        var ng=creerObjectif(sq,scope,pid,f.fam);
+        closeModal();
+        showToast(ng?"🎯 Objectif fixé":"⚠️ Objectif impossible",{tone:ng?"ok":null});
+        render();
+      }},
+      h("span",{className:"nr-ico","aria-hidden":"true"},f.hors?"🔒":"🎯"),
+      h("span",{className:"nr-body"},
+        h("span",{className:"nr-ttl",style:{color:f.hors?"var(--txt-dim)":encreFam(f.g)}},f.g.name),
+        h("span",{className:"nr-sub"},f.pourquoi)),
+      h("span",{className:"nr-arw","aria-hidden":"true"},f.hors?"":"›"));
+  }
+  function dessinerFamilles(){
+    var lues=GOAL_FAMILIES.map(lireFamille);
+    var ouvertes=lues.filter(function(f){return !f.hors});
+    var fermees=lues.filter(function(f){return f.hors});
+    var bloc=h("div",null);
+    if(ouvertes.length){
+      bloc.appendChild(h("div",{className:"section-title"},"Sur quoi porter l'effort"));
+      ouvertes.forEach(function(f){bloc.appendChild(ligneFamille(f))});
+    } else {
+      bloc.appendChild(emptyState({icon:"🎯",title:"Aucune famille ouverte",small:true,
+        sub:"Il faut des relevés pour calculer un repère, et une marge au-dessus. "+
+            "Revenez après quelques matchs."}));
+    }
+    if(fermees.length){
+      bloc.appendChild(h("div",{className:"section-title"},
+        ouvertes.length?"Pas encore possible":"Pourquoi"));
+      fermees.forEach(function(f){bloc.appendChild(ligneFamille(f))});
+    }
+    return bloc;
+  }
+
   return sheetShell({title:"Nouvel objectif — "+qui,
     buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Annuler")]},
     h("div",null,
@@ -9778,36 +10296,7 @@ function renderNewGoalModal(){
         "La cible est calculée sur votre propre équipe : sa médiane comme point "+
         "de départ, sa dispersion pour la hauteur du pas. Un barème venu "+
         "d'ailleurs ne dirait rien de vos athlètes."),
-      h("div",{className:"section-title"},"Sur quoi porter l'effort"),
-      GOAL_FAMILIES.map(function(fam){
-        var ctxDef=mkGoal().context;
-        var g=SG[fam],dep=objectifDepart(sq,fam,ctxDef),pas=pasObjectif(sq,fam,ctxDef);
-        /* Une cible qui n'excède pas le départ — le service déjà à
-           l'équilibre — ne demande rien : l'écran le dit au lieu
-           d'offrir un objectif qui naîtrait « atteint ». */
-        var plafonne=dep!=null&&plafonner(fam,dep+(pas||0))<=dep;
-        var deja=(sq.goals||[]).some(function(x){
-          return x.active&&x.scope===scope&&x.playerId===(scope==="team"?"":pid)&&
-                 x.metric.family===fam;
-        });
-        return h("button",{className:"navRow",type:"button",disabled:deja||dep==null||plafonne,
-          onclick:function(){
-            var ng=creerObjectif(sq,scope,pid,fam);
-            closeModal();
-            showToast(ng?"🎯 Objectif fixé":"⚠️ Objectif impossible",{tone:ng?"ok":null});
-            render();
-          }},
-          h("span",{className:"nr-ico","aria-hidden":"true"},"🎯"),
-          h("span",{className:"nr-body"},
-            h("span",{className:"nr-ttl",style:{color:encreFam(g)}},g.name),
-            h("span",{className:"nr-sub"},
-              deja?"Un objectif est déjà en cours"
-                  :(dep==null?"Aucun repère encore — l'équipe n'a pas assez joué, "+
-                              "ou sa catégorie n'est pas reconnue"
-                   :(plafonne?"Déjà à l'équilibre — il n'y a rien à viser au-dessus"
-                             :("Départ "+fmtEff(dep)+" · pas "+fmtEff(pas))))),
-          h("span",{className:"nr-arw","aria-hidden":"true"},(deja||dep==null||plafonne)?"":"›")));
-      }),
+      dessinerFamilles(),
       h("div",{className:"hint",style:{marginTop:"10px"}},
         "Les habiletés n'ont pas d'objectif chiffré : elles n'ont aucun compteur "+
         "d'erreur, donc leur valeur décrit le type de ballon reçu, pas la qualité "+
@@ -9829,7 +10318,8 @@ function renderPartGoals(sq){
     h("div",{className:"ph-body"},
       h("div",{className:"ph-ttl"},"Objectifs"),
       h("div",{className:"ph-sub"},
-        m.actifs?(m.atteints+" atteint(s) sur "+m.actifs+
+        m.actifs?(m.atteints+" atteint"+(m.atteints>1?"s":"")+" sur "+
+                  plural(m.actifs,"objectif")+
                   (m.regressions?" · "+plural(m.regressions,"recul"):""))
                 :"aucun objectif fixé")),
     null);
@@ -9880,7 +10370,7 @@ function renderPartGoals(sq){
     var tb=listToolbar({
       key:"goals-players",items:items,
       search:{of:function(x){return fullName(x.player)+" "+((x.entry&&x.entry.number)||"")},
-              placeholder:"Rechercher une athlète…"},
+              placeholder:"Nom ou dossard"},
       sorts:[
         {key:"number",label:"Numéro",get:function(x){
           var n=parseInt((x.entry&&x.entry.number)||"",10);return isFinite(n)?n:null}},
@@ -10137,7 +10627,7 @@ function renderPartRecap(sq){
   var tb=listToolbar({
     key:"recap-players",items:items,
     search:{of:function(x){return fullName(x.player)+" "+(x.entry.number||"")},
-            placeholder:"Rechercher une athlète…"},
+            placeholder:"Nom ou dossard"},
     sorts:[
       {key:"number",label:"Numéro",get:function(x){
         var n=parseInt(x.entry.number||"",10);return isFinite(n)?n:null}},
@@ -11886,7 +12376,7 @@ function renderDbPane(squad){
        ne se lisent pas. */
     minSort:2,defaultSort:"name",
     search:{of:function(p){return fullName(p)+" "+(p.number||"")},
-            placeholder:"Rechercher un nom ou un numéro…"},
+            placeholder:"Nom ou dossard"},
     sorts:[
       {key:"name",label:"Nom",get:function(p){return fullName(p)}},
       /* L'âge a ses règles propres : voir comparerNaissance. */
@@ -13228,12 +13718,22 @@ function renderViewsPane(squad,campaignId){
     h("b",null,"tout sélectionneur invité peut les recevoir"),". Pour en réserver une, ",
     "invitez depuis la vue : le lien n'ouvre alors que celle-là."));
 
+  /* Les vagues se composent UNE fois pour la campagne, et toutes ses vues
+     les reçoivent. Le bouton vit ici parce que c'est de là que partent
+     les vues — c'est le geste d'avant. */
+  var nbG=((camp&&camp.playerGroups)||[]).length;
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
     h("button",{className:"btn btn-primary sm",disabled:seasonClosed(squad),onclick:function(){
       if(!squad.roster.length){showToast("⚠️ Convoquez d'abord des joueuses");return}
       state.editViewId=null;state.modalSel=[];openModal("editview");
     }},"+ Nouvelle vue"),
+    h("button",{className:"btn btn-ghost sm",disabled:seasonClosed(squad)||!camp,
+      onclick:function(){
+        state.modalDraft=null;openModal("campgroups",camp.id);
+      }},nbG?"🧩 Groupes ("+nbG+")":"🧩 Composer des groupes"),
     h("button",{className:"btn btn-import sm",onclick:function(){importSubmission(squad)}},"📥 Importer une soumission")));
+  if(nbG)wrap.appendChild(h("div",{className:"muted",style:{margin:"-6px 0 12px"}},
+    plural(nbG,"groupe")+" partagé"+(nbG>1?"s":"")+" par toutes les vues de cette campagne."));
 
   /* Bornée à la campagne ouverte, ou groupée par campagne : dans les
      deux cas on ne mélange jamais deux moments sous un même titre. */
@@ -14179,7 +14679,7 @@ function renderBuildTeamModal(){
     key:"buildteam",
     items:items,
     search:{of:function(x){return fullName(x.player)+" "+(x.entry.number||"")},
-            placeholder:"Rechercher une athlète…"},
+            placeholder:"Nom ou dossard"},
     sorts:[
       {key:"number",label:"Numéro",get:function(x){
         var n=parseInt(x.entry.number,10);return isFinite(n)?n:null}},
@@ -15668,8 +16168,13 @@ function renderModal(){
         v.anonymous=!!draft2.anonymous;
         v.criteria=draft2.criteria.slice();v.groups=draft2.groups.slice();
         v.playerIds=state.modalSel.slice();
-        v.playerGroups=normPlayerGroups(v.playerGroups,v.playerIds);
         v.campaignId=camp?camp.id:null;v.campaignName=camp?camp.name:"";
+        /* Une vue reçoit les vagues de SA campagne, réduites à ses
+           athlètes : c'est ce qui fait que « groupe B » désigne les mêmes
+           partout. Sans groupes de campagne, la vue garde les siens. */
+        v.playerGroups=(camp&&(camp.playerGroups||[]).length)
+          ? groupesPourVue(camp,v)
+          : normPlayerGroups(v.playerGroups,v.playerIds);
         v.seasonId=season.id;v.seasonName=season.name;
         var dd={};v.playerIds.forEach(function(pid){dd[pid]=v.data[pid]||mkEntryData()});
         v.data=dd;
@@ -16064,10 +16569,19 @@ function saveScrollPos(){
    pendant le rendu forcerait un calcul de mise en page par nœud. */
 var hintsOuvertes={};
 function replierHints(){
+  /* PAS dans une fenêtre. On replie les explications d'un écran qu'on
+     traverse deux cents fois dans la saison ; une fenêtre, elle, s'ouvre
+     exprès, et son explication est la raison d'y être — celle de
+     « Nouvel objectif » dit comment la cible est calculée. Elle y était
+     rognée à deux lignes ET impossible à déplier : le geste qui déplie
+     est écouté sur le document, et toute fenêtre arrête la propagation
+     de ses clics pour ne pas se fermer. Trente-huit pixels de texte
+     restaient donc hors d'atteinte, sans rien à faire défiler. */
   var els=document.querySelectorAll("#app .hint");
   for(var i=0;i<els.length;i++){
     var el=els[i];
     if(el.dataset&&el.dataset.hintVu)continue;
+    if(el.closest&&el.closest(".modal"))continue;
     var cle=(el.textContent||"").slice(0,60);
     /* On replie D'ABORD, puis on regarde si quelque chose dépassait :
        un bloc non replié n'a par définition aucun débordement à
@@ -16093,10 +16607,12 @@ function basculerHint(el){
   else {el.classList.remove("replie");hintsOuvertes[cle]=1}
   el.setAttribute("aria-expanded",ouvert?"false":"true");
 }
+/* En capture : une fenêtre arrête la propagation de ses clics, et un
+   écouteur posé sur le document en phase de bulle n'y verrait rien. */
 document.addEventListener("click",function(e){
   var el=e.target&&e.target.closest&&e.target.closest(".hint.repliable");
   if(el)basculerHint(el);
-});
+},true);
 document.addEventListener("keydown",function(e){
   if(e.key!=="Enter"&&e.key!==" ")return;
   var el=document.activeElement;

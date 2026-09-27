@@ -187,9 +187,12 @@ const ERRORS=[];let PASS=0;
     await page.waitForTimeout(300);
     const n=await page.locator(".listRow").count();
     if(n!==4)throw new Error("athlètes listées="+n);
-    /* Le libellé de recherche vit dans un placeholder, pas dans le texte. */
+    /* Le libellé de recherche vit dans un placeholder, pas dans le texte.
+       Il dit ce qu'on peut taper — « Nom ou dossard » — et non ce qu'on
+       est en train de faire : « Rechercher une athlète… » ne tenait pas
+       dans les 200 px du champ et se lisait « Rechercher une a ». */
     const ph=await page.getAttribute(".searchBar input","placeholder");
-    if(!ph||!/Rechercher/.test(ph))throw new Error("pas de champ de recherche : "+ph);
+    if(!ph||!/dossard/i.test(ph))throw new Error("pas de champ de recherche : "+ph);
     /* Le bouton de tri ne paraît qu'au-delà de onze entrées : au-dessous
        on voit toute la liste, et trier ne sert à rien. Cette liste-ci
        n'en a que quatre — on ne l'exige donc pas, mais s'il est là il
