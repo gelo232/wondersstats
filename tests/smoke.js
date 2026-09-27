@@ -1,6 +1,7 @@
 const {chromium}=require("playwright");
 const {franchirGarde}=require("./gate-helper");
 const fs=require("fs");
+const {execSync}=require("child_process");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
 const BASE=process.env.BASE_URL||"http://127.0.0.1:8899";
@@ -15,6 +16,54 @@ const ERRORS=[];
   page.on("console",m=>{if(m.type()==="error")ERRORS.push("CONSOLE: "+m.text())});
 
   let PASS=0;
+
+  /* ── Le nom du cache du service worker ───────────────────────────
+     sw.js le dit lui-même : « à bouger à chaque livraison ». Il ne
+     l'avait pas été depuis six commits d'index.html, et une application
+     déjà installée servait donc son ancien écran au démarrage, sans
+     jamais annoncer « Une nouvelle version est disponible ». Le code
+     partait bien en production ; il n'arrivait qu'au chargement suivant,
+     en silence. Personne ne s'en aperçoit — sauf l'utilisateur, qui
+     signale un bouton « qui ne fait rien ».
+
+     Ce contrôle ne regarde pas le navigateur : il regarde l'historique.
+     Si index.html a changé depuis la dernière fois que sw.js a changé,
+     le nom du cache est périmé. */
+  try{
+    const git=(c)=>execSync(c,{cwd:__dirname+"/..",encoding:"utf8"}).trim();
+    /* Deux moments à couvrir. Avant de livrer : si index.html est modifié
+       dans le répertoire de travail, sw.js doit l'être aussi. Après : le
+       dernier commit qui a touché index.html doit avoir touché sw.js. */
+    /* On lit la ligne entière : `trim()` avait mangé l'espace de tête du
+       premier enregistrement, et découper à une position fixe rendait
+       « ndex.html ». On cherche le nom de fichier, pas une colonne. */
+    const sale=git("git status --porcelain -- index.html sw.js")
+      .split("\n").filter(Boolean);
+    const indexSale=sale.some((l)=>/index\.html$/.test(l.trim()));
+    const swSale=sale.some((l)=>/sw\.js$/.test(l.trim()));
+    if(indexSale&&!swSale){
+      ERRORS.push("CACHE PÉRIMÉ: index.html est modifié mais pas sw.js — le nom "+
+        "du cache doit bouger avec, sinon les appareils déjà installés "+
+        "serviront l'ancienne version au prochain démarrage");
+    } else if(!indexSale){
+      const swCommit=git("git log -1 --format=%H -- sw.js");
+      const n=swCommit?+git("git rev-list --count "+swCommit+"..HEAD -- index.html"):0;
+      if(n>0)ERRORS.push("CACHE PÉRIMÉ: index.html a changé dans "+n+
+        " commit(s) depuis la dernière mise à jour de sw.js");
+      else {PASS++;say("  ✓ le nom du cache du service worker suit index.html")}
+    } else {PASS++;say("  ✓ sw.js accompagne la modification d'index.html")}
+    const ver=(fs.readFileSync(__dirname+"/../index.html","utf8")
+      .match(/var APP_VERSION\s*=\s*"([^"]+)"/)||[])[1];
+    const cache=(fs.readFileSync(__dirname+"/../sw.js","utf8")
+      .match(/var CACHE\s*=\s*"([^"]+)"/)||[])[1];
+    if(ver&&cache){
+      const attendu="wonderstats-v"+ver.replace(/\./g,"-");
+      if(cache.indexOf(attendu)!==0)
+        ERRORS.push("CACHE: « "+cache+" » ne porte pas la version « "+ver+" »");
+      else {PASS++;say("  ✓ le nom du cache porte la version de l'application")}
+    }
+  }catch(e){say("  · contrôle du cache ignoré (pas de dépôt git) : "+e.message)}
+
   /* v4 : les écrans entraîneur vivent dans un contexte (équipe, rôle). */
   const asCoach=async(teamName)=>{
     await page.evaluate((teamName)=>{

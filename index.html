@@ -1000,7 +1000,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.2";
+var APP_VERSION = "7.3";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -1876,15 +1876,51 @@ function forceDeSelection(sq,cid){
 /* Ce sur quoi l'équilibrage a pu s'appuyer — dit à l'écran, parce qu'un
    équilibrage sans repère n'est qu'une répartition, et qu'il vaut mieux
    l'annoncer que le laisser croire. */
-/* Qui entre dans les vagues : TOUT l'effectif convoqué à la saison, quelle
-   que soit la campagne. Borné aux athlètes encore là — une joueuse partie
-   en janvier reste au roster, datée, mais elle n'est pas au gymnase ce
-   soir. Si aucune ne répond à ce critère, on ne filtre pas : mieux vaut
-   des vagues que rien du tout. */
+/* Qui entre dans les vagues : toutes les athlètes convoquées à UNE
+   campagne de sélection — n'importe laquelle, pas seulement celle qui est
+   ouverte — et qui ne sont pas écartées. Une athlète vue à la journée 1
+   et reconvoquée à la 3 compte aux deux, et à la 2 aussi : le processus
+   de sélection est le même, seules les soirées diffèrent.
+
+   Deux exclusions, et elles se justifient chacune :
+   · NON RETENUE — la décision est prise, elle n'est plus en lice ;
+   · PARTIE — elle reste au roster, datée, mais elle n'est pas au gymnase.
+
+   Un club qui ne remplit jamais le volet « Convoquées » d'une campagne
+   n'a aucune ligne de campagne : plutôt que de rendre l'écran inutilisable,
+   on prend alors l'effectif de la saison. */
 function effectifDesVagues(sq){
-  var r=(sq&&sq.roster)||[];
-  var la=r.filter(function(e){return e.membership!=="left"});
-  return (la.length?la:r).map(function(e){return e.playerId});
+  if(!sq)return [];
+  var statut={},parti={};
+  (sq.roster||[]).forEach(function(e){
+    statut[e.playerId]=e.status||"";
+    if(e.membership==="left")parti[e.playerId]=1;
+  });
+  var vus={},ids=[];
+  (sq.campaignRoster||[]).forEach(function(e){
+    if(vus[e.playerId])return;
+    if(!statut.hasOwnProperty(e.playerId))return;   /* sortie du roster */
+    vus[e.playerId]=1;ids.push(e.playerId);
+  });
+  if(!ids.length)ids=(sq.roster||[]).map(function(e){return e.playerId});
+  return ids.filter(function(pid){
+    return statut[pid]!=="cut"&&!parti[pid];
+  });
+}
+/* Ce que le filtre a écarté, pour le dire à l'écran plutôt que de laisser
+   l'entraîneur chercher pourquoi il manque trois dossards. */
+function ecarteesDesVagues(sq){
+  var out={cut:0,parties:0};
+  var dedans={};effectifDesVagues(sq).forEach(function(p){dedans[p]=1});
+  var vus={};
+  (sq&&sq.campaignRoster||[]).forEach(function(e){vus[e.playerId]=1});
+  (sq&&sq.roster||[]).forEach(function(e){
+    if(dedans[e.playerId])return;
+    if(Object.keys(vus).length&&!vus[e.playerId])return;  /* jamais convoquée */
+    if(e.membership==="left")out.parties++;
+    else if(e.status==="cut")out.cut++;
+  });
+  return out;
 }
 function appuiEquilibrage(sq,cid,forces){
   var out={total:0,lesDeux:0,notes:0,compteurs:0,sans:0,sansIds:[]};
@@ -3695,13 +3731,15 @@ function normalizeSquad(sq,knownPlayers){
   });
   sq.campaignRoster=crOut;
 
-  /* Les vagues tiennent l'effectif de la SAISON, quelle que soit la
-     campagne : une athlète retirée du roster en sort, une athlète non
-     convoquée à cette campagne-là y reste. Les borner aux convoquées de
-     la campagne les aurait vidées au premier rechargement. */
-  var auRoster=sq.roster.map(function(e){return e.playerId});
+  /* Les vagues tiennent exactement celles qui peuvent y figurer : toutes
+     les convoquées d'une campagne, non retenues et parties exceptées. Une
+     athlète décommandée d'UNE journée y reste si une autre la convoque ;
+     retirée du roster, ou tranchée « non retenue », elle en sort. Les
+     borner aux convoquées de la campagne OUVERTE les aurait vidées de
+     tous les autres au premier rechargement, en silence. */
+  var eligibles=effectifDesVagues(sq);
   sq.campaigns.forEach(function(c){
-    c.playerGroups=normPlayerGroups(c.playerGroups,auRoster);
+    c.playerGroups=normPlayerGroups(c.playerGroups,eligibles);
   });
 
   sq.offers=(sq.offers||[]).filter(function(o){
@@ -8977,9 +9015,14 @@ function renderCampGroupsModal(){
   var corps=h("div",null);
 
   if(!entrees.length){
-    corps.appendChild(emptyState({icon:"👥",title:"Aucune athlète",small:true,
-      sub:"Convoquez des athlètes à la saison — volet 👥 Convoquées : "+
-          "les vagues se composent sur tout l'effectif."}));
+    var ec0=ecarteesDesVagues(sq);
+    corps.appendChild(emptyState({icon:"👥",title:"Aucune athlète à répartir",small:true,
+      sub:(ec0.cut||ec0.parties)
+        ? "Toutes les convoquées sont non retenues ou parties. Les vagues ne "+
+          "portent que sur celles encore en lice."
+        : "Convoquez des athlètes à une campagne — volet 👥 Convoquées : "+
+          "les vagues se composent sur toutes les convoquées, campagne "+
+          "ouverte ou non."}));
     return sheetShell({title:"Groupes d'évaluation",onclose:closeModal,
       buttons:[h("button",{className:"btn btn-ghost full",type:"button",
         onclick:closeModal},"Fermer")]},corps);
@@ -8987,11 +9030,18 @@ function renderCampGroupsModal(){
 
   corps.appendChild(h("div",{className:"hint"},
     "Une journée de sélection se déroule en vagues. Elles portent sur ",
-    h("b",null,"tout l'effectif de la saison")," — pas seulement sur les "+
-    "convoquées de cette campagne — et valent pour ",
-    h("b",null,"toutes les vues de la campagne")," : « groupe B » désigne les "+
-    "mêmes athlètes dans le carnet de chaque évaluateur, et ce qu'on voit "+
-    "d'une vague est comparable à ce qu'on voit d'une autre."));
+    h("b",null,"toutes les athlètes convoquées à une campagne"),
+    " — celle-ci ou une autre — ",h("b",null,"sauf les non retenues"),
+    ", et valent pour ",h("b",null,"toutes les vues de la campagne"),
+    " : « groupe B » désigne les mêmes athlètes dans le carnet de chaque "+
+    "évaluateur, et ce qu'on voit d'une vague est comparable à ce qu'on "+
+    "voit d'une autre."));
+  var ec=ecarteesDesVagues(sq);
+  if(ec.cut||ec.parties)corps.appendChild(h("div",{className:"muted",
+    style:{margin:"-6px 0 10px"}},
+    "Écartées : "+[ec.cut?plural(ec.cut,"non retenue"):null,
+                   ec.parties?plural(ec.parties,"partie"):null]
+      .filter(Boolean).join(" · ")+"."));
 
   /* Sur quoi l'équilibrage s'appuie — dit avant de le lancer. */
   var appuiTxt,bouts=[];
@@ -9054,7 +9104,7 @@ function renderCampGroupsModal(){
       var g=composerGroupesEquilibres(sq,cid,d.taille);
       if(!g.length){showToast("⚠️ Rien à composer");return}
       d.groupes=g;d.sel=g[0].id;
-      repeindreDialogues();
+      render();
     }},"⚖️ Composer automatiquement"));
 
   if(!d.groupes.length){
@@ -9080,7 +9130,7 @@ function renderCampGroupsModal(){
     d.groupes.map(function(g){
       var on=g.id===d.sel;
       var b=h("button",{className:"pill sm"+(on?" active":""),type:"button",
-        onclick:function(){d.sel=g.id;repeindreDialogues()}},
+        onclick:function(){d.sel=g.id;render()}},
         g.name+" "+g.playerIds.length);
       if(on)b.style.background="#2563EB";
       return b;
@@ -9088,7 +9138,7 @@ function renderCampGroupsModal(){
     h("button",{className:"pill sm",type:"button",style:{borderStyle:"dashed",flexShrink:"0"},
       onclick:function(){
         var g={id:uid(),name:nomDeGroupe(d.groupes.length),playerIds:[]};
-        d.groupes.push(g);d.sel=g.id;repeindreDialogues();
+        d.groupes.push(g);d.sel=g.id;render();
       }},"+ Groupe"));
   corps.appendChild(h("label",{className:"field"},h("span",null,"Les groupes"),rangee,
     h("div",{className:"muted"},sansGroupe()
@@ -9107,7 +9157,7 @@ function renderCampGroupsModal(){
           onclick:function(){
             d.groupes=d.groupes.filter(function(g){return g.id!==gsel.id});
             d.sel=d.groupes.length?d.groupes[0].id:"";
-            repeindreDialogues();
+            render();
           }},"🗑️")),
       nomInp,
       h("div",{className:"muted",style:{margin:"6px 0 4px"}},
@@ -9127,7 +9177,7 @@ function renderCampGroupsModal(){
           gsel.playerIds.push(it.id);
           gsel.playerIds.sort(function(a,b){return ordre.indexOf(a)-ordre.indexOf(b)});
         }
-        repeindreDialogues();
+        render();
       })));
   } else if(d.groupes.length){
     corps.appendChild(h("div",{className:"muted"},"Choisissez un groupe pour y affecter des dossards."));

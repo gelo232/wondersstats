@@ -846,14 +846,15 @@ l'effacer. L'écran **dit** sur quoi il s'est appuyé : « Équilibré sur
 compteurs ». Un équilibrage sans repère n'est qu'une répartition, et
 mieux vaut l'annoncer que le laisser croire.
 
-**Sur qui ?** Sur **tout l'effectif de la saison** — toutes les athlètes
-convoquées à l'équipe, quelle que soit la campagne — et non sur les
-seules convoquées du soir. C'est vrai des deux côtés : l'échelle se
-calcule sur cet effectif, parce qu'une échelle tirée de six présentes
-changerait de sens d'une journée à l'autre ; et les vagues le couvrent en
-entier. Seules les athlètes marquées « partie » en sont écartées. Chaque
-campagne garde ses propres vagues : la journée 2 peut être recomposée
-sans toucher à celles de la journée 1.
+**Sur qui ?** Sur **toutes les athlètes convoquées à une campagne de
+sélection** — celle-ci ou une autre — **sauf les non retenues**, et sauf
+celles marquées « partie ». Une athlète vue à la journée 1 et reconvoquée
+à la 3 compte aussi à la 2 : c'est le même processus, seules les soirées
+diffèrent. C'est vrai des deux côtés — l'échelle se calcule sur cet
+effectif, parce qu'une échelle tirée de six présentes changerait de sens
+d'une journée à l'autre ; et les vagues le couvrent en entier. L'écran
+dit ce qu'il a écarté, et pourquoi. Chaque campagne garde ses propres
+vagues : la journée 2 se recompose sans toucher à celles de la journée 1.
 
 **Et celles dont on ne sait rien ?** — ni note reçue, ni assez de gestes
 relevés pour en tirer une efficacité. Elles sont **nommées**, dossard par

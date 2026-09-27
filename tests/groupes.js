@@ -164,38 +164,49 @@ const GARNIR=(n)=>{
     if(r.appui.lesDeux!==1)throw new Error("appui faux : "+JSON.stringify(r.appui));
   });
 
-  await step("les vagues couvrent tout l'effectif, convoquée à cette campagne ou non",async()=>{
+  await step("convoquée à UNE AUTRE campagne, elle est quand même dans les vagues",async()=>{
     const r=await page.evaluate(()=>{
       const sq=curSquad(),camp=curCampaign(sq);
-      /* Une athlète au roster de la SAISON mais convoquée à aucune
-         campagne compte dans l'échelle ET prend place dans une vague. */
-      const avant=Object.keys(forceDeSelection(sq,camp.id)).length;
-      const pl=mkDbPlayer({firstName:"Hors",lastName:"Campagne",birthYear:2010});
+      /* Une athlète convoquée à une campagne passée, jamais à celle-ci :
+         elle est en lice, donc elle prend place dans une vague. */
+      const vieille=mkCampaign({kind:"tryout",name:"Journée 0",seq:0});
+      sq.campaigns.push(vieille);
+      const pl=mkDbPlayer({firstName:"Autre",lastName:"Campagne",birthYear:2010});
       DB.players.push(pl);
       sq.roster.push(mkRosterEntry(pl.id,"99","OH"));
-      const ev=mkEvent({kind:"league",name:"JX",day:todayISO()});
-      sq.events.push(ev);
-      sq.sessions.unshift({id:uid(),name:"JX",date:nowISO(),day:todayISO(),
-        opponent:"T",eventId:ev.id,teamName:"Équipe A",result:mkResult(),
-        entries:[{playerId:pl.id,name:fullName(pl),number:"99",position:"OH",
-          stats:normStats({atk_kill:60,atk_err:1,atk_blk:1,srv_ace:20,srv_err:1,
-            srv_ok:30,rec_perf:40,rec_ok:10,rec_err:1})}],
-        sets:[],splitAt:nowISO()});
+      ensureCampaignRosterEntry(sq,vieille.id,pl.id,null);
       DB=normalizeDB(DB);
-      const f=forceDeSelection(sq,camp.id);
-      return {avant,apres:Object.keys(f).length,
-        horsCampagne:!!f[pl.id],
-        dansAppui:appuiEquilibrage(sq,camp.id,f).total,
+      return {eligible:effectifDesVagues(sq).indexOf(pl.id)!==-1,
+        convoqueeIci:!!campaignEntry(sq,camp.id,pl.id),
         dansGroupes:composerGroupesEquilibres(sq,camp.id,4)
           .reduce((t,g)=>t+g.playerIds.filter(x=>x===pl.id).length,0)};
     });
-    if(!r.horsCampagne)
-      throw new Error("une athlète du roster hors campagne n'a pas de force calculée");
-    if(r.apres<=r.avant)
-      throw new Error("l'effectif de référence ne s'est pas élargi");
+    if(r.convoqueeIci)throw new Error("le jeu d'essai ne prouve rien : elle est convoquée ici");
+    if(!r.eligible)throw new Error("une convoquée d'une autre campagne est exclue");
     if(r.dansGroupes!==1)
-      throw new Error("une athlète du roster non convoquée à cette campagne "+
-        "n'a pas reçu de vague ("+r.dansGroupes+")");
+      throw new Error("elle n'a pas reçu de vague ("+r.dansGroupes+")");
+  });
+
+  await step("une athlète non retenue est écartée des vagues",async()=>{
+    const r=await page.evaluate(()=>{
+      const sq=curSquad(),camp=curCampaign(sq);
+      const pid=effectifDesVagues(sq)[0];
+      const avant=composerGroupesEquilibres(sq,camp.id,4)
+        .reduce((t,g)=>t+g.playerIds.length,0);
+      const e=rosterEntry(sq,pid);
+      setRosterStatus(sq,e,"cut");
+      DB=normalizeDB(DB);
+      const apres=composerGroupesEquilibres(sq,camp.id,4);
+      return {avant,apres:apres.reduce((t,g)=>t+g.playerIds.length,0),
+        dedans:effectifDesVagues(sq).indexOf(pid)!==-1,
+        ecartees:ecarteesDesVagues(sq).cut,
+        dansUneVague:apres.some(g=>g.playerIds.indexOf(pid)!==-1)};
+    });
+    if(r.dedans)throw new Error("la non retenue est restée dans l'effectif des vagues");
+    if(r.dansUneVague)throw new Error("la non retenue a reçu une vague");
+    if(r.apres!==r.avant-1)
+      throw new Error("l'effectif des vagues n'a pas diminué : "+r.avant+" → "+r.apres);
+    if(r.ecartees<1)throw new Error("l'écran ne compte pas les écartées");
   });
 
   say("\n── La deuxième journée n'est pas aveugle");
@@ -316,8 +327,30 @@ const GARNIR=(n)=>{
       state.modalDraft=null;openModal("campgroups",curCampaign(curSquad()).id);
     });
     await page.waitForTimeout(350);
+    /* Ce que l'écran montrait AVANT le geste. Le contrôle d'origine
+       n'inspectait que le brouillon en mémoire, si bien qu'un bouton qui
+       ne redessinait rien passait pour bon : `repeindreDialogues()` ne
+       repeint que les confirmations et les feuilles de liste, pas une
+       modale déclarée par `defModal`. Cinq gestes de cet écran étaient
+       muets, et c'est l'utilisateur qui l'a vu. */
+    const avantClic=await page.evaluate(()=>{
+      const m=document.querySelector(".modal .m-body");
+      return {texte:m?m.innerText:"",pastilles:document.querySelectorAll(".modal .sub-pills .pill").length};
+    });
     await page.locator('.modal button:has-text("Composer automatiquement")').click();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(400);
+    const apresClic=await page.evaluate(()=>{
+      const m=document.querySelector(".modal .m-body");
+      return {texte:m?m.innerText:"",
+        pastilles:document.querySelectorAll(".modal .sub-pills .pill").length,
+        brouillon:(state.modalDraft&&state.modalDraft.groupes||[]).length};
+    });
+    if(!apresClic.brouillon)throw new Error("« Composer » n'a rien composé");
+    if(apresClic.pastilles<=avantClic.pastilles)
+      throw new Error("l'écran ne montre pas les groupes composés : "+
+        avantClic.pastilles+" → "+apresClic.pastilles+" pastilles");
+    if(apresClic.texte===avantClic.texte)
+      throw new Error("l'écran n'a pas bougé après « Composer automatiquement »");
     await page.click("#modalOk");
     await page.waitForTimeout(400);
     const r=await page.evaluate(()=>{

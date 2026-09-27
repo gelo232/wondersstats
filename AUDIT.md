@@ -991,16 +991,30 @@ Conséquence assumée : un jugement récent ne chasse plus un ancien, il
 s'y ajoute. C'est ce que « toutes les stats connues » veut dire, et une
 pondération par fraîcheur serait un autre choix, à demander.
 
-*Tout l'effectif de la saison.* L'échelle se calculait sur les seules
-convoquées du soir : une campagne de six athlètes ne fournit aucune
-distribution digne de ce nom, et l'échelle changeait de sens d'une
-journée à l'autre. Elle porte désormais sur `sq.roster` entier. Et les
-vagues aussi : elles couvrent tout l'effectif, quelle que soit la
-campagne, les athlètes marquées « partie » exceptées. Le point qui
-n'allait pas de soi est la normalisation — bornée aux convoquées de la
-campagne, elle aurait vidé les vagues de tous les non-convoqués au
-premier rechargement, en silence. Un test le tient : décommander d'une
-journée ne retire pas des vagues, retirer du roster si.
+*Toutes les convoquées, de toutes les campagnes.* L'échelle se calculait
+sur les seules convoquées du soir : une campagne de six athlètes ne
+fournit aucune distribution digne de ce nom, et l'échelle changeait de
+sens d'une journée à l'autre. L'effectif est désormais l'union des
+convocations de TOUTES les campagnes, non retenues et parties exceptées —
+et il sert des deux côtés, pour l'échelle et pour les vagues. Le point
+qui n'allait pas de soi est la normalisation : bornée aux convoquées de
+la campagne ouverte, elle aurait vidé les vagues de tous les autres au
+premier rechargement, en silence. Trois contrôles la tiennent —
+décommander d'une journée ne retire pas des vagues, une non retenue en
+sort, un retrait du roster aussi.
+
+**Et un défaut de livraison, pas de code.** `sw.js` porte en commentaire
+sa propre règle : « le nom du cache est ce qui déclenche la mise à jour,
+à bouger à chaque livraison ». Il ne l'avait pas été depuis **six
+commits d'index.html**. Le code partait bien en production, mais une
+application déjà installée servait son ancien écran au démarrage et
+n'annonçait jamais « Une nouvelle version est disponible » : le nouveau
+code n'arrivait qu'au chargement SUIVANT, en silence. Personne ne s'en
+aperçoit de l'intérieur — c'est l'utilisateur qui signale « un bouton qui
+ne fait rien ». Le nom du cache est corrigé, et `tests/smoke.js` tient
+maintenant l'invariant des deux côtés du commit : index.html modifié sans
+sw.js, ou index.html changé depuis le dernier commit de sw.js, et la
+suite est rouge.
 
 **Deux défauts trouvés en répondant à « et pour la deuxième journée ? ».**
 Mesurés, tous les deux.
