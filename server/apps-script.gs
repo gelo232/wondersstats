@@ -36,6 +36,7 @@ function out_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
 function fail_(m) { return out_({ ok: false, error: m }); }
+function at_(v) { return (v instanceof Date) ? v.toISOString() : String(v); }
 
 function findGrant_(room, token) {
   var rows = grantsSheet_().getDataRange().getValues();
@@ -109,7 +110,12 @@ function doGet(e) {
       for (var i = 1; i < rows.length; i++) {
         var row = rows[i];
         if (row[0] !== p.room || row[2] !== p.kind) continue;
-        var at = String(row[4]);
+        if (p.teamId && String(row[1] || '') !== String(p.teamId)) continue;
+        // Sheets convertit parfois la chaîne ISO en date : String() en
+        // ferait « Sun Sep 27 2026 … », qui ne se compare plus à `since`
+        // — le relevé sautait alors des soumissions selon le jour de la
+        // semaine. On revient toujours à l'ISO.
+        var at = at_(row[4]);
         if (p.since && at <= p.since) continue;
         var payload, by;
         try { payload = JSON.parse(row[7]); by = row[6] ? JSON.parse(row[6]) : null; } catch (err) { continue; }

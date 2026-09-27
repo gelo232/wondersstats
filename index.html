@@ -1000,7 +1000,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.3.1";
+var APP_VERSION = "7.3.2";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -6405,21 +6405,62 @@ function publishCatalog(squad){
     syncBusy=false;showToast("⚠️ "+err.message);render();
   });
 }
+/* Le relevé ne redemande que ce qui est plus récent que son dernier
+   passage. Ce repère était UNIQUE pour tout l'appareil, et il avançait
+   sur tout ce que le relais renvoyait — or un administrateur reçoit les
+   soumissions de tout le salon. Relever depuis la saison d'une campagne
+   faisait donc passer le repère au-delà des soumissions d'une autre
+   campagne, rejetées là faute d'y connaître les athlètes : relevées
+   ensuite depuis la bonne saison, elles étaient « déjà vues », et le
+   relevé répondait « Aucune nouvelle soumission » pour toujours.
+   Le repère est désormais tenu par équipe-saison, et n'avance que sur
+   ce qui la concerne. L'ancien repère global n'est pas repris : il est
+   peut-être déjà faussé, et tout relire ne coûte rien — une soumission
+   déjà intégrée est reconnue à son identifiant. */
+/* On relit avec dix minutes de recouvrement : le relais Cloudflare liste
+   ses clés avec une cohérence seulement éventuelle, et une soumission
+   déposée juste avant une autre peut n'y paraître qu'après elle. Sans
+   marge, le repère passait devant elle et elle n'était jamais relevée.
+   Relire deux fois la même soumission est sans effet. */
+var SUB_OVERLAP_MS=10*60*1000;
+function subWatermark(squad){
+  var m=SYNC.pulled.subBySquad||{};
+  var w=(squad&&m[squad.id])||"",t=Date.parse(w);
+  if(!w||isNaN(t))return "";
+  return new Date(t-SUB_OVERLAP_MS).toISOString();
+}
+/* Une soumission est pour cette équipe-saison si le relais l'a déposée
+   pour son équipe, et si elle ne se réclame pas d'une autre saison. Le
+   paquet d'une vue porte l'identifiant de l'équipe-saison, le catalogue
+   celui de la saison : on accepte l'un ou l'autre. Sans ce filtre, une
+   soumission d'une autre saison dont les athlètes figurent aussi ici —
+   ce sont les mêmes fiches d'une saison à l'autre — atterrissait dans
+   la mauvaise saison, sur sa campagne active. */
+function submissionIsFor(squad,it,sub){
+  if(it.teamId&&squad.teamId&&it.teamId!==squad.teamId)return false;
+  if(sub.seasonId&&sub.seasonId!==squad.id&&sub.seasonId!==squad.seasonId)return false;
+  return true;
+}
 function pullSubmissions(squad){
   syncBusy=true;render();
-  syncList("submission",SYNC.pulled.submission,squad.teamId).then(function(data){
-    var items=(data&&data.items)||[],added=0,latest=SYNC.pulled.submission;
+  var since=subWatermark(squad);
+  syncList("submission",since,squad.teamId).then(function(data){
+    var items=(data&&data.items)||[],added=0,
+        latest=(SYNC.pulled.subBySquad||{})[squad.id]||"";
+    if(isNaN(Date.parse(latest)))latest="";
     items.forEach(function(it){
-      if(it.at&&it.at>latest)latest=it.at;
       var sub=it.payload;
       if(!sub||sub.type!=="wonderstats-submission")return;
+      if(!submissionIsFor(squad,it,sub))return;
+      if(it.at&&it.at>latest)latest=it.at;
       /* L'identité vient du jeton, estampillée par le relais — plus du
          texte libre saisi par le sélectionneur (constat R8). */
       if(it.by&&it.by.name)sub.selectorName=it.by.name;
       if(it.by&&it.by.token)sub.selectorToken=it.by.token;
       if(integrateSubmission(squad,sub))added++;
     });
-    SYNC.pulled.submission=latest;SYNC.lastSyncAt=nowISO();
+    SYNC.pulled.subBySquad=SYNC.pulled.subBySquad||{};
+    SYNC.pulled.subBySquad[squad.id]=latest;SYNC.lastSyncAt=nowISO();
     syncBusy=false;saveNow();saveSync();
     showToast(added?("📥 "+plural(added,"soumission")+" intégrée(s)"):"Aucune nouvelle soumission");
     render();

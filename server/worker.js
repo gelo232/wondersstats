@@ -131,27 +131,40 @@ export default {
 
         const kind = url.searchParams.get("kind") || "";
         const since = url.searchParams.get("since") || "";
+        const wantTeam = url.searchParams.get("teamId") || "";
         if (!KINDS.includes(kind)) return fail("Type inconnu");
 
-        // Le préfixe restreint déjà à l'équipe quand le porteur en a une.
-        const scope = (r.isOwner || r.grant.role === "admin" || !r.grant.teamId)
-          ? `${room}/item/`
-          : `${room}/item/${r.grant.teamId}/${kind}/`;
+        // Le préfixe restreint à l'équipe du porteur quand il en a une ;
+        // sinon à celle demandée. Il est construit comme `itemKey` —
+        // composant échappé compris —, faute de quoi il ne désigne pas
+        // les clés qu'on a écrites.
+        const team = (r.isOwner || r.grant.role === "admin" || !r.grant.teamId)
+          ? wantTeam : r.grant.teamId;
+        const scope = team ? `${room}/item/${seg(team)}/${seg(kind)}/` : `${room}/item/`;
 
-        const listed = await env.WONDERSTATS.list({ prefix: scope, limit: MAX_ITEMS });
+        // `list` rend les clés dans l'ordre alphabétique, pas
+        // chronologique, par pages de mille au plus. Une seule page
+        // bornée à MAX_ITEMS tronquait donc au hasard des identifiants :
+        // les dépôts récents pouvaient ne jamais être lus. On parcourt
+        // tout, puis on garde les plus récents.
         const items = [];
-        for (const key of listed.keys) {
-          const raw = await env.WONDERSTATS.get(key.name);
-          if (!raw) continue;
-          let rec;
-          try { rec = JSON.parse(raw); } catch { continue; }
-          if (rec.kind !== kind) continue;
-          if (since && rec.at && rec.at <= since) continue;
-          if (!mayRead(r.grant, r.isOwner, rec)) continue;
-          items.push(rec);
-        }
+        let cursor;
+        do {
+          const listed = await env.WONDERSTATS.list({ prefix: scope, cursor });
+          for (const key of listed.keys) {
+            const raw = await env.WONDERSTATS.get(key.name);
+            if (!raw) continue;
+            let rec;
+            try { rec = JSON.parse(raw); } catch { continue; }
+            if (rec.kind !== kind) continue;
+            if (since && rec.at && rec.at <= since) continue;
+            if (!mayRead(r.grant, r.isOwner, rec)) continue;
+            items.push(rec);
+          }
+          cursor = listed.list_complete ? undefined : listed.cursor;
+        } while (cursor);
         items.sort((a, b) => String(a.at).localeCompare(String(b.at)));
-        return json({ ok: true, items });
+        return json({ ok: true, items: items.slice(-MAX_ITEMS) });
       }
 
       if (request.method !== "POST") return fail("POST attendu", 405);
