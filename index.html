@@ -1000,7 +1000,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.3.3";
+var APP_VERSION = "7.3.4";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -6436,39 +6436,71 @@ function subWatermark(squad){
    soumission d'une autre saison dont les athlètes figurent aussi ici —
    ce sont les mêmes fiches d'une saison à l'autre — atterrissait dans
    la mauvaise saison, sur sa campagne active. */
+/* Rend la raison d'un refus, ou "" si la soumission est pour ici.
+   La saison n'écarte une soumission que si elle en désigne une AUTRE
+   qu'on connaît : un identifiant inconnu — vue publiée avant une
+   restauration de sauvegarde, qui renumérote les équipes-saisons — ne
+   prouve rien, et l'écarter faisait disparaître la soumission sans un
+   mot. */
 function submissionIsFor(squad,it,sub){
-  if(it.teamId&&squad.teamId&&it.teamId!==squad.teamId)return false;
-  if(sub.seasonId&&sub.seasonId!==squad.id&&sub.seasonId!==squad.seasonId)return false;
-  return true;
+  if(it.teamId&&squad.teamId&&it.teamId!==squad.teamId)return "equipe";
+  var sid=sub.seasonId;
+  if(!sid||sid===squad.id||sid===squad.seasonId)return "";
+  var autre=DB.squads.some(function(sq){
+    return sq!==squad&&(sq.id===sid||(sq.teamId===squad.teamId&&sq.seasonId===sid));
+  });
+  return autre?"saison":"";
 }
-function pullSubmissions(squad){
+/* Ce que le dernier relevé a reçu, et ce qu'il en a fait. « Aucune
+   nouvelle soumission » ne distinguait pas un relais vide d'un relais
+   plein dont tout était écarté — et c'est précisément ce qu'il faut
+   savoir quand un sélectionneur jure avoir soumis. */
+function bilanReleve(b){
+  var p=[];
+  if(b.added)p.push(b.added+" intégrée(s)");
+  if(b.deja)p.push(b.deja+" déjà là");
+  if(b.equipe)p.push(b.equipe+" d'une autre équipe");
+  if(b.saison)p.push(b.saison+" d'une autre saison");
+  if(b.sansAthlete)p.push(b.sansAthlete+" sans athlète de cet effectif");
+  if(b.illisible)p.push(b.illisible+" illisible(s)");
+  return (b.recus?plural(b.recus,"soumission")+" reçue(s) du relais":"Le relais n'a renvoyé aucune soumission")+
+    (b.depuis?" depuis le "+fmtDate(b.depuis):"")+(p.length?" : "+p.join(", "):"");
+}
+function pullSubmissions(squad,opts){
+  opts=opts||{};
   syncBusy=true;render();
+  if(opts.toutRelire&&SYNC.pulled.subBySquad)delete SYNC.pulled.subBySquad[squad.id];
   var since=subWatermark(squad);
   syncList("submission",since,squad.teamId).then(function(data){
-    var items=(data&&data.items)||[],added=0,
+    var items=(data&&data.items)||[],
         latest=(SYNC.pulled.subBySquad||{})[squad.id]||"",parCamp={};
+    var b={recus:items.length,added:0,deja:0,equipe:0,saison:0,sansAthlete:0,illisible:0,depuis:since};
     if(isNaN(Date.parse(latest)))latest="";
     items.forEach(function(it){
       var sub=it.payload;
-      if(!sub||sub.type!=="wonderstats-submission")return;
-      if(!submissionIsFor(squad,it,sub))return;
+      if(!sub||sub.type!=="wonderstats-submission"){b.illisible++;return}
+      var refus=submissionIsFor(squad,it,sub);
+      if(refus){b[refus]++;return}
       if(it.at&&it.at>latest)latest=it.at;
+      if(squad.submissions.some(function(x){return x.id===sub.id})){b.deja++;return}
       /* L'identité vient du jeton, estampillée par le relais — plus du
          texte libre saisi par le sélectionneur (constat R8). */
       if(it.by&&it.by.name)sub.selectorName=it.by.name;
       if(it.by&&it.by.token)sub.selectorToken=it.by.token;
       var ok=integrateSubmission(squad,sub);
-      if(ok){added++;parCamp[ok.campaignName||"—"]=(parCamp[ok.campaignName||"—"]||0)+1}
+      if(!ok){b.sansAthlete++;return}
+      b.added++;parCamp[ok.campaignName||"—"]=(parCamp[ok.campaignName||"—"]||0)+1;
     });
     SYNC.pulled.subBySquad=SYNC.pulled.subBySquad||{};
     SYNC.pulled.subBySquad[squad.id]=latest;SYNC.lastSyncAt=nowISO();
+    b.at=nowISO();b.squadId=squad.id;SYNC.lastPull=b;
     syncBusy=false;saveNow();saveSync();
     /* Dire OÙ elles sont rangées : le volet ne montre que la campagne
        ouverte, et « 3 intégrées » suivi d'une liste vide ne disait pas
        qu'elles étaient allées dans l'autre. */
-    showToast(added?("📥 "+plural(added,"soumission")+" intégrée(s) — "+
+    showToast(b.added?("📥 "+plural(b.added,"soumission")+" intégrée(s) — "+
       Object.keys(parCamp).map(function(n){return "« "+n+" » : "+parCamp[n]}).join(", ")):
-      "Aucune nouvelle soumission");
+      ("Aucune nouvelle soumission — "+bilanReleve(b)));
     render();
   }).catch(function(err){
     syncBusy=false;showToast("⚠️ "+err.message);render();
@@ -14041,6 +14073,12 @@ function renderSyncPanel(squad){
   box.appendChild(h("div",{className:"btn-row",style:{marginTop:"10px"}},
     h("button",{className:"btn btn-save sm",disabled:syncBusy,onclick:function(){pullSubmissions(squad)}},
       syncBusy?"⏳ En cours…":"📥 Relever les soumissions"),
+    /* Le relevé ne redemande que le nouveau. Quand on doute — une
+       soumission annoncée qui n'arrive pas —, on redemande tout : ce qui
+       est déjà là est reconnu et ne double pas. */
+    h("button",{className:"btn btn-ghost xs",disabled:syncBusy,
+      title:"Redemander au relais toutes les soumissions, pas seulement les nouvelles",
+      onclick:function(){pullSubmissions(squad,{toutRelire:true})}},"↻ Tout relire"),
     squad&&squad.freeView?h("button",{className:"btn btn-primary xs",disabled:syncBusy,onclick:function(){
       publishCatalog(squad);
     }},"📡 Publier le catalogue"):null,
@@ -14051,6 +14089,9 @@ function renderSyncPanel(squad){
      les observations libres qu'un sélectionneur en tire y sont rangées.
      Ouvrir une nouvelle campagne sans le republier envoyait donc ses
      soumissions dans l'ancienne. */
+  if(SYNC.lastPull&&squad&&SYNC.lastPull.squadId===squad.id)
+    box.appendChild(h("div",{className:"muted",style:{marginTop:"8px"}},
+      "Dernier relevé ("+fmtDate(SYNC.lastPull.at)+") — "+bilanReleve(SYNC.lastPull)));
   var campCat=squad&&squad.freeView&&squad.catalogCampaignId?campaignById(squad,squad.catalogCampaignId):null;
   if(campCat&&campCat.id!==squad.activeCampaignId)
     box.appendChild(h("div",{className:"hint",style:{marginTop:"10px",borderColor:"var(--warn)"}},
