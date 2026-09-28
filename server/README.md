@@ -99,9 +99,12 @@ GET  {url}?action=whoami&room=CODE&token=T
      → {"ok":true,"grant":{"token":"…","name":"Marie T.","role":"selector",
                             "teamId":"…","teamName":"U15 Wonders"},"isOwner":false}
 
-GET  {url}?action=list&room=CODE&token=T&kind=packet|catalog|submission&since=ISO
+GET  {url}?action=list&room=CODE&token=T&kind=packet|catalog|submission&since=ISO&teamId=T
      → {"ok":true,"items":[{"id":"…","kind":"packet","teamId":"…","at":"ISO",
                              "to":"…","by":{…},"payload":{…}}]}
+     `teamId` (facultatif) restreint la liste à une équipe ; il ne peut
+     qu'affiner ce que le jeton autorise. `at` est toujours un ISO 8601 UTC :
+     l'application s'en sert comme repère pour ne relire que le nouveau.
 
 POST {url}?action=publish   Content-Type: text/plain;charset=utf-8
      {"room":"CODE","token":"T","kind":"packet","id":"…","teamId":"…",

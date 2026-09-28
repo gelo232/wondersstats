@@ -361,6 +361,56 @@ async function serveRelay(route,request){
     if(!r.anon)throw new Error("la vue composée devrait rester anonyme");
   });
 
+  say("\n── Relevé : une campagne ne masque pas l'autre");
+  /* Défaut d'origine : le repère du relevé était unique pour l'appareil
+     et avançait sur tout ce que renvoyait le relais — tout le salon,
+     pour un administrateur. Relever depuis une équipe-saison le faisait
+     passer au-delà des soumissions d'une autre, qui n'y étaient plus
+     jamais relevées ; pire, une soumission d'une autre saison dont les
+     athlètes figuraient aussi ici atterrissait dans la mauvaise. */
+  await step("une soumission d'une autre équipe ou d'une autre saison reste à sa place",async()=>{
+    const r=await coach.page.evaluate(async()=>{
+      const A=curSquad(),lea=A.roster[0].playerId;
+      const club=DB.clubs[0]||{};
+      const t2=mkTeamRecord({name:"U18 Wonders",category:"U18",clubId:club.id||""});DB.teams.push(t2);
+      const B=ensureSquad(t2.id,DB.activeSeasonId);
+      const s2=mkSeason("Saison suivante");DB.seasons.push(s2);
+      const C=ensureSquad(A.teamId,s2.id);
+      [B,C].forEach(sq=>{const e=mkRosterEntry(lea,"7","OH");e.status="selected";
+        sq.roster.push(e);sq.playerIds.push(lea)});
+      saveNow();
+      const mk=(sq)=>({type:"wonderstats-submission",version:3,id:uid(),viewId:uid(),viewName:"Vue "+sq.id,
+        selectorName:"",seasonId:sq.id,campaignId:sq.activeCampaignId,campaignName:"",
+        submittedAt:nowISO(),criteria:CRITERIA.map(c=>c.key),
+        entries:[{playerId:lea,number:"7",stats:{},ratings:{},reco:"select",pos:"",note:""}]});
+      await syncPublish("submission","b-"+uid(),mk(B),{teamId:B.teamId});
+      await syncPublish("submission","c-"+uid(),mk(C),{teamId:C.teamId});
+      const avant=A.submissions.length;
+      const relever=(sq)=>new Promise(ok=>{pullSubmissions(sq);
+        const w=setInterval(()=>{if(!syncBusy){clearInterval(w);ok()}},50)});
+      await relever(A);
+      const apresA=A.submissions.length;
+      await relever(B);await relever(C);
+      return {avant,apresA,b:B.submissions.length,c:C.submissions.length,
+        bCamp:(B.submissions[0]||{}).campaignId===B.activeCampaignId};
+    });
+    if(r.apresA!==r.avant)throw new Error("intégrées à tort dans la première équipe-saison : "+(r.apresA-r.avant));
+    if(r.b!==1)throw new Error("autre équipe : "+r.b+" soumission(s) relevée(s) au lieu de 1");
+    if(r.c!==1)throw new Error("autre saison : "+r.c+" soumission(s) relevée(s) au lieu de 1");
+    if(!r.bCamp)throw new Error("rangée hors de sa campagne");
+  });
+  await step("un repère global hérité, déjà faussé, ne bloque plus rien",async()=>{
+    const n=await coach.page.evaluate(async()=>{
+      const A=curSquad();
+      SYNC.pulled={packet:"",catalog:"",submission:"9999-12-31T00:00:00.000Z"};
+      A.submissions=[];
+      await new Promise(ok=>{pullSubmissions(A);
+        const w=setInterval(()=>{if(!syncBusy){clearInterval(w);ok()}},50)});
+      return A.submissions.length;
+    });
+    if(n!==1)throw new Error("soumissions relevées="+n);
+  });
+
   say("\n── Robustesse");
   await step("un relais injoignable est signalé, pas silencieux",async()=>{
     relayFail=true;
