@@ -446,16 +446,20 @@ async function serveRelay(route,request){
       state.tab="season";state.seasonSection="selection";state.selPane="subs";render();
       const avant=document.querySelector("#app").innerText;
       const replie=!/Ranger dans/.test(avant);
+      const nomme=/rangées dans « [^»]+ »/.test(avant)&&/la plus récente le/.test(avant);
+      const voir=[...document.querySelectorAll("#app .empty button")].some(b=>/Voir ces/.test(b.textContent));
       const ouvrir=[...document.querySelectorAll("#app button")].find(b=>b.textContent==="Afficher");
       if(ouvrir)ouvrir.click();
       const txt=document.querySelector("#app").innerText;
       const btn=[...document.querySelectorAll("#app button")].find(b=>/Ranger dans/.test(b.textContent));
       if(btn)btn.click();
-      return {replie,visible:/Dans d'autres campagnes/i.test(avant),vide:/Aucune soumission reçue/.test(txt),btn:!!btn,
+      return {replie,nomme,voir,visible:/Dans d'autres campagnes/i.test(avant),vide:/Aucune soumission reçue/.test(txt),btn:!!btn,
         ici:sq.submissions.filter(x=>x.campaignId===c2.id).length,
         la:avantLa-sq.submissions.filter(x=>x.campaignId===c1).length};
     });
     if(!r.visible)throw new Error("les soumissions d'une autre campagne restent invisibles");
+    if(!r.nomme)throw new Error("l'écran vide ne nomme pas la campagne où elles sont");
+    if(!r.voir)throw new Error("pas de bouton pour les voir depuis l'écran vide");
     if(!r.replie)throw new Error("la liste des autres campagnes devrait être repliée par défaut");
     if(r.vide)throw new Error("« Aucune soumission reçue » alors qu'il y en a ailleurs");
     if(!r.btn)throw new Error("aucun bouton pour les ranger ici");

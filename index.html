@@ -1000,7 +1000,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.3.4";
+var APP_VERSION = "7.3.5";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -6458,7 +6458,8 @@ function submissionIsFor(squad,it,sub){
 function bilanReleve(b){
   var p=[];
   if(b.added)p.push(b.added+" intégrée(s)");
-  if(b.deja)p.push(b.deja+" déjà là");
+  if(b.deja)p.push(b.deja+" déjà là"+(b.dejaCamp&&Object.keys(b.dejaCamp).length
+    ?" (dans "+Object.keys(b.dejaCamp).map(function(n){return "« "+n+" » : "+b.dejaCamp[n]}).join(", ")+")":""));
   if(b.equipe)p.push(b.equipe+" d'une autre équipe");
   if(b.saison)p.push(b.saison+" d'une autre saison");
   if(b.sansAthlete)p.push(b.sansAthlete+" sans athlète de cet effectif");
@@ -6474,7 +6475,7 @@ function pullSubmissions(squad,opts){
   syncList("submission",since,squad.teamId).then(function(data){
     var items=(data&&data.items)||[],
         latest=(SYNC.pulled.subBySquad||{})[squad.id]||"",parCamp={};
-    var b={recus:items.length,added:0,deja:0,equipe:0,saison:0,sansAthlete:0,illisible:0,depuis:since};
+    var b={recus:items.length,added:0,deja:0,dejaCamp:{},equipe:0,saison:0,sansAthlete:0,illisible:0,depuis:since};
     if(isNaN(Date.parse(latest)))latest="";
     items.forEach(function(it){
       var sub=it.payload;
@@ -6482,7 +6483,14 @@ function pullSubmissions(squad,opts){
       var refus=submissionIsFor(squad,it,sub);
       if(refus){b[refus]++;return}
       if(it.at&&it.at>latest)latest=it.at;
-      if(squad.submissions.some(function(x){return x.id===sub.id})){b.deja++;return}
+      var deja=null;
+      squad.submissions.forEach(function(x){if(x.id===sub.id)deja=x});
+      if(deja){
+        b.deja++;
+        var cd=campaignById(squad,deja.campaignId),nd=cd?cd.name:(deja.campaignName||"—");
+        b.dejaCamp[nd]=(b.dejaCamp[nd]||0)+1;
+        return;
+      }
       /* L'identité vient du jeton, estampillée par le relais — plus du
          texte libre saisi par le sélectionneur (constat R8). */
       if(it.by&&it.by.name)sub.selectorName=it.by.name;
@@ -14115,15 +14123,32 @@ function renderSubmissionsPane(squad,campaignId){
   wrap.appendChild(renderSyncPanel(squad));
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
     h("button",{className:"btn btn-import sm",onclick:function(){importSubmission(squad)}},"📥 Importer un fichier de soumission")));
-  var nAilleurs=campaignId?(squad.submissions||[]).filter(function(x){return x.campaignId!==campaignId}).length:0;
-  if(campaignId&&!campaignSubs(squad,campaignId).length)
+  var ailleursTous=campaignId?(squad.submissions||[]).filter(function(x){return x.campaignId!==campaignId}):[];
+  var nAilleurs=ailleursTous.length;
+  if(campaignId&&!campaignSubs(squad,campaignId).length){
+    /* Dire OÙ elles sont, et depuis quand : « 3 soumissions dans
+       d'autres campagnes » ne permettait pas de savoir si c'étaient
+       celles de ce matin — et la liste repliée plus bas passait
+       inaperçue. On nomme la campagne, la plus récente, et on ouvre. */
+    var ouCamp={},plusRecente="";
+    ailleursTous.forEach(function(x){
+      var c=campaignById(squad,x.campaignId);
+      var n=c?c.name:(x.campaignName||"campagne inconnue");
+      ouCamp[n]=(ouCamp[n]||0)+1;
+      if(String(x.submittedAt||"")>plusRecente)plusRecente=String(x.submittedAt||"");
+    });
+    var ouTxt=Object.keys(ouCamp).map(function(n){return "« "+n+" » ("+ouCamp[n]+")"}).join(", ");
     wrap.appendChild(emptyState({icon:"📥",
       title:nAilleurs?"Aucune soumission dans cette campagne":"Aucune soumission reçue",
       sub:nAilleurs
-        ?(plural(nAilleurs,"soumission")+" reçue(s) sont rangées dans d'autres campagnes : elles sont "+
-          "accessibles plus bas, et peuvent être rangées ici.")
+        ?(plural(nAilleurs,"soumission")+" reçue(s) sont rangées dans "+ouTxt+
+          (plusRecente?" — la plus récente le "+fmtDate(plusRecente):"")+
+          ". Si elles appartiennent à cette campagne, rangez-les ici.")
         :("Rien n'est encore rentré pour cette campagne. Distribuez une vue, "+
-          "puis relevez les soumissions ou importez le fichier d'un évaluateur.")}));
+          "puis relevez les soumissions ou importez le fichier d'un évaluateur."),
+      action:(nAilleurs&&!state.subsAilleurs)?h("button",{className:"btn btn-primary sm",type:"button",
+        onclick:function(){state.subsAilleurs=true;render()}},"👁 Voir ces "+plural(nAilleurs,"soumission")):null}));
+  }
   else if(!campaignId&&!squad.submissions.length)
     wrap.appendChild(h("div",{className:"empty"},"Aucune soumission reçue"));
 
