@@ -437,6 +437,20 @@ async function serveRelay(route,request){
     if(!r.panneau)throw new Error("le bilan du relevé n'est pas affiché");
     if(!r.bouton)throw new Error("pas de bouton « Tout relire »");
   });
+  await step("une soumission rangée sous une autre équipe mais sur une campagne d'ici est relevée",async()=>{
+    const r=await coach.page.evaluate(async()=>{
+      const A=curSquad(),lea=A.roster[0].playerId;
+      const t3=mkTeamRecord({name:"Fiche recréée",category:"U14",clubId:(DB.clubs[0]||{}).id||""});DB.teams.push(t3);
+      await syncPublish("submission","t-"+uid(),{type:"wonderstats-submission",version:3,id:uid(),
+        viewId:uid(),viewName:"Vue autre fiche",selectorName:"",seasonId:A.id,
+        campaignId:A.activeCampaignId,submittedAt:nowISO(),criteria:CRITERIA.map(c=>c.key),
+        entries:[{playerId:lea,number:"7",stats:{},ratings:{},reco:"select",pos:"",note:""}]},{teamId:t3.id});
+      await new Promise(ok=>{pullSubmissions(A);
+        const w=setInterval(()=>{if(!syncBusy){clearInterval(w);ok()}},50)});
+      return A.submissions.filter(x=>x.viewName==="Vue autre fiche").length;
+    });
+    if(r!==1)throw new Error("soumission de cette campagne écartée pour son équipe : "+r);
+  });
   await step("une soumission rangée dans une autre campagne se voit, et se range ici",async()=>{
     const r=await coach.page.evaluate(()=>{
       const sq=curSquad(),c1=sq.activeCampaignId;
