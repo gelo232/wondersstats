@@ -606,7 +606,8 @@ const ERRORS=[];let PASS=0;
     });
     if(haut!==0)throw new Error("la feuille s'ouvre déjà déroulée : "+haut);
     const boutons=await page.locator(".modal .sel-decision button").count();
-    if(boutons!==3)throw new Error("boutons de décision="+boutons);
+    /* Retenir, Recaller, Couper — et Partenaire d'entraînement. */
+    if(boutons!==4)throw new Error("boutons de décision="+boutons);
   });
   await step("le contenu d'une soumission se relit en LECTURE SEULE",async()=>{
     const n=await page.locator(".modal .subRO").count();
@@ -759,6 +760,82 @@ const ERRORS=[];let PASS=0;
     if(r.offresOrphelines)throw new Error(r.offresOrphelines+" offre(s) orpheline(s)");
     if(r.probs.length)throw new Error(r.probs.join(" / "));
     await fermerFeuille();
+  });
+
+  say("\n── Partenaire d'entraînement");
+  await step("une partenaire d'entraînement ne reçoit ni offre ni place dans l'équipe",async()=>{
+    const r=await page.evaluate(()=>{
+      var sq=curSquad(),cid=sq.activeCampaignId;
+      var e=rosterOfCampaign(sq,cid)[0]||null;
+      if(!e){var x=sq.roster[0];convokeToCampaign(sq,cid,[x.playerId],null);e=campaignEntry(sq,cid,x.playerId)}
+      var pid=e.playerId;
+      setCampaignDecision(sq,cid,pid,"select",null);
+      var offreAvant=!!liveOffer(sq,cid,pid);
+      setCampaignDecision(sq,cid,pid,"partner",null);
+      saveNow();render();
+      var o=liveOffer(sq,cid,pid);
+      return {offreAvant,offreApres:!!(o&&(o.status==="pending"||o.status==="accepted")),
+        statut:rosterEntry(sq,pid).status,dansEquipe:sq.playerIds.indexOf(pid)!==-1,
+        decision:campaignEntry(sq,cid,pid).decision,
+        avisSelectionneur:RECOS.map(function(x){return x.key}).join(","),
+        probs:checkV7(DB)};
+    });
+    if(!r.offreAvant)throw new Error("la retenue n'avait pas d'offre — préalable du test");
+    if(r.offreApres)throw new Error("une offre en attente ou acceptée a survécu au passage en partenaire");
+    if(r.statut!=="partner")throw new Error("statut de saison="+r.statut);
+    if(r.decision!=="partner")throw new Error("décision de campagne="+r.decision);
+    if(r.dansEquipe)throw new Error("une partenaire est entrée dans l'équipe");
+    if(r.avisSelectionneur!=="select,recall,cut")throw new Error("les sélectionneurs voient : "+r.avisSelectionneur);
+    if(r.probs.length)throw new Error(r.probs.join(" / "));
+  });
+  await step("la décision « Partenaire » se prend depuis la feuille, et survit au rechargement",async()=>{
+    const pid=await page.evaluate(()=>{
+      var sq=curSquad();return rosterOfCampaign(sq,sq.activeCampaignId).filter(function(e){return e.decision==="partner"})[0].playerId;
+    });
+    await page.evaluate((pid)=>{state.tab="season";state.seasonSection="selection";state.selPane="roster";openModal("selathlete",pid)},pid);
+    await page.waitForTimeout(350);
+    const libelle=await page.locator(".modal .sel-decision button").filter({hasText:"Partenaire"}).count();
+    if(libelle!==1)throw new Error("bouton « Partenaire d'entraînement » absent de la feuille");
+    await fermerFeuille();
+    await page.reload();await franchirGarde(page);await page.waitForTimeout(500);
+    const st=await page.evaluate((pid)=>rosterEntry(curSquad(),pid).status,pid);
+    if(st!=="partner")throw new Error("après rechargement : "+st);
+  });
+
+  say("\n── Toute liste se range");
+  await step("l'effectif se trie par nom, puis revient à l'ordre manuel",async()=>{
+    await page.evaluate(()=>{state.ctx&&state.ctx.role;state.tab="players";state.playersPane="roster";
+      state.lists&&delete state.lists.roster;render()});
+    await page.waitForTimeout(300);
+    const noms=async()=>page.evaluate(()=>Array.prototype.map.call(
+      document.querySelectorAll(".lt-inline .list-row .pname"),function(n){return n.textContent}));
+    const poignees=async()=>page.evaluate(()=>document.querySelectorAll(".lt-inline .drag-handle").length);
+    const avant=await noms();
+    if(avant.length<3)throw new Error("effectif trop court pour le test : "+avant.length);
+    if(!(await poignees()))throw new Error("pas de poignée ☰ dans l'ordre manuel");
+    await ouvrirTris(page);
+    const t=await texteFeuilleListe(page);
+    for(const x of ["Ordre manuel","Numéro","Nom","Poste","Statut"])
+      if(!t.includes(x))throw new Error("tri absent : "+x);
+    await choisirOption(page,"Nom de famille");await fermerFeuilleListe(page);
+    const tries=await noms();
+    const attendu=await page.evaluate(()=>curSquad().roster.map(function(e){var p=playerById(e.playerId);
+      return {n:fullName(p),k:(p.lastName||"")+" "+(p.firstName||"")}}).sort(function(a,b){
+        return a.k.localeCompare(b.k,"fr",{sensitivity:"base",numeric:true})}).map(function(x){return x.n}));
+    if(JSON.stringify(tries)!==JSON.stringify(attendu))throw new Error("ordre par nom de famille faux : "+tries.join(", ")+" ≠ "+attendu.join(", "));
+    if(await poignees())throw new Error("la poignée ☰ reste offerte alors qu'un tri est posé");
+    await ouvrirTris(page);await choisirOption(page,"Ordre manuel");await fermerFeuilleListe(page);
+    if(JSON.stringify(await noms())!==JSON.stringify(avant))throw new Error("l'ordre manuel n'est pas revenu");
+  });
+  await step("le journal se range par type, et ses intertitres suivent",async()=>{
+    await page.evaluate(()=>{state.tab="settings";state.setPane="log";state.logFilter="all";render()});
+    await page.waitForTimeout(300);
+    await ouvrirTris(page);await choisirOption(page,"Type");await fermerFeuilleListe(page);
+    const titres=await page.evaluate(()=>Array.prototype.map.call(
+      document.querySelectorAll(".lt-inline .section-title"),function(n){return n.textContent}));
+    const types=await page.evaluate(()=>Object.keys(LOG_KINDS).map(function(k){return LOG_KINDS[k].label}));
+    if(!titres.length||titres.some(function(x){return types.indexOf(x)===-1}))
+      throw new Error("intertitres : "+titres.join(" | "));
   });
 
   say("\n"+PASS+" contrôles réussis.");
