@@ -411,6 +411,30 @@ async function serveRelay(route,request){
     if(n!==1)throw new Error("soumissions relevées="+n);
   });
 
+  await step("une soumission rangée dans une autre campagne se voit, et se range ici",async()=>{
+    const r=await coach.page.evaluate(()=>{
+      const sq=curSquad(),c1=sq.activeCampaignId;
+      const c2=mkCampaign({kind:"custom",name:"Journée 2"});sq.campaigns.push(c2);
+      setActiveCampaign(sq,c2.id);
+      state.tab="season";state.seasonSection="selection";state.selPane="subs";render();
+      const avant=document.querySelector("#app").innerText;
+      const replie=!/Ranger dans/.test(avant);
+      const ouvrir=[...document.querySelectorAll("#app button")].find(b=>b.textContent==="Afficher");
+      if(ouvrir)ouvrir.click();
+      const txt=document.querySelector("#app").innerText;
+      const btn=[...document.querySelectorAll("#app button")].find(b=>/Ranger dans/.test(b.textContent));
+      if(btn)btn.click();
+      return {replie,visible:/Dans d'autres campagnes/i.test(avant),vide:/Aucune soumission reçue/.test(txt),btn:!!btn,
+        ici:sq.submissions.filter(x=>x.campaignId===c2.id).length,
+        la:sq.submissions.filter(x=>x.campaignId===c1).length};
+    });
+    if(!r.visible)throw new Error("les soumissions d'une autre campagne restent invisibles");
+    if(!r.replie)throw new Error("la liste des autres campagnes devrait être repliée par défaut");
+    if(r.vide)throw new Error("« Aucune soumission reçue » alors qu'il y en a ailleurs");
+    if(!r.btn)throw new Error("aucun bouton pour les ranger ici");
+    if(r.ici!==1||r.la!==0)throw new Error("après rangement : ici="+r.ici+", ailleurs="+r.la);
+  });
+
   say("\n── Robustesse");
   await step("un relais injoignable est signalé, pas silencieux",async()=>{
     relayFail=true;
