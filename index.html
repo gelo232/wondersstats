@@ -651,6 +651,9 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .listRow::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:var(--r-md) 0 0 var(--r-md);background:transparent}
 .listRow[data-decision="selected"]::before{background:var(--ok)}
 .listRow[data-decision="recalled"]::before{background:var(--warn)}
+.listRow[data-decision="partner"]::before{background:#2DD4BF}
+.sv-tri{background:var(--sunken);color:var(--txt);border:1px solid var(--line);border-radius:999px;
+  padding:4px 10px;font-size:12px;min-height:32px}
 .listRow[data-decision="cut"]::before{background:var(--danger)}
 .listRow[data-decision="candidate"]::before{background:var(--line-strong)}
 .listRow .lead{width:var(--tap);min-height:var(--tap);flex-shrink:0;display:flex;align-items:center;justify-content:center;
@@ -1000,7 +1003,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.3.6";
+var APP_VERSION = "7.4.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -1140,17 +1143,28 @@ var RECOS=[
   {key:"cut",label:"Non retenue",short:"Couper",color:"#F87171",icon:"⛔"}
 ];
 var RECO_BY_KEY={};RECOS.forEach(function(r){RECO_BY_KEY[r.key]=r});
+/* Partenaire d'entraînement : une quatrième issue de sélection, que seul
+   l'entraîneur prononce — les sélectionneurs gardent leurs trois avis.
+   L'athlète n'entre pas dans l'équipe (ni offre, ni alignement de
+   match, ni « Constituer l'équipe ») : elle s'entraîne avec elle. D'où
+   deux listes : RECOS pour les avis, DECISIONS pour ce qui se tranche.
+   Sarcelle : la seule teinte franche restée libre (voir la palette). */
+var DECISIONS=RECOS.concat([
+  {key:"partner",label:"Partenaire d'entraînement",short:"Partenaire",color:"#2DD4BF",icon:"🎽"}
+]);
+var DECISION_BY_KEY={};DECISIONS.forEach(function(r){DECISION_BY_KEY[r.key]=r});
 
 /* Statuts d'une joueuse dans le roster d'une saison */
-var STATUS_ORDER=["selected","recalled","candidate","cut"];
+var STATUS_ORDER=["selected","partner","recalled","candidate","cut"];
 var STATUSES={
   candidate:{label:"Candidate",color:"#94A3B8",icon:"◻️"},
   recalled:{label:"Recallée",color:"#FBBF24",icon:"🔁"},
   selected:{label:"Retenue",color:"#34D399",icon:"✅"},
+  partner:{label:"Partenaire d'entraînement",short:"Partenaire",color:"#2DD4BF",icon:"🎽"},
   cut:{label:"Non retenue",color:"#F87171",icon:"⛔"}
 };
 /* Recommandation de sélectionneur → statut de roster */
-var RECO_TO_STATUS={select:"selected",recall:"recalled",cut:"cut"};
+var RECO_TO_STATUS={select:"selected",recall:"recalled",cut:"cut",partner:"partner"};
 
 /* Statut d'effectif en cours de saison — indépendant du statut de sélection.
    Une joueuse partie en janvier reste « Retenue » (elle l'a été) et conserve
@@ -3711,7 +3725,7 @@ function normalizeSquad(sq,knownPlayers){
       return e&&campKnown[e.campaignId]&&inRoster[e.playerId];
     }).map(function(e){
       return Object.assign(mkCampaignRosterEntry(e.campaignId,e.playerId),e,{
-        decision:RECO_BY_KEY[e.decision]?e.decision:"",
+        decision:DECISION_BY_KEY[e.decision]?e.decision:"",
         number:cleanNum(e.number)});
     });
   /* Unicité (campagne, athlète) : la décision la plus récente l'emporte. */
@@ -4934,7 +4948,7 @@ function unconvokeFromCampaign(sq,campaignId,pid){
    nulle part ailleurs, qu'une offre naît. */
 function setCampaignDecision(sq,campaignId,pid,reco,who){
   if(!sq||!campaignId||!pid)return;
-  if(reco&&!RECO_BY_KEY[reco])return;
+  if(reco&&!DECISION_BY_KEY[reco])return;
   Store.tx(function(){
     snapshotSquad(sq);
     var e=ensureCampaignRosterEntry(sq,campaignId,pid,who);
@@ -7249,6 +7263,15 @@ function numField(entry,dupMap,onchange){
    ══════════════════════════════════════════════════════════════════ */
 var SORT_NATUREL={name:"asc",number:"asc",age:"asc",score:"desc",result:"desc",date:"desc"};
 
+/* Une liste triable en deux lignes, pour les écrans qui posent leurs
+   cartes directement dans le contenu (vues, soumissions, séances…). La
+   barre suit le contrat de listToolbar ; elle reste dans le flux faute
+   de zone fixe sur ces écrans. Rend le nœud à ajouter. */
+function listeTriable(cfg){
+  var tb=listToolbar(cfg);
+  return h("div",{className:"lt-inline"},tb,tb.list);
+}
+
 /* L'état d'une liste, par clé. Volatile : il voyage dans le cadre de
    navigation (§13), pas dans le coffre. */
 function listState(key){
@@ -7261,13 +7284,15 @@ function listReset(key){
   st.q="";st.filters={};
   return st;
 }
-/* Sous un certain nombre d'entrées, trier ne dit rien : on voit la liste
-   entière d'un regard. La règle vit ici pour que la barre et la feuille
+/* Sous trois entrées, trier ne dit rien. Le seuil était de onze : on
+   voyait toute la liste d'un regard, mais on ne pouvait pas la RANGER —
+   et ranger six vues par avancement, c'est précisément ce qu'on veut un
+   soir de sélection. La règle vit ici pour que la barre et la feuille
    la lisent au même endroit — sans quoi la feuille pouvait proposer un
    tri que la barre cachait, ou l'inverse. */
 function listTriVisible(cfg){
   var sorts=cfg.sorts||[];
-  var seuil=(cfg.minSort!=null)?cfg.minSort:11;
+  var seuil=(cfg.minSort!=null)?cfg.minSort:3;
   return !!(sorts.length&&(cfg.items||[]).length>=seuil);
 }
 /* Nombre de filtres réellement actifs — sert le compteur du repli. */
@@ -7976,6 +8001,16 @@ function renderListSheet(){
     corps.appendChild(h("div",{className:"ls-grp ls-grp-tri"},
       h("div",{className:"ls-lbl"},"Trier par"),
       h("div",{className:"ls-opts",role:"group","aria-label":"Trier"},
+        /* Sans tri par défaut, la liste a un ordre à elle — celui de la
+           saisie, ou l'ordre glissé à la main. Une fois un tri choisi,
+           rien ne permettait d'y revenir. */
+        (cfg.defaultSort?[]:[h("button",{className:"ls-opt"+(!st.sort?" on":""),type:"button",
+          "aria-pressed":!st.sort?"true":"false",
+          onclick:function(){
+            st.sort=null;st.dir=null;
+            if(L.refresh)L.refresh();
+            repeindreDialogues();
+          }},h("span",{className:"grow"},cfg.naturalLabel||"Ordre d'origine"),h("span",{className:"ls-n"},""))]).concat(
         sorts.map(function(o){
           var on=st.sort?(st.sort===o.key):(cfg.defaultSort===o.key);
           var dir=on?(st.dir||o.dir||SORT_NATUREL[o.key]||"asc")
@@ -7991,7 +8026,7 @@ function renderListSheet(){
             }},
             h("span",{className:"grow"},o.label),
             h("span",{className:"ls-n"},on?(dir==="asc"?"↑ croissant":"↓ décroissant"):""));
-        }))));
+        })))));
     corps.appendChild(h("div",{className:"hint"},
       "Toucher l'ordre déjà choisi l'inverse. Le tri porte sur ce que les "+
       "filtres laissent passer."));
@@ -8448,7 +8483,7 @@ function selFilters(){
   return [
     {key:"decision",label:"Décision",
      get:function(x){return x.ce.decision?RECO_TO_STATUS[x.ce.decision]:"todo"},
-     options:[{k:"todo",l:"◻️ À trancher"}].concat(RECOS.map(function(r){
+     options:[{k:"todo",l:"◻️ À trancher"}].concat(DECISIONS.map(function(r){
        var s=RECO_TO_STATUS[r.key];
        return {k:s,l:r.icon+" "+STATUSES[s].label,tone:toneOfStatus(s)};
      }))},
@@ -8810,7 +8845,7 @@ function renderSelAthleteSheet(){
     function trancher(k){
       setCampaignDecision(sq,camp.id,pid,k,state.meId||null);
       saveNow();
-      showToast(k?(RECO_BY_KEY[k].icon+" "+shortName(p)+" · "+RECO_BY_KEY[k].label+
+      showToast(k?(DECISION_BY_KEY[k].icon+" "+shortName(p)+" · "+DECISION_BY_KEY[k].label+
                    (k==="select"?" — offre en attente":""))
                  :("Décision retirée pour "+shortName(p)),
         {tone:k==="select"?"ok":null,action:{label:"Annuler",onclick:doUndo}});
@@ -8818,7 +8853,7 @@ function renderSelAthleteSheet(){
     }
     corps.appendChild(h("div",{className:"reco-row sel-decision",role:"group",
       "aria-label":"Décision de sélection"},
-      RECOS.map(function(r){
+      DECISIONS.map(function(r){
         var on=ce.decision===r.key;
         var b=h("button",{className:"reco-btn"+(on?" on":""),type:"button",
           "aria-pressed":on?"true":"false",
@@ -8830,7 +8865,8 @@ function renderSelAthleteSheet(){
       style:{marginTop:"6px"},onclick:function(){trancher("")}},"↺ Retirer la décision"));
     corps.appendChild(h("div",{className:"muted",style:{marginTop:"6px"}},
       "Retenir n'ajoute personne à l'équipe sur-le-champ : l'athlète reçoit une offre, "+
-      "et n'entre dans l'effectif qu'une fois cette offre confirmée."));
+      "et n'entre dans l'effectif qu'une fois cette offre confirmée. Une partenaire "+
+      "d'entraînement s'entraîne avec l'équipe sans en faire partie : ni offre, ni match."));
   }
   if(offre&&OFFER_STATUS[offre.status]){
     var campOffre=campaignById(sq,offre.campaignId);
@@ -10789,12 +10825,15 @@ function renderPartRecap(sq){
     var attente=(sq.offers||[]).filter(function(o){
       return o.status==="pending"&&offerIsLive(o)}).length;
     var retenues=(sq.roster||[]).filter(function(r){return r.status==="selected"}).length;
+    var partenaires=(sq.roster||[]).filter(function(r){return r.status==="partner"}).length;
     corps.appendChild(h("div",{className:"section-title"},"🎯 Sélection"));
     corps.appendChild(h("div",{className:"kpiGrid"},
       kpi({label:"Dans l'équipe",value:String((sq.playerIds||[]).length),
         hint:plural((sq.roster||[]).length,"convoquée")}),
       kpi({label:"Retenues",value:String(retenues),
         hint:attente?plural(attente,"offre")+" en attente":"toutes tranchées"}),
+      partenaires?kpi({label:"Partenaires d'entr.",value:String(partenaires),
+        hint:"s'entraînent avec l'équipe"}):null,
       kpi({label:"Campagnes",value:String((sq.campaigns||[]).length),
         hint:camp?campaignLabel(camp):""})));
 
@@ -11846,7 +11885,25 @@ function renderCampaignsPane(squad){
 
   /* Dans l'ordre métier, pas dans celui des clics : une campagne créée
      après coup pour rattraper la journée 1 se lit avant la journée 2. */
-  campaignOrder(squad).forEach(function(c){
+  wrap.appendChild(listeTriable({
+    key:"campaigns",items:campaignOrder(squad),naturalLabel:"Ordre des journées",
+    search:{placeholder:"Campagne",of:function(c){return c.name||""}},
+    sorts:[
+      {key:"date",label:"Date",get:function(c){return c.date||dayOf(c.createdAt)||""}},
+      {key:"name",label:"Nom",get:function(c){return c.name||""}},
+      {key:"nature",label:"Nature",dir:"asc",get:function(c){return CAMPAIGN_KINDS.map(function(k){return k.key}).indexOf(c.kind)}},
+      {key:"subs",label:"Soumissions",dir:"desc",get:function(c){return campaignSubs(squad,c.id).length}},
+      {key:"convoquees",label:"Convoquées",dir:"desc",get:function(c){return rosterOfCampaign(squad,c.id).length}}
+    ],
+    filters:[{key:"etat",label:"État",get:function(c){return c.closedAt?"close":"ouverte"},
+      options:[{k:"ouverte",l:"🟢 Ouverte"},{k:"close",l:"🔒 Close"}]}],
+    rows:function(res){return res.map(carteCampagne)}}));
+
+  wrap.appendChild(h("button",{className:"btn btn-primary full",style:{marginTop:"6px"},
+    disabled:seasonClosed(squad),onclick:function(){openModal("newcampaign")}},"+ Nouvelle campagne"));
+  return wrap;
+
+  function carteCampagne(c){
     var active=c.id===squad.activeCampaignId;
     var subs=campaignSubs(squad,c.id).length;
     var views=campaignViews(squad,c.id).length;
@@ -11922,12 +11979,8 @@ function renderCampaignsPane(squad){
             },{confirm:"Supprimer"});
         }},"🗑️"):null)));
     if(!open&&!c.closedAt)card.appendChild(h("div",{className:"muted",style:{marginTop:"8px"}},"Saison clôturée — campagne en lecture seule."));
-    wrap.appendChild(card);
-  });
-
-  wrap.appendChild(h("button",{className:"btn btn-primary full",style:{marginTop:"6px"},
-    disabled:seasonClosed(squad),onclick:function(){openModal("newcampaign")}},"+ Nouvelle campagne"));
-  return wrap;
+    return card;
+  }
 }
 
 /* ── Journal des décisions ─────────────────────────────────────
@@ -11968,21 +12021,35 @@ function renderLogPane(teamId){
     wrap.appendChild(h("div",{className:"empty"},"Aucune décision enregistrée"));
     return wrap;
   }
-  /* Regroupement par jour : on relit un journal par dates, pas par lignes. */
-  var lastDay="";
-  rows.forEach(function(l){
-    var day=fmtDay(l.at);
-    if(day!==lastDay){lastDay=day;wrap.appendChild(h("div",{className:"section-title"},day))}
-    var k=LOG_KINDS[l.kind]||LOG_KINDS.status;
-    var t=teamId?null:(l.teamId?(teamById(l.teamId)||{}).name:null);
-    wrap.appendChild(h("div",{className:"list-row"},
-      h("span",{style:{fontSize:"16px",width:"24px",textAlign:"center",flexShrink:"0"}},k.icon),
-      h("div",{className:"body"},
-        h("div",{style:{fontSize:"13px",color:"#E2E8F0",lineHeight:"1.45"}},l.text),
-        h("div",{className:"psub"},
-          l.byName+(l.byRole&&ROLES[l.byRole]?" · "+ROLES[l.byRole].label.toLowerCase():"")+
-          (t?" · "+t:"")+" · "+new Date(l.at).toLocaleTimeString("fr-CA",{hour:"2-digit",minute:"2-digit"})))));
-  });
+  /* Regroupé selon le tri : par jour quand on range par date — on relit
+     un journal par dates, pas par lignes —, par auteur ou par type sinon. */
+  wrap.appendChild(listeTriable({
+    key:"log-"+(teamId||"club"),items:rows,
+    search:{placeholder:"Texte ou auteur",of:function(l){return (l.text||"")+" "+(l.byName||"")}},
+    sorts:[
+      {key:"date",label:"Date",get:function(l){return l.at||""}},
+      {key:"auteur",label:"Auteur",dir:"asc",get:function(l){return l.byName||null}},
+      {key:"type",label:"Type",dir:"asc",get:function(l){return (LOG_KINDS[l.kind]||LOG_KINDS.status).label}}
+    ],
+    defaultSort:"date",
+    rows:function(res){
+      var tri=listState("log-"+(teamId||"club")).sort||"date",dernier=null,out=[];
+      res.forEach(function(l){
+        var titre=tri==="auteur"?(l.byName||"—"):tri==="type"?(LOG_KINDS[l.kind]||LOG_KINDS.status).label:fmtDay(l.at);
+        if(titre!==dernier){dernier=titre;out.push(h("div",{className:"section-title"},titre))}
+        var k=LOG_KINDS[l.kind]||LOG_KINDS.status;
+        var t=teamId?null:(l.teamId?(teamById(l.teamId)||{}).name:null);
+        out.push(h("div",{className:"list-row"},
+          h("span",{style:{fontSize:"16px",width:"24px",textAlign:"center",flexShrink:"0"}},k.icon),
+          h("div",{className:"body"},
+            h("div",{style:{fontSize:"13px",color:"#E2E8F0",lineHeight:"1.45"}},l.text),
+            h("div",{className:"psub"},
+              l.byName+(l.byRole&&ROLES[l.byRole]?" · "+ROLES[l.byRole].label.toLowerCase():"")+
+              (t?" · "+t:"")+" · "+(tri==="date"?"":fmtDay(l.at)+" ")+
+              new Date(l.at).toLocaleTimeString("fr-CA",{hour:"2-digit",minute:"2-digit"})))));
+      });
+      return out;
+    }}));
   wrap.appendChild(h("div",{className:"muted",style:{textAlign:"center",marginTop:"14px"}},
     plural(rows.length,"entrée")+" · les "+LOG_MAX+" dernières décisions sont conservées"));
   return wrap;
@@ -12042,8 +12109,33 @@ function renderAdminPeople(){
     h("button",{className:"btn btn-primary sm",onclick:function(){openModal("newperson")}},"+ Nouvelle personne")));
 
   if(!DB.people.length)wrap.appendChild(h("div",{className:"empty"},"Aucune personne"));
-  DB.people.forEach(function(p){
-    var mine=DB.assignments.filter(function(a){return a.personId===p.id});
+  function affOf(p){return DB.assignments.filter(function(a){return a.personId===p.id})}
+  if(DB.people.length)wrap.appendChild(listeTriable({
+    key:"adm-people",items:DB.people,
+    search:{placeholder:"Nom ou équipe",of:function(p){
+      return (p.name||"")+" "+affOf(p).map(function(a){return (teamById(a.teamId)||{}).name||""}).join(" ")}},
+    sorts:[
+      {key:"name",label:"Nom",get:function(p){return p.name||""}},
+      {key:"date",label:"Ajout",get:function(p){return p.createdAt||""}},
+      {key:"role",label:"Rôle",dir:"asc",get:function(p){
+        var r=affOf(p).map(function(a){return a.role});
+        return r.indexOf("coach")!==-1?0:r.indexOf("selector")!==-1?1:null}},
+      {key:"affect",label:"Affectations",dir:"desc",get:function(p){return affOf(p).length}}
+    ],
+    filters:[
+      {key:"role",label:"Rôle",get:function(p){
+        var r=affOf(p).map(function(a){return a.role});
+        return r.indexOf("coach")!==-1?"coach":r.indexOf("selector")!==-1?"selector":"none"},
+       options:[{k:"coach",l:ROLES.coach.icon+" "+ROLES.coach.label},{k:"selector",l:ROLES.selector.icon+" "+ROLES.selector.label},
+                {k:"none",l:"— Sans affectation"}]},
+      {key:"acces",label:"Accès",get:function(p){return p.revoked?"revoque":p.token?"jeton":"aucun"},
+       options:[{k:"jeton",l:"🔑 Jeton émis"},{k:"aucun",l:"— Pas de jeton"},{k:"revoque",l:"⛔ Révoqué"}]}
+    ],
+    rows:function(res){return res.map(cartePersonne)}}));
+  return h("div",{className:"content pad","data-scroll-key":"adm-people"},wrap);
+
+  function cartePersonne(p){
+    var mine=affOf(p);
     var card=h("div",{className:"card"+(p.revoked?" tight":"")});
     card.appendChild(h("div",{className:"row-between"},
       h("div",{style:{minWidth:"0"}},
@@ -12105,9 +12197,8 @@ function renderAdminPeople(){
         state.modalCtx=p.id;openModal("assign",p.id);
       }},"+ Affecter à une équipe"),
       h("button",{className:"btn btn-ghost xs",onclick:function(){openModal("invite",p.id)}},"🔗 Inviter")));
-    wrap.appendChild(card);
-  });
-  return h("div",{className:"content pad","data-scroll-key":"adm-people"},wrap);
+    return card;
+  }
 }
 
 function renderAdminTeams(){
@@ -12136,7 +12227,22 @@ function renderAdminTeams(){
   }
 
   if(!DB.teams.length)wrap.appendChild(h("div",{className:"empty"},"Aucune équipe"));
-  DB.teams.forEach(function(t){
+  if(DB.teams.length)wrap.appendChild(listeTriable({
+    key:"adm-teams",items:DB.teams,
+    search:{placeholder:"Équipe ou catégorie",of:function(t){return (t.name||"")+" "+(t.category||"")}},
+    sorts:[
+      {key:"name",label:"Nom",get:function(t){return t.name||""}},
+      {key:"categorie",label:"Catégorie",dir:"asc",get:function(t){
+        var m=/U(\d+)/i.exec(t.category||"");return m?parseInt(m[1],10):(t.category||null)}},
+      {key:"effectif",label:"Retenues cette saison",dir:"desc",get:function(t){
+        var sq=squadFor(t.id,DB.activeSeasonId);return sq?sq.playerIds.length:null}}
+    ],
+    filters:[{key:"vue",label:"Vue des sélectionneurs",get:function(t){return t.freeView?"libre":"imposee"},
+      options:[{k:"libre",l:"👁 Vue libre"},{k:"imposee",l:"🔒 Vue imposée"}]}],
+    rows:function(res){return res.map(carteEquipe)}}));
+  return h("div",{className:"content pad","data-scroll-key":"adm-teams"},wrap);
+
+  function carteEquipe(t){
     var coaches=DB.assignments.filter(function(a){return a.teamId===t.id&&a.role==="coach"});
     var scouts=DB.assignments.filter(function(a){return a.teamId===t.id&&a.role==="selector"});
     var sq=squadFor(t.id,DB.activeSeasonId);
@@ -12171,9 +12277,8 @@ function renderAdminTeams(){
     });
     card.appendChild(h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"10px"}},
       who.length?who:h("span",{className:"muted"},"Personne n'est affecté à cette équipe.")));
-    wrap.appendChild(card);
-  });
-  return h("div",{className:"content pad","data-scroll-key":"adm-teams"},wrap);
+    return card;
+  }
 }
 
 function renderAdminSeasons(){
@@ -12727,7 +12832,7 @@ function renderRosterPane(squad){
       lot("Toutes ("+squad.roster.length+")",squad.roster.map(function(e){return e.playerId})),
       /* Non retenues en tête : c'est le lot qu'on retire au lendemain d'un
          tryout, et le seul qu'on ne veut pas aller chercher en défilant. */
-      ["cut","candidate","recalled","selected"].filter(function(st){return comptes[st]}).map(function(st){
+      ["cut","candidate","recalled","partner","selected"].filter(function(st){return comptes[st]}).map(function(st){
         return lot(STATUSES[st].icon+" "+STATUSES[st].label+" ("+comptes[st]+")",
           squad.roster.filter(function(e){return e.status===st}).map(function(e){return e.playerId}));
       }),
@@ -12762,9 +12867,35 @@ function renderRosterPane(squad){
     });
     return wrap;
   }
-  squad.roster.forEach(function(e,i){
-    var p=playerById(e.playerId);if(!p)return;
-    var row=h("div",{className:"list-row","data-idx":String(i),draggable:"true"});
+  /* Trier ne touche pas à l'ordre enregistré : c'est une lecture. Tant
+     qu'un tri est posé, on ne glisse plus — l'ordre montré n'est pas
+     celui qu'on réordonnerait. */
+  wrap.appendChild(listeTriable({
+    key:"roster",items:squad.roster.filter(function(e){return playerById(e.playerId)}),
+    naturalLabel:"Ordre manuel (☰)",
+    search:{placeholder:"Nom ou dossard",of:function(e){return fullName(playerById(e.playerId))+" "+(e.number||"")}},
+    sorts:[
+      {key:"number",label:"Numéro",get:function(e){var n=parseInt(e.number||"",10);return isFinite(n)?n:null}},
+      {key:"name",label:"Nom",get:function(e){return fullName(playerById(e.playerId))}},
+      {key:"lastname",label:"Nom de famille",dir:"asc",get:function(e){var p=playerById(e.playerId);return (p.lastName||"")+" "+(p.firstName||"")}},
+      {key:"age",label:"Âge",get:function(e){return ageOf(playerById(e.playerId))}},
+      {key:"poste",label:"Poste",dir:"asc",get:function(e){var i=POS_KEYS.indexOf(e.position);return i<0?null:i}},
+      {key:"statut",label:"Statut",dir:"asc",get:function(e){return STATUS_ORDER.indexOf(e.status)}}
+    ],
+    filters:[
+      {key:"statut",label:"Statut",get:function(e){return e.status||"candidate"},
+       options:STATUS_ORDER.map(function(k){return {k:k,l:STATUSES[k].icon+" "+STATUSES[k].label}})},
+      {key:"poste",label:"Poste",get:function(e){return e.position||"none"},
+       options:[{k:"none",l:"— Sans poste"}].concat(POS_KEYS.map(function(k){return {k:k,l:POS_LABELS[k]||k}}))}
+    ],
+    rows:function(res){return res.map(ligneRoster)}}));
+  return wrap;
+
+  function ligneRoster(e){
+    var manuel=!listState("roster").sort;
+    var i=squad.roster.indexOf(e);
+    var p=playerById(e.playerId);
+    var row=h("div",{className:"list-row","data-idx":String(i),draggable:manuel?"true":"false"});
     var handle=h("span",{className:"drag-handle"},"☰");
     row.addEventListener("dragstart",function(ev){dragPid=e.playerId;row.classList.add("dragging");ev.dataTransfer.effectAllowed="move"});
     row.addEventListener("dragend",function(){dragPid=null;row.classList.remove("dragging");document.querySelectorAll(".list-row").forEach(function(r){r.classList.remove("drag-over")})});
@@ -12796,7 +12927,7 @@ function renderRosterPane(squad){
     numI.addEventListener("input",function(ev){e.number=cleanNum(ev.target.value);ev.target.value=e.number;scheduleAutoSave()});
     numI.addEventListener("blur",function(){render()});
 
-    row.appendChild(handle);
+    if(manuel)row.appendChild(handle);
     row.appendChild(numI);
     row.appendChild(h("div",{className:"body"},
       h("div",{className:"pname"},fullName(p)),
@@ -12813,9 +12944,8 @@ function renderRosterPane(squad){
           render();
         },{confirm:"Retirer"});
       }},"✕")));
-    wrap.appendChild(row);
-  });
-  return wrap;
+    return row;
+  }
 }
 /* ══ NUMÉROTATION ══════════════════════════════════════════════
    Vingt-huit dossards à poser, un par un, le soir avant le tryout.
@@ -13543,10 +13673,35 @@ function renderEvalsPane(squad){
 
   if(!rows.length){wrap.appendChild(h("div",{className:"empty"},"Aucune joueuse évaluée dans cette campagne"));return wrap}
 
-  rows.forEach(function(c){
+  /* Le classement par score reste l'ordre par défaut ; on peut aussi
+     ranger par numéro, nom, nombre de notes ou avis majoritaire. */
+  wrap.appendChild(listeTriable({
+    key:"evals",items:rows,
+    search:{placeholder:"Nom ou dossard",of:function(c){
+      var e=rosterEntry(squad,c.playerId);return fullName(playerById(c.playerId))+" "+((e&&e.number)||"")}},
+    sorts:[
+      {key:"score",label:"Score",get:function(c){return c.nRatings?c.score:null}},
+      {key:"number",label:"Numéro",get:function(c){
+        var e=rosterEntry(squad,c.playerId),n=parseInt((e&&e.number)||"",10);return isFinite(n)?n:null}},
+      {key:"name",label:"Nom",get:function(c){return fullName(playerById(c.playerId))}},
+      {key:"notes",label:"Nombre de notes",dir:"desc",get:function(c){return c.nRatings}},
+      {key:"avis",label:"Avis majoritaire",dir:"asc",get:function(c){
+        return c.topReco?["select","recall","cut"].indexOf(c.topReco):null}}
+    ],
+    filters:[
+      {key:"avis",label:"Avis majoritaire",get:function(c){return c.topReco||"none"},
+       options:RECOS.map(function(r){return {k:r.key,l:r.icon+" "+r.label}}).concat([{k:"none",l:"— Sans avis"}])},
+      {key:"statut",label:"Statut dans la saison",get:function(c){
+        var e=rosterEntry(squad,c.playerId);return (e&&e.status)||"candidate"},
+       options:STATUS_ORDER.map(function(k){return {k:k,l:STATUSES[k].icon+" "+STATUSES[k].label}})}
+    ],
+    rows:function(res){var out=[];res.forEach(function(c){ligneEval(c,out)});return out}}));
+  return wrap;
+
+  function ligneEval(c,out){
     var p=playerById(c.playerId),e=rosterEntry(squad,c.playerId);
     var open=state.expandedPlayerId===c.playerId;
-    wrap.appendChild(h("div",{className:"compile-row",onclick:function(){
+    out.push(h("div",{className:"compile-row",onclick:function(){
       state.expandedPlayerId=open?null:c.playerId;render();
     }},
       h("span",{className:"score-pill",style:{background:scoreColor(c.nRatings?c.score:0)+"22",color:scoreColor(c.nRatings?c.score:0)}},
@@ -13594,7 +13749,7 @@ function renderEvalsPane(squad){
     }
     if(e){
       box.appendChild(h("div",{className:"section-title"},"Statut dans la saison"));
-      box.appendChild(h("div",{className:"reco-row"},RECOS.map(function(r){
+      box.appendChild(h("div",{className:"reco-row"},DECISIONS.map(function(r){
         var target=RECO_TO_STATUS[r.key],on=e.status===target;
         var b=h("button",{className:"reco-btn"+(on?" on":""),onclick:function(){setRosterStatus(squad,e,target);render()}},r.icon+" "+r.short);
         if(on)paintOn(b,r.color);
@@ -13618,9 +13773,8 @@ function renderEvalsPane(squad){
         state.tab="season";state.seasonSection="selection";state.selPane="recap";
         openModal("selathlete",c.playerId);
       }},"📄 Fiche de saison complète")));
-    wrap.appendChild(box);
-  });
-  return wrap;
+    out.push(box);
+  }
 }
 
 /* ── Progression entre deux campagnes ───────────────────────── */
@@ -13818,7 +13972,26 @@ function renderSessionsPane(squad,opts){
   if(!groupes.length)wrap.appendChild(h("div",{className:"empty"},
     "Aucun match. Saisissez une rencontre puis « 💾 Enregistrer le match »."));
 
-  groupes.forEach(function(g){
+  if(groupes.length)wrap.appendChild(listeTriable({
+    key:"sessions-"+(natures?natures.join("-"):"toutes"),items:groupes,
+    search:{placeholder:"Rencontre ou adversaire",of:function(g){
+      return (g.event.name||"")+" "+g.sessions.map(function(se){return se.opponent||""}).join(" ")}},
+    sorts:[
+      {key:"date",label:"Date",get:function(g){return g.event.date||""}},
+      {key:"name",label:"Nom",get:function(g){return g.event.name||""}},
+      {key:"nature",label:"Nature",dir:"asc",get:function(g){return EVENT_KEYS.indexOf(g.event.kind)}},
+      {key:"matchs",label:"Nombre de matchs",dir:"desc",get:function(g){return g.sessions.length}},
+      {key:"result",label:"Victoires",get:function(g){return (g.bilan&&g.bilan.win)||0}}
+    ],
+    filters:natures&&natures.length===1?[]:[{key:"nature",label:"Nature",get:function(g){return g.event.kind},
+      options:EVENT_KEYS.map(function(k){return {k:k,l:EVENT_KINDS[k].icon+" "+EVENT_KINDS[k].label}})}],
+    rows:function(res){return res.map(carteRencontre)}}));
+
+  wrap.appendChild(h("div",{className:"data-actions"},
+    h("button",{className:"btn btn-export sm",onclick:exportMyTeam},"📤 Exporter mon équipe")));
+  return wrap;
+
+  function carteRencontre(g){
     var ev=g.event,k=EVENT_KINDS[ev.kind]||EVENT_KINDS.league;
     var card=h("div",{className:"ev-card"});
     var head=h("div",{className:"ev-head"},
@@ -13895,12 +14068,8 @@ function renderSessionsPane(squad,opts){
             .filter(Boolean).join(" · "))),
         actions));
     });
-    wrap.appendChild(card);
-  });
-
-  wrap.appendChild(h("div",{className:"data-actions"},
-    h("button",{className:"btn btn-export sm",onclick:exportMyTeam},"📤 Exporter mon équipe")));
-  return wrap;
+    return card;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -13990,7 +14159,11 @@ function renderViewsPane(squad,campaignId){
           }
           state.editViewId=null;state.modalSel=[];openModal("editview");
         }},"+ Nouvelle vue")}));
-    mines.forEach(function(v){wrap.appendChild(renderViewCard(squad,camp,v))});
+    if(mines.length)wrap.appendChild(listeTriable({
+      key:"sel-views",items:mines,
+      search:{placeholder:"Vue ou évaluateur",of:function(v){return (v.name||"")+" "+(v.selectorName||"")}},
+      sorts:triVues(squad),filters:filtresVues(squad),
+      rows:function(res){return res.map(function(v){return renderViewCard(squad,camp,v)})}}));
     return wrap;
   }
   var byCamp={};
@@ -14007,6 +14180,29 @@ function renderViewsPane(squad,campaignId){
   return wrap;
 }
 
+/* Tris et filtres des vues : ce qu'on cherche un soir de sélection,
+   c'est « qui n'a pas encore rendu » et « où en est chacun ». */
+function triVues(squad){
+  function nSubs(v){return squad.submissions.filter(function(x){return x.viewId===v.id}).length}
+  return [
+    {key:"date",label:"Création",get:function(v){return v.createdAt||""}},
+    {key:"name",label:"Nom",get:function(v){return v.name||""}},
+    {key:"selector",label:"Évaluateur",dir:"asc",get:function(v){return (v.selectorName||"").trim()||null}},
+    {key:"athletes",label:"Athlètes",dir:"desc",get:function(v){return v.playerIds.length}},
+    {key:"progress",label:"Avancement",dir:"desc",get:function(v){
+      return v.playerIds.length?v.playerIds.filter(function(pid){return entryFilled(v,pid)}).length/v.playerIds.length:null}},
+    {key:"subs",label:"Soumissions",dir:"desc",get:nSubs}
+  ];
+}
+function filtresVues(squad){
+  return [
+    {key:"rendu",label:"Soumission",get:function(v){
+      return squad.submissions.some(function(x){return x.viewId===v.id})?"oui":"non"},
+     options:[{k:"non",l:"⏳ Pas encore soumise"},{k:"oui",l:"✅ Soumise"}]},
+    {key:"publiee",label:"Publication",get:function(v){return v.published?"oui":"non"},
+     options:[{k:"oui",l:"📡 Publiée"},{k:"non",l:"— Non publiée"}]}
+  ];
+}
 function renderViewCard(squad,camp,v){
   var filled=v.playerIds.filter(function(pid){return entryFilled(v,pid)}).length;
   var pct=v.playerIds.length?Math.round(filled/v.playerIds.length*100):0;
@@ -14178,7 +14374,11 @@ function renderSubmissionsPane(squad,campaignId){
     var subs=campaignSubs(squad,c.id).slice().sort(parDate);
     if(!subs.length)return;
     wrap.appendChild(h("div",{className:"section-title"},campaignLabel(c)+" · "+plural(subs.length,"soumission")));
-    subs.forEach(function(sub){wrap.appendChild(carteSoumission(squad,sub,mortes,null))});
+    wrap.appendChild(listeTriable({
+      key:"subs-"+(campaignId?"camp":c.id),items:subs,
+      search:{placeholder:"Évaluateur ou vue",of:function(x){return (x.selectorName||"")+" "+(x.viewName||"")}},
+      sorts:triSoumissions(),filters:filtresSoumissions(mortes),defaultSort:"date",
+      rows:function(res){return res.map(function(sub){return carteSoumission(squad,sub,mortes,null)})}}));
   });
   /* Le volet ne montre que la campagne ouverte. Une soumission rangée
      dans une autre — relevée pendant qu'une autre était active, tirée
@@ -14202,7 +14402,13 @@ function renderSubmissionsPane(squad,campaignId){
         wrap.appendChild(h("div",{className:"hint"},
           "Elles ne comptent pas dans « "+ici.name+" ». Si l'une d'elles appartient à cette campagne, "+
           "rangez-la ici avec ↪ : ses avis rejoindront ceux de « "+ici.name+" »."));
-        ailleurs.forEach(function(sub){wrap.appendChild(carteSoumission(squad,sub,mortes,ici))});
+        wrap.appendChild(listeTriable({
+          key:"subs-ailleurs",items:ailleurs,
+          search:{placeholder:"Évaluateur ou vue",of:function(x){return (x.selectorName||"")+" "+(x.viewName||"")}},
+          sorts:triSoumissions().concat([{key:"campagne",label:"Campagne",dir:"asc",get:function(x){
+            var c=campaignById(squad,x.campaignId);return c?c.name:(x.campaignName||null)}}]),
+          defaultSort:"date",
+          rows:function(res){return res.map(function(sub){return carteSoumission(squad,sub,mortes,ici)})}}));
       }
     }
   }
@@ -14211,6 +14417,18 @@ function renderSubmissionsPane(squad,campaignId){
 /* Ranger une soumission dans une autre campagne. Sa chaîne de
    corrections la suit : séparer une correction de ce qu'elle corrige
    ferait revivre, dans l'une des deux campagnes, la note corrigée. */
+function triSoumissions(){
+  return [
+    {key:"date",label:"Date",get:function(x){return x.submittedAt||""}},
+    {key:"selector",label:"Évaluateur",dir:"asc",get:function(x){return (x.selectorName||"").trim()||null}},
+    {key:"name",label:"Vue",get:function(x){return x.viewName||""}},
+    {key:"athletes",label:"Athlètes évaluées",dir:"desc",get:function(x){return x.entries.filter(dataFilled).length}}
+  ];
+}
+function filtresSoumissions(mortes){
+  return [{key:"compte",label:"Prise en compte",get:function(x){return mortes[x.id]?"corrigee":"compte"},
+    options:[{k:"compte",l:"✅ Compte"},{k:"corrigee",l:"✎ Corrigée — ne compte plus"}]}];
+}
 function rangerSoumission(squad,subId,camp){
   var ids={},todo=[subId];
   while(todo.length){
@@ -14373,11 +14591,26 @@ function svProgress(src){
   return {done:done,total:v.playerIds.length,pct:v.playerIds.length?Math.round(done/v.playerIds.length*100):0};
 }
 /* Numéros triés numériquement — l'ordre d'affichage du sélectionneur */
+/* L'ordre de la grille, au choix de l'évaluateur : par numéro (dans un
+   sens ou l'autre), les non évaluées d'abord — celles qui restent à
+   voir —, ou par avis. Le numéro départage toujours. La navigation
+   « suivante » suit le même ordre que la grille. */
+var SV_TRIS=[
+  {k:"num",l:"N° croissant"},{k:"num-desc",l:"N° décroissant"},
+  {k:"todo",l:"Non évaluées d'abord"},{k:"avis",l:"Par avis"}
+];
 function svOrderIds(src,ids){
+  var tri=state.svTri||"num",v=src.view;
+  function num(pid){var n=parseInt(svNumber(src,pid),10);return isNaN(n)?9999:n}
   return (ids||[]).slice().sort(function(a,b){
-    var na=parseInt(svNumber(src,a),10),nb=parseInt(svNumber(src,b),10);
-    if(isNaN(na))na=9999;if(isNaN(nb))nb=9999;
-    return na-nb;
+    var d=0;
+    if(tri==="todo")d=(entryFilled(v,a)?1:0)-(entryFilled(v,b)?1:0);
+    else if(tri==="avis"){
+      var ra=((v.data[a]||{}).reco)||"",rb=((v.data[b]||{}).reco)||"";
+      var o=["select","recall","cut",""];d=o.indexOf(ra)-o.indexOf(rb);
+    }
+    if(d)return d;
+    return tri==="num-desc"?num(b)-num(a):num(a)-num(b);
   });
 }
 function svOrdered(src){return svOrderIds(src,src.view.playerIds)}
@@ -14456,7 +14689,21 @@ function renderSvViews(){
     syncReady()?"Aucune vue reçue. Touchez « Récupérer mes vues » une fois que l'entraîneur a publié."
                :"Aucune vue disponible. Connectez-vous au salon de l'entraîneur, ou importez un fichier de paquet."));
 
-  sources.forEach(function(src){
+  if(sources.length)wrap.appendChild(listeTriable({
+    key:"sv-views",items:sources,
+    search:{placeholder:"Vue ou campagne",of:function(src){return (src.view.name||"")+" "+(svCampaignLabel(src)||"")+" "+(src.seasonName||"")}},
+    sorts:[
+      {key:"name",label:"Nom",get:function(src){return src.view.name||""}},
+      {key:"campagne",label:"Campagne",dir:"asc",get:function(src){return svCampaignLabel(src)||null}},
+      {key:"progress",label:"Avancement",dir:"asc",get:function(src){return svProgress(src).pct}},
+      {key:"date",label:"Réception",get:function(src){return src.view.createdAt||""}}
+    ],
+    filters:[{key:"etat",label:"État",get:function(src){return src.view.submittedAt?"soumise":"afaire"},
+      options:[{k:"afaire",l:"⏳ À soumettre"},{k:"soumise",l:"✅ Soumise"}]}],
+    rows:function(res){return res.map(carteVueSv)}}));
+  return h("div",{className:"content pad","data-scroll-key":"sv-views"},wrap);
+
+  function carteVueSv(src){
     var v=src.view,pr=svProgress(src);
     var card=h("div",{className:"view-card"+(v.submittedAt?" submitted":"")});
     card.appendChild(h("div",{className:"row-between"},
@@ -14490,9 +14737,8 @@ function renderSvViews(){
             saveNow();render();
           },{confirm:"Retirer"});
       }},"🗑️"):null));
-    wrap.appendChild(card);
-  });
-  return h("div",{className:"content pad","data-scroll-key":"sv-views"},wrap);
+    return card;
+  }
 }
 
 /* ── Écran d'évaluation ────────────────────────────────────── */
@@ -14560,9 +14806,20 @@ function renderSvEval(){
     }},h("span",null,state.svTilesOpen?"▾":"▸"),
       h("span",null,(gCour?gCour.name:"Toutes les athlètes")+" · "+faits+"/"+ordered.length+" évaluées"),
       h("span",{className:"muted"},state.svTilesOpen?"replier":"déplier")),
-    h("button",{className:"pill sm"+(state.svHideDone?" active":""),style:state.svHideDone?{background:"#3B82F6"}:null,
-      onclick:function(){state.svHideDone=!state.svHideDone;render()}},
-      state.svHideDone?"✓ Faites masquées":"Masquer les faites"));
+    h("div",{style:{display:"flex",gap:"6px",alignItems:"center",flexWrap:"wrap"}},
+      (function(){
+        var sel=h("select",{className:"sv-tri","aria-label":"Ordre des numéros"},
+          SV_TRIS.map(function(t){
+            var o=h("option",{value:t.k},"⇅ "+t.l);
+            if((state.svTri||"num")===t.k)o.selected=true;
+            return o;
+          }));
+        sel.addEventListener("change",function(ev){state.svTri=ev.target.value;saveUI();render()});
+        return sel;
+      })(),
+      h("button",{className:"pill sm"+(state.svHideDone?" active":""),style:state.svHideDone?{background:"#3B82F6"}:null,
+        onclick:function(){state.svHideDone=!state.svHideDone;render()}},
+        state.svHideDone?"✓ Faites masquées":"Masquer les faites")));
   stripKids.push(tete);
   if(state.svTilesOpen){
     if(!visibles.length)stripKids.push(h("div",{className:"muted",style:{padding:"6px 2px"}},
