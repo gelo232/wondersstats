@@ -802,6 +802,132 @@ const ERRORS=[];let PASS=0;
     if(st!=="partner")throw new Error("après rechargement : "+st);
   });
 
+  say("\n── Sous-équipes");
+  await step("une sous-équipe ne se compose qu'avec les athlètes de l'équipe",async()=>{
+    const prep=await page.evaluate(()=>{
+      var sq=curSquad(),cid=sq.activeCampaignId;
+      /* Trois athlètes dans l'équipe (offre confirmée), une convoquée hors équipe. */
+      var hors=null,n=0;
+      sq.roster.forEach(function(e){
+        if(sq.playerIds.indexOf(e.playerId)!==-1){n++;return}
+        if(n<3){
+          if(!campaignEntry(sq,cid,e.playerId))convokeToCampaign(sq,cid,[e.playerId],null);
+          setCampaignDecision(sq,cid,e.playerId,"select",null);
+          var o=liveOffer(sq,cid,e.playerId);if(o)acceptOffer(sq,o.id,null);
+          if(sq.playerIds.indexOf(e.playerId)!==-1)n++;
+        } else if(!hors)hors=e.playerId;
+      });
+      sq.subteams=[];saveNow();
+      state.tab="players";state.playersPane="subteams";render();
+      return {equipe:sq.playerIds.length,hors:hors};
+    });
+    if(prep.equipe<3)throw new Error("préparation : équipe="+prep.equipe);
+    if(!prep.hors)throw new Error("préparation : aucune athlète hors équipe");
+    await page.waitForTimeout(250);
+    await page.locator("button").filter({hasText:"+ Nouvelle sous-équipe"}).first().click();
+    await page.waitForTimeout(300);
+    const proposees=await page.locator(".modal .court-toggle").count();
+    if(proposees!==prep.equipe)throw new Error("la modale propose "+proposees+" athlètes pour une équipe de "+prep.equipe);
+    await page.fill(".modal input:not([type])","Lineup A");
+    await page.locator(".modal .court-toggle").nth(0).click();
+    await page.locator(".modal .court-toggle").nth(1).click();
+    /* Une athlète hors équipe glissée dans la sélection ne doit pas passer. */
+    await page.evaluate((pid)=>{state.modalSel.push(pid)},prep.hors);
+    await page.locator("#modalOk").click();
+    await page.waitForTimeout(300);
+    const r=await page.evaluate((hors)=>{
+      var sq=curSquad(),st=sq.subteams[0];
+      return {n:sq.subteams.length,nom:st&&st.name,membres:st?st.playerIds.length:0,
+        horsDedans:st?st.playerIds.indexOf(hors)!==-1:false,
+        carte:/Lineup A/.test(document.querySelector(".content").innerText)};
+    },prep.hors);
+    if(r.n!==1||r.nom!=="Lineup A")throw new Error("sous-équipe non créée : "+JSON.stringify(r));
+    if(r.horsDedans)throw new Error("une athlète hors équipe est entrée dans la sous-équipe");
+    if(r.membres!==2)throw new Error("membres="+r.membres);
+    if(!r.carte)throw new Error("la sous-équipe n'apparaît pas dans le volet");
+  });
+  await step("une athlète qui quitte l'équipe quitte ses sous-équipes, et un nom ne se double pas",async()=>{
+    const r=await page.evaluate(()=>{
+      var sq=curSquad(),st=sq.subteams[0],pid=st.playerIds[0];
+      var o=currentOffer(sq,pid);declineOffer(sq,o.id,null);
+      saveNow();
+      return {encore:sq.subteams[0].playerIds.indexOf(pid)!==-1};
+    });
+    if(r.encore)throw new Error("l'athlète sortie de l'équipe reste dans la sous-équipe");
+    await page.evaluate(()=>{render()});await page.waitForTimeout(200);
+    await page.locator("button").filter({hasText:"+ Nouvelle sous-équipe"}).first().click();
+    await page.waitForTimeout(300);
+    await page.fill(".modal input:not([type])","lineup a");
+    await page.locator(".modal .court-toggle").nth(0).click();
+    await page.locator("#modalOk").click();
+    await page.waitForTimeout(250);
+    const n=await page.evaluate(()=>curSquad().subteams.length);
+    if(n!==1)throw new Error("deux sous-équipes du même nom : "+n);
+    await page.evaluate(()=>closeModal());
+  });
+
+  await step("pendant la saisie, les groupes sont sous les yeux et se choisissent d'un geste",async()=>{
+    await page.evaluate(()=>{
+      var sq=curSquad();
+      if(!sq.subteams.length)sq.subteams.push({id:uid(),name:"Lineup A",playerIds:sq.playerIds.slice(0,1)});
+      sq.lineup=[];state.courtPanelOpen=false;saveNow();navTo(mkRoute("legacy","input"));
+    });
+    await page.waitForTimeout(400);
+    const rangee=page.locator(".groupes-saisie");
+    if(!(await rangee.count()))throw new Error("aucune rangée de groupes dans l'écran de saisie");
+    const t=await rangee.first().innerText();
+    if(!/Toutes/.test(t)||!/\+ Groupe/.test(t))throw new Error("rangée incomplète : "+t);
+    const nom=await page.evaluate(()=>curSquad().subteams[0].name);
+    await rangee.locator("button").filter({hasText:nom}).first().click();
+    await page.waitForTimeout(250);
+    const r=await page.evaluate(()=>{var sq=curSquad();
+      return {lineup:sq.lineup.slice().sort().join(","),groupe:sq.subteams[0].playerIds.filter(function(p){
+        return sq.playerIds.indexOf(p)!==-1}).sort().join(",")}});
+    if(!r.lineup||r.lineup!==r.groupe)throw new Error("le groupe n'est pas passé sur le terrain : "+JSON.stringify(r));
+    await rangee.locator("button").filter({hasText:"+ Groupe"}).first().click();
+    await page.waitForTimeout(300);
+    const titre=await page.locator(".modal").first().innerText();
+    if(!/groupe/i.test(titre))throw new Error("« + Groupe » n'ouvre pas la création : "+titre.slice(0,80));
+    await page.evaluate(()=>closeModal());
+  });
+
+  say("\n── Nettoyer la convocation");
+  await step("« Nettoyer » retire les non retenues, et elles seules — puis s'annule",async()=>{
+    const prep=await page.evaluate(()=>{
+      var sq=curSquad(),cid=sq.activeCampaignId;
+      var libres=sq.roster.filter(function(e){return sq.playerIds.indexOf(e.playerId)===-1&&e.status!=="partner"});
+      var coupees=libres.slice(0,2).map(function(e){return e.playerId});
+      var recall=libres[2]&&libres[2].playerId;
+      coupees.concat([recall]).forEach(function(pid){
+        if(!campaignEntry(sq,cid,pid))convokeToCampaign(sq,cid,[pid],null)});
+      coupees.forEach(function(pid){setCampaignDecision(sq,cid,pid,"cut",null)});
+      setCampaignDecision(sq,cid,recall,"recall",null);
+      saveNow();
+      state.tab="season";state.seasonSection="selection";state.selPane="roster";render();
+      return {avant:sq.roster.length,cut:nonRetenues(sq).length,recall:recall};
+    });
+    if(prep.cut<2)throw new Error("préparation : non retenues="+prep.cut);
+    await page.waitForTimeout(300);
+    const btn=page.locator("button").filter({hasText:"Nettoyer ("});
+    if(!(await btn.count()))throw new Error("pas de bouton « Nettoyer » dans le volet Convoquées");
+    await btn.first().click();
+    await accepterDialogue(page);
+    const r=await page.evaluate((recall)=>{
+      var sq=curSquad();
+      return {apres:sq.roster.length,cut:nonRetenues(sq).length,recallLa:!!rosterEntry(sq,recall),
+        fiches:DB.players.length,probs:checkV7(DB)};
+    },prep.recall);
+    if(r.cut)throw new Error("il reste "+r.cut+" non retenue(s)");
+    if(r.apres!==prep.avant-prep.cut)throw new Error("retirées="+(prep.avant-r.apres)+" au lieu de "+prep.cut);
+    if(!r.recallLa)throw new Error("une recallée a été retirée");
+    if(r.probs.length)throw new Error(r.probs.join(" / "));
+    const bouton=await page.locator("button").filter({hasText:"Nettoyer ("}).count();
+    if(bouton)throw new Error("le bouton reste affiché alors qu'il n'y a plus de non retenue");
+    await page.evaluate(()=>doUndo());await page.waitForTimeout(200);
+    const annule=await page.evaluate(()=>nonRetenues(curSquad()).length);
+    if(annule!==prep.cut)throw new Error("l'annulation n'a pas ramené les non retenues : "+annule);
+  });
+
   say("\n── Toute liste se range");
   await step("l'effectif se trie par nom, puis revient à l'ordre manuel",async()=>{
     await page.evaluate(()=>{state.ctx&&state.ctx.role;state.tab="players";state.playersPane="roster";
