@@ -1000,7 +1000,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.3.5";
+var APP_VERSION = "7.3.6";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -6443,6 +6443,12 @@ function subWatermark(squad){
    prouve rien, et l'écarter faisait disparaître la soumission sans un
    mot. */
 function submissionIsFor(squad,it,sub){
+  /* Une campagne a un identifiant unique : une soumission qui désigne
+     une campagne de CETTE équipe-saison lui appartient, quelle que soit
+     l'équipe sous laquelle le relais l'a rangée — celle-ci vient du jeton
+     du sélectionneur, pas de la vue, et un jeton réémis pour une autre
+     fiche d'équipe ne doit pas faire perdre une soumission. */
+  if(sub.campaignId&&campaignById(squad,sub.campaignId))return "";
   if(it.teamId&&squad.teamId&&it.teamId!==squad.teamId)return "equipe";
   var sid=sub.seasonId;
   if(!sid||sid===squad.id||sid===squad.seasonId)return "";
@@ -6460,7 +6466,8 @@ function bilanReleve(b){
   if(b.added)p.push(b.added+" intégrée(s)");
   if(b.deja)p.push(b.deja+" déjà là"+(b.dejaCamp&&Object.keys(b.dejaCamp).length
     ?" (dans "+Object.keys(b.dejaCamp).map(function(n){return "« "+n+" » : "+b.dejaCamp[n]}).join(", ")+")":""));
-  if(b.equipe)p.push(b.equipe+" d'une autre équipe");
+  if(b.equipe)p.push(b.equipe+" d'une autre équipe"+(b.equipeNoms&&Object.keys(b.equipeNoms).length
+    ?" ("+Object.keys(b.equipeNoms).map(function(n){return "« "+n+" » : "+b.equipeNoms[n]}).join(", ")+")":""));
   if(b.saison)p.push(b.saison+" d'une autre saison");
   if(b.sansAthlete)p.push(b.sansAthlete+" sans athlète de cet effectif");
   if(b.illisible)p.push(b.illisible+" illisible(s)");
@@ -6472,16 +6479,29 @@ function pullSubmissions(squad,opts){
   syncBusy=true;render();
   if(opts.toutRelire&&SYNC.pulled.subBySquad)delete SYNC.pulled.subBySquad[squad.id];
   var since=subWatermark(squad);
-  syncList("submission",since,squad.teamId).then(function(data){
+  /* Pas de filtre d'équipe demandé au relais : il faisait disparaître
+     du bilan les dépôts des AUTRES équipes du salon, alors que c'est
+     exactement ce qu'il faut voir quand on cherche une soumission au
+     mauvais endroit (« 2 d'une autre équipe (« Acers ») »). Le relais
+     borne de toute façon un jeton d'entraîneur à son équipe ; seul un
+     administrateur voit tout le salon, et le tri se fait ici. */
+  syncList("submission",since,"").then(function(data){
     var items=(data&&data.items)||[],
         latest=(SYNC.pulled.subBySquad||{})[squad.id]||"",parCamp={};
-    var b={recus:items.length,added:0,deja:0,dejaCamp:{},equipe:0,saison:0,sansAthlete:0,illisible:0,depuis:since};
+    var b={recus:items.length,added:0,deja:0,dejaCamp:{},equipeNoms:{},equipe:0,saison:0,sansAthlete:0,illisible:0,depuis:since};
     if(isNaN(Date.parse(latest)))latest="";
     items.forEach(function(it){
       var sub=it.payload;
       if(!sub||sub.type!=="wonderstats-submission"){b.illisible++;return}
       var refus=submissionIsFor(squad,it,sub);
-      if(refus){b[refus]++;return}
+      if(refus){
+        b[refus]++;
+        if(refus==="equipe"){
+          var te=teamById(it.teamId),ne=te?te.name:"équipe inconnue";
+          b.equipeNoms[ne]=(b.equipeNoms[ne]||0)+1;
+        }
+        return;
+      }
       if(it.at&&it.at>latest)latest=it.at;
       var deja=null;
       squad.submissions.forEach(function(x){if(x.id===sub.id)deja=x});
