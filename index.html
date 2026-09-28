@@ -1000,7 +1000,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.3.2";
+var APP_VERSION = "7.3.3";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -6398,7 +6398,7 @@ function publishCatalog(squad){
   if(!cat.players.length){showToast("⚠️ Aucune joueuse retenue avec un numéro");return}
   syncBusy=true;render();
   syncPublish("catalog",squad.teamId+"|"+squad.seasonId,cat,{teamId:squad.teamId}).then(function(){
-    squad.catalogPublishedAt=nowISO();SYNC.lastSyncAt=nowISO();
+    squad.catalogPublishedAt=nowISO();squad.catalogCampaignId=cat.campaignId||"";SYNC.lastSyncAt=nowISO();
     syncBusy=false;saveNow();saveSync();
     showToast("📡 Catalogue publié — "+plural(cat.players.length,"athlète"));render();
   }).catch(function(err){
@@ -6446,7 +6446,7 @@ function pullSubmissions(squad){
   var since=subWatermark(squad);
   syncList("submission",since,squad.teamId).then(function(data){
     var items=(data&&data.items)||[],added=0,
-        latest=(SYNC.pulled.subBySquad||{})[squad.id]||"";
+        latest=(SYNC.pulled.subBySquad||{})[squad.id]||"",parCamp={};
     if(isNaN(Date.parse(latest)))latest="";
     items.forEach(function(it){
       var sub=it.payload;
@@ -6457,12 +6457,18 @@ function pullSubmissions(squad){
          texte libre saisi par le sélectionneur (constat R8). */
       if(it.by&&it.by.name)sub.selectorName=it.by.name;
       if(it.by&&it.by.token)sub.selectorToken=it.by.token;
-      if(integrateSubmission(squad,sub))added++;
+      var ok=integrateSubmission(squad,sub);
+      if(ok){added++;parCamp[ok.campaignName||"—"]=(parCamp[ok.campaignName||"—"]||0)+1}
     });
     SYNC.pulled.subBySquad=SYNC.pulled.subBySquad||{};
     SYNC.pulled.subBySquad[squad.id]=latest;SYNC.lastSyncAt=nowISO();
     syncBusy=false;saveNow();saveSync();
-    showToast(added?("📥 "+plural(added,"soumission")+" intégrée(s)"):"Aucune nouvelle soumission");
+    /* Dire OÙ elles sont rangées : le volet ne montre que la campagne
+       ouverte, et « 3 intégrées » suivi d'une liste vide ne disait pas
+       qu'elles étaient allées dans l'autre. */
+    showToast(added?("📥 "+plural(added,"soumission")+" intégrée(s) — "+
+      Object.keys(parCamp).map(function(n){return "« "+n+" » : "+parCamp[n]}).join(", ")):
+      "Aucune nouvelle soumission");
     render();
   }).catch(function(err){
     syncBusy=false;showToast("⚠️ "+err.message);render();
@@ -14041,6 +14047,15 @@ function renderSyncPanel(squad){
     h("button",{className:"btn btn-ghost xs",onclick:function(){
       state.ctx={role:"admin"};state.tab="adm_people";saveNow();render();
     }},"🔗 Inviter")));
+  /* Le catalogue porte la campagne active AU MOMENT où il est publié, et
+     les observations libres qu'un sélectionneur en tire y sont rangées.
+     Ouvrir une nouvelle campagne sans le republier envoyait donc ses
+     soumissions dans l'ancienne. */
+  var campCat=squad&&squad.freeView&&squad.catalogCampaignId?campaignById(squad,squad.catalogCampaignId):null;
+  if(campCat&&campCat.id!==squad.activeCampaignId)
+    box.appendChild(h("div",{className:"hint",style:{marginTop:"10px",borderColor:"var(--warn)"}},
+      "⚠️ Le catalogue publié renvoie encore à « "+campCat.name+" » : les observations libres y seront rangées. "+
+      "Republiez-le pour la campagne ouverte."));
   return box;
 }
 
@@ -14059,78 +14074,144 @@ function renderSubmissionsPane(squad,campaignId){
   wrap.appendChild(renderSyncPanel(squad));
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
     h("button",{className:"btn btn-import sm",onclick:function(){importSubmission(squad)}},"📥 Importer un fichier de soumission")));
+  var nAilleurs=campaignId?(squad.submissions||[]).filter(function(x){return x.campaignId!==campaignId}).length:0;
   if(campaignId&&!campaignSubs(squad,campaignId).length)
-    wrap.appendChild(emptyState({icon:"📥",title:"Aucune soumission reçue",
-      sub:"Rien n'est encore rentré pour cette campagne. Distribuez une vue, "+
-          "puis relevez les soumissions ou importez le fichier d'un évaluateur."}));
+    wrap.appendChild(emptyState({icon:"📥",
+      title:nAilleurs?"Aucune soumission dans cette campagne":"Aucune soumission reçue",
+      sub:nAilleurs
+        ?(plural(nAilleurs,"soumission")+" reçue(s) sont rangées dans d'autres campagnes : elles sont "+
+          "accessibles plus bas, et peuvent être rangées ici.")
+        :("Rien n'est encore rentré pour cette campagne. Distribuez une vue, "+
+          "puis relevez les soumissions ou importez le fichier d'un évaluateur.")}));
   else if(!campaignId&&!squad.submissions.length)
     wrap.appendChild(h("div",{className:"empty"},"Aucune soumission reçue"));
 
   var mortes=soumissionsRemplacees(squad);
+  var parDate=function(a,b){return (b.submittedAt||"").localeCompare(a.submittedAt||"")};
   (campaignId?[campaignById(squad,campaignId)].filter(Boolean):squad.campaigns).forEach(function(c){
-    var subs=campaignSubs(squad,c.id).slice().sort(function(a,b){return (b.submittedAt||"").localeCompare(a.submittedAt||"")});
+    var subs=campaignSubs(squad,c.id).slice().sort(parDate);
     if(!subs.length)return;
     wrap.appendChild(h("div",{className:"section-title"},campaignLabel(c)+" · "+plural(subs.length,"soumission")));
-    subs.forEach(function(sub){
-      var evaluated=sub.entries.filter(dataFilled).length;
-      /* Une soumission remplacée reste visible — c'est une pièce du
-         dossier — mais elle dit qu'elle ne compte plus, et le corps du
-         texte est estompé plutôt que retiré. */
-      var morte=!!mortes[sub.id];
-      var carte=h("div",{className:"card tight"+(morte?" is-dim":"")},
-        h("div",{className:"row-between"},
-          h("div",{style:{minWidth:"0"}},
-            h("div",{style:{color:"#F8FAFC",fontWeight:"700",fontSize:"14px"}},sub.viewName),
-            h("div",{className:"muted",style:{marginTop:"2px"}},"👤 "+(sub.selectorName||"Anonyme")+" · "+fmtDate(sub.submittedAt)),
-            h("div",{className:"muted",style:{marginTop:"2px"}},evaluated+"/"+sub.entries.length+" athlètes évaluées"),
-            morte?h("div",{style:{marginTop:"6px"}},
-              tok("box",{label:"Corrigée — ne compte plus",icon:"✎",color:"var(--warn)"})):null,
-            sub.replaces?h("div",{className:"muted",style:{marginTop:"4px"}},
-              "✎ Corrige une soumission précédente du même évaluateur"):null),
-          h("div",{className:"btn-row",style:{flexShrink:"0"}},
-            /* Relire avant de juger : le contenu exact de ce qui a été
-               rendu, athlète par athlète, et sans un champ modifiable. */
-            h("button",{className:"btn btn-ghost xs","aria-label":"Consulter la soumission en lecture seule",
-              title:"Consulter en lecture seule",onclick:function(){
-              openModal("submissionro",sub.id);
-            }},"👁"),
-            h("button",{className:"btn btn-export xs",title:"Exporter en fichier",onclick:function(){
-              exportReceivedSubmission(squad,sub);
-            }},"📤"),
-            h("button",{className:"btn btn-danger-o xs","aria-label":"Supprimer la soumission",
-              onclick:function(){
-              openConfirm({
-                title:"Supprimer la soumission de "+(sub.selectorName||"—")+" ?",
-                body:"Rien ne la ramènera : ni un nouveau relevé, qui ne redemande que ce qui est plus "+
-                     "récent, ni une sauvegarde restaurée, qui n'écrase pas une équipe-saison déjà là. "+
-                     "Les moyennes compilées seront recalculées.",
-                detail:(sub.replaces
-                  ? "Celle-ci en CORRIGEAIT une précédente : les deux partent ensemble. Ne retirer que "+
-                    "la correction ferait revenir la note que l'évaluateur avait justement corrigée. "
-                  : "")+
-                  "Pour pouvoir la réimporter plus tard, annulez et exportez-la d'abord avec 📤. "+
-                  "Sinon il faudra demander à "+(sub.selectorName||"l'évaluateur")+" de soumettre à nouveau.",
-                confirm:"Supprimer",tone:"danger",
-                onconfirm:function(){
-                  pushUndoSquad("Soumission supprimée",squad);
-                  var morts=supprimerSoumission(squad,sub.id);
-                  logAct("submission","Soumission de "+(sub.selectorName||"—")+" sur « "+sub.viewName+
-                    " » supprimée"+(morts.length>1?" (et "+plural(morts.length-1,"correction")+" qu'elle remplaçait)":""),
-                    {teamId:squad.teamId,seasonId:squad.seasonId});
-                  saveNow();
-                  showToast("🗑️ Supprimée",{tone:"danger",action:{label:"Annuler",onclick:doUndo}});
-                  render();
-                }});
-            }},"🗑️"))),
-        h("div",{style:{display:"flex",gap:"4px",flexWrap:"wrap",marginTop:"8px"}},sub.entries.map(function(e){
-          var r=e.reco?RECO_BY_KEY[e.reco]:null,seen=dataFilled(e);
-          return h("span",{className:"badge",style:{background:(r?r.color:"#334155")+"20",color:r?r.color:(seen?"#94A3B8":"#94A3B8"),fontSize:"11px",padding:"3px 7px",opacity:seen?"1":".55"}},
-            numLabel(e.number)+(r?" "+r.icon:""));
-        })));
-      wrap.appendChild(carte);
-    });
+    subs.forEach(function(sub){wrap.appendChild(carteSoumission(squad,sub,mortes,null))});
   });
+  /* Le volet ne montre que la campagne ouverte. Une soumission rangée
+     dans une autre — relevée pendant qu'une autre était active, tirée
+     d'un catalogue publié sous l'ancienne campagne, ou d'une vue qu'on a
+     changée de campagne après l'avoir distribuée — y devenait
+     invisible : « Aucune soumission reçue », alors qu'elle était là.
+     On la montre, et on permet de la ranger ici. */
+  if(campaignId){
+    var ici=campaignById(squad,campaignId);
+    var ailleurs=(squad.submissions||[]).filter(function(sub){return sub.campaignId!==campaignId}).sort(parDate);
+    /* Repliée par défaut : l'écran reste celui de la campagne ouverte,
+       il dit seulement qu'il y a autre chose ailleurs. */
+    if(ici&&ailleurs.length){
+      var ouvert=!!state.subsAilleurs;
+      wrap.appendChild(h("div",{className:"row-between",style:{marginTop:"18px",gap:"8px"}},
+        h("div",{className:"section-title",style:{margin:"0"}},
+          "Dans d'autres campagnes · "+plural(ailleurs.length,"soumission")),
+        h("button",{className:"btn btn-ghost xs",type:"button","aria-expanded":ouvert?"true":"false",
+          onclick:function(){state.subsAilleurs=!ouvert;render()}},ouvert?"Masquer":"Afficher")));
+      if(ouvert){
+        wrap.appendChild(h("div",{className:"hint"},
+          "Elles ne comptent pas dans « "+ici.name+" ». Si l'une d'elles appartient à cette campagne, "+
+          "rangez-la ici avec ↪ : ses avis rejoindront ceux de « "+ici.name+" »."));
+        ailleurs.forEach(function(sub){wrap.appendChild(carteSoumission(squad,sub,mortes,ici))});
+      }
+    }
+  }
   return wrap;
+}
+/* Ranger une soumission dans une autre campagne. Sa chaîne de
+   corrections la suit : séparer une correction de ce qu'elle corrige
+   ferait revivre, dans l'une des deux campagnes, la note corrigée. */
+function rangerSoumission(squad,subId,camp){
+  var ids={},todo=[subId];
+  while(todo.length){
+    var id=todo.pop();if(ids[id])continue;ids[id]=true;
+    squad.submissions.forEach(function(x){
+      if(x.id===id&&x.replaces&&!ids[x.replaces])todo.push(x.replaces);
+      if(x.replaces===id&&!ids[x.id])todo.push(x.id);
+    });
+  }
+  var n=0;
+  squad.submissions.forEach(function(x){
+    if(ids[x.id]&&x.campaignId!==camp.id){x.campaignId=camp.id;x.campaignName=camp.name;n++}
+  });
+  return n;
+}
+function carteSoumission(squad,sub,mortes,rangerDans){
+  var evaluated=sub.entries.filter(dataFilled).length;
+  /* Une soumission remplacée reste visible — c'est une pièce du
+     dossier — mais elle dit qu'elle ne compte plus, et le corps du
+     texte est estompé plutôt que retiré. */
+  var morte=!!mortes[sub.id];
+  var carte=h("div",{className:"card tight"+(morte?" is-dim":"")},
+    h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{color:"#F8FAFC",fontWeight:"700",fontSize:"14px"}},sub.viewName),
+        h("div",{className:"muted",style:{marginTop:"2px"}},"👤 "+(sub.selectorName||"Anonyme")+" · "+fmtDate(sub.submittedAt)),
+        h("div",{className:"muted",style:{marginTop:"2px"}},evaluated+"/"+sub.entries.length+" athlètes évaluées"),
+        morte?h("div",{style:{marginTop:"6px"}},
+          tok("box",{label:"Corrigée — ne compte plus",icon:"✎",color:"var(--warn)"})):null,
+        sub.replaces?h("div",{className:"muted",style:{marginTop:"4px"}},
+          "✎ Corrige une soumission précédente du même évaluateur"):null),
+      h("div",{className:"btn-row",style:{flexShrink:"0"}},
+        /* Relire avant de juger : le contenu exact de ce qui a été
+           rendu, athlète par athlète, et sans un champ modifiable. */
+        h("button",{className:"btn btn-ghost xs","aria-label":"Consulter la soumission en lecture seule",
+          title:"Consulter en lecture seule",onclick:function(){
+          openModal("submissionro",sub.id);
+        }},"👁"),
+        h("button",{className:"btn btn-export xs",title:"Exporter en fichier",onclick:function(){
+          exportReceivedSubmission(squad,sub);
+        }},"📤"),
+        h("button",{className:"btn btn-danger-o xs","aria-label":"Supprimer la soumission",
+          onclick:function(){
+          openConfirm({
+            title:"Supprimer la soumission de "+(sub.selectorName||"—")+" ?",
+            body:"Rien ne la ramènera : ni un nouveau relevé, qui ne redemande que ce qui est plus "+
+                 "récent, ni une sauvegarde restaurée, qui n'écrase pas une équipe-saison déjà là. "+
+                 "Les moyennes compilées seront recalculées.",
+            detail:(sub.replaces
+              ? "Celle-ci en CORRIGEAIT une précédente : les deux partent ensemble. Ne retirer que "+
+                "la correction ferait revenir la note que l'évaluateur avait justement corrigée. "
+              : "")+
+              "Pour pouvoir la réimporter plus tard, annulez et exportez-la d'abord avec 📤. "+
+              "Sinon il faudra demander à "+(sub.selectorName||"l'évaluateur")+" de soumettre à nouveau.",
+            confirm:"Supprimer",tone:"danger",
+            onconfirm:function(){
+              pushUndoSquad("Soumission supprimée",squad);
+              var morts=supprimerSoumission(squad,sub.id);
+              logAct("submission","Soumission de "+(sub.selectorName||"—")+" sur « "+sub.viewName+
+                " » supprimée"+(morts.length>1?" (et "+plural(morts.length-1,"correction")+" qu'elle remplaçait)":""),
+                {teamId:squad.teamId,seasonId:squad.seasonId});
+              saveNow();
+              showToast("🗑️ Supprimée",{tone:"danger",action:{label:"Annuler",onclick:doUndo}});
+              render();
+            }});
+        }},"🗑️"))),
+    h("div",{style:{display:"flex",gap:"4px",flexWrap:"wrap",marginTop:"8px"}},sub.entries.map(function(e){
+      var r=e.reco?RECO_BY_KEY[e.reco]:null,seen=dataFilled(e);
+      return h("span",{className:"badge",style:{background:(r?r.color:"#334155")+"20",color:r?r.color:(seen?"#94A3B8":"#94A3B8"),fontSize:"11px",padding:"3px 7px",opacity:seen?"1":".55"}},
+        numLabel(e.number)+(r?" "+r.icon:""));
+    })));
+  if(rangerDans){
+    var dOu=campaignById(squad,sub.campaignId);
+    carte.appendChild(h("div",{className:"row-between",style:{marginTop:"8px",gap:"8px"}},
+      h("div",{className:"muted"},"📁 "+(dOu?dOu.name:(sub.campaignName||"Campagne inconnue"))),
+      h("button",{className:"btn btn-primary xs",onclick:function(){
+        pushUndoSquad("Soumission rangée",squad);
+        var n=rangerSoumission(squad,sub.id,rangerDans);
+        logAct("submission","Soumission de "+(sub.selectorName||"—")+" sur « "+sub.viewName+
+          " » rangée dans « "+rangerDans.name+" »",{teamId:squad.teamId,seasonId:squad.seasonId});
+        saveNow();
+        showToast("↪ "+plural(n,"soumission")+" rangée(s) dans « "+rangerDans.name+" »",
+          {action:{label:"Annuler",onclick:doUndo}});
+        render();
+      }},"↪ Ranger dans « "+rangerDans.name+" »")));
+  }
+  return carte;
 }
 
 /* ══════════════════════════════════════════════════════════════
