@@ -433,6 +433,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .subteam-row{display:flex;gap:6px;flex-wrap:wrap}
 .subteam-chip{min-height:var(--tap);padding:0 var(--s3);border-radius:var(--r-pill);border:1.5px solid var(--line-strong);font-size:var(--fs-xs);font-weight:700;white-space:nowrap;background:transparent;color:var(--txt-dim);cursor:pointer;display:inline-flex;align-items:center;gap:var(--s1)}
 .subteam-chip.active{background:var(--ok-solid);border-color:var(--ok-ink);color:var(--on-dark)}
+.subteam-chip.lu{border-style:dotted}
 .groupes-saisie{padding:6px 12px;flex-wrap:nowrap;overflow-x:auto;background:var(--sunken);border-bottom:1px solid var(--line)}
 .subteam-edit{background:none;border:none;font-size:var(--fs-xs);cursor:pointer;padding:0 2px;color:inherit}
 .quick-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:var(--s2) var(--s2)}
@@ -1005,7 +1006,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.6.0";
+var APP_VERSION = "7.7.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -3640,10 +3641,7 @@ function normalizeSquad(sq,knownPlayers){
 
   sq.playerIds=(sq.playerIds||[]).filter(function(pid){return inRoster[pid]});
   sq.lineup=(sq.lineup||[]).filter(function(pid){return sq.playerIds.indexOf(pid)!==-1});
-  sq.subteams=(sq.subteams||[]).map(function(st){
-    return {id:st.id||uid(),name:st.name||"Sous-équipe",
-      playerIds:(st.playerIds||[]).filter(function(pid){return sq.playerIds.indexOf(pid)!==-1})};
-  });
+  normSubteams(sq);
   var st={};Object.keys(sq.stats||{}).forEach(function(pid){if(inRoster[pid])st[pid]=normStats(sq.stats[pid])});
   sq.stats=st;
   sq.events=(sq.events||[]).map(function(ev){
@@ -5062,9 +5060,7 @@ function declineOffer(sq,offerId,who,opts){
     var pid=o.playerId;
     sq.playerIds=sq.playerIds.filter(function(x){return x!==pid});
     sq.lineup=(sq.lineup||[]).filter(function(x){return x!==pid});
-    (sq.subteams||[]).forEach(function(st){
-      st.playerIds=(st.playerIds||[]).filter(function(x){return x!==pid});
-    });
+    normSubteams(sq);
     recomputeRosterStatus(sq,pid);
     if(!(opts&&opts.silencieux)){
       var p=playerById(pid);
@@ -5831,7 +5827,10 @@ function mergeDB(inc){
     sq.roster.forEach(function(e){e.playerId=rp(e.playerId)});
     sq.playerIds=sq.playerIds.map(rp);
     sq.lineup=sq.lineup.map(rp);
-    sq.subteams.forEach(function(st){st.playerIds=st.playerIds.map(rp)});
+    sq.subteams.forEach(function(st){
+      st.playerIds=st.playerIds.map(rp);
+      (st.lineups||[]).forEach(function(l){l.playerIds=(l.playerIds||[]).map(rp)});
+    });
     var ns={};Object.keys(sq.stats).forEach(function(pid){ns[rp(pid)]=sq.stats[pid]});sq.stats=ns;
     sq.sessions.forEach(function(se){se.entries.forEach(function(en){en.playerId=rp(en.playerId)})});
     /* Les identifiants d'événement sont locaux au squad importé : ils
@@ -11490,7 +11489,7 @@ function setRosterStatus(squad,entry,status,campaignId){
 function detachFromTeam(team,pid){
   team.playerIds=team.playerIds.filter(function(x){return x!==pid});
   team.lineup=team.lineup.filter(function(x){return x!==pid});
-  team.subteams.forEach(function(st){st.playerIds=st.playerIds.filter(function(x){return x!==pid})});
+  normSubteams(team);
 }
 /* Retire une joueuse de l'équipe pour cette saison. Elle reste dans la
    base du club, et ses matchs déjà joués restent dans les sessions.
@@ -12012,10 +12011,7 @@ function renderCampaignsPane(squad){
                 var o=currentOffer(squad,pid);
                 return !!(o&&o.status==="accepted");
               });
-              (squad.subteams||[]).forEach(function(st){
-                st.playerIds=(st.playerIds||[]).filter(function(pid){
-                  return squad.playerIds.indexOf(pid)!==-1;});
-              });
+              normSubteams(squad);
               squad.lineup=(squad.lineup||[]).filter(function(pid){
                 return squad.playerIds.indexOf(pid)!==-1;});
               recomputeRosterStatus(squad);
@@ -12689,86 +12685,216 @@ function renderPlayersTab(){
     renderPickBar(season));
 }
 
-/* ══ SOUS-ÉQUIPES ══════════════════════════════════════════════
-   Des groupes nommés À L'INTÉRIEUR de l'équipe : « Lineup A », « Groupe
-   passeuses », « Équipe du tournoi de Laval ». Ils n'existaient que
-   dans le panneau Terrain de la saisie, où personne ne les trouvait.
+/* ══ SOUS-ÉQUIPES ET LINE-UPS ══════════════════════════════════
+   Une SOUS-ÉQUIPE partage l'équipe : « Équipe A », « Équipe B ». Une
+   athlète n'appartient qu'à UNE sous-équipe, et seules les athlètes de
+   l'équipe (offre confirmée, `playerIds`) peuvent en faire partie. Elle
+   se crée vide, puis se remplit au fil des jours.
 
-   Seules les athlètes de l'équipe en font partie — celles dont l'offre
-   est confirmée (`playerIds`). Une convoquée, une recallée ou une
-   partenaire d'entraînement n'y entre pas ; une athlète qui quitte
-   l'équipe quitte ses sous-équipes (declineOffer, detachFromTeam,
-   normalizeSquad). Une athlète peut être dans plusieurs sous-équipes. */
+   Un LINE-UP est un alignement À L'INTÉRIEUR d'une sous-équipe : « 6 de
+   départ », « Rotation passeuse 2 ». Une sous-équipe en porte autant
+   qu'on veut, et une athlète peut figurer dans plusieurs line-ups — mais
+   seulement ceux de sa sous-équipe.
+
+   normSubteams est le seul gardien de ces règles : la normalisation au
+   chargement et chaque sortie d'équipe (offre archivée, retrait,
+   détachement) passent par lui. Une base d'avant, où une athlète pouvait
+   être dans deux sous-équipes, garde la première. */
+function normSubteams(sq){
+  if(!sq)return;
+  /* En place : un écran, une modale ou un geste d'annulation peuvent
+     tenir une sous-équipe par référence ; la remplacer par une copie
+     leur ferait modifier un objet qui n'est plus dans la saison. */
+  var pris={};
+  sq.subteams=(sq.subteams||[]).filter(function(st){return st&&typeof st==="object"});
+  sq.subteams.forEach(function(st){
+    if(!st.id)st.id=uid();
+    if(!st.name)st.name="Sous-équipe";
+    var ids=[];
+    (st.playerIds||[]).forEach(function(pid){
+      if(pris[pid]||(sq.playerIds||[]).indexOf(pid)===-1)return;
+      pris[pid]=1;ids.push(pid);
+    });
+    st.playerIds=ids;
+    st.lineups=(st.lineups||[]).filter(function(l){return l&&typeof l==="object"});
+    st.lineups.forEach(function(l){
+      if(!l.id)l.id=uid();
+      if(!l.name)l.name="Line-up";
+      var vus={};
+      l.playerIds=(l.playerIds||[]).filter(function(pid){
+        if(vus[pid]||ids.indexOf(pid)===-1)return false;vus[pid]=1;return true;});
+    });
+  });
+}
+function subteamById(sq,id){
+  var r=null;(sq&&sq.subteams||[]).forEach(function(st){if(st.id===id)r=st});return r;
+}
+function subteamOf(sq,pid){
+  var r=null;(sq&&sq.subteams||[]).forEach(function(st){if(st.playerIds.indexOf(pid)!==-1)r=st});return r;
+}
 function subteamMembers(sq,st){
   return (st.playerIds||[]).filter(function(pid){return sq.playerIds.indexOf(pid)!==-1&&playerById(pid)});
 }
-function ouvrirSousEquipe(stId){
-  state.editingSubteamId=stId||null;
-  var sq=curTeam(),st=null;
-  if(stId&&sq)sq.subteams.forEach(function(x){if(x.id===stId)st=x});
-  state.modalSel=st?subteamMembers(sq,st):[];
-  openModal("subteam",null,st?st.name:"");
+/* Ajouter à une sous-équipe RETIRE de l'autre, et de ses line-ups :
+   c'est ce qui rend l'appartenance exclusive, quel que soit l'écran. */
+function ajouterASousEquipe(sq,st,pids){
+  var n=0;
+  (pids||[]).forEach(function(pid){
+    if(sq.playerIds.indexOf(pid)===-1||st.playerIds.indexOf(pid)!==-1)return;
+    var ancienne=subteamOf(sq,pid);
+    if(ancienne)retirerDeSousEquipe(ancienne,pid);
+    st.playerIds.push(pid);n++;
+  });
+  return n;
+}
+function retirerDeSousEquipe(st,pid){
+  st.playerIds=st.playerIds.filter(function(x){return x!==pid});
+  (st.lineups||[]).forEach(function(l){l.playerIds=l.playerIds.filter(function(x){return x!==pid})});
+}
+function nomSousEquipeLibre(sq,nom,sauf){
+  return !(sq.subteams||[]).some(function(x){return x!==sauf&&normTexte(x.name)===normTexte(nom)});
+}
+function creerSousEquipe(sq,apres){
+  openPrompt({title:"Nouvelle sous-équipe",label:"Nom",placeholder:"Ex. Équipe A",confirm:"Créer",
+    body:"Elle naît vide : vous y ajouterez les athlètes ensuite, au fil des jours.",
+    onconfirm:function(v){
+      var n=(v||"").trim();
+      if(!n){showToast("⚠️ Entrez un nom");return}
+      if(!nomSousEquipeLibre(sq,n,null)){showToast("⚠️ Une sous-équipe porte déjà ce nom");return}
+      pushUndoSquad("Sous-équipe créée",sq);
+      var st={id:uid(),name:n,playerIds:[],lineups:[]};
+      sq.subteams.push(st);
+      logAct("roster","Sous-équipe « "+n+" » créée",{teamId:sq.teamId,seasonId:sq.seasonId});
+      saveNow();render();
+      showToast("✅ « "+n+" » créée — ajoutez-y des athlètes",{tone:"ok",action:{label:"Annuler",onclick:doUndo}});
+      if(apres)apres(st);
+    }});
+}
+function renommerSousEquipe(sq,st){
+  openPrompt({title:"Renommer la sous-équipe",label:"Nom",value:st.name,confirm:"Renommer",
+    onconfirm:function(v){
+      var n=(v||"").trim();
+      if(!n||n===st.name)return;
+      if(!nomSousEquipeLibre(sq,n,st)){showToast("⚠️ Une sous-équipe porte déjà ce nom");return}
+      pushUndoSquad("Sous-équipe renommée",sq);
+      st.name=n;saveNow();render();
+    }});
+}
+function supprimerSousEquipe(sq,st){
+  openConfirm({title:"Supprimer « "+st.name+" » ?",
+    body:"Ses "+plural(st.playerIds.length,"athlète")+" restent dans l'équipe, sans sous-équipe. "+
+      (st.lineups.length?"Ses "+plural(st.lineups.length,"line-up")+" s'en vont avec elle.":""),
+    confirm:"Supprimer",tone:"danger",
+    onconfirm:function(){
+      pushUndoSquad("Sous-équipe supprimée",sq);
+      sq.subteams=sq.subteams.filter(function(x){return x!==st});
+      logAct("roster","Sous-équipe « "+st.name+" » supprimée",{teamId:sq.teamId,seasonId:sq.seasonId});
+      saveNow();render();
+      showToast("🗑️ Supprimée",{tone:"danger",action:{label:"Annuler",onclick:doUndo}});
+    }});
+}
+function ouvrirAjoutAthletes(st){
+  state.editingSubteamId=st.id;state.modalSel=[];
+  openModal("subteam",st.id);
+}
+function ouvrirLineup(st,lu,preselection){
+  state.modalSel=lu?lu.playerIds.slice():(preselection||[]).filter(function(pid){return st.playerIds.indexOf(pid)!==-1});
+  openModal("lineup",st.id+"|"+(lu?lu.id:""),lu?lu.name:"");
+}
+function numDansSaison(sq,pid){var e=rosterEntry(sq,pid);return (e&&e.number)||""}
+function trierParNumero(sq,ids){
+  return ids.slice().sort(function(a,b){
+    var na=parseInt(numDansSaison(sq,a),10),nb=parseInt(numDansSaison(sq,b),10);
+    if(isNaN(na))na=9999;if(isNaN(nb))nb=9999;return na-nb;
+  });
+}
+function libelleAthlete(sq,pid){
+  var n=numDansSaison(sq,pid);return (n?"#"+n+" ":"")+shortName(playerById(pid));
 }
 function renderSubteamsPane(squad){
   if(!squad)return h("div",{className:"empty"},"Aucune saison active");
+  var ferme=seasonClosed(squad);
   var wrap=h("div",null);
   wrap.appendChild(h("div",{className:"hint"},
-    "Une ",h("b",null,"sous-équipe")," regroupe des athlètes de l'équipe — un alignement, un groupe d'entraînement, "+
-    "l'effectif d'un tournoi. ",h("b",null,"Seules les athlètes de l'équipe")," (offre confirmée) peuvent en faire partie ; "+
-    "une même athlète peut appartenir à plusieurs sous-équipes."));
+    "Une ",h("b",null,"sous-équipe")," partage l'équipe (Équipe A, Équipe B…) : ",h("b",null,"une athlète n'appartient qu'à une seule"),
+    ", et seules les athlètes de l'équipe (offre confirmée) peuvent en faire partie. Créez-la vide, puis ajoutez les athlètes au fil des jours. ",
+    "Chaque sous-équipe porte ses ",h("b",null,"line-ups"),", où une même athlète peut figurer plusieurs fois."));
   var equipe=squad.playerIds.filter(function(pid){return playerById(pid)});
-  if(!equipe.length){
-    wrap.appendChild(emptyState({icon:"🧩",title:"L'équipe est vide",
-      sub:"Les sous-équipes se composent avec les athlètes de l'équipe. Retenez des athlètes, "+
-          "puis confirmez leur offre dans « Constituer l'équipe »."}));
-    return wrap;
-  }
   wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
-    h("button",{className:"btn btn-primary sm",type:"button",disabled:seasonClosed(squad),
-      onclick:function(){ouvrirSousEquipe(null)}},"+ Nouvelle sous-équipe")));
-  var dans={};
-  squad.subteams.forEach(function(st){subteamMembers(squad,st).forEach(function(pid){dans[pid]=1})});
-  var hors=equipe.filter(function(pid){return !dans[pid]});
+    h("button",{className:"btn btn-primary sm",type:"button",disabled:ferme,
+      onclick:function(){creerSousEquipe(squad)}},"+ Nouvelle sous-équipe")));
+  if(!equipe.length)wrap.appendChild(h("div",{className:"hint warn"},
+    "L'équipe est vide pour l'instant : les athlètes s'ajoutent une fois leur offre confirmée dans « Constituer l'équipe »."));
   if(!squad.subteams.length){
     wrap.appendChild(emptyState({icon:"🧩",title:"Aucune sous-équipe",
-      sub:plural(equipe.length,"athlète")+" dans l'équipe. Créez une sous-équipe pour en regrouper une partie."}));
+      sub:"Créez une sous-équipe — elle peut rester vide — puis ajoutez-y des athlètes."}));
     return wrap;
   }
-  function numDe(pid){var e=rosterEntry(squad,pid);return (e&&e.number)||""}
-  function trierMembres(ids){
-    return ids.slice().sort(function(a,b){
-      var na=parseInt(numDe(a),10),nb=parseInt(numDe(b),10);
-      if(isNaN(na))na=9999;if(isNaN(nb))nb=9999;return na-nb;
-    });
+  function puce(pid,onRetirer){
+    return h("span",{className:"badge",style:{background:"#0F172A",color:"#CBD5E1",borderColor:"#334155",
+      padding:"4px 4px 4px 9px",display:"inline-flex",alignItems:"center",gap:"4px"}},
+      libelleAthlete(squad,pid),
+      onRetirer?h("button",{className:"subteam-edit",type:"button","aria-label":"Retirer "+fullName(playerById(pid)),
+        style:{minWidth:"28px",minHeight:"28px"},onclick:onRetirer},"✕"):null);
   }
-  function puce(pid){
-    var n=numDe(pid);
-    return h("span",{className:"badge",style:{background:"#0F172A",color:"#CBD5E1",borderColor:"#334155",padding:"4px 9px"}},
-      (n?"#"+n+" ":"")+shortName(playerById(pid)));
+  function carte(st){
+    var ids=trierParNumero(squad,subteamMembers(squad,st));
+    var libres=equipe.filter(function(pid){return !subteamOf(squad,pid)}).length;
+    var c=h("div",{className:"card"});
+    c.appendChild(h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{style:{fontSize:"16px",fontWeight:"700",color:"#F8FAFC"}},st.name),
+        h("div",{className:"muted",style:{marginTop:"3px"}},
+          plural(ids.length,"athlète")+" · "+plural(st.lineups.length,"line-up"))),
+      h("div",{className:"btn-row",style:{flexShrink:"0"}},
+        h("button",{className:"btn btn-ghost xs",type:"button",disabled:ferme,"aria-label":"Renommer "+st.name,
+          onclick:function(){renommerSousEquipe(squad,st)}},"✏️"),
+        h("button",{className:"btn btn-danger-o xs",type:"button",disabled:ferme,"aria-label":"Supprimer "+st.name,
+          onclick:function(){supprimerSousEquipe(squad,st)}},"🗑️"))));
+    c.appendChild(h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"10px"}},
+      ids.length?ids.map(function(pid){
+        return puce(pid,ferme?null:function(){
+          pushUndoSquad("Athlète retirée de la sous-équipe",squad);
+          retirerDeSousEquipe(st,pid);saveNow();render();
+          showToast(shortName(playerById(pid))+" retirée de « "+st.name+" »",{action:{label:"Annuler",onclick:doUndo}});
+        });
+      }):h("span",{className:"muted"},"Vide — ajoutez des athlètes.")));
+    c.appendChild(h("div",{className:"btn-row",style:{marginTop:"10px"}},
+      h("button",{className:"btn btn-ghost sm",type:"button",disabled:ferme||!equipe.length,
+        onclick:function(){ouvrirAjoutAthletes(st)}},"+ Ajouter des athlètes"+(libres?" ("+libres+(libres>1?" libres)":" libre)"):""))));
+    /* Les line-ups de la sous-équipe */
+    c.appendChild(h("div",{className:"section-title",style:{marginTop:"12px"}},"Line-ups"));
+    if(!st.lineups.length)c.appendChild(h("div",{className:"muted"},
+      ids.length?"Aucun line-up.":"Ajoutez d'abord des athlètes à la sous-équipe."));
+    st.lineups.forEach(function(lu){
+      var lids=trierParNumero(squad,lu.playerIds);
+      c.appendChild(h("div",{className:"card tight",style:{marginTop:"6px"}},
+        h("div",{className:"row-between"},
+          h("div",{style:{fontWeight:"700",color:"#E2E8F0"}},lu.name+" · "+plural(lids.length,"athlète")),
+          h("button",{className:"btn btn-ghost xs",type:"button",disabled:ferme,"aria-label":"Modifier le line-up "+lu.name,
+            onclick:function(){ouvrirLineup(st,lu)}},"✏️")),
+        h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"6px"}},
+          lids.length?lids.map(function(pid){return puce(pid,null)}):h("span",{className:"muted"},"Vide"))));
+    });
+    c.appendChild(h("div",{className:"btn-row",style:{marginTop:"8px"}},
+      h("button",{className:"btn btn-ghost sm",type:"button",disabled:ferme||!ids.length,
+        onclick:function(){ouvrirLineup(st,null)}},"+ Line-up")));
+    return c;
   }
   wrap.appendChild(listeTriable({
     key:"subteams",items:squad.subteams,
     search:{placeholder:"Sous-équipe ou athlète",of:function(st){
-      return st.name+" "+subteamMembers(squad,st).map(function(pid){return fullName(playerById(pid))+" "+numDe(pid)}).join(" ")}},
+      return st.name+" "+subteamMembers(squad,st).map(function(pid){return fullName(playerById(pid))+" "+numDansSaison(squad,pid)}).join(" ")}},
     sorts:[
       {key:"name",label:"Nom",get:function(st){return st.name||""}},
-      {key:"taille",label:"Taille",dir:"desc",get:function(st){return subteamMembers(squad,st).length}}
+      {key:"taille",label:"Taille",dir:"desc",get:function(st){return subteamMembers(squad,st).length}},
+      {key:"lineups",label:"Line-ups",dir:"desc",get:function(st){return st.lineups.length}}
     ],
-    rows:function(res){return res.map(function(st){
-      var ids=trierMembres(subteamMembers(squad,st));
-      return h("div",{className:"card"},
-        h("div",{className:"row-between"},
-          h("div",{style:{minWidth:"0"}},
-            h("div",{style:{fontSize:"16px",fontWeight:"700",color:"#F8FAFC"}},st.name),
-            h("div",{className:"muted",style:{marginTop:"3px"}},plural(ids.length,"athlète"))),
-          h("button",{className:"btn btn-ghost xs",type:"button",disabled:seasonClosed(squad),
-            "aria-label":"Modifier la sous-équipe "+st.name,onclick:function(){ouvrirSousEquipe(st.id)}},"✏️ Modifier")),
-        h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"10px"}},
-          ids.length?ids.map(puce):h("span",{className:"muted"},"Aucune athlète de l'équipe")));
-    })}}));
+    rows:function(res){return res.map(carte)}}));
+  var hors=trierParNumero(squad,equipe.filter(function(pid){return !subteamOf(squad,pid)}));
   if(hors.length)wrap.appendChild(h("div",{className:"card tight",style:{marginTop:"6px"}},
     h("div",{className:"muted"},"Dans aucune sous-équipe · "+plural(hors.length,"athlète")),
-    h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"8px"}},trierMembres(hors).map(puce))));
+    h("div",{style:{display:"flex",gap:"5px",flexWrap:"wrap",marginTop:"8px"}},hors.map(function(pid){return puce(pid,null)}))));
   return wrap;
 }
 
@@ -13286,47 +13412,48 @@ function renderCourtBar(team){
     var s=a.slice().sort(),t=b.slice().sort();
     return s.every(function(v,i){return v===t[i]});
   }
-  /* Les groupes, toujours sous les yeux pendant la saisie — match comme
-     entraînement. Ils vivaient dans le panneau Terrain replié : pour
-     passer d'un atelier à l'autre, il fallait l'ouvrir, trouver la
-     puce, le refermer. Un groupe EST une sous-équipe : même liste que
-     le volet Athlètes → Sous-équipes, mêmes règles (athlètes de l'équipe
-     seulement). Le toucher met ses athlètes sur le terrain ; « + Groupe »
-     part de celles qui y sont. */
-  var groupesRow=h("div",{className:"subteam-row groupes-saisie",role:"group","aria-label":"Groupes"},
+  /* Sous-équipes et line-ups, toujours sous les yeux pendant la saisie
+     — match comme entraînement. Toucher une sous-équipe met toutes ses
+     athlètes sur le terrain ; toucher un line-up, les siennes. « +
+     Line-up » part des athlètes sur le terrain, dans la sous-équipe qui
+     les contient. On les compose dans Athlètes → Sous-équipes. */
+  function puceGroupe(libelle,ids,sousTitre){
+    var membres=ids.filter(function(pid){return team.playerIds.indexOf(pid)!==-1});
+    var match=!allOn&&membres.length&&sameSet(team.lineup,membres);
+    return h("button",{className:"subteam-chip"+(match?" active":"")+(sousTitre?" lu":""),type:"button",
+      "aria-pressed":match?"true":"false",
+      onclick:function(){
+        if(!membres.length){showToast("⚠️ « "+libelle+" » n'a aucune athlète");return}
+        team.lineup=membres.slice();state.quickPlayer=null;scheduleAutoSave();render();
+      }},(sousTitre?"· ":"")+libelle+" ("+membres.length+")");
+  }
+  var puces=[];
+  team.subteams.forEach(function(st){
+    puces.push(puceGroupe(st.name,st.playerIds,false));
+    (st.lineups||[]).forEach(function(lu){puces.push(puceGroupe(lu.name,lu.playerIds,true))});
+  });
+  var groupesRow=h("div",{className:"subteam-row groupes-saisie",role:"group","aria-label":"Sous-équipes et line-ups"},
     h("span",{className:"muted",style:{alignSelf:"center",fontSize:"12px",fontWeight:"700"}},"Groupes"),
     h("button",{className:"subteam-chip"+(allOn?" active":""),type:"button","aria-pressed":allOn?"true":"false",
       onclick:function(){team.lineup=[];state.quickPlayer=null;scheduleAutoSave();render()}},"Toutes ("+all.length+")"),
-    team.subteams.map(function(st){
-      var match=!allOn&&sameSet(team.lineup,st.playerIds);
-      var membres=st.playerIds.filter(function(pid){return team.playerIds.indexOf(pid)!==-1});
-      return h("button",{className:"subteam-chip"+(match?" active":""),type:"button","aria-pressed":match?"true":"false",
-        onclick:function(){
-          if(!membres.length){showToast("⚠️ Ce groupe n'a plus d'athlète de l'équipe");return}
-          team.lineup=membres.slice();state.quickPlayer=null;scheduleAutoSave();render();
-        }},st.name+" ("+membres.length+")");
-    }),
+    puces,
     h("button",{className:"subteam-chip",type:"button",style:{borderStyle:"dashed"},onclick:function(){
-      state.editingSubteamId=null;state.modalSel=(team.lineup&&team.lineup.length)?team.lineup.slice():[];
-      openModal("subteam",null,"");
-    }},"+ Groupe"));
+      var surTerrain=allOn?all.map(function(p){return p.id}):team.lineup.slice();
+      if(!team.subteams.length){
+        creerSousEquipe(team,function(st){
+          showToast("« "+st.name+" » créée. Ajoutez-y des athlètes dans Athlètes → Sous-équipes, puis ses line-ups.");
+        });
+        return;
+      }
+      /* La sous-équipe qui contient le plus d'athlètes sur le terrain. */
+      var cible=team.subteams[0],meilleur=-1;
+      team.subteams.forEach(function(st){
+        var n=surTerrain.filter(function(pid){return st.playerIds.indexOf(pid)!==-1}).length;
+        if(n>meilleur){meilleur=n;cible=st}
+      });
+      ouvrirLineup(cible,null,surTerrain);
+    }},team.subteams.length?"+ Line-up":"+ Sous-équipe"));
   if(!state.courtPanelOpen)return h("div",null,groupesRow,bar);
-  var subRow=h("div",{className:"subteam-row"},
-    team.subteams.map(function(st){
-      var match=sameSet(team.lineup,st.playerIds);
-      return h("span",{style:{display:"inline-flex",alignItems:"center"}},
-        h("button",{className:"subteam-chip"+(match?" active":""),onclick:function(){
-          team.lineup=st.playerIds.slice();state.quickPlayer=null;scheduleAutoSave();render();
-        }},st.name),
-        h("button",{className:"subteam-edit",onclick:function(ev){
-          ev.stopPropagation();state.editingSubteamId=st.id;state.modalSel=st.playerIds.slice();
-          openModal("subteam",null,st.name);
-        }},"✏️"));
-    }),
-    h("button",{className:"subteam-chip",style:{borderStyle:"dashed"},onclick:function(){
-      state.editingSubteamId=null;state.modalSel=(team.lineup&&team.lineup.length)?team.lineup.slice():[];
-      openModal("subteam",null,"");
-    }},"+ Sous-équipe"));
 
   var toggles=h("div",{className:"court-toggle-grid"},all.map(function(p){
     var on=allOn||team.lineup.indexOf(p.id)!==-1;
@@ -13340,7 +13467,7 @@ function renderCourtBar(team){
     }},(p.number?"#"+p.number+" ":"")+shortName(playerById(p.id)));
   }));
 
-  return h("div",null,groupesRow,bar,h("div",{className:"court-panel"},subRow,toggles,
+  return h("div",null,groupesRow,bar,h("div",{className:"court-panel"},toggles,
     h("button",{className:"btn btn-ghost xs",style:{marginTop:"8px"},onclick:function(){
       team.lineup=[];state.quickPlayer=null;scheduleAutoSave();render();
     }},"Toutes sur le terrain")));
@@ -16805,42 +16932,74 @@ function renderModal(){
       }},"Enregistrer")],"400px");
   }
 
+  /* Ajouter des athlètes à une sous-équipe : les libres d'abord ; celles
+     d'une autre sous-équipe peuvent être déplacées, et le disent. */
   if(T==="subteam"){
     var team1=curTeam();if(!team1)return null;
-    var editing=null;
-    if(state.editingSubteamId)team1.subteams.forEach(function(x){if(x.id===state.editingSubteamId)editing=x});
-    /* Seules les athlètes de l'équipe se proposent, et seules elles
-       s'enregistrent : une sélection gardée d'avant (une athlète sortie
-       de l'équipe entre-temps) ne passe pas. */
-    var items3=teamViewPlayers(team1).map(function(p){return {id:p.id,label:(p.number?"#"+p.number+" ":"")+shortName(playerById(p.id))}});
-    var btns3=[cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+    var st1=subteamById(team1,state.modalCtx||state.editingSubteamId);
+    if(!st1)return null;
+    var cands=trierParNumero(team1,team1.playerIds.filter(function(pid){
+      return playerById(pid)&&st1.playerIds.indexOf(pid)===-1}));
+    var libres1=cands.filter(function(pid){return !subteamOf(team1,pid)});
+    var ailleurs1=cands.filter(function(pid){return subteamOf(team1,pid)});
+    var itemsL=libres1.map(function(pid){return {id:pid,label:libelleAthlete(team1,pid)}});
+    var itemsA=ailleurs1.map(function(pid){return {id:pid,label:libelleAthlete(team1,pid)+" ↪ "+subteamOf(team1,pid).name}});
+    var btnsS=[cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
+      var choisis=state.modalSel.filter(function(pid){return team1.playerIds.indexOf(pid)!==-1});
+      if(!choisis.length){showToast("⚠️ Choisissez au moins une athlète");return}
+      pushUndoSquad("Athlètes ajoutées à « "+st1.name+" »",team1);
+      var n=ajouterASousEquipe(team1,st1,choisis);
+      logAct("roster",plural(n,"athlète")+" ajoutée(s) à « "+st1.name+" »",{teamId:team1.teamId,seasonId:team1.seasonId});
+      closeModal();saveNow();
+      showToast("✅ "+plural(n,"athlète")+" ajoutée(s) à « "+st1.name+" »",{tone:"ok",action:{label:"Annuler",onclick:doUndo}});
+    }},"Ajouter")];
+    if(!cands.length)return modalShell("Ajouter à « "+st1.name+" »",
+      emptyState({icon:"🧩",title:"Personne à ajouter",small:true,
+        sub:"Toutes les athlètes de l'équipe sont déjà dans « "+st1.name+" », ou l'équipe est vide."}),[cancel],"440px");
+    return modalShell("Ajouter à « "+st1.name+" »",
+      h("div",null,
+        h("div",{className:"muted",style:{marginBottom:"8px"}},
+          "Seules les athlètes de l'équipe sont proposées. Une athlète n'appartient qu'à une sous-équipe."),
+        selCount(),
+        itemsL.length?h("div",{className:"section-title"},"Sans sous-équipe"):null,
+        itemsL.length?toggleGrid(itemsL,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){toggleSel(it.id)}):null,
+        itemsA.length?h("div",{className:"section-title"},"Déjà dans une autre — les ajouter les déplace"):null,
+        itemsA.length?toggleGrid(itemsA,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){toggleSel(it.id)}):null),
+      btnsS,"440px");
+  }
+
+  /* Un line-up : un nom, et des athlètes DE LA SOUS-ÉQUIPE. */
+  if(T==="lineup"){
+    var team2=curTeam();if(!team2)return null;
+    var parts=String(state.modalCtx||"").split("|");
+    var st2=subteamById(team2,parts[0]);if(!st2)return null;
+    var lu2=null;st2.lineups.forEach(function(l){if(l.id===parts[1])lu2=l});
+    var itemsLu=trierParNumero(team2,subteamMembers(team2,st2)).map(function(pid){return {id:pid,label:libelleAthlete(team2,pid)}});
+    var btnsLu=[cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
       var n=(state.modalInput||"").trim();
-      var membres=state.modalSel.filter(function(pid){return team1.playerIds.indexOf(pid)!==-1});
       if(!n){showToast("⚠️ Entrez un nom");return}
-      if(!membres.length){showToast("⚠️ Sélectionnez au moins une athlète de l'équipe");return}
-      if(team1.subteams.some(function(x){return x!==editing&&normTexte(x.name)===normTexte(n)})){
-        showToast("⚠️ Une sous-équipe porte déjà ce nom");return}
-      pushUndoSquad(editing?"Sous-équipe modifiée":"Sous-équipe créée",team1);
-      if(editing){editing.name=n;editing.playerIds=membres}
-      else team1.subteams.push({id:uid(),name:n,playerIds:membres});
-      logAct("roster","Sous-équipe « "+n+" » "+(editing?"modifiée":"créée")+" — "+plural(membres.length,"athlète"),
-        {teamId:team1.teamId,seasonId:team1.seasonId});
-      closeModal();saveNow();showToast("✅ Sous-équipe enregistrée",{tone:"ok",action:{label:"Annuler",onclick:doUndo}});
-    }},editing?"Enregistrer":"Créer")];
-    if(editing)btns3.push(h("button",{className:"btn btn-danger-o full",onclick:function(){
-      pushUndoSquad("Sous-équipe supprimée",team1);
-      team1.subteams=team1.subteams.filter(function(x){return x.id!==editing.id});
-      logAct("roster","Sous-équipe « "+editing.name+" » supprimée",{teamId:team1.teamId,seasonId:team1.seasonId});
-      closeModal();saveNow();showToast("🗑️ Supprimée",{tone:"danger",action:{label:"Annuler",onclick:doUndo}});
+      if(st2.lineups.some(function(l){return l!==lu2&&normTexte(l.name)===normTexte(n)})){
+        showToast("⚠️ Ce line-up existe déjà dans « "+st2.name+" »");return}
+      var ids=state.modalSel.filter(function(pid){return st2.playerIds.indexOf(pid)!==-1});
+      pushUndoSquad(lu2?"Line-up modifié":"Line-up créé",team2);
+      if(lu2){lu2.name=n;lu2.playerIds=ids}
+      else st2.lineups.push({id:uid(),name:n,playerIds:ids});
+      closeModal();saveNow();
+      showToast("✅ Line-up « "+n+" » enregistré",{tone:"ok",action:{label:"Annuler",onclick:doUndo}});
+    }},lu2?"Enregistrer":"Créer")];
+    if(lu2)btnsLu.push(h("button",{className:"btn btn-danger-o full",onclick:function(){
+      pushUndoSquad("Line-up supprimé",team2);
+      st2.lineups=st2.lineups.filter(function(l){return l!==lu2});
+      closeModal();saveNow();showToast("🗑️ Line-up supprimé",{tone:"danger",action:{label:"Annuler",onclick:doUndo}});
     }},"Supprimer"));
-    if(!items3.length)return modalShell("Sous-équipe",
-      emptyState({icon:"🧩",title:"L'équipe est vide",small:true,
-        sub:"Seules les athlètes de l'équipe (offre confirmée) peuvent faire partie d'une sous-équipe."}),
-      [cancel],"440px");
-    return modalShell(editing?"Modifier le groupe (sous-équipe)":"Nouveau groupe (sous-équipe)",
-      h("div",null,textField("Ex. Lineup A",state.modalInput,function(v){state.modalInput=v}),selCount(),
-        toggleGrid(items3,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){toggleSel(it.id)})),
-      btns3,"440px");
+    return modalShell((lu2?"Modifier le line-up":"Nouveau line-up")+" · "+st2.name,
+      h("div",null,textField("Ex. 6 de départ",state.modalInput,function(v){state.modalInput=v}),
+        h("div",{className:"muted",style:{margin:"8px 0"}},
+          itemsLu.length?"Athlètes de « "+st2.name+" » — une athlète peut figurer dans plusieurs line-ups."
+                        :"« "+st2.name+" » est vide : ajoutez-y d'abord des athlètes."),
+        selCount(),
+        toggleGrid(itemsLu,function(it){return state.modalSel.indexOf(it.id)!==-1},function(it){toggleSel(it.id)})),
+      btnsLu,"440px");
   }
 
   /* ── Vue sélectionneur ── */

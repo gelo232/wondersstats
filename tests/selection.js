@@ -802,15 +802,22 @@ const ERRORS=[];let PASS=0;
     if(st!=="partner")throw new Error("après rechargement : "+st);
   });
 
-  say("\n── Sous-équipes");
-  await step("une sous-équipe ne se compose qu'avec les athlètes de l'équipe",async()=>{
-    const prep=await page.evaluate(()=>{
+  say("\n── Sous-équipes et line-ups");
+  const nomPrompt=async(nom)=>{
+    await page.waitForSelector(".modal.prompt input",{timeout:4000});
+    await page.fill(".modal.prompt input",nom);
+    await page.click("#promptOk");
+    await page.waitForTimeout(250);
+  };
+  let prepSE=null;
+  await step("une sous-équipe se crée vide",async()=>{
+    prepSE=await page.evaluate(()=>{
       var sq=curSquad(),cid=sq.activeCampaignId;
-      /* Trois athlètes dans l'équipe (offre confirmée), une convoquée hors équipe. */
-      var hors=null,n=0;
+      /* Quatre athlètes dans l'équipe (offre confirmée), une hors équipe. */
+      var hors=null,n=sq.playerIds.length;
       sq.roster.forEach(function(e){
-        if(sq.playerIds.indexOf(e.playerId)!==-1){n++;return}
-        if(n<3){
+        if(sq.playerIds.indexOf(e.playerId)!==-1)return;
+        if(n<4){
           if(!campaignEntry(sq,cid,e.playerId))convokeToCampaign(sq,cid,[e.playerId],null);
           setCampaignDecision(sq,cid,e.playerId,"select",null);
           var o=liveOffer(sq,cid,e.playerId);if(o)acceptOffer(sq,o.id,null);
@@ -821,73 +828,108 @@ const ERRORS=[];let PASS=0;
       state.tab="players";state.playersPane="subteams";render();
       return {equipe:sq.playerIds.length,hors:hors};
     });
-    if(prep.equipe<3)throw new Error("préparation : équipe="+prep.equipe);
-    if(!prep.hors)throw new Error("préparation : aucune athlète hors équipe");
+    if(prepSE.equipe<4)throw new Error("préparation : équipe="+prepSE.equipe);
+    if(!prepSE.hors)throw new Error("préparation : aucune athlète hors équipe");
     await page.waitForTimeout(250);
     await page.locator("button").filter({hasText:"+ Nouvelle sous-équipe"}).first().click();
+    await nomPrompt("Équipe A");
+    const r=await page.evaluate(()=>{var sq=curSquad();return {n:sq.subteams.length,nom:(sq.subteams[0]||{}).name,
+      membres:sq.subteams[0]?sq.subteams[0].playerIds.length:-1}});
+    if(r.n!==1||r.nom!=="Équipe A"||r.membres!==0)throw new Error("création vide : "+JSON.stringify(r));
+  });
+  await step("on y ajoute des athlètes de l'équipe, et elles seules",async()=>{
+    await page.locator("button").filter({hasText:"+ Ajouter des athlètes"}).first().click();
     await page.waitForTimeout(300);
     const proposees=await page.locator(".modal .court-toggle").count();
-    if(proposees!==prep.equipe)throw new Error("la modale propose "+proposees+" athlètes pour une équipe de "+prep.equipe);
-    await page.fill(".modal input:not([type])","Lineup A");
+    if(proposees!==prepSE.equipe)throw new Error("la modale propose "+proposees+" athlètes pour une équipe de "+prepSE.equipe);
     await page.locator(".modal .court-toggle").nth(0).click();
     await page.locator(".modal .court-toggle").nth(1).click();
-    /* Une athlète hors équipe glissée dans la sélection ne doit pas passer. */
-    await page.evaluate((pid)=>{state.modalSel.push(pid)},prep.hors);
+    await page.evaluate((pid)=>{state.modalSel.push(pid)},prepSE.hors);
     await page.locator("#modalOk").click();
     await page.waitForTimeout(300);
-    const r=await page.evaluate((hors)=>{
-      var sq=curSquad(),st=sq.subteams[0];
-      return {n:sq.subteams.length,nom:st&&st.name,membres:st?st.playerIds.length:0,
-        horsDedans:st?st.playerIds.indexOf(hors)!==-1:false,
-        carte:/Lineup A/.test(document.querySelector(".content").innerText)};
-    },prep.hors);
-    if(r.n!==1||r.nom!=="Lineup A")throw new Error("sous-équipe non créée : "+JSON.stringify(r));
-    if(r.horsDedans)throw new Error("une athlète hors équipe est entrée dans la sous-équipe");
+    const r=await page.evaluate((hors)=>{var st=curSquad().subteams[0];
+      return {membres:st.playerIds.length,hors:st.playerIds.indexOf(hors)!==-1}},prepSE.hors);
+    if(r.hors)throw new Error("une athlète hors équipe est entrée");
     if(r.membres!==2)throw new Error("membres="+r.membres);
-    if(!r.carte)throw new Error("la sous-équipe n'apparaît pas dans le volet");
-  });
-  await step("une athlète qui quitte l'équipe quitte ses sous-équipes, et un nom ne se double pas",async()=>{
-    const r=await page.evaluate(()=>{
-      var sq=curSquad(),st=sq.subteams[0],pid=st.playerIds[0];
-      var o=currentOffer(sq,pid);declineOffer(sq,o.id,null);
-      saveNow();
-      return {encore:sq.subteams[0].playerIds.indexOf(pid)!==-1};
-    });
-    if(r.encore)throw new Error("l'athlète sortie de l'équipe reste dans la sous-équipe");
-    await page.evaluate(()=>{render()});await page.waitForTimeout(200);
-    await page.locator("button").filter({hasText:"+ Nouvelle sous-équipe"}).first().click();
+    /* Puis une troisième, plus tard : on remplit au fil des jours. */
+    await page.locator("button").filter({hasText:"+ Ajouter des athlètes"}).first().click();
     await page.waitForTimeout(300);
-    await page.fill(".modal input:not([type])","lineup a");
     await page.locator(".modal .court-toggle").nth(0).click();
     await page.locator("#modalOk").click();
-    await page.waitForTimeout(250);
-    const n=await page.evaluate(()=>curSquad().subteams.length);
-    if(n!==1)throw new Error("deux sous-équipes du même nom : "+n);
-    await page.evaluate(()=>closeModal());
+    await page.waitForTimeout(300);
+    const n=await page.evaluate(()=>curSquad().subteams[0].playerIds.length);
+    if(n!==3)throw new Error("après le second ajout : "+n);
   });
-
-  await step("pendant la saisie, les groupes sont sous les yeux et se choisissent d'un geste",async()=>{
-    await page.evaluate(()=>{
-      var sq=curSquad();
-      if(!sq.subteams.length)sq.subteams.push({id:uid(),name:"Lineup A",playerIds:sq.playerIds.slice(0,1)});
-      sq.lineup=[];state.courtPanelOpen=false;saveNow();navTo(mkRoute("legacy","input"));
+  await step("une athlète n'appartient qu'à une sous-équipe",async()=>{
+    await page.locator("button").filter({hasText:"+ Nouvelle sous-équipe"}).first().click();
+    await nomPrompt("Équipe B");
+    const r=await page.evaluate(()=>{
+      var sq=curSquad(),A=sq.subteams[0],B=sq.subteams[1],pid=A.playerIds[0];
+      A.lineups.push({id:uid(),name:"Test",playerIds:[pid]});
+      ajouterASousEquipe(sq,B,[pid]);
+      var dans=sq.subteams.filter(function(st){return st.playerIds.indexOf(pid)!==-1}).length;
+      /* Une base d'avant, où une athlète figurait dans deux sous-équipes. */
+      A.playerIds.push(pid);normSubteams(sq);
+      var apres=sq.subteams.filter(function(st){return st.playerIds.indexOf(pid)!==-1}).length;
+      A.lineups=[];saveNow();render();
+      return {dans:dans,luA:A.lineups.length,apres:apres};
     });
+    if(r.dans!==1)throw new Error("après déplacement, l'athlète est dans "+r.dans+" sous-équipes");
+    if(r.apres!==1)throw new Error("la normalisation laisse une athlète dans "+r.apres+" sous-équipes");
+    const dup=await page.evaluate(()=>{
+      return nomSousEquipeLibre(curSquad(),"équipe a",null);
+    });
+    if(dup)throw new Error("deux sous-équipes pourraient porter le même nom");
+  });
+  await step("plusieurs line-ups, une athlète dans plusieurs, et seulement celles de la sous-équipe",async()=>{
+    await page.evaluate(()=>{render()});await page.waitForTimeout(200);
+    const cree=async(nom,combien)=>{
+      await page.locator(".card").filter({hasText:"Équipe A"}).locator("button").filter({hasText:"+ Line-up"}).first().click();
+      await page.waitForTimeout(300);
+      await page.fill(".modal input:not([type])",nom);
+      for(let i=0;i<combien;i++)await page.locator(".modal .court-toggle").nth(i).click();
+      await page.locator("#modalOk").click();
+      await page.waitForTimeout(300);
+    };
+    const proposees=await page.evaluate(()=>subteamMembers(curSquad(),curSquad().subteams[0]).length);
+    await cree("6 de départ",2);
+    await cree("Rotation 2",2);
+    const r=await page.evaluate(()=>{
+      var sq=curSquad(),A=sq.subteams[0];
+      var commun=A.lineups[0].playerIds.filter(function(p){return A.lineups[1].playerIds.indexOf(p)!==-1});
+      var horsSE=A.lineups.some(function(l){return l.playerIds.some(function(p){return A.playerIds.indexOf(p)===-1})});
+      return {n:A.lineups.length,commun:commun.length,horsSE:horsSE};
+    });
+    if(r.n!==2)throw new Error("line-ups="+r.n);
+    if(r.commun<1)throw new Error("aucune athlète commune aux deux line-ups");
+    if(r.horsSE)throw new Error("un line-up contient une athlète hors de sa sous-équipe");
+    if(proposees<2)throw new Error("préparation");
+  });
+  await step("quitter l'équipe, c'est quitter sa sous-équipe et ses line-ups",async()=>{
+    const r=await page.evaluate(()=>{
+      var sq=curSquad(),A=sq.subteams[0],pid=A.lineups[0].playerIds[0];
+      var o=currentOffer(sq,pid);declineOffer(sq,o.id,null);saveNow();
+      return {st:A.playerIds.indexOf(pid)!==-1,lu:A.lineups.some(function(l){return l.playerIds.indexOf(pid)!==-1})};
+    });
+    if(r.st||r.lu)throw new Error("l'athlète sortie reste : "+JSON.stringify(r));
+  });
+  await step("pendant la saisie, sous-équipes et line-ups se choisissent d'un geste",async()=>{
+    await page.evaluate(()=>{var sq=curSquad();sq.lineup=[];state.courtPanelOpen=false;saveNow();navTo(mkRoute("legacy","input"))});
     await page.waitForTimeout(400);
     const rangee=page.locator(".groupes-saisie");
     if(!(await rangee.count()))throw new Error("aucune rangée de groupes dans l'écran de saisie");
     const t=await rangee.first().innerText();
-    if(!/Toutes/.test(t)||!/\+ Groupe/.test(t))throw new Error("rangée incomplète : "+t);
-    const nom=await page.evaluate(()=>curSquad().subteams[0].name);
-    await rangee.locator("button").filter({hasText:nom}).first().click();
+    for(const x of ["Toutes","Équipe A","6 de départ","+ Line-up"])
+      if(!t.includes(x))throw new Error("rangée incomplète, manque « "+x+" » : "+t);
+    await rangee.locator("button").filter({hasText:"6 de départ"}).first().click();
     await page.waitForTimeout(250);
-    const r=await page.evaluate(()=>{var sq=curSquad();
-      return {lineup:sq.lineup.slice().sort().join(","),groupe:sq.subteams[0].playerIds.filter(function(p){
-        return sq.playerIds.indexOf(p)!==-1}).sort().join(",")}});
-    if(!r.lineup||r.lineup!==r.groupe)throw new Error("le groupe n'est pas passé sur le terrain : "+JSON.stringify(r));
-    await rangee.locator("button").filter({hasText:"+ Groupe"}).first().click();
+    const r=await page.evaluate(()=>{var sq=curSquad(),lu=sq.subteams[0].lineups[0];
+      return {terrain:sq.lineup.slice().sort().join(","),lu:lu.playerIds.slice().sort().join(",")}});
+    if(!r.lu||r.terrain!==r.lu)throw new Error("le line-up n'est pas passé sur le terrain : "+JSON.stringify(r));
+    await rangee.locator("button").filter({hasText:"+ Line-up"}).first().click();
     await page.waitForTimeout(300);
     const titre=await page.locator(".modal").first().innerText();
-    if(!/groupe/i.test(titre))throw new Error("« + Groupe » n'ouvre pas la création : "+titre.slice(0,80));
+    if(!/line-up/i.test(titre))throw new Error("« + Line-up » n'ouvre pas la création : "+titre.slice(0,80));
     await page.evaluate(()=>closeModal());
   });
 
