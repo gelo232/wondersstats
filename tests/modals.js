@@ -77,7 +77,12 @@ const ERRORS=[];let PASS=0;
     ["editplayer",  ()=>openModal("editplayer",DB.players[0].id)],
     ["bulkplayers", ()=>openModal("bulkplayers")],
     ["savesession", ()=>{state.tab="input";openModal("savesession")}],
-    ["subteam",     ()=>{state.tab="input";state.editingSubteamId=null;state.modalSel=[];openModal("subteam",null,"")}],
+    ["subteam",     ()=>{state.tab="input";const t=curTeam();
+      if(!t.subteams.length)t.subteams.push({id:uid(),name:"Vide",playerIds:[],lineups:[]});
+      ouvrirAjoutAthletes(t.subteams[0])}],
+    ["lineup",      ()=>{state.tab="input";const t=curTeam();
+      if(!t.subteams.length)t.subteams.push({id:uid(),name:"Vide",playerIds:[],lineups:[]});
+      ouvrirLineup(t.subteams[0],null)}],
     ["editview",    ()=>{state.tab="selection";state.editViewId=null;state.modalSel=[];openModal("editview")}],
     ["applyreco",   ()=>{state.tab="summary";openModal("applyreco")}],
     ["newcampaign", ()=>openModal("newcampaign")],
@@ -188,17 +193,24 @@ const ERRORS=[];let PASS=0;
     if(n!==4)throw new Error("joueuse créée malgré le doublon");
     await page.locator(".modal button").filter({hasText:"Annuler"}).click();await page.waitForTimeout(120);
   });
-  await step("créer puis appliquer une sous-équipe",async()=>{
-    await page.evaluate(()=>{state.tab="input";state.editingSubteamId=null;state.modalSel=[];openModal("subteam",null,"")});
+  await step("créer une sous-équipe vide, la remplir, puis un line-up qu'on applique",async()=>{
+    await page.evaluate(()=>{state.tab="input";const t=curTeam();t.subteams=[];
+      t.subteams.push({id:uid(),name:"Équipe A",playerIds:[],lineups:[]});
+      ouvrirAjoutAthletes(t.subteams[0])});
+    await page.waitForTimeout(140);
+    await page.locator(".modal .court-toggle").nth(0).click();
+    await page.locator(".modal .court-toggle").nth(1).click();
+    await page.locator(".modal button").filter({hasText:"Ajouter"}).click();await page.waitForTimeout(200);
+    const st=await page.evaluate(()=>curTeam().subteams);
+    if(st.length!==1||st[0].playerIds.length!==2)throw new Error(JSON.stringify(st));
+    await page.evaluate(()=>{const t=curTeam();ouvrirLineup(t.subteams[0],null)});
     await page.waitForTimeout(140);
     await page.locator(".modal input").first().fill("Lineup A");
     await page.locator(".modal .court-toggle").nth(0).click();
     await page.locator(".modal .court-toggle").nth(1).click();
     await page.locator(".modal button").filter({hasText:"Créer"}).click();await page.waitForTimeout(200);
-    const st=await page.evaluate(()=>curTeam().subteams);
-    if(st.length!==1||st[0].playerIds.length!==2)throw new Error(JSON.stringify(st));
     const applied=await page.evaluate(()=>{
-      const t=curTeam();t.lineup=t.subteams[0].playerIds.slice();
+      const t=curTeam(),lu=t.subteams[0].lineups[0];t.lineup=lu.playerIds.slice();
       return lineupPlayers(t).length;
     });
     if(applied!==2)throw new Error("lineup="+applied);
