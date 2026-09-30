@@ -933,6 +933,39 @@ const ERRORS=[];let PASS=0;
     await page.evaluate(()=>closeModal());
   });
 
+  say("\n── Scores, toutes campagnes");
+  await step("« Toutes » compile les scores de toutes les campagnes, et le reste",async()=>{
+    const prep=await page.evaluate(()=>{
+      var sq=curSquad();
+      /* Une soumission dans chacune de deux campagnes, sur la même athlète. */
+      var pid=sq.roster[0].playerId,ids=[];
+      if(sq.campaigns.length<2)sq.campaigns.push(mkCampaign({kind:"custom",name:"Journée bis"}));
+      sq.campaigns.slice(0,2).forEach(function(c,i){
+        var sub=integrateSubmission(sq,{type:"wonderstats-submission",id:uid(),viewId:uid(),viewName:"Toutes "+i,
+          selectorName:"Éval "+i,campaignId:c.id,submittedAt:nowISO(),criteria:CRITERIA.map(function(k){return k.key}),
+          entries:[{playerId:pid,number:"",stats:{},ratings:{tech:i?5:1},reco:"select",pos:"",note:""}]});
+        if(sub)ids.push(sub.id);
+      });
+      saveNow();
+      state.tab="season";state.seasonSection="selection";state.selPane="scores";state.evalCampaignId=null;render();
+      return {campagnes:sq.campaigns.length,subs:ids.length};
+    });
+    if(prep.campagnes<2||prep.subs<2)throw new Error("préparation : "+JSON.stringify(prep));
+    await page.waitForTimeout(300);
+    await page.locator(".sub-pills .pill").filter({hasText:/^Toutes$/}).first().click();
+    await page.waitForTimeout(300);
+    const r=await page.evaluate(()=>({choix:state.evalCampaignId,
+      actif:!!Array.prototype.filter.call(document.querySelectorAll(".sub-pills .pill.active"),function(b){return b.textContent==="Toutes"}).length,
+      texte:/Toutes campagnes confondues/.test(document.querySelector("#app").innerText)}));
+    if(r.choix!=="__all")throw new Error("« Toutes » n'est pas retenu : "+r.choix);
+    if(!r.actif)throw new Error("le bouton « Toutes » ne paraît pas actif");
+    if(!r.texte)throw new Error("l'écran ne montre pas la lecture toutes campagnes");
+    /* Et le choix tient au rendu suivant. */
+    await page.evaluate(()=>render());await page.waitForTimeout(200);
+    const encore=await page.evaluate(()=>state.evalCampaignId);
+    if(encore!=="__all")throw new Error("« Toutes » perdu au rendu suivant : "+encore);
+  });
+
   say("\n── Nettoyer la convocation");
   await step("« Nettoyer » retire les non retenues, et elles seules — puis s'annule",async()=>{
     const prep=await page.evaluate(()=>{

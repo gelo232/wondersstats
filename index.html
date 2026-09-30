@@ -1006,7 +1006,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.7.0";
+var APP_VERSION = "7.7.1";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -13896,7 +13896,12 @@ function renderEvalsPane(squad){
     h("div",{style:{marginTop:"4px"}},lienGuide("Comment se calcule le score","formule")));
 
   var withSubs=squad.campaigns.filter(function(c){return campaignSubs(squad,c.id).length});
-  if(state.evalCampaignId&&!campaignById(squad,state.evalCampaignId))state.evalCampaignId=null;
+  /* « Toutes » s'écrit "__all", qui n'est l'identifiant d'aucune
+     campagne : le test ci-dessous l'effaçait, et la ligne suivante le
+     remplaçait aussitôt par la campagne en cours — le bouton ne
+     faisait rien. */
+  if(state.evalCampaignId&&state.evalCampaignId!=="__all"&&
+     !campaignById(squad,state.evalCampaignId))state.evalCampaignId=null;
   if(state.evalCampaignId===null&&withSubs.length)state.evalCampaignId=(curCampaign(squad)&&campaignSubs(squad,curCampaign(squad).id).length)
     ?curCampaign(squad).id:withSubs[withSubs.length-1].id;
 
