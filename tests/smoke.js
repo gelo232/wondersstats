@@ -183,11 +183,12 @@ const ERRORS=[];
       if(!t.includes(marker)) throw new Error("marqueur « "+marker+" » absent");
     });
   }
-  await step("le tableau de bord porte les six parties",async()=>{
+  await step("le tableau de bord porte les six parties, et le suivi de l'effectif",async()=>{
     await page.locator(".tab-btn").filter({hasText:"Saison"}).first().click();
     await page.waitForTimeout(150);
+    /* Six temps du jeu, plus deux tuiles de suivi : physique et maillots. */
     const n=await page.locator(".hubTile").count();
-    if(n!==6)throw new Error("tuiles="+n);
+    if(n!==8)throw new Error("tuiles="+n);
     const t=await txt();
     for(const lbl of ["Sélection","Entraînements","Matchs","Tournois","Objectifs","Récap global"])
       if(!t.includes(lbl))throw new Error("partie absente : "+lbl);

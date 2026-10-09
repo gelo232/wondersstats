@@ -842,6 +842,25 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .hubTile.warn{border-left-color:var(--warn)}
 .hubTile.bad{border-left-color:var(--danger)}
 
+/* ── §20 · suivi de l'effectif : physique et maillots ────────── */
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.phys-tok{gap:0;font-weight:600;color:var(--txt-dim)}
+.phys-tok b{color:var(--txt);font-weight:800}
+.phys-ligne{display:flex;align-items:center;gap:var(--s2);padding:6px 0;border-bottom:1px solid var(--line)}
+.phys-ligne .lead{width:40px;min-height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  background:var(--sunken);border:1.5px solid var(--line-strong);border-radius:var(--r-sm);font-weight:800;color:var(--txt-strong)}
+.phys-ligne .pl-nom{flex:1;min-width:0;font-weight:700;color:var(--txt-strong)}
+.phys-ligne .pl-nom .muted{font-weight:400}
+.modal .phys-ligne input.phys-inp{width:82px;flex-shrink:0;margin:0;text-align:right;font-variant-numeric:tabular-nums;font-weight:800}
+.modal .phys-ligne input.phys-inp.err{border-color:var(--danger)}
+.phys-ligne .pl-unit{width:22px;flex-shrink:0;font-size:var(--fs-2xs)}
+.phys-carte .pc-lbl{font-weight:800;color:var(--txt-strong)}
+.phys-carte .pc-val{font-size:var(--fs-xl);font-weight:800;color:var(--txt-strong);font-variant-numeric:tabular-nums;white-space:nowrap}
+.phys-carte .pc-unit{font-size:var(--fs-xs);font-weight:700;color:var(--txt-dim);margin-left:3px}
+.phys-courbe{display:block;width:100%;height:44px;margin-top:var(--s2)}
+.pc-serie{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:var(--s2);font-size:var(--fs-2xs);color:var(--txt-dim)}
+.pc-serie b{color:var(--txt);font-variant-numeric:tabular-nums}
+
 /* ── §13 · en-tête d'une partie ─────────────────────────────────
    Le retour porte le nom de son parent : on doit savoir où l'on
    retombe avant d'appuyer, pas après. */
@@ -1006,7 +1025,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.7.1";
+var APP_VERSION = "7.8.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -1293,10 +1312,59 @@ var SEASON_SECTIONS=[
   {key:"matches",     label:"Matchs",        icon:"🤝", kinds:["friendly","league"], defaultKind:"friendly"},
   {key:"tournaments", label:"Tournois",      icon:"🎪", kinds:["tournament"]},
   {key:"goals",       label:"Objectifs",     icon:"📈", kinds:null},
-  {key:"recap",       label:"Récap global",  icon:"📊", kinds:EVENT_KEYS.slice()}
+  {key:"recap",       label:"Récap global",  icon:"📊", kinds:EVENT_KEYS.slice()},
+  /* Le suivi de l'effectif : ni du jeu ni de la sélection, mais des
+     choses que la saison porte et rend — les maillots qu'on distribue
+     et qu'on récupère, les mesures physiques qu'on reprend à date.
+     Tuiles à part, sous les six temps du jeu. */
+  {key:"physique",    label:"Physique",      icon:"📏", kinds:null, group:"effectif"},
+  {key:"maillots",    label:"Maillots",      icon:"👕", kinds:null, group:"effectif"}
 ];
 var SECTION_BY_KEY={};SEASON_SECTIONS.forEach(function(s){SECTION_BY_KEY[s.key]=s});
 var SECTION_KEYS=SEASON_SECTIONS.map(function(s){return s.key});
+
+/* ─── Maillots ───────────────────────────────────────────────────────
+   Le jeu de maillots appartient à l'ÉQUIPE DURABLE : il traverse les
+   saisons, et un maillot non rendu en mai l'est encore en septembre.
+   La remise et le retour, eux, sont des actes de la saison (squad). */
+var JERSEY_SIZES=["YS","YM","YL","XS","S","M","L","XL","2XL","3XL"];
+function sizeRank(s){var i=JERSEY_SIZES.indexOf(s);return i===-1?99:i}
+/* L'état d'un maillot est un jugement (bon / usé / perdu) : il prend
+   les teintes chaudes. « Retiré » n'en est pas un — gris. */
+var JERSEY_STATES={
+  ok:{key:"ok",label:"Bon état",short:"Bon",icon:"✓",color:"#34D399"},
+  worn:{key:"worn",label:"Usé",short:"Usé",icon:"〰",color:"#FBBF24"},
+  lost:{key:"lost",label:"Perdu",short:"Perdu",icon:"✖",color:"#F87171"},
+  retired:{key:"retired",label:"Retiré",short:"Retiré",icon:"📦",color:"#94A3B8"}
+};
+var JERSEY_STATE_KEYS=["ok","worn","lost","retired"];
+
+/* ─── Suivi physique ─────────────────────────────────────────────────
+   Les tests qu'un club de volley reprend d'une séance à l'autre. Tous
+   en centimètres, tous « plus haut = mieux ». Un club en ajoute
+   d'autres (sprint, envergure…) dans ⚙️ Réglages → 📏 Tests physiques. */
+var PHYS_TESTS=[
+  {key:"height",label:"Taille",short:"Taille",unit:"cm",better:"high",desc:"Debout, pieds nus, dos au mur."},
+  {key:"standReach",label:"Atteinte debout",short:"Atteinte",unit:"cm",better:"high",desc:"Bras tendu au-dessus de la tête, pieds à plat."},
+  {key:"blockReach",label:"Reach bloc",short:"R. bloc",unit:"cm",better:"high",desc:"Saut à deux pieds sans élan, deux mains tendues — la hauteur atteinte."},
+  {key:"spikeReach",label:"Reach attaque",short:"R. attaque",unit:"cm",better:"high",desc:"Avec l'élan d'attaque, une main — la hauteur atteinte."},
+  {key:"vertJump",label:"Saut vertical",short:"Saut",unit:"cm",better:"high",desc:"Détente sans élan (contre-mouvement), mesurée au tapis ou à la toise."},
+  {key:"wingspan",label:"Envergure",short:"Envergure",unit:"cm",better:"high",desc:"Bras écartés à l'horizontale, d'un majeur à l'autre."}
+];
+var PHYS_DEFAULT=["height","standReach","blockReach","spikeReach","vertJump"];
+/* Ce qui se calcule et ne se saisit pas : la détente, c'est le reach
+   moins l'atteinte debout. Elle ne se calcule qu'avec une atteinte prise
+   le même jour ou peu avant — une atteinte de l'an passé, chez une
+   athlète de quatorze ans qui a grandi, gonflerait la détente. */
+var PHYS_DERIVED=[
+  {key:"blockJump",label:"Détente au bloc",short:"Dét. bloc",unit:"cm",better:"high",derived:true,from:["blockReach","standReach"]},
+  {key:"spikeJump",label:"Détente en attaque",short:"Dét. attaque",unit:"cm",better:"high",derived:true,from:["spikeReach","standReach"]}
+];
+var PHYS_REACH_JOURS=60;
+/* L'ordre dans lequel une ligne d'athlète montre ses mesures. */
+var PHYS_PRIORITE=["spikeReach","blockReach","vertJump","spikeJump","blockJump","height","standReach","wingspan"];
+var PHYS_BY_KEY={};
+PHYS_TESTS.concat(PHYS_DERIVED).forEach(function(t){PHYS_BY_KEY[t.key]=t});
 
 /* ─── Objectifs ──────────────────────────────────────────────────────
    Un objectif est une décision de l'entraîneur, jamais un effet de bord.
@@ -1330,7 +1398,8 @@ var LOG_KINDS={
   match:{icon:"🏐",label:"Rencontres",color:"#38BDF8"},
   season:{icon:"🗓️",label:"Saisons",color:"#94A3B8"},
   access:{icon:"🔑",label:"Accès",color:"#FBBF24"},
-  scoring:{icon:"🎚️",label:"Formule",color:"#A78BFA"}
+  scoring:{icon:"🎚️",label:"Formule",color:"#A78BFA"},
+  equip:{icon:"👕",label:"Maillots",color:"#FDBA74"}
 };
 var LOG_MAX=500;
 
@@ -1469,8 +1538,11 @@ function isLand(){return window.innerWidth>window.innerHeight}
 
 /* ─── Fabriques ─────────────────────────────────────────────── */
 function mkDbPlayer(o){
+  /* `jerseySize` : la taille de maillot que porte l'athlète aujourd'hui.
+     Elle change d'une saison à l'autre chez une jeune ; c'est la valeur
+     du moment, pas un historique. */
   return Object.assign({id:uid(),firstName:"",lastName:"",birthYear:"",birthDate:"",
-    notes:"",archived:false,createdAt:nowISO()},o||{});
+    jerseySize:"",notes:"",archived:false,createdAt:nowISO()},o||{});
 }
 /* Une ligne d'ajout en lot : « Prénom Nom [naissance] [dossard] ».
 
@@ -1523,7 +1595,27 @@ function mkClubAssignment(personId,clubId,role,grant){
    entraîneur la suit. */
 function mkTeamRecord(o){
   return Object.assign({id:uid(),clubId:"",name:"Équipe",category:"",freeView:false,
-    archived:false,createdAt:nowISO()},o||{});
+    archived:false,createdAt:nowISO(),
+    jerseys:[]},o||{});          /* le jeu de maillots — voir mkJersey */
+}
+/* Un maillot du jeu de l'équipe. `set` distingue les jeux quand il y en
+   a plusieurs (domicile, extérieur, libéro) ; vide pour un jeu unique. */
+function mkJersey(o){
+  return Object.assign({id:uid(),number:"",size:"",set:"",state:"ok",note:"",
+    createdAt:nowISO()},o||{});
+}
+/* La remise d'un maillot à une athlète, pour une saison. Elle se ferme
+   par un retour — `outcome` dit dans quel état — ou par une perte.
+   Un prêt ouvert (`returnedAt` nul) est un maillot qui n'est pas au club. */
+function mkJerseyLoan(o){
+  return Object.assign({id:uid(),jerseyId:"",playerId:"",givenAt:todayISO(),
+    returnedAt:null,outcome:"",note:""},o||{});
+}
+/* Une séance de tests physiques : une date, et pour chaque athlète
+   mesurée, ses valeurs par test. Une case vide n'est pas un zéro : le
+   test n'a pas été passé. */
+function mkPhysSession(o){
+  return Object.assign({id:uid(),date:todayISO(),note:"",values:{},createdAt:nowISO()},o||{});
 }
 function mkAssignment(personId,teamId,role){
   return {id:uid(),personId:personId,teamId:teamId,role:ROLES[role]?role:"selector",createdAt:nowISO()};
@@ -1640,7 +1732,10 @@ function mkSquad(teamId,seasonId,name){
           campaigns:[c],activeCampaignId:c.id,
           selectorViews:[],submissions:[],
           /* v7 — convocation par campagne, offres, objectifs, bornes de set */
-          campaignRoster:[],offers:[],goals:[],setMarks:[],schemaAt:""};
+          campaignRoster:[],offers:[],goals:[],setMarks:[],schemaAt:"",
+          /* Suivi de l'effectif — remises de maillots, tests physiques,
+             et les tests suivis (null : ceux par défaut). */
+          jerseyLoans:[],physSessions:[],physConfig:null};
 }
 function mkSeason(name){
   return {id:uid(),name:name||("Saison "+new Date().getFullYear()),createdAt:nowISO(),
@@ -2146,6 +2241,9 @@ function ensureSquad(teamId,seasonId){
   sq.category=t.category;sq.freeView=!!t.freeView;
   var prec=dernierSquadDe(teamId,seasonId);
   if(prec&&prec.scoring)sq.scoring=clone(prec.scoring);
+  /* Les tests suivis aussi : une saison qui repartirait d'autres tests
+     ne se comparerait plus à la précédente. */
+  if(prec&&prec.physConfig)sq.physConfig=clone(prec.physConfig);
   DB.squads.push(sq);
   return sq;
 }
@@ -3787,6 +3885,32 @@ function normalizeSquad(sq,knownPlayers){
     c.playerGroups=normPlayerGroups(c.playerGroups,effectifDesVagues(sq,c.id));
   });
 
+  /* Suivi de l'effectif. Une mesure est un fait : elle survit au départ
+     de l'athlète de la convocation, et ne tombe qu'avec sa fiche. Les
+     remises de maillots se normalisent dans normalizeDB, qui seul
+     connaît le jeu de l'équipe. */
+  /* Une séance ouverte puis refermée sans mesure ne survit pas au
+     rechargement : elle ne dit rien. */
+  sq.physSessions=(Array.isArray(sq.physSessions)?sq.physSessions:[]).filter(function(se){
+      return se&&typeof se==="object"&&se.values&&Object.keys(se.values).length})
+    .map(function(se){
+      var vals={};
+      Object.keys(se.values||{}).forEach(function(pid){
+        if(!knownPlayers[pid])return;
+        var src=se.values[pid]||{},o={},n=0;
+        Object.keys(src).forEach(function(k){
+          var v=src[k];
+          if(typeof v!=="number"||!isFinite(v)||v<=0||v>=1000)return;
+          o[k]=Math.round(v*10)/10;n++;
+        });
+        if(n)vals[pid]=o;
+      });
+      return Object.assign(mkPhysSession(),se,{date:dayOf(se.date)||todayISO(),
+        note:String(se.note||""),values:vals});
+    });
+  sq.physConfig=sq.physConfig?physConfigOf(sq):null;
+  if(!Array.isArray(sq.jerseyLoans))sq.jerseyLoans=[];
+
   migrateSquadV6(sq);
   return sq;
 }
@@ -3982,7 +4106,8 @@ function normalizeDB(db){
     return q;
   });
   db.players=(db.players||[]).map(function(p){
-    var q=Object.assign(mkDbPlayer(),p,{archived:!!p.archived});
+    var q=Object.assign(mkDbPlayer(),p,{archived:!!p.archived,
+      jerseySize:String(p.jerseySize||"").trim().toUpperCase().slice(0,6)});
     /* Une base d'avant la date complète ne porte que l'année : elle la
        garde. Une date reçue d'ailleurs redonne son année, pour que le
        dédoublonnage continue de s'y appuyer. */
@@ -3991,7 +4116,8 @@ function normalizeDB(db){
     else {q.birthDate="";q.birthYear=cleanNum(q.birthYear).slice(0,4)}
     return q;
   });
-  db.teams=(db.teams||[]).map(function(t){return Object.assign(mkTeamRecord(),t,{freeView:!!t.freeView,archived:!!t.archived})});
+  db.teams=(db.teams||[]).map(function(t){return Object.assign(mkTeamRecord(),t,{freeView:!!t.freeView,archived:!!t.archived,
+    jerseys:normJerseys(t.jerseys)})});
   db.seasons=(db.seasons||[]).map(function(s){
     return Object.assign({id:uid(),name:"Saison",createdAt:nowISO(),startDate:"",endDate:"",
       notes:"",closedAt:null,archived:false},s);
@@ -4057,6 +4183,16 @@ function normalizeDB(db){
     var t=knownTeams[out.teamId];
     /* Copies rafraîchies depuis l'équipe durable — jamais la source. */
     out.name=t.name;out.category=t.category;out.freeView=!!t.freeView;
+    /* Une remise désigne un maillot du jeu de SON équipe et une fiche
+       existante : c'est une arête, elle tombe avec l'une ou l'autre. */
+    var jIds={};(t.jerseys||[]).forEach(function(j){jIds[j.id]=true});
+    out.jerseyLoans=out.jerseyLoans.filter(function(l){
+      return l&&jIds[l.jerseyId]&&knownPlayers[l.playerId];
+    }).map(function(l){
+      var r=l.returnedAt?(dayOf(l.returnedAt)||todayISO()):null;
+      return Object.assign(mkJerseyLoan(),l,{givenAt:dayOf(l.givenAt)||todayISO(),returnedAt:r,
+        outcome:r?(JERSEY_STATES[l.outcome]?l.outcome:"ok"):""});
+    });
     return out;
   });
 
@@ -5748,6 +5884,7 @@ function mergeDB(inc){
          que la nôtre n'a jamais eu. Jamais d'écrasement : le
          dédoublonnage s'est fait sur l'année, les deux s'accordent. */
       if(!ex.birthDate&&p.birthDate)ex.birthDate=p.birthDate;
+      if(!ex.jerseySize&&p.jerseySize)ex.jerseySize=p.jerseySize;
       remap[p.id]=ex.id;return;
     }
     DB.players.push(p);byId[p.id]=p;byName[nameKey(p)]=p;remap[p.id]=p.id;
@@ -5770,15 +5907,33 @@ function mergeDB(inc){
 
   var teamRemap={},teamById_={},teamByName={};
   DB.teams.forEach(function(t){teamById_[t.id]=t;teamByName[(t.name||"").toLowerCase()]=t});
+  /* Le jeu de maillots vit sur l'équipe durable. Une équipe déjà connue
+     ici n'était pas réécrite — c'est voulu —, mais son jeu ne doit pas
+     se perdre pour autant : on y verse les maillots qu'elle n'a pas,
+     reconnus par identifiant, sinon par (jeu, numéro, taille). Les
+     remises suivent ce remappage plus bas. */
+  var jerseyRemap={};
+  function fusionnerMaillots(dst,src){
+    if(dst===src)return;
+    if(!Array.isArray(dst.jerseys))dst.jerseys=[];
+    var parId={},parCle={};
+    function cle(j){return (j.set||"")+"|"+(j.number||"")+"|"+(j.size||"")}
+    dst.jerseys.forEach(function(j){parId[j.id]=j;parCle[cle(j)]=j});
+    (src.jerseys||[]).forEach(function(j){
+      if(parId[j.id]){jerseyRemap[j.id]=j.id;return}
+      if(parCle[cle(j)]){jerseyRemap[j.id]=parCle[cle(j)].id;return}
+      dst.jerseys.push(j);parId[j.id]=j;parCle[cle(j)]=j;jerseyRemap[j.id]=j.id;
+    });
+  }
   inc.teams.forEach(function(t){
     /* Rattacher AVANT de dédoublonner : une équipe importée doit porter
        un club d'ici, faute de quoi elle sera filtrée. Sans club connu,
        elle rejoint le premier — mieux vaut mal rangée que disparue. */
     t.clubId=t.clubId?rc(t.clubId):"";
     if(!clubsConnus[t.clubId])t.clubId=(DB.clubs[0]&&DB.clubs[0].id)||"";
-    if(teamById_[t.id]){teamRemap[t.id]=t.id;return}
+    if(teamById_[t.id]){teamRemap[t.id]=t.id;fusionnerMaillots(teamById_[t.id],t);return}
     var ex=teamByName[(t.name||"").toLowerCase()];
-    if(ex){teamRemap[t.id]=ex.id;return}
+    if(ex){teamRemap[t.id]=ex.id;fusionnerMaillots(ex,t);return}
     DB.teams.push(t);teamById_[t.id]=t;teamByName[(t.name||"").toLowerCase()]=t;teamRemap[t.id]=t.id;
   });
   function rt(id){return teamRemap[id]||id}
@@ -5866,6 +6021,14 @@ function mergeDB(inc){
     });
     (sq.selectorViews||[]).forEach(function(v){
       (v.playerGroups||[]).forEach(function(g){g.playerIds=(g.playerIds||[]).map(rp)});
+    });
+    /* Suivi de l'effectif : les remises désignent une athlète et un
+       maillot, les mesures sont rangées par athlète. */
+    (sq.jerseyLoans||[]).forEach(function(l){
+      l.playerId=rp(l.playerId);l.jerseyId=jerseyRemap[l.jerseyId]||l.jerseyId;
+    });
+    (sq.physSessions||[]).forEach(function(se){
+      var o={};Object.keys(se.values||{}).forEach(function(pid){o[rp(pid)]=se.values[pid]});se.values=o;
     });
     /* Un squad déjà présent pour ce couple équipe × saison n'est pas
        écrasé — mais on le DIT. Le taire laissait croire à un import
@@ -8226,6 +8389,22 @@ function sectionSummary(sq,k){
     return {val:atteints+"/"+actifs,sub:recul?plural(recul,"régression"):"objectifs atteints",
             tone:recul?"warn":"ok"};
   }
+  if(k==="physique"){
+    var ss=physSessionsTriees(sq);
+    if(!physConfigOf(sq).tests.length)return {val:"—",sub:"tests à choisir",tone:"warn"};
+    if(!ss.length)return {val:"—",sub:"aucune séance de tests",tone:""};
+    return {val:String(ss.length),sub:"dernière : "+fmtShortDay(ss[0].date),tone:""};
+  }
+  if(k==="maillots"){
+    if(!jerseysOf(equipeDe(sq)).length)return {val:"—",sub:"inventaire à créer",tone:""};
+    var m=situationMaillots(sq);
+    if(m.aRecup)return {val:String(m.aRecup),sub:plural(m.aRecup,"maillot")+" à récupérer",tone:"warn"};
+    /* En fin de saison, une équipe sans maillot est une équipe qui a
+       tout rendu : c'est ce qu'on voulait. */
+    if(m.fin&&(sq.jerseyLoans||[]).length)return {val:"✓",sub:"tous les maillots rendus",tone:"ok"};
+    if(m.sans)return {val:String(m.sans),sub:plural(m.sans,"athlète")+" sans maillot",tone:"warn"};
+    return {val:m.equipees+"/"+m.equipe,sub:"maillots remis",tone:m.equipe?"ok":""};
+  }
   if(k==="recap"){
     n=(sq.playerIds||[]).length;
     var joues=(sq.sessions||[]).length;
@@ -8252,19 +8431,25 @@ function renderSeasonHub(sq){
   wrap.appendChild(h("div",{className:"hint"},
     "La saison se lit en six temps. Chaque tuile porte ce qui vous attend de son côté — ",
     "ouvrez celle qui a quelque chose à dire."));
-  var grille=h("div",{className:"hubGrid"});
-  SEASON_SECTIONS.forEach(function(s){
-    var r=sectionSummary(sq,s.key);
-    var tuile=h("button",{className:"hubTile"+(r.tone?" "+r.tone:""),type:"button",
-      "aria-label":s.label+" — "+r.val+" "+(r.sub||""),
-      onclick:function(){navToSection(s.key)}},
-      h("span",{className:"ht-ico","aria-hidden":"true"},s.icon),
-      h("span",{className:"ht-lbl"},s.label),
-      h("span",{className:"ht-val"},r.val),
-      h("span",{className:"ht-sub"},r.sub||""));
-    grille.appendChild(tuile);
-  });
-  wrap.appendChild(grille);
+  function grille(sections){
+    var g=h("div",{className:"hubGrid"});
+    sections.forEach(function(s){
+      var r=sectionSummary(sq,s.key);
+      g.appendChild(h("button",{className:"hubTile"+(r.tone?" "+r.tone:""),type:"button",
+        "aria-label":s.label+" — "+r.val+" "+(r.sub||""),
+        onclick:function(){navToSection(s.key)}},
+        h("span",{className:"ht-ico","aria-hidden":"true"},s.icon),
+        h("span",{className:"ht-lbl"},s.label),
+        h("span",{className:"ht-val"},r.val),
+        h("span",{className:"ht-sub"},r.sub||"")));
+    });
+    return g;
+  }
+  wrap.appendChild(grille(SEASON_SECTIONS.filter(function(s){return !s.group})));
+  /* Le suivi de l'effectif, à part : ce n'est pas du jeu, et le mêler
+     aux six temps ferait croire que les maillots se comptent au bilan. */
+  wrap.appendChild(h("div",{className:"section-title"},"Suivi de l'effectif"));
+  wrap.appendChild(grille(SEASON_SECTIONS.filter(function(s){return s.group==="effectif"})));
   return wrap;
 }
 
@@ -11034,13 +11219,1305 @@ function renderRecapAthleteModal(){
 defModal("recapathlete",renderRecapAthleteModal,{autofocus:false});
 /* ══ fin §19 ══════════════════════════════════════════════════ */
 
+/* ══ §20 SUIVI DE L'EFFECTIF — PHYSIQUE ET MAILLOTS ════════════════
+   Deux choses que la saison porte sans qu'elles soient du jeu.
+
+   · Les MAILLOTS. Le jeu appartient à l'équipe durable (team.jerseys) :
+     il se décrit une fois, dans ⚙️ Réglages → 👕 Maillots, et la suit
+     d'une saison à l'autre. La remise et le retour sont des actes de la
+     saison (sq.jerseyLoans), faits dans 🗓️ Saison → 👕 Maillots. Un
+     maillot est « dehors » tant qu'un prêt reste ouvert, dans N'IMPORTE
+     QUELLE saison de l'équipe : celui qu'on n'a pas rendu en mai ne se
+     redistribue pas en septembre sans qu'on l'ait récupéré.
+
+   · Le PHYSIQUE. Une séance de tests est datée et rangée dans la saison
+     (sq.physSessions) ; la progression se lit d'une séance à l'autre,
+     et d'une saison à l'autre — l'athlète grandit, son reach aussi. Les
+     tests suivis se règlent dans ⚙️ Réglages → 📏 Tests physiques.
+
+   La taille de maillot est une donnée de la fiche (Athlètes → fiche),
+   parce qu'elle appartient à l'athlète et non à la saison.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Mesures : lire, écrire ─────────────────────────────────── */
+/* « 45,5 » comme « 45.5 ». null : rien de saisi ; NaN : illisible. */
+function lireMesure(v){
+  var t=String(v==null?"":v).trim().replace(",",".");
+  if(!t)return null;
+  if(!/^\d+(\.\d+)?$/.test(t))return NaN;
+  var n=parseFloat(t);
+  if(!isFinite(n)||n<=0||n>=1000)return NaN;
+  return Math.round(n*10)/10;
+}
+function fmtMesure(v){return v==null?"—":String(v).replace(".",",")}
+function fmtEcartMesure(d){
+  if(d==null)return "";
+  var r=Math.round(d*10)/10;
+  return (r>0?"+":(r<0?"−":"±"))+String(Math.abs(r)).replace(".",",");
+}
+function joursEntre(a,b){
+  var x=new Date(a+"T12:00:00"),y=new Date(b+"T12:00:00");
+  if(isNaN(x.getTime())||isNaN(y.getTime()))return Infinity;
+  return Math.round(Math.abs(y-x)/86400000);
+}
+
+/* ── Tests suivis ───────────────────────────────────────────── */
+function mkPhysConfig(){return {tests:PHYS_DEFAULT.slice(),custom:[]}}
+function normPhysCustom(list){
+  var vus={},out=[];
+  (Array.isArray(list)?list:[]).forEach(function(x){
+    if(!x||!x.key||!String(x.label||"").trim()||vus[x.key]||PHYS_BY_KEY[x.key])return;
+    vus[x.key]=true;
+    out.push({key:String(x.key),label:String(x.label).trim().slice(0,40),
+      unit:String(x.unit||"").trim().slice(0,8),better:x.better==="low"?"low":"high"});
+  });
+  return out;
+}
+function physConfigOf(sq){
+  var c=sq&&sq.physConfig;
+  if(!c)return mkPhysConfig();
+  var custom=normPhysCustom(c.custom),connus={},vus={};
+  PHYS_TESTS.forEach(function(t){connus[t.key]=true});
+  custom.forEach(function(t){connus[t.key]=true});
+  var tests=(Array.isArray(c.tests)?c.tests:[]).filter(function(k){
+    if(!connus[k]||vus[k])return false;
+    vus[k]=true;return true;
+  });
+  return {tests:tests,custom:custom};
+}
+/* La définition d'un test : intégré, calculé, ou propre au club — un
+   test retiré du réglage garde son nom tant qu'une saison le porte. */
+function physDef(key,sq){
+  if(PHYS_BY_KEY[key])return PHYS_BY_KEY[key];
+  var trouve=null;
+  [sq].concat(DB.squads).some(function(s){
+    if(!s||!s.physConfig)return false;
+    (s.physConfig.custom||[]).some(function(c){if(c.key===key){trouve=c;return true}return false});
+    return !!trouve;
+  });
+  return trouve||{key:key,label:"Test retiré",short:"Retiré",unit:"",better:"high"};
+}
+function physShort(t){return t.short||t.label}
+function physTracked(sq){
+  return physConfigOf(sq).tests.map(function(k){return physDef(k,sq)});
+}
+/* Les mesures calculées qui ont un sens avec les tests suivis. */
+function physDerivedFor(tests){
+  var on={};tests.forEach(function(t){on[t.key]=true});
+  return PHYS_DERIVED.filter(function(d){return on[d.from[0]]&&on[d.from[1]]});
+}
+
+/* ── Mesures d'une athlète ──────────────────────────────────── */
+/* Les saisons dont on peut lire les mesures : celles des équipes que
+   l'on entraîne, ou que l'on administre — la même frontière que les
+   statistiques. La saison courante en fait toujours partie. */
+function physSquadsVisibles(){
+  var cur=curSquad();
+  return DB.squads.filter(function(s){
+    if(s===cur)return true;
+    var t=teamById(s.teamId);
+    return canCoach(s.teamId)||(t&&isAdminOf(t.clubId));
+  });
+}
+/* Toutes les mesures d'une athlète, de la plus ancienne à la plus
+   récente, détentes calculées comprises. */
+function physReleves(pid,squads){
+  var out=[];
+  (squads||physSquadsVisibles()).forEach(function(s){
+    (s.physSessions||[]).forEach(function(se){
+      var v=se.values&&se.values[pid];
+      if(!v||!Object.keys(v).length)return;
+      out.push({date:se.date,sq:s,session:se,values:v,derived:{}});
+    });
+  });
+  out.sort(function(a,b){
+    return String(a.date).localeCompare(String(b.date))||
+           String(a.session.createdAt).localeCompare(String(b.session.createdAt));
+  });
+  out.forEach(function(r,i){
+    PHYS_DERIVED.forEach(function(d){
+      var haut=r.values[d.from[0]];if(haut==null)return;
+      var base=r.values[d.from[1]];
+      for(var j=i-1;base==null&&j>=0;j--){
+        var w=out[j].values[d.from[1]];
+        if(w==null)continue;
+        if(joursEntre(out[j].date,r.date)<=PHYS_REACH_JOURS)base=w;
+        break;
+      }
+      if(base==null)return;
+      r.derived[d.key]=Math.round((haut-base)*10)/10;
+    });
+  });
+  return out;
+}
+function physValeur(r,key){
+  if(r.values[key]!=null)return r.values[key];
+  return (r.derived&&r.derived[key]!=null)?r.derived[key]:null;
+}
+/* Le résumé d'un test : dernière valeur, première, précédente. */
+function physResume(releves,key){
+  var serie=[];
+  releves.forEach(function(r){var v=physValeur(r,key);if(v!=null)serie.push({date:r.date,v:v,sq:r.sq})});
+  if(!serie.length)return null;
+  var der=serie[serie.length-1],prem=serie[0],prec=serie.length>1?serie[serie.length-2]:null;
+  return {serie:serie,last:der.v,lastAt:der.date,first:prem.v,firstAt:prem.date,
+    depuis:serie.length>1?der.v-prem.v:null,dernier:prec?der.v-prec.v:null};
+}
+/* Une variation se lit d'après le sens du test : dix centièmes de plus
+   au sprint, c'est un recul. */
+function physTone(def,d){
+  if(d==null||Math.abs(d)<0.05)return "flat";
+  var bien=(def.better==="low")?d<0:d>0;
+  return bien?"up":"down";
+}
+var PHYS_TONE_COLOR={up:"var(--ok)",down:"var(--warn)",flat:"var(--txt-dim)"};
+var PHYS_TONE_FLECHE={up:"↗",down:"↘",flat:"→"};
+
+/* La courbe d'un test, en trait. Aucune couleur ne porte seule
+   l'information : la valeur et l'écart sont écrits à côté. */
+function physCourbe(serie,def){
+  if(!serie||serie.length<2)return null;
+  var W=240,H=44,P=5;
+  var vs=serie.map(function(x){return x.v});
+  var min=Math.min.apply(null,vs),max=Math.max.apply(null,vs);
+  if(max-min<1){min-=1;max+=1}
+  var pts=serie.map(function(x,i){
+    var px=P+(W-2*P)*(serie.length===1?0.5:i/(serie.length-1));
+    var py=H-P-(H-2*P)*((x.v-min)/(max-min));
+    return [Math.round(px*10)/10,Math.round(py*10)/10];
+  });
+  var ns="http://www.w3.org/2000/svg";
+  var svg=document.createElementNS(ns,"svg");
+  svg.setAttribute("viewBox","0 0 "+W+" "+H);
+  svg.setAttribute("class","phys-courbe");
+  svg.setAttribute("role","img");
+  svg.setAttribute("aria-label",def.label+" : de "+fmtMesure(vs[0])+" à "+fmtMesure(vs[vs.length-1])+" "+(def.unit||""));
+  var pl=document.createElementNS(ns,"polyline");
+  pl.setAttribute("points",pts.map(function(p){return p.join(",")}).join(" "));
+  pl.setAttribute("fill","none");pl.setAttribute("stroke","currentColor");
+  pl.setAttribute("stroke-width","2");pl.setAttribute("stroke-linejoin","round");pl.setAttribute("stroke-linecap","round");
+  svg.appendChild(pl);
+  pts.forEach(function(p,i){
+    var c=document.createElementNS(ns,"circle");
+    c.setAttribute("cx",p[0]);c.setAttribute("cy",p[1]);
+    c.setAttribute("r",i===pts.length-1?"3.5":"2.5");c.setAttribute("fill","currentColor");
+    svg.appendChild(c);
+  });
+  return svg;
+}
+
+/* ══ PARTIE PHYSIQUE ══════════════════════════════════════════ */
+function physSessionsTriees(sq){
+  return (sq.physSessions||[]).slice().sort(function(a,b){
+    return String(b.date).localeCompare(String(a.date))||String(b.createdAt).localeCompare(String(a.createdAt));
+  });
+}
+function physSessionById(sq,id){
+  var s=null;(sq&&sq.physSessions||[]).forEach(function(x){if(x.id===id)s=x});return s;
+}
+function physNbMesurees(se){
+  return Object.keys(se.values||{}).filter(function(pid){return Object.keys(se.values[pid]||{}).length}).length;
+}
+function physTestsDeSeance(se,sq){
+  var vus={},out=[];
+  Object.keys(se.values||{}).forEach(function(pid){
+    Object.keys(se.values[pid]||{}).forEach(function(k){if(!vus[k]){vus[k]=true;out.push(physDef(k,sq))}});
+  });
+  return out;
+}
+function nouvelleSeanceTests(sq){
+  if(!sq||seasonClosed(sq))return;
+  pushUndoSquad("Séance de tests créée",sq);
+  var se=mkPhysSession();
+  sq.physSessions.push(se);
+  state.physTest=null;
+  scheduleAutoSave();
+  openModal("physsession",se.id);
+}
+/* L'effectif d'une séance : l'équipe, par numéro, puis celles qui ont
+   été mesurées et l'ont quittée depuis — leur mesure reste à elles. */
+function physEffectif(sq,se){
+  var ids=trierParNumero(sq,(sq.playerIds||[]).filter(function(pid){return playerById(pid)}));
+  if(se)Object.keys(se.values||{}).forEach(function(pid){
+    if(ids.indexOf(pid)===-1&&playerById(pid))ids.push(pid);
+  });
+  return ids;
+}
+
+function renderPartPhysique(sq){
+  var sujet=state.physSujet==="sessions"?"sessions":"players";
+  var ferme=seasonClosed(sq);
+  var seances=physSessionsTriees(sq);
+  var tests=physTracked(sq);
+  var calc=physDerivedFor(tests);
+  var tete=partHeader("Physique",
+    seances.length?(plural(seances.length,"séance")+" de tests · dernière le "+fmtShortDay(seances[0].date))
+                  :"aucune séance de tests",
+    ferme?null:h("button",{className:"btn btn-primary xs",type:"button",
+      onclick:function(){nouvelleSeanceTests(sq)}},"+ Séance"));
+  var barres=h("div",{className:"pill-row tight"},
+    segmented({label:"Lecture",value:sujet,
+      options:[{k:"players",l:"👥 Les athlètes"},{k:"sessions",l:"📋 Les séances"}],
+      onpick:function(v){state.physSujet=v;render()}}));
+  var corps=h("div",null);
+
+  if(!tests.length)corps.appendChild(h("div",{className:"hint warn"},
+    "Aucun test n'est suivi. Choisissez-les dans ⚙️ Réglages → 📏 Tests physiques. ",
+    h("button",{className:"btn btn-ghost xs",type:"button",style:{marginTop:"6px"},
+      onclick:function(){allerReglages("physique")}},"Choisir les tests")));
+
+  if(sujet==="sessions"){
+    if(!seances.length)corps.appendChild(emptyState({icon:"📏",title:"Aucune séance de tests",
+      sub:"Une séance de tests se fait en stations : tout le monde passe au saut, puis au reach. "+
+          "La saisie suit le même ordre, un test à la fois.",
+      action:ferme?null:h("button",{className:"btn btn-primary",type:"button",
+        onclick:function(){nouvelleSeanceTests(sq)}},"+ Nouvelle séance de tests")}));
+    seances.forEach(function(se){
+      var n=physNbMesurees(se),ts=physTestsDeSeance(se,sq);
+      corps.appendChild(h("button",{className:"navRow",type:"button",
+        "aria-label":"Séance du "+fmtDay(se.date)+", "+plural(n,"athlète")+" mesurée"+(n>1?"s":""),
+        onclick:function(){state.physTest=null;openModal("physsession",se.id)}},
+        h("span",{className:"nr-ico","aria-hidden":"true"},"📏"),
+        h("span",{className:"nr-body"},
+          h("span",{className:"nr-ttl"},fmtDay(se.date)),
+          h("span",{className:"nr-sub"},
+            plural(n,"athlète")+" mesurée"+(n>1?"s":"")+
+            (ts.length?" · "+ts.map(physShort).join(", "):"")+
+            (se.note?" · "+se.note:""))),
+        h("span",{className:"nr-arw","aria-hidden":"true"},"›")));
+    });
+    return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
+      tete,barres,h("div",{className:"content pad","data-scroll-key":"part-physique-seances"},corps));
+  }
+
+  var equipe=physEffectif(sq,null);
+  if(!equipe.length){
+    corps.appendChild(emptyState({icon:"📏",title:"Aucune athlète dans l'équipe",
+      sub:"Les mesures se prennent sur l'équipe constituée. Confirmez les offres dans la partie Sélection."}));
+  } else {
+    var colonnes=tests.concat(calc);
+    var items=equipe.map(function(pid){
+      var rel=physReleves(pid);
+      var res={};colonnes.forEach(function(t){res[t.key]=physResume(rel,t.key)});
+      return {pid:pid,player:playerById(pid),entry:rosterEntry(sq,pid),rel:rel,res:res};
+    });
+    if(!seances.length)corps.appendChild(h("div",{className:"hint"},
+      "La progression se lit d'une séance de tests à l'autre — et d'une saison à l'autre. "+
+      "Commencez par une séance : ",h("b",null,"+ Séance"),", en haut."));
+    var tri=listState("phys-players").sort;
+    var tb=listToolbar({
+      key:"phys-players",items:items,minSort:2,defaultSort:"number",
+      search:{of:function(x){return fullName(x.player)+" "+((x.entry&&x.entry.number)||"")},
+              placeholder:"Nom ou dossard"},
+      sorts:[
+        {key:"number",label:"Numéro",get:function(x){
+          var n=parseInt((x.entry&&x.entry.number)||"",10);return isFinite(n)?n:null}},
+        {key:"name",label:"Nom",get:function(x){return fullName(x.player)}}
+      ].concat(colonnes.map(function(t){
+        return {key:"t_"+t.key,label:physShort(t),dir:t.better==="low"?"asc":"desc",
+          get:function(x){var r=x.res[t.key];return r?r.last:null}};
+      })),
+      filters:[{key:"mesure",label:"Mesures",get:function(x){return x.rel.length?"oui":"non"},
+        options:[{k:"oui",l:"Déjà mesurée"},{k:"non",l:"Jamais mesurée"}]}],
+      rows:function(res){
+        /* Le test qui ordonne la liste passe en tête de ligne : trier par
+           saut et lire le reach, c'est chercher sa valeur à chaque ligne. */
+        var tete=null;
+        colonnes.forEach(function(t){if(tri==="t_"+t.key)tete=t});
+        /* Sans tri par un test, ce qui dit le plus d'une joueuse de volley
+           passe d'abord : les reach, puis le saut — la taille et
+           l'atteinte debout ne servent qu'à les lire. */
+        var rang=function(t){var i=PHYS_PRIORITE.indexOf(t.key);return i===-1?50:i};
+        var montres=(tete?[tete]:[]).concat(colonnes.filter(function(t){return t!==tete})
+          .sort(function(a,b){return rang(a)-rang(b)}));
+        return res.map(function(x){
+          var meta=[];
+          montres.forEach(function(t){
+            var r=x.res[t.key];if(!r||meta.length>=2)return;
+            var ton=physTone(t,r.depuis);
+            meta.push(h("span",{className:"tok tok-dot phys-tok"},
+              h("b",null,physShort(t)+" "+fmtMesure(r.last)),
+              r.depuis!=null?h("span",{style:{color:PHYS_TONE_COLOR[ton]}},
+                " "+PHYS_TONE_FLECHE[ton]+fmtEcartMesure(r.depuis)):null));
+          });
+          if(!meta.length)meta.push(h("span",{className:"muted"},"Jamais mesurée"));
+          return listRow({lead:(x.entry&&x.entry.number)||"—",name:fullName(x.player),meta:meta,
+            trail:kpiInline(String(x.rel.length),x.rel.length>1?"séances":"séance"),
+            ariaLabel:"Évolution physique de "+fullName(x.player),
+            onclick:function(){openModal("physathlete",x.pid)}});
+        });
+      }
+    });
+    corps.appendChild(tb);corps.appendChild(tb.list);
+    if(calc.length)corps.appendChild(h("div",{className:"muted",style:{marginTop:"10px",lineHeight:"1.5"}},
+      "La détente se calcule seule : reach moins atteinte debout, prise le même jour "+
+      "ou moins de "+PHYS_REACH_JOURS+" jours avant. ↗ ↘ : écart depuis la première mesure."));
+  }
+  return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
+    tete,barres,h("div",{className:"content pad","data-scroll-key":"part-physique"},corps));
+}
+
+/* ── La séance de tests ─────────────────────────────────────────
+   Saisie EN STATIONS : un test à la fois, toute l'équipe à la file,
+   comme sur le terrain. Une grille athlètes × tests tient mal à 375 px,
+   et ce n'est pas l'ordre dans lequel les mesures arrivent. ↵ passe à
+   l'athlète suivante. La valeur précédente est rappelée à côté : une
+   faute de frappe (452 pour 45,2) se voit avant d'être enregistrée. */
+function renderPhysSessionModal(){
+  var sq=curSquad();if(!sq)return null;
+  var se=physSessionById(sq,state.modalCtx);if(!se)return null;
+  var ferme=seasonClosed(sq);
+  var tests=physTracked(sq);
+  physTestsDeSeance(se,sq).forEach(function(t){
+    if(!tests.some(function(x){return x.key===t.key}))tests.push(t);
+  });
+  var equipe=physEffectif(sq,se);
+  var cur=null;
+  tests.forEach(function(t){if(t.key===state.physTest)cur=t});
+  if(!cur)cur=tests[0]||null;
+
+  function rempli(t){
+    return equipe.filter(function(pid){return se.values[pid]&&se.values[pid][t.key]!=null}).length;
+  }
+  function libelleStation(t){return physShort(t)+" "+rempli(t)+"/"+equipe.length}
+  function terminer(){
+    var n=physNbMesurees(se);
+    if(!n){
+      sq.physSessions=sq.physSessions.filter(function(x){return x!==se});
+      closeModal();saveNow();showToast("Séance vide — rien n'a été gardé");
+      return;
+    }
+    closeModal();saveNow();
+    showToast("✅ Séance du "+fmtShortDay(se.date)+" · "+plural(n,"athlète")+" mesurée"+(n>1?"s":""),{tone:"ok"});
+  }
+
+  var corps=h("div",null);
+  var date=h("input",{type:"date",value:se.date,"aria-label":"Date de la séance",disabled:ferme});
+  date.addEventListener("change",function(e){
+    if(dayOf(e.target.value)){se.date=dayOf(e.target.value);scheduleAutoSave()}
+  });
+  var note=h("input",{type:"text",value:se.note||"",placeholder:"Lieu, conditions… (facultatif)",
+    "aria-label":"Note de la séance",disabled:ferme});
+  note.addEventListener("input",function(e){se.note=e.target.value;scheduleAutoSave()});
+  corps.appendChild(h("div",{className:"grid2"},
+    h("label",{className:"field"},h("span",null,"Date"),date),
+    h("label",{className:"field"},h("span",null,"Note"),note)));
+
+  if(!tests.length){
+    corps.appendChild(emptyState({icon:"📏",title:"Aucun test suivi",small:true,
+      sub:"Choisissez les tests de l'équipe dans ⚙️ Réglages → 📏 Tests physiques.",
+      action:h("button",{className:"btn btn-ghost sm",type:"button",
+        onclick:function(){closeModal();allerReglages("physique")}},"Choisir les tests")}));
+  } else if(!equipe.length){
+    corps.appendChild(emptyState({icon:"👥",title:"Aucune athlète dans l'équipe",small:true,
+      sub:"Les mesures se prennent sur l'équipe constituée."}));
+  } else {
+    corps.appendChild(h("div",{className:"section-title"},"Station"));
+    corps.appendChild(h("div",{className:"chips",role:"group","aria-label":"Test en cours"},
+      tests.map(function(t){
+        var b=chip({label:libelleStation(t),on:t===cur,onclick:function(){state.physTest=t.key;render()}});
+        b.setAttribute("data-test",t.key);
+        return b;
+      })));
+    corps.appendChild(h("div",{className:"muted",style:{margin:"6px 0 10px",lineHeight:"1.5"}},
+      h("b",null,cur.label+(cur.unit?" ("+cur.unit+")":"")),cur.desc?" — "+cur.desc:"",
+      cur.better==="low"?" Plus bas = mieux.":""));
+    var champs=[];
+    equipe.forEach(function(pid){
+      var e=rosterEntry(sq,pid);
+      var avant=null;
+      physReleves(pid).forEach(function(r){
+        if(r.session===se||String(r.date)>String(se.date))return;
+        if(r.values[cur.key]!=null)avant=r;
+      });
+      var v=se.values[pid]&&se.values[pid][cur.key];
+      var inp=h("input",{className:"phys-inp",type:"text",inputmode:"decimal",enterkeyhint:"next",
+        value:v!=null?fmtMesure(v):"",placeholder:"—",disabled:ferme,
+        "aria-label":cur.label+" de "+fullName(playerById(pid))});
+      inp.addEventListener("input",function(ev){
+        var m=lireMesure(ev.target.value);
+        inp.classList.toggle("err",isNaN(m)&&m!==null);
+        if(m!==null&&isNaN(m))return;
+        if(m===null){
+          if(se.values[pid]){delete se.values[pid][cur.key];
+            if(!Object.keys(se.values[pid]).length)delete se.values[pid]}
+        } else {
+          if(!se.values[pid])se.values[pid]={};
+          se.values[pid][cur.key]=m;
+        }
+        var b=document.querySelector('.chips [data-test="'+cur.key+'"]');
+        if(b)b.lastChild.textContent=libelleStation(cur);
+        scheduleAutoSave();
+      });
+      inp.addEventListener("keydown",function(ev){
+        if(ev.key!=="Enter")return;
+        ev.preventDefault();
+        var i=champs.indexOf(inp);
+        if(champs[i+1])champs[i+1].focus();else inp.blur();
+      });
+      champs.push(inp);
+      corps.appendChild(h("div",{className:"phys-ligne"},
+        h("div",{className:"lead"},(e&&e.number)||"—"),
+        h("div",{className:"pl-nom"},
+          h("div",{className:"ellip"},fullName(playerById(pid))),
+          h("div",{className:"muted ellip"},avant
+            ?"Préc. "+fmtMesure(avant.values[cur.key])+" "+(cur.unit||"")+" · "+fmtShortDay(avant.date)
+            :"Première mesure")),
+        inp,
+        h("span",{className:"muted pl-unit","aria-hidden":"true"},cur.unit||"")));
+    });
+  }
+
+  var boutons=[h("button",{id:"modalOk",className:"btn btn-save full",type:"button",onclick:terminer},
+    ferme?"Fermer":"Terminer")];
+  if(!ferme)boutons.push(h("button",{className:"btn btn-danger-o full",type:"button",onclick:function(){
+    var n=physNbMesurees(se);
+    openConfirm({title:"Supprimer la séance du "+fmtShortDay(se.date)+" ?",
+      body:n?("Les mesures de "+plural(n,"athlète")+" s'en vont avec elle."):"Elle ne porte aucune mesure.",
+      detail:"Les autres séances ne sont pas touchées.",
+      confirm:"Supprimer",tone:"danger",
+      onconfirm:function(){
+        pushUndoSquad("Séance de tests supprimée",sq);
+        sq.physSessions=sq.physSessions.filter(function(x){return x!==se});
+        closeModal();saveNow();
+        showToast("🗑️ Séance supprimée",{tone:"danger",action:{label:"Annuler",onclick:doUndo}});
+      }});
+  }},"Supprimer la séance"));
+  return sheetShell({title:"Tests du "+fmtShortDay(se.date),onclose:terminer,buttons:boutons},corps);
+}
+defModal("physsession",renderPhysSessionModal,{autofocus:false});
+
+/* ── L'évolution d'une athlète ──────────────────────────────── */
+function renderPhysAthleteModal(){
+  var sq=curSquad(),pid=state.modalCtx;
+  var p=playerById(pid);if(!p)return null;
+  var e=sq?rosterEntry(sq,pid):null;
+  var rel=physReleves(pid);
+  var tests=sq?physTracked(sq):PHYS_TESTS.slice();
+  var vus={};tests.forEach(function(t){vus[t.key]=true});
+  rel.forEach(function(r){Object.keys(r.values).forEach(function(k){
+    if(!vus[k]){vus[k]=true;tests.push(physDef(k,sq))}
+  })});
+  /* Le même ordre que la ligne de l'athlète : ce qui dit le plus d'une
+     joueuse de volley d'abord. */
+  var rang=function(t){var i=PHYS_PRIORITE.indexOf(t.key);return i===-1?50:i};
+  var cles=tests.concat(physDerivedFor(tests)).sort(function(x,y){return rang(x)-rang(y)});
+  var a=ageOf(p);
+  var corps=h("div",null);
+  corps.appendChild(h("div",{className:"muted",style:{marginBottom:"8px"}},
+    [e?numLabel(e.number):null,(a!=null)?a+" ans":null,
+     p.jerseySize?"maillot "+p.jerseySize:null,
+     rel.length?plural(rel.length,"séance")+" de tests":null].filter(Boolean).join(" · ")||"—"));
+  if(!rel.length){
+    corps.appendChild(emptyState({icon:"📏",title:"Aucune mesure",small:true,
+      sub:"Ses mesures paraîtront ici dès sa première séance de tests."}));
+  }
+  var saisons={};rel.forEach(function(r){saisons[r.sq.seasonId]=true});
+  var plusieurs=Object.keys(saisons).length>1;
+  cles.forEach(function(t){
+    var r=physResume(rel,t.key);if(!r)return;
+    var ton=physTone(t,r.depuis),ton2=physTone(t,r.dernier);
+    var c=h("div",{className:"card tight phys-carte"});
+    c.appendChild(h("div",{className:"row-between"},
+      h("div",{style:{minWidth:"0"}},
+        h("div",{className:"pc-lbl"},t.label),
+        h("div",{className:"muted"},
+          r.depuis!=null
+            ?h("span",null,h("span",{style:{color:PHYS_TONE_COLOR[ton]}},PHYS_TONE_FLECHE[ton]+" "+fmtEcartMesure(r.depuis)+" "+(t.unit||"")),
+               " depuis le "+fmtShortDay(r.firstAt)+
+               (r.serie.length>2&&r.dernier!=null?" · "+fmtEcartMesure(r.dernier)+" à la dernière":""))
+            :"Une seule mesure, le "+fmtShortDay(r.lastAt))),
+      h("div",{className:"pc-val"},fmtMesure(r.last),t.unit?h("span",{className:"pc-unit"},t.unit):null)));
+    var courbe=physCourbe(r.serie,t);
+    if(courbe){
+      courbe.style.color=PHYS_TONE_COLOR[ton]==="var(--txt-dim)"?"var(--accent)":PHYS_TONE_COLOR[ton];
+      c.appendChild(courbe);
+    }
+    c.appendChild(h("div",{className:"pc-serie"},r.serie.map(function(x){
+      var s=plusieurs?((seasonById(x.sq.seasonId)||{}).name||""):"";
+      return h("span",{className:"pc-pt"},fmtShortDay(x.date)+" · ",h("b",null,fmtMesure(x.v)),s?" · "+s:"");
+    })));
+    corps.appendChild(c);
+  });
+  if(rel.length)corps.appendChild(h("div",{className:"muted",style:{marginTop:"6px",lineHeight:"1.5"}},
+    "Les mesures viennent des séances de tests de toutes les saisons des équipes que vous suivez."));
+  var boutons=[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")];
+  if(sq&&!seasonClosed(sq)&&(sq.playerIds||[]).indexOf(pid)!==-1)
+    boutons.unshift(h("button",{className:"btn btn-primary full",type:"button",onclick:function(){
+      closeModal();nouvelleSeanceTests(sq);
+    }},"+ Séance de tests"));
+  return sheetShell({title:fullName(p),buttons:boutons},corps);
+}
+defModal("physathlete",renderPhysAthleteModal,{autofocus:false});
+
+/* ── Réglages → Tests physiques ─────────────────────────────── */
+function physTestUtilise(key){
+  return DB.squads.some(function(s){
+    return (s.physSessions||[]).some(function(se){
+      return Object.keys(se.values||{}).some(function(pid){return se.values[pid][key]!=null});
+    });
+  });
+}
+function renderPhysConfigPane(sq){
+  if(!sq)return emptyState({icon:"📏",title:"Aucune saison active",small:true});
+  var ferme=seasonClosed(sq);
+  var cfg=physConfigOf(sq);
+  function basculer(k){
+    var c=physConfigOf(sq),i=c.tests.indexOf(k);
+    if(i===-1)c.tests.push(k);else c.tests.splice(i,1);
+    /* L'ordre d'affichage est celui du catalogue, pas celui des clics. */
+    var ordre=PHYS_TESTS.map(function(t){return t.key}).concat(c.custom.map(function(t){return t.key}));
+    c.tests.sort(function(a,b){return ordre.indexOf(a)-ordre.indexOf(b)});
+    sq.physConfig=c;saveNow();render();
+  }
+  function ligne(t,custom){
+    var on=cfg.tests.indexOf(t.key)!==-1;
+    return h("div",{className:"list-row"},
+      h("div",{className:"body",style:{minWidth:"0",flex:"1"}},
+        h("div",{className:"pname"},t.label+(t.unit?" ("+t.unit+")":"")),
+        h("div",{className:"psub"},custom?(t.better==="low"?"Plus bas = mieux":"Plus haut = mieux"):(t.desc||""))),
+      custom?h("button",{className:"btn btn-ghost xs",type:"button",disabled:ferme,
+        "aria-label":"Retirer le test "+t.label,onclick:function(){
+          if(physTestUtilise(t.key)){
+            showToast("⚠️ Des mesures portent ce test — décochez-le plutôt : elles restent lisibles",{tone:"warn",duree:4200});
+            return;
+          }
+          var c=physConfigOf(sq);
+          c.custom=c.custom.filter(function(x){return x.key!==t.key});
+          c.tests=c.tests.filter(function(k){return k!==t.key});
+          sq.physConfig=c;saveNow();render();
+        }},"🗑️"):null,
+      h("button",{className:"btn "+(on?"btn-save":"btn-ghost")+" sm",type:"button",disabled:ferme,
+        "aria-pressed":on?"true":"false","aria-label":(on?"Ne plus suivre ":"Suivre ")+t.label,
+        onclick:function(){basculer(t.key)}},on?"✓ Suivi":"Suivre"));
+  }
+  var wrap=h("div",null);
+  wrap.appendChild(h("div",{className:"hint"},
+    "Les tests que l'équipe « "+sq.name+" » mesure. Ils se reportent d'une saison à l'autre ; "+
+    "la saisie se fait dans 🗓️ Saison → 📏 Physique."));
+  if(ferme)wrap.appendChild(h("div",{className:"hint warn"},"🔒 Saison clôturée — le réglage se consulte."));
+  wrap.appendChild(h("div",{className:"section-title"},"Tests de volleyball"));
+  PHYS_TESTS.forEach(function(t){wrap.appendChild(ligne(t,false))});
+  wrap.appendChild(h("div",{className:"muted",style:{margin:"6px 0 0",lineHeight:"1.5"}},
+    "La détente au bloc et en attaque se calculent seules — reach moins atteinte debout — "+
+    "dès que ces tests sont suivis."));
+  wrap.appendChild(h("div",{className:"section-title"},"Tests ajoutés"));
+  if(!cfg.custom.length)wrap.appendChild(h("div",{className:"muted",style:{marginBottom:"8px"}},
+    "Aucun. Un sprint, un saut en longueur, un lancer : ajoutez ce que l'équipe mesure."));
+  cfg.custom.forEach(function(t){wrap.appendChild(ligne(t,true))});
+  wrap.appendChild(h("button",{className:"btn btn-ghost full",type:"button",disabled:ferme,style:{marginTop:"6px"},
+    onclick:function(){state.modalDraft=null;openModal("phystest")}},"+ Ajouter un test"));
+  wrap.appendChild(h("button",{className:"btn btn-ghost sm",type:"button",style:{marginTop:"14px"},
+    onclick:function(){navToSection("physique")}},"📏 Ouvrir le suivi physique de la saison ›"));
+  return wrap;
+}
+function renderPhysTestModal(){
+  var sq=curSquad();if(!sq)return null;
+  var d=state.modalDraft||(state.modalDraft={label:"",unit:"",better:"high"});
+  var nom=h("input",{type:"text",value:d.label,placeholder:"Ex. Sprint 9-3-6-3-9",maxlength:"40"});
+  nom.addEventListener("input",function(e){d.label=e.target.value});
+  var unite=h("input",{type:"text",value:d.unit,placeholder:"cm, s, kg, m…",maxlength:"8"});
+  unite.addEventListener("input",function(e){d.unit=e.target.value});
+  return sheetShell({title:"Ajouter un test",variant:"center",buttons:[
+    h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Annuler"),
+    h("button",{id:"modalOk",className:"btn btn-save full",type:"button",onclick:function(){
+      var l=(d.label||"").trim();
+      if(!l){showToast("⚠️ Donnez un nom au test");return}
+      var c=physConfigOf(sq);
+      var tous=PHYS_TESTS.concat(c.custom);
+      if(tous.some(function(t){return normTexte(t.label)===normTexte(l)})){showToast("⚠️ Ce test existe déjà");return}
+      var t={key:"c_"+uid(),label:l,unit:(d.unit||"").trim(),better:d.better==="low"?"low":"high"};
+      c.custom.push(t);c.tests.push(t.key);
+      sq.physConfig=c;
+      closeModal();saveNow();showToast("✅ « "+l+" » ajouté aux tests suivis",{tone:"ok"});
+    }},"Ajouter")]},
+    h("div",null,
+      h("label",{className:"field"},h("span",null,"Nom du test"),nom),
+      h("label",{className:"field"},h("span",null,"Unité"),unite),
+      h("div",{className:"field"},h("span",null,"Sens"),
+        segmented({label:"Sens du test",value:d.better,
+          options:[{k:"high",l:"Plus haut = mieux"},{k:"low",l:"Plus bas = mieux"}],
+          onpick:function(v){d.better=v;render()}}))));
+}
+defModal("phystest",renderPhysTestModal);
+
+/* ══ MAILLOTS ═════════════════════════════════════════════════ */
+/* Le jeu tel qu'il arrive — d'une sauvegarde, d'un autre appareil :
+   un numéro de chiffres, une taille courte, un état connu. */
+function normJerseys(list){
+  var vus={},out=[];
+  (Array.isArray(list)?list:[]).forEach(function(j){
+    if(!j||typeof j!=="object")return;
+    var q=Object.assign(mkJersey(),j);
+    if(!q.id||vus[q.id])q.id=uid();
+    vus[q.id]=true;
+    q.number=cleanNum(q.number);
+    q.size=String(q.size||"").trim().toUpperCase().slice(0,6);
+    q.set=String(q.set||"").trim().slice(0,24);
+    q.state=JERSEY_STATES[q.state]?q.state:"ok";
+    q.note=String(q.note||"");
+    out.push(q);
+  });
+  return out;
+}
+function equipeDe(sq){return sq?teamById(sq.teamId):null}
+function jerseysOf(team){return (team&&Array.isArray(team.jerseys))?team.jerseys:[]}
+function jerseyById(team,id){
+  var j=null;jerseysOf(team).forEach(function(x){if(x.id===id)j=x});return j;
+}
+function jerseyNom(j){
+  return "#"+(j.number||"?")+(j.size?" · "+j.size:"")+(j.set?" · "+j.set:"");
+}
+function jerseyHorsService(j){return j.state==="lost"||j.state==="retired"}
+/* Les prêts ouverts de toute l'équipe, toutes saisons : maillot → {sq, loan}. */
+function pretsOuverts(teamId){
+  var out={};
+  DB.squads.forEach(function(s){
+    if(s.teamId!==teamId)return;
+    (s.jerseyLoans||[]).forEach(function(l){if(!l.returnedAt&&!out[l.jerseyId])out[l.jerseyId]={sq:s,loan:l}});
+  });
+  return out;
+}
+function jerseyLibre(j,prets){return !jerseyHorsService(j)&&!prets[j.id]}
+/* Les maillots qu'une athlète a en main, toutes saisons de l'équipe. */
+function maillotsEnMain(teamId,pid,prets){
+  prets=prets||pretsOuverts(teamId);
+  var team=teamById(teamId),out=[];
+  Object.keys(prets).forEach(function(jid){
+    var x=prets[jid];
+    if(x.loan.playerId!==pid)return;
+    var j=jerseyById(team,jid);
+    if(j)out.push({jersey:j,loan:x.loan,sq:x.sq});
+  });
+  return out.sort(function(a,b){return (parseInt(a.jersey.number,10)||0)-(parseInt(b.jersey.number,10)||0)});
+}
+/* Les maillots libres, du plus indiqué au moins indiqué pour une athlète :
+   son numéro d'abord, puis sa taille. */
+function maillotsProposes(sq,pid,prets){
+  var team=equipeDe(sq),p=playerById(pid);
+  var num=numDansSaison(sq,pid),taille=(p&&p.jerseySize)||"";
+  return jerseysOf(team).filter(function(j){return jerseyLibre(j,prets)}).map(function(j){
+    var sc=(num&&j.number===num?2:0)+(taille&&j.size===taille?1:0);
+    return {jersey:j,score:sc,num:!!(num&&j.number===num),taille:!!(taille&&j.size===taille)};
+  }).sort(function(a,b){
+    if(a.score!==b.score)return b.score-a.score;
+    var na=parseInt(a.jersey.number,10),nb=parseInt(b.jersey.number,10);
+    if(isNaN(na))na=9999;if(isNaN(nb))nb=9999;
+    return na-nb||sizeRank(a.jersey.size)-sizeRank(b.jersey.size);
+  });
+}
+/* Une remise, un retour : un instantané de l'équipe (son jeu) et des
+   saisons touchées — un maillot de l'an passé se rend dans l'an passé. */
+function pushUndoMaillots(label,team,squads){
+  var before=[];
+  (squads||[]).forEach(function(s){
+    if(s)before.push({coll:"squads",id:s.id,squadId:null,value:clone(s),index:DB.squads.indexOf(s)});
+  });
+  if(team)before.push({coll:"teams",id:team.id,squadId:null,value:clone(team),index:DB.teams.indexOf(team)});
+  if(!before.length)return;
+  undoStack.push({kind:"snapshot",label:label,gid:uid(),before:before});
+  trimUndo();
+}
+function remettreMaillot(sq,j,pid){
+  sq.jerseyLoans.push(mkJerseyLoan({jerseyId:j.id,playerId:pid}));
+  logAct("equip","Maillot "+jerseyNom(j)+" remis à "+logWho(sq,pid),
+    {teamId:sq.teamId,seasonId:sq.seasonId,playerId:pid});
+}
+/* Le retour d'un maillot : `etat` vaut ok, worn ou lost — c'est aussi
+   l'état que le maillot garde dans le jeu. */
+function rendreMaillot(sqPret,loan,j,etat){
+  loan.returnedAt=todayISO();loan.outcome=JERSEY_STATES[etat]?etat:"ok";
+  j.state=loan.outcome;
+  logAct("equip",(etat==="lost"?"Maillot "+jerseyNom(j)+" déclaré perdu — ":"Maillot "+jerseyNom(j)+" rendu"+
+    (etat==="worn"?" usé":"")+" — ")+logWho(sqPret,loan.playerId),
+    {teamId:sqPret.teamId,seasonId:sqPret.seasonId,playerId:loan.playerId});
+}
+var RETOUR_LBL={ok:"rendu",worn:"rendu usé",lost:"déclaré perdu"};
+function gesteRendre(sqPret,loan,j,etat){
+  pushUndoMaillots("Retour du maillot "+jerseyNom(j),equipeDe(sqPret),[sqPret]);
+  rendreMaillot(sqPret,loan,j,etat);
+  saveNow();render();
+  showToast((etat==="lost"?"✖ ":"↩ ")+"Maillot "+jerseyNom(j)+" "+RETOUR_LBL[etat],
+    {tone:etat==="lost"?"danger":"ok",action:{label:"Annuler",onclick:doUndo}});
+}
+function gesteRemettre(sq,j,pid){
+  if(seasonClosed(sq))return;
+  pushUndoMaillots("Remise du maillot "+jerseyNom(j),equipeDe(sq),[sq]);
+  remettreMaillot(sq,j,pid);
+  saveNow();render();
+  showToast("👕 "+jerseyNom(j)+" remis à "+shortName(playerById(pid)),
+    {tone:"ok",action:{label:"Annuler",onclick:doUndo}});
+}
+/* Vrai quand la saison de `a` précède celle de `b`. Un maillot remis
+   dans une saison ANTÉRIEURE et jamais rendu est à récupérer ; remis
+   dans une saison postérieure, il n'a rien à faire dans le compte d'une
+   saison qu'on relit. */
+function saisonAnterieure(a,b){
+  var sa=seasonById(a.seasonId),sb=seasonById(b.seasonId);
+  if(!sa||!sb||sa===sb)return false;
+  var ka=sa.startDate||String(sa.createdAt||""),kb=sb.startDate||String(sb.createdAt||"");
+  if(ka!==kb)return ka<kb;
+  return DB.seasons.indexOf(sa)<DB.seasons.indexOf(sb);
+}
+/* L'équipe à équiper : les athlètes de l'équipe qui n'en sont pas
+   parties. Une partie en janvier n'attend plus de maillot — elle en
+   rend un. */
+function equipeActive(sq){
+  return (sq.playerIds||[]).filter(function(pid){
+    var e=rosterEntry(sq,pid);
+    return playerById(pid)&&!(e&&e.membership==="left");
+  });
+}
+/* La fin de saison : la saison est close, ou sa date de fin passée. */
+function finDeSaison(sq){
+  if(seasonClosed(sq))return true;
+  var s=seasonById(sq.seasonId);
+  return !!(s&&s.endDate&&todayISO()>=s.endDate);
+}
+/* La situation de l'équipe, en chiffres : ce que lit la tuile, l'en-tête
+   et la fermeture de saison. */
+function situationMaillots(sq){
+  var team=equipeDe(sq),js=jerseysOf(team),prets=pretsOuverts(sq.teamId);
+  var equipe=equipeActive(sq);
+  var equipees=0,sansTaille=0;
+  equipe.forEach(function(pid){
+    if(maillotsEnMain(sq.teamId,pid,prets).length)equipees++;
+    var p=playerById(pid);if(!p.jerseySize)sansTaille++;
+  });
+  var dehorsSaison=(sq.jerseyLoans||[]).filter(function(l){return !l.returnedAt}).length;
+  var libres=js.filter(function(j){return jerseyLibre(j,prets)}).length;
+  /* À récupérer : tout ce qui est dehors en fin de saison, et à tout
+     moment ce que détient une athlète qui n'est plus dans l'équipe. */
+  var fin=finDeSaison(sq),aRecup=0;
+  Object.keys(prets).forEach(function(jid){
+    var x=prets[jid];
+    if(x.sq===sq){if(fin||equipe.indexOf(x.loan.playerId)===-1)aRecup++;return}
+    if(saisonAnterieure(x.sq,sq))aRecup++;
+  });
+  return {jeu:js.length,libres:libres,equipe:equipe.length,equipees:equipees,
+    sans:equipe.length-equipees,sansTaille:sansTaille,dehors:dehorsSaison,aRecup:aRecup,fin:fin};
+}
+/* Les athlètes sans maillot dont le numéro a un maillot libre : la
+   distribution du premier jour, en un geste. Un maillot par jeu. */
+function remisesParNumero(sq,prets){
+  var team=equipeDe(sq),out=[],pris={};
+  equipeActive(sq).forEach(function(pid){
+    if(maillotsEnMain(sq.teamId,pid,prets).length)return;
+    var num=numDansSaison(sq,pid);if(!num)return;
+    var taille=(playerById(pid).jerseySize)||"";
+    var parJeu={};
+    jerseysOf(team).forEach(function(j){
+      if(j.number!==num||!jerseyLibre(j,prets)||pris[j.id])return;
+      var k=j.set||"";
+      if(!parJeu[k]||(taille&&j.size===taille&&parJeu[k].size!==taille))parJeu[k]=j;
+    });
+    Object.keys(parJeu).forEach(function(k){pris[parJeu[k].id]=true;out.push({pid:pid,jersey:parJeu[k]})});
+  });
+  return out;
+}
+
+function renderPartMaillots(sq){
+  var team=equipeDe(sq),js=jerseysOf(team),ferme=seasonClosed(sq);
+  var prets=pretsOuverts(sq.teamId);
+  var sit=situationMaillots(sq);
+  var tete=partHeader("Maillots",
+    js.length?(sit.equipees+"/"+sit.equipe+" équipées · "+plural(sit.libres,"libre")+" en stock")
+             :"inventaire à créer",
+    h("button",{className:"btn btn-ghost xs",type:"button","aria-label":"Inventaire du jeu de maillots",
+      onclick:function(){allerReglages("maillots")}},"📦 Inventaire"));
+  var corps=h("div",null);
+  var envelopper=function(){
+    return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
+      tete,h("div",{className:"content pad","data-scroll-key":"part-maillots"},corps));
+  };
+
+  if(!js.length){
+    corps.appendChild(emptyState({icon:"👕",title:"Aucun maillot dans l'inventaire",
+      sub:"Décrivez d'abord le jeu de l'équipe — numéros et tailles. Il se fait une fois : "+
+          "il suit l'équipe d'une saison à l'autre.",
+      action:h("button",{className:"btn btn-primary",type:"button",
+        onclick:function(){state.modalDraft=null;openModal("jerseysadd")}},"+ Créer l'inventaire")}));
+    return envelopper();
+  }
+
+  /* « À récupérer » ne prend une tuile que s'il y a quelque chose à
+     récupérer : un zéro permanent pousserait la liste sous le pli. */
+  corps.appendChild(h("div",{className:"kpiGrid",style:{marginBottom:"12px"}},
+    kpi({label:"Équipées",value:sit.equipees+"/"+sit.equipe,hint:sit.sans?(sit.sans+" sans maillot"):"toutes"}),
+    kpi({label:"En stock",value:String(sit.libres),hint:"sur "+plural(sit.jeu,"maillot")}),
+    sit.aRecup?kpi({label:"À récupérer",value:String(sit.aRecup),hint:sit.fin?"fin de saison":"départs, saisons passées"}):null));
+
+  if(sit.fin&&sit.dehors)corps.appendChild(h("div",{className:"hint warn"},
+    "🏁 Fin de saison : "+plural(sit.dehors,"maillot")+" encore chez les athlètes. "+
+    "« ↩ Rendu » en un geste ; touchez l'athlète pour un maillot usé ou perdu."));
+  else if(sit.sansTaille&&!ferme)corps.appendChild(h("div",{className:"hint"},
+    plural(sit.sansTaille,"athlète")+" sans taille de maillot. Touchez sa ligne pour la renseigner : "+
+    "elle reste sur sa fiche, d'une saison à l'autre."));
+
+  var lot=ferme?[]:remisesParNumero(sq,prets);
+  if(lot.length)corps.appendChild(h("div",{className:"card tight",style:{marginBottom:"12px"}},
+    h("div",{className:"row-between",style:{gap:"8px"}},
+      h("div",{className:"muted",style:{minWidth:"0"}},
+        plural(lot.length,"maillot")+" libre"+(lot.length>1?"s":"")+" porte"+(lot.length>1?"nt":"")+
+        " le numéro d'une athlète qui n'en a pas."),
+      h("button",{className:"btn btn-primary sm",type:"button",onclick:function(){
+        openConfirm({title:"Remettre "+plural(lot.length,"maillot")+" selon les numéros ?",
+          body:lot.slice(0,8).map(function(x){return jerseyNom(x.jersey)+" → "+shortName(playerById(x.pid))}).join(" · ")+
+            (lot.length>8?" · et "+(lot.length-8)+" autres":""),
+          detail:"Chacune reçoit le maillot de son numéro, de sa taille quand il y en a plusieurs. Annulable.",
+          confirm:"Remettre",tone:"primary",
+          onconfirm:function(){
+            pushUndoMaillots("Remise selon les numéros",team,[sq]);
+            lot.forEach(function(x){remettreMaillot(sq,x.jersey,x.pid)});
+            saveNow();render();
+            showToast("👕 "+plural(lot.length,"maillot")+" remis",{tone:"ok",action:{label:"Annuler",onclick:doUndo}});
+          }});
+      }},"👕 Remettre ("+lot.length+")"))));
+
+  /* Les lignes : l'équipe, plus quiconque détient encore un maillot de
+     cette saison — une athlète partie en janvier doit le rendre. */
+  var ids=(sq.playerIds||[]).filter(function(pid){return playerById(pid)});
+  (sq.jerseyLoans||[]).forEach(function(l){
+    if(!l.returnedAt&&ids.indexOf(l.playerId)===-1&&playerById(l.playerId))ids.push(l.playerId);
+  });
+  var items=ids.map(function(pid){
+    var p=playerById(pid),e=rosterEntry(sq,pid);
+    var main=maillotsEnMain(sq.teamId,pid,prets);
+    var ecart=main.some(function(m){return p.jerseySize&&m.jersey.size&&m.jersey.size!==p.jerseySize});
+    var horsEquipe=(sq.playerIds||[]).indexOf(pid)===-1||(e&&e.membership==="left");
+    var ancien=main.some(function(m){return saisonAnterieure(m.sq,sq)});
+    var situation=main.length?((horsEquipe||sit.fin||ancien)?"recup":"equipee"):"sans";
+    return {pid:pid,player:p,entry:e,main:main,ecart:ecart,horsEquipe:horsEquipe,situation:situation,
+      propose:ferme?[]:maillotsProposes(sq,pid,prets)};
+  }).filter(function(x){return !x.horsEquipe||x.main.length});
+  var tb=listToolbar({
+    key:"maillots",items:items,minSort:2,defaultSort:"number",
+    search:{of:function(x){return fullName(x.player)+" "+((x.entry&&x.entry.number)||"")+" "+
+      x.main.map(function(m){return "#"+m.jersey.number}).join(" ")},placeholder:"Nom, dossard ou maillot"},
+    sorts:[
+      {key:"number",label:"Numéro",get:function(x){var n=parseInt((x.entry&&x.entry.number)||"",10);return isFinite(n)?n:null}},
+      {key:"name",label:"Nom",get:function(x){return fullName(x.player)}},
+      {key:"taille",label:"Taille",get:function(x){return x.player.jerseySize?sizeRank(x.player.jerseySize):null}}
+    ],
+    filters:[
+      {key:"situation",label:"Situation",get:function(x){return x.situation},
+        options:[{k:"sans",l:"Sans maillot"},{k:"equipee",l:"Équipée"},{k:"recup",l:"À récupérer"}]},
+      {key:"taille",label:"Taille",get:function(x){return x.player.jerseySize||"?"},
+        options:[{k:"?",l:"Non renseignée"}].concat(JERSEY_SIZES.map(function(s){return {k:s,l:s}}))}
+    ],
+    rows:function(res){return res.map(function(x){
+      var meta=[];
+      meta.push(x.player.jerseySize?tok("box",{label:"Taille "+x.player.jerseySize,color:"#94A3B8"})
+        :tok("box",{label:"Taille ?",color:"#FBBF24"}));
+      x.main.forEach(function(m){
+        meta.push(tok("pill",{label:jerseyNom(m.jersey)+(m.sq!==sq?" · "+((seasonById(m.sq.seasonId)||{}).name||""):""),
+          icon:"👕",color:saisonAnterieure(m.sq,sq)||x.horsEquipe||sit.fin?"#FBBF24":"#34D399"}));
+      });
+      if(x.ecart)meta.push(tok("dot",{label:"Taille différente",color:"#FBBF24"}));
+      if(x.horsEquipe)meta.push(tok("dot",{label:"Hors de l'équipe",color:"#94A3B8"}));
+      var action=null;
+      if(x.main.length){
+        action=h("button",{className:"btn btn-ghost xs",type:"button",
+          "aria-label":"Rendu : "+x.main.map(function(m){return jerseyNom(m.jersey)}).join(", ")+" — "+fullName(x.player),
+          onclick:function(){
+            var squads=[];x.main.forEach(function(m){if(squads.indexOf(m.sq)===-1)squads.push(m.sq)});
+            pushUndoMaillots("Retour de maillot",team,squads);
+            x.main.forEach(function(m){rendreMaillot(m.sq,m.loan,m.jersey,"ok")});
+            saveNow();render();
+            showToast("↩ "+x.main.map(function(m){return jerseyNom(m.jersey)}).join(", ")+" rendu"+(x.main.length>1?"s":"")+
+              " par "+shortName(x.player),{tone:"ok",action:{label:"Annuler",onclick:doUndo}});
+          }},"↩ Rendu");
+      } else if(!ferme&&!x.horsEquipe){
+        var top=x.propose[0];
+        action=(top&&top.num)
+          ? h("button",{className:"btn btn-save xs",type:"button",
+              "aria-label":"Remettre le maillot "+jerseyNom(top.jersey)+" à "+fullName(x.player),
+              onclick:function(){gesteRemettre(sq,top.jersey,x.pid)}},"👕 #"+top.jersey.number)
+          : h("button",{className:"btn btn-ghost xs",type:"button",
+              "aria-label":"Choisir un maillot pour "+fullName(x.player),
+              onclick:function(){openModal("jerseyathlete",x.pid)}},"Remettre…");
+      }
+      return listRow({lead:(x.entry&&x.entry.number)||"—",name:fullName(x.player),meta:meta,
+        dim:x.horsEquipe&&!x.main.length,trail:action,
+        ariaLabel:"Maillots de "+fullName(x.player),
+        onclick:function(){openModal("jerseyathlete",x.pid)}});
+    })}
+  });
+  corps.appendChild(tb);corps.appendChild(tb.list);
+
+  /* Ce qui reste dehors d'une saison passée, chez une athlète qui n'est
+     plus dans l'équipe : sans cette carte, personne ne le verrait. */
+  var anciens=[];
+  Object.keys(prets).forEach(function(jid){
+    var x=prets[jid];
+    if(!saisonAnterieure(x.sq,sq)||ids.indexOf(x.loan.playerId)!==-1)return;
+    var j=jerseyById(team,jid);if(j&&playerById(x.loan.playerId))anciens.push({jersey:j,loan:x.loan,sq:x.sq});
+  });
+  if(anciens.length){
+    corps.appendChild(h("div",{className:"section-title"},"Non rendus des saisons passées"));
+    anciens.forEach(function(a){
+      corps.appendChild(h("div",{className:"card tight"},
+        h("div",{className:"row-between",style:{gap:"8px"}},
+          h("div",{style:{minWidth:"0"}},
+            h("div",{style:{fontWeight:"700"}},"👕 "+jerseyNom(a.jersey)+" · "+fullName(playerById(a.loan.playerId))),
+            h("div",{className:"muted"},((seasonById(a.sq.seasonId)||{}).name||"Saison")+" · remis le "+fmtShortDay(a.loan.givenAt))),
+          h("div",{className:"btn-row",style:{flexShrink:"0"}},
+            h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){gesteRendre(a.sq,a.loan,a.jersey,"ok")}},"↩ Rendu"),
+            h("button",{className:"btn btn-danger-o xs",type:"button","aria-label":"Déclarer perdu "+jerseyNom(a.jersey),
+              onclick:function(){gesteRendre(a.sq,a.loan,a.jersey,"lost")}},"✖ Perdu")))));
+    });
+  }
+  return envelopper();
+}
+
+/* ── Les maillots d'une athlète ────────────────────────────────
+   Sa taille, ce qu'elle a en main, et ce qu'on peut lui remettre —
+   son numéro et sa taille en tête. Rendre un maillot dit dans quel
+   état il revient : c'est l'état qu'il garde dans le jeu. */
+function renderJerseyAthleteModal(){
+  var sq=curSquad(),pid=state.modalCtx;
+  if(!sq)return null;
+  var p=playerById(pid);if(!p)return null;
+  var team=equipeDe(sq),ferme=seasonClosed(sq),e=rosterEntry(sq,pid);
+  var prets=pretsOuverts(sq.teamId);
+  var main=maillotsEnMain(sq.teamId,pid,prets);
+  var dansEquipe=(sq.playerIds||[]).indexOf(pid)!==-1;
+  var corps=h("div",null);
+  corps.appendChild(h("div",{className:"muted",style:{marginBottom:"8px"}},
+    [e?numLabel(e.number):null,e&&MEMBERSHIPS[e.membership]&&e.membership!=="active"?MEMBERSHIPS[e.membership].label:null,
+     dansEquipe?null:"hors de l'équipe"].filter(Boolean).join(" · ")||"—"));
+
+  corps.appendChild(h("div",{className:"section-title"},"Taille de maillot"));
+  corps.appendChild(h("div",{className:"chips",role:"group","aria-label":"Taille de maillot"},
+    JERSEY_SIZES.map(function(s){
+      return chip({label:s,on:p.jerseySize===s,ariaLabel:"Taille "+s,onclick:function(){
+        p.jerseySize=(p.jerseySize===s)?"":s;scheduleAutoSave();render();
+      }});
+    })));
+  corps.appendChild(h("div",{className:"muted",style:{marginTop:"4px"}},
+    "Elle est rangée sur sa fiche : elle vaut pour toutes ses équipes et se garde d'une saison à l'autre."));
+
+  corps.appendChild(h("div",{className:"section-title"},"En sa possession"));
+  if(!main.length)corps.appendChild(h("div",{className:"muted"},"Aucun maillot."));
+  main.forEach(function(m){
+    var ancien=saisonAnterieure(m.sq,sq);
+    corps.appendChild(h("div",{className:"card tight"},
+      h("div",{style:{fontWeight:"700"}},"👕 "+jerseyNom(m.jersey)),
+      h("div",{className:"muted",style:{marginBottom:"8px"}},
+        "Remis le "+fmtShortDay(m.loan.givenAt)+(ancien?" · "+((seasonById(m.sq.seasonId)||{}).name||"saison passée"):"")+
+        (p.jerseySize&&m.jersey.size&&p.jerseySize!==m.jersey.size?" · taille "+m.jersey.size+", elle porte "+p.jerseySize:"")),
+      /* Un maillot de l'an passé qu'elle garde cette saison : on clôt
+         l'ancienne remise et on en ouvre une nouvelle, d'un geste — la
+         saison passée se referme, la nouvelle sait qui a quoi. */
+      (ancien&&!ferme&&dansEquipe)?h("button",{className:"btn btn-primary sm full",type:"button",style:{marginBottom:"6px"},
+        onclick:function(){
+          pushUndoMaillots("Maillot reconduit",team,[m.sq,sq]);
+          rendreMaillot(m.sq,m.loan,m.jersey,"ok");
+          remettreMaillot(sq,m.jersey,pid);
+          saveNow();render();
+          showToast("↻ "+jerseyNom(m.jersey)+" reconduit pour cette saison",{tone:"ok",action:{label:"Annuler",onclick:doUndo}});
+        }},"↻ Elle le garde cette saison"):null,
+      h("div",{className:"btn-row"},
+        h("button",{className:"btn btn-save sm",type:"button",onclick:function(){gesteRendre(m.sq,m.loan,m.jersey,"ok")}},"↩ Rendu"),
+        h("button",{className:"btn btn-ghost sm",type:"button",onclick:function(){gesteRendre(m.sq,m.loan,m.jersey,"worn")}},"〰 Rendu usé"),
+        h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){gesteRendre(m.sq,m.loan,m.jersey,"lost")}},"✖ Perdu"))));
+  });
+
+  /* Une athlète équipée n'a besoin d'un second maillot que rarement
+     (jeu libéro, rechange) : la liste se replie derrière un bouton. */
+  if(!ferme&&dansEquipe&&main.length&&!state.jerseyAutre)
+    corps.appendChild(h("button",{className:"btn btn-ghost sm",type:"button",style:{marginTop:"10px"},
+      onclick:function(){state.jerseyAutre=true;render()}},"+ Remettre un autre maillot"));
+  else if(!ferme&&dansEquipe){
+    corps.appendChild(h("div",{className:"section-title"},main.length?"Remettre un autre maillot":"Remettre un maillot"));
+    var props=maillotsProposes(sq,pid,prets);
+    var tout=!!state.jerseyTout;
+    if(!props.length)corps.appendChild(h("div",{className:"muted"},
+      jerseysOf(team).length?"Aucun maillot libre dans le jeu.":"L'inventaire est vide."));
+    var vis=tout?props:props.slice(0,8);
+    if(vis.length)corps.appendChild(h("div",{className:"chips"},vis.map(function(x){
+      var pourquoi=[x.num?"son numéro":null,x.taille?"sa taille":null].filter(Boolean).join(", ");
+      return chip({label:jerseyNom(x.jersey)+(pourquoi?" — "+pourquoi:""),on:false,
+        ariaLabel:"Remettre le maillot "+jerseyNom(x.jersey),
+        onclick:function(){gesteRemettre(sq,x.jersey,pid)}});
+    })));
+    if(props.length>vis.length)corps.appendChild(h("button",{className:"btn btn-ghost xs",type:"button",style:{marginTop:"6px"},
+      onclick:function(){state.jerseyTout=true;render()}},"Voir les "+props.length+" maillots libres"));
+    corps.appendChild(h("button",{className:"btn btn-ghost xs",type:"button",style:{marginTop:"6px",marginLeft:"6px"},
+      onclick:function(){state.modalDraft=null;openModal("jerseysadd")}},"+ Ajouter au jeu"));
+  }
+
+  var hist=[];
+  DB.squads.forEach(function(s){
+    if(s.teamId!==sq.teamId)return;
+    (s.jerseyLoans||[]).forEach(function(l){
+      if(l.playerId===pid&&l.returnedAt){var j=jerseyById(team,l.jerseyId);if(j)hist.push({loan:l,jersey:j,sq:s})}
+    });
+  });
+  if(hist.length){
+    hist.sort(function(a,b){return String(b.loan.returnedAt).localeCompare(String(a.loan.returnedAt))});
+    corps.appendChild(h("div",{className:"section-title"},"Historique"));
+    hist.forEach(function(x){
+      corps.appendChild(h("div",{className:"muted",style:{marginBottom:"4px"}},
+        jerseyNom(x.jersey)+" · remis le "+fmtShortDay(x.loan.givenAt)+" · "+
+        RETOUR_LBL[x.loan.outcome||"ok"]+" le "+fmtShortDay(x.loan.returnedAt)+
+        (x.sq!==sq?" · "+((seasonById(x.sq.seasonId)||{}).name||""):"")));
+    });
+  }
+  return sheetShell({title:fullName(p),
+    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},corps);
+}
+defModal("jerseyathlete",renderJerseyAthleteModal,{autofocus:false});
+
+/* ── Inventaire : ajout en lot ──────────────────────────────────
+   « 1-18, 20 » : un jeu se décrit d'une ligne. La taille peut venir de
+   l'athlète qui porte déjà ce numéro — c'est presque toujours ainsi
+   qu'un club commande ses maillots. */
+function lireNumeros(txt){
+  var out=[],vus={},faute=null;
+  String(txt||"").split(/[,;\s]+/).filter(Boolean).forEach(function(bout){
+    if(faute)return;
+    var m=bout.match(/^(\d{1,3})(?:[-–à](\d{1,3}))?$/);
+    if(!m){faute=bout;return}
+    var a=parseInt(m[1],10),b=m[2]!=null?parseInt(m[2],10):a;
+    if(b<a){var t=a;a=b;b=t}
+    if(b-a>98){faute=bout;return}
+    for(var n=a;n<=b;n++){var k=String(n);if(!vus[k]){vus[k]=true;out.push(k)}}
+  });
+  return faute?{faute:faute}:{nums:out};
+}
+function jeuxDe(team){
+  var out=[];jerseysOf(team).forEach(function(j){if(j.set&&out.indexOf(j.set)===-1)out.push(j.set)});
+  return out;
+}
+function renderJerseysAddModal(){
+  var sq=curSquad(),team=equipeDe(sq);if(!sq||!team)return null;
+  var d=state.modalDraft||(state.modalDraft={nums:"",size:"auto",set:""});
+  var lu=lireNumeros(d.nums);
+  function tailleDe(num){
+    if(d.size!=="auto")return d.size;
+    var pid=null;
+    sq.roster.forEach(function(e){if(e.number===num)pid=e.playerId});
+    var p=pid?playerById(pid):null;
+    return (p&&p.jerseySize)||"";
+  }
+  var apercu="";
+  if(lu.faute)apercu="⚠️ Illisible : « "+lu.faute+" » — écrivez 1-18, 20, 22";
+  else if(lu.nums.length){
+    var connues=lu.nums.filter(function(n){return tailleDe(n)}).length;
+    apercu=plural(lu.nums.length,"maillot")+" · "+(d.size==="auto"
+      ?connues+" taille"+(connues>1?"s":"")+" d'après les athlètes, "+(lu.nums.length-connues)+" à préciser"
+      :"taille "+(d.size||"à préciser"));
+  }
+  var nums=h("input",{type:"text",value:d.nums,placeholder:"Ex. 1-18, 20, 22",inputmode:"text"});
+  nums.addEventListener("input",function(e){
+    d.nums=e.target.value;
+    var el=document.getElementById("jerseysApercu");
+    if(el){
+      var l=lireNumeros(d.nums);
+      el.textContent=l.faute?"⚠️ Illisible : « "+l.faute+" »":(l.nums.length?plural(l.nums.length,"maillot"):"");
+    }
+  });
+  var taille=h("select",{"aria-label":"Taille"},
+    h("option",{value:"auto"},"D'après l'athlète qui porte ce numéro"),
+    h("option",{value:""},"À préciser plus tard"),
+    JERSEY_SIZES.map(function(s){return h("option",{value:s},"Toutes en "+s)}));
+  taille.value=d.size;
+  taille.addEventListener("change",function(e){d.size=e.target.value;render()});
+  var jeu=h("input",{type:"text",value:d.set,placeholder:"Facultatif — Domicile, Extérieur, Libéro…",maxlength:"24"});
+  jeu.addEventListener("input",function(e){d.set=e.target.value});
+  var jeux=jeuxDe(team);
+  return sheetShell({title:"Ajouter des maillots",buttons:[
+    h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Annuler"),
+    h("button",{id:"modalOk",className:"btn btn-save full",type:"button",onclick:function(){
+      var l=lireNumeros(d.nums);
+      if(l.faute){showToast("⚠️ Numéros illisibles : « "+l.faute+" »");return}
+      if(!l.nums.length){showToast("⚠️ Indiquez au moins un numéro");return}
+      var set=(d.set||"").trim(),deja={},ajout=0,ignores=0;
+      jerseysOf(team).forEach(function(j){deja[(j.set||"")+"|"+j.number+"|"+(j.size||"")]=true});
+      pushUndoMaillots("Maillots ajoutés au jeu",team,[]);
+      if(!Array.isArray(team.jerseys))team.jerseys=[];
+      l.nums.forEach(function(n){
+        var t=tailleDe(n),k=set+"|"+n+"|"+t;
+        if(deja[k]){ignores++;return}
+        deja[k]=true;ajout++;
+        team.jerseys.push(mkJersey({number:n,size:t,set:set}));
+      });
+      if(ajout)logAct("equip","Jeu de maillots : "+plural(ajout,"maillot")+" ajouté"+(ajout>1?"s":"")+
+        (set?" (« "+set+" »)":""),{teamId:team.id,seasonId:sq.seasonId});
+      else undoStack.pop();
+      closeModal();saveNow();
+      showToast(ajout?("✅ "+plural(ajout,"maillot")+" ajouté"+(ajout>1?"s":"")+(ignores?" · "+ignores+" déjà dans le jeu":""))
+                     :"Ces maillots sont déjà dans le jeu",
+        ajout?{tone:"ok",action:{label:"Annuler",onclick:doUndo}}:{tone:"warn"});
+    }},"Ajouter")]},
+    h("div",null,
+      h("div",{className:"muted",style:{marginBottom:"10px",lineHeight:"1.5"}},
+        "Le jeu de « "+team.name+" » suit l'équipe d'une saison à l'autre. "+
+        "Les numéros s'écrivent en plages : 1-18, 20, 22."),
+      h("label",{className:"field"},h("span",null,"Numéros"),nums),
+      h("div",{id:"jerseysApercu",className:"muted",style:{margin:"-6px 0 10px"}},apercu),
+      h("label",{className:"field"},h("span",null,"Taille"),taille),
+      h("label",{className:"field"},h("span",null,"Jeu"),jeu),
+      jeux.length?h("div",{className:"chips",style:{marginTop:"-4px"}},jeux.map(function(x){
+        return chip({label:x,on:d.set===x,onclick:function(){d.set=x;render()}});
+      })):null));
+}
+defModal("jerseysadd",renderJerseysAddModal);
+
+/* ── Un maillot du jeu ──────────────────────────────────────── */
+function renderJerseyModal(){
+  var sq=curSquad(),team=equipeDe(sq);if(!team)return null;
+  var j=jerseyById(team,state.modalCtx);if(!j)return null;
+  var d=state.modalDraft||(state.modalDraft={number:j.number,size:j.size,set:j.set,state:j.state,note:j.note});
+  var prets=pretsOuverts(team.id),pret=prets[j.id];
+  var hist=[];
+  DB.squads.forEach(function(s){
+    if(s.teamId!==team.id)return;
+    (s.jerseyLoans||[]).forEach(function(l){if(l.jerseyId===j.id)hist.push({loan:l,sq:s})});
+  });
+  hist.sort(function(a,b){return String(b.loan.givenAt).localeCompare(String(a.loan.givenAt))});
+  function champ(cle,lib,ph,attrs,nettoie){
+    var inp=h("input",Object.assign({type:"text",value:d[cle]||"",placeholder:ph},attrs||{}));
+    inp.addEventListener("input",function(e){
+      if(nettoie){var v=nettoie(e.target.value);if(v!==e.target.value)e.target.value=v}
+      d[cle]=e.target.value;
+    });
+    return h("label",{className:"field"},h("span",null,lib),inp);
+  }
+  var taille=h("select",{"aria-label":"Taille"},h("option",{value:""},"—"),
+    JERSEY_SIZES.map(function(s){return h("option",{value:s},s)}));
+  if(d.size&&JERSEY_SIZES.indexOf(d.size)===-1)taille.appendChild(h("option",{value:d.size},d.size));
+  taille.value=d.size||"";
+  taille.addEventListener("change",function(e){d.size=e.target.value});
+  var corps=h("div",null,
+    h("div",{className:"grid2"},
+      champ("number","Numéro","#",{inputmode:"numeric",maxlength:"3"},cleanNum),
+      h("label",{className:"field"},h("span",null,"Taille"),taille)),
+    champ("set","Jeu","Facultatif — Domicile, Libéro…",{maxlength:"24"}),
+    h("div",{className:"field"},h("span",null,"État"),
+      h("div",{className:"chips"},JERSEY_STATE_KEYS.map(function(k){
+        return chip({label:JERSEY_STATES[k].icon+" "+JERSEY_STATES[k].label,on:d.state===k,
+          onclick:function(){d.state=k;render()}});
+      }))),
+    champ("note","Note","Facultatif — à réparer, flocage…",{maxlength:"80"}));
+  corps.appendChild(h("div",{className:"section-title"},"Où il est"));
+  corps.appendChild(h("div",{className:"muted"},pret
+    ?"Chez "+fullName(playerById(pret.loan.playerId))+" depuis le "+fmtShortDay(pret.loan.givenAt)+
+      " · "+((seasonById(pret.sq.seasonId)||{}).name||"")
+    :(jerseyHorsService(j)?"Hors service.":"Au club, libre.")));
+  if(hist.length){
+    corps.appendChild(h("div",{className:"section-title"},"Historique"));
+    hist.slice(0,12).forEach(function(x){
+      var pl=playerById(x.loan.playerId);
+      corps.appendChild(h("div",{className:"muted",style:{marginBottom:"4px"}},
+        ((seasonById(x.sq.seasonId)||{}).name||"")+" · "+(pl?fullName(pl):"—")+" · remis le "+fmtShortDay(x.loan.givenAt)+
+        (x.loan.returnedAt?" · "+RETOUR_LBL[x.loan.outcome||"ok"]+" le "+fmtShortDay(x.loan.returnedAt):" · pas encore rendu")));
+    });
+  }
+  var boutons=[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Annuler"),
+    h("button",{id:"modalOk",className:"btn btn-save full",type:"button",onclick:function(){
+      var n=cleanNum(d.number);
+      if(!n){showToast("⚠️ Un maillot porte un numéro");return}
+      if(pret&&(d.state==="lost"||d.state==="retired")){
+        showToast("⚠️ Ce maillot est chez une athlète : déclarez-le perdu depuis sa ligne, dans la saison",{tone:"warn",duree:4200});
+        return;
+      }
+      pushUndoMaillots("Maillot modifié",team,[]);
+      j.number=n;j.size=d.size||"";j.set=(d.set||"").trim();
+      j.state=JERSEY_STATES[d.state]?d.state:"ok";j.note=(d.note||"").trim();
+      closeModal();saveNow();showToast("✅ Maillot "+jerseyNom(j)+" enregistré",{tone:"ok",action:{label:"Annuler",onclick:doUndo}});
+    }},"Enregistrer")];
+  boutons.push(h("button",{className:"btn btn-danger-o full",type:"button",onclick:function(){
+    if(hist.length){
+      showToast("⚠️ Ce maillot a déjà été remis : passez-le à « Retiré » pour garder son historique",{tone:"warn",duree:4400});
+      return;
+    }
+    pushUndoMaillots("Maillot supprimé",team,[]);
+    team.jerseys=team.jerseys.filter(function(x){return x!==j});
+    closeModal();saveNow();showToast("🗑️ Maillot supprimé du jeu",{tone:"danger",action:{label:"Annuler",onclick:doUndo}});
+  }},"Supprimer"));
+  return sheetShell({title:"Maillot "+jerseyNom(j),buttons:boutons},corps);
+}
+defModal("jersey",renderJerseyModal);
+
+/* ── Réglages → Maillots : l'inventaire ─────────────────────── */
+function renderInventairePane(sq){
+  var team=equipeDe(sq);
+  if(!sq||!team)return emptyState({icon:"👕",title:"Aucune équipe",small:true});
+  var js=jerseysOf(team),prets=pretsOuverts(team.id);
+  var wrap=h("div",null);
+  wrap.appendChild(h("div",{className:"hint"},
+    "Le jeu de maillots de « "+team.name+" » : il appartient à l'équipe et la suit d'une saison à l'autre. "+
+    "La remise aux athlètes et le retour se font dans 🗓️ Saison → 👕 Maillots."));
+  var remis=Object.keys(prets).length,hs=js.filter(jerseyHorsService).length;
+  wrap.appendChild(h("div",{className:"kpiGrid",style:{marginBottom:"12px"}},
+    kpi({label:"Dans le jeu",value:String(js.length),hint:jeuxDe(team).length>1?plural(jeuxDe(team).length,"jeu","jeux"):"maillots"}),
+    kpi({label:"Libres",value:String(js.filter(function(j){return jerseyLibre(j,prets)}).length),hint:"au club"}),
+    kpi({label:"Remis",value:String(remis),hint:hs?plural(hs,"hors service"):"chez les athlètes"})));
+  wrap.appendChild(h("div",{className:"btn-row",style:{marginBottom:"12px"}},
+    h("button",{className:"btn btn-primary sm",type:"button",
+      onclick:function(){state.modalDraft=null;openModal("jerseysadd")}},"+ Ajouter des maillots"),
+    h("button",{className:"btn btn-ghost sm",type:"button",
+      onclick:function(){navToSection("maillots")}},"👕 Distribution ›")));
+  if(!js.length){
+    wrap.appendChild(emptyState({icon:"👕",title:"Le jeu est vide",small:true,
+      sub:"Ajoutez les maillots de l'équipe : leurs numéros, leurs tailles. Un jeu de dix-huit se décrit d'une ligne."}));
+    return wrap;
+  }
+  var jeux=jeuxDe(team);
+  var filtres=[
+    {key:"situation",label:"Situation",get:function(j){return jerseyHorsService(j)?"hs":(prets[j.id]?"remis":"libre")},
+      options:[{k:"libre",l:"Libre"},{k:"remis",l:"Remis"},{k:"hs",l:"Hors service"}]},
+    {key:"taille",label:"Taille",get:function(j){return j.size||"?"},
+      options:[{k:"?",l:"Non renseignée"}].concat(JERSEY_SIZES.map(function(s){return {k:s,l:s}}))}
+  ];
+  if(jeux.length)filtres.push({key:"jeu",label:"Jeu",get:function(j){return j.set||"—"},
+    options:[{k:"—",l:"Sans jeu"}].concat(jeux.map(function(x){return {k:x,l:x}}))});
+  var tb=listToolbar({
+    key:"inventaire",items:js.slice(),minSort:2,defaultSort:"number",
+    search:{of:function(j){return "#"+j.number+" "+j.size+" "+j.set+" "+(prets[j.id]?fullName(playerById(prets[j.id].loan.playerId)):"")},
+      placeholder:"Numéro, taille ou athlète"},
+    sorts:[
+      {key:"number",label:"Numéro",get:function(j){var n=parseInt(j.number,10);return isFinite(n)?n:null}},
+      {key:"taille",label:"Taille",get:function(j){return j.size?sizeRank(j.size):null}},
+      {key:"etat",label:"État",get:function(j){return JERSEY_STATE_KEYS.indexOf(j.state)}}
+    ],
+    filters:filtres,
+    rows:function(res){return res.map(function(j){
+      var x=prets[j.id],meta=[tok("dot",JERSEY_STATES[j.state]||JERSEY_STATES.ok)];
+      if(x){
+        var pl=playerById(x.loan.playerId);
+        meta.push(tok("pill",{label:"Chez "+(pl?shortName(pl):"—")+(x.sq!==sq?" · "+((seasonById(x.sq.seasonId)||{}).name||""):""),
+          icon:"👕",color:x.sq!==sq?"#FBBF24":"#60A5FA"}));
+      } else if(!jerseyHorsService(j))meta.push(tok("dot",{label:"Libre",color:"var(--txt-dim)"}));
+      if(j.note)meta.push(h("span",{className:"muted"},j.note));
+      return listRow({lead:j.number||"?",name:"Taille "+(j.size||"?")+(j.set?" · "+j.set:""),meta:meta,
+        dim:jerseyHorsService(j),ariaLabel:"Maillot "+jerseyNom(j),
+        onclick:function(){state.modalDraft=null;openModal("jersey",j.id)}});
+    })}
+  });
+  wrap.appendChild(tb);wrap.appendChild(tb.list);
+  return wrap;
+}
+
+/* Aller à un volet des réglages depuis une partie de la saison. */
+function allerReglages(pane){
+  state.tab="settings";state.setPane=pane;
+  state.sortBy=null;state.pickMode=null;state.picked=[];
+  saveUI();render();
+}
+/* ══ fin §20 ══════════════════════════════════════════════════ */
+
 var SECTION_RENDER={
   selection:renderPartSelection,
   training:renderPartTraining,
   matches:renderPartMatches,
   tournaments:renderPartTournaments,
   goals:renderPartGoals,
-  recap:renderPartRecap
+  recap:renderPartRecap,
+  physique:renderPartPhysique,
+  maillots:renderPartMaillots
 };
 
 /* ══ RÉGLAGES ══════════════════════════════════════════════════
@@ -11049,7 +12526,11 @@ var SECTION_RENDER={
    Rangé ici pour que le tableau de bord ne porte que du jeu.   */
 function renderSettingsTab(){
   var sq=curSquad();
-  var panes=[{k:"seasons",l:"🗓️ Saisons"},{k:"log",l:"📜 Journal"},{k:"data",l:"💾 Données"}];
+  /* Maillots et tests physiques : ce que l'équipe garde d'une saison à
+     l'autre — le jeu de maillots, les tests qu'elle mesure. La remise
+     et la saisie se font dans la saison. */
+  var panes=[{k:"seasons",l:"🗓️ Saisons"},{k:"maillots",l:"👕 Maillots"},{k:"physique",l:"📏 Tests physiques"},
+             {k:"log",l:"📜 Journal"},{k:"data",l:"💾 Données"}];
   if(vaultExists())panes.push({k:"securite",l:"🔒 Sécurité"});
   if(!state.setPane||!panes.some(function(p){return p.k===state.setPane}))state.setPane="seasons";
   var row=h("div",{className:"pill-row tight"},panes.map(function(p){
@@ -11058,6 +12539,8 @@ function renderSettingsTab(){
   }));
   var body;
   if(state.setPane==="log")body=renderLogPane(sq?sq.teamId:"");
+  else if(state.setPane==="maillots")body=renderInventairePane(sq);
+  else if(state.setPane==="physique")body=renderPhysConfigPane(sq);
   else if(state.setPane==="securite")body=renderSecuritePane();
   else if(state.setPane==="data"){
     var octets=taillePertinente();
@@ -11727,6 +13210,10 @@ function deletePlayersFromDb(pids){
        supprimée plus tard. */
     sq.offers=(sq.offers||[]).filter(function(o){return !ids[o.playerId]});
     sq.goals=(sq.goals||[]).filter(function(g){return !ids[g.playerId]});
+    sq.jerseyLoans=(sq.jerseyLoans||[]).filter(function(l){return !ids[l.playerId]});
+    (sq.physSessions||[]).forEach(function(se){
+      Object.keys(ids).forEach(function(pid){if(se.values)delete se.values[pid]});
+    });
   });
   DB.players=DB.players.filter(function(p){return !ids[p.id]});
   var liste=noms.slice(0,8).join(", ")+(noms.length>8?", et "+plural(noms.length-8,"autre"):"");
@@ -12355,7 +13842,13 @@ function renderAdminSeasons(){
             saveNow();showToast(closed?"🔓 Rouverte":"🔒 Clôturée",{tone:"ok"});render();
           }
           if(closed){basculer();return}
-          confirmAct("Clôturer « "+x.name+" » ?\nSes vues disparaîtront du rôle sélectionneur. Réversible.",
+          /* Les maillots encore chez les athlètes : le dire avant de
+             clore, c'est le dernier moment où l'équipe est réunie. */
+          var dehors=squads.reduce(function(n,sq){
+            return n+(sq.jerseyLoans||[]).filter(function(l){return !l.returnedAt}).length},0);
+          confirmAct("Clôturer « "+x.name+" » ?\nSes vues disparaîtront du rôle sélectionneur. Réversible."+
+            (dehors?"\n👕 "+plural(dehors,"maillot")+" n'"+(dehors>1?"ont":"a")+" pas été rendu"+(dehors>1?"s":"")+
+              " — les retours restent possibles après la clôture.":""),
             basculer,{confirm:"Clôturer",tone:"primary"});
         }},closed?"🔓":"🔒"),
         h("button",{className:"btn btn-danger-o xs",onclick:function(){
@@ -15378,6 +16871,7 @@ function openModal(type,ctx,input,input2){
   },40);
 }
 function closeModal(){state.modalType=null;state.modalCtx=null;state.modalInput="";state.modalInput2="";state.modalSel=[];state.modalDraft=null;state.editingSubteamId=null;state.editViewId=null;
+  state.jerseyTout=false;state.jerseyAutre=false;
   /* Une sélection multiple ouverte DANS une feuille ne lui survit pas :
      la barre de lot disparaîtrait avec la feuille en laissant `picked`
      derrière elle, et le prochain volet Joueuses s'ouvrirait avec des
@@ -16581,8 +18075,9 @@ function renderModal(){
     if(T==="editplayer"&&!p0)return null;
     var entry0=(p0&&season)?rosterEntry(season,p0.id):null;
     var draft=state.modalDraft||(state.modalDraft=p0
-      ?{firstName:p0.firstName,lastName:p0.lastName,birth:fmtBirth(p0),notes:p0.notes,number:entry0?entry0.number:""}
-      :{firstName:"",lastName:"",birth:"",notes:"",number:""});
+      ?{firstName:p0.firstName,lastName:p0.lastName,birth:fmtBirth(p0),notes:p0.notes,number:entry0?entry0.number:"",
+        jerseySize:p0.jerseySize||""}
+      :{firstName:"",lastName:"",birth:"",notes:"",number:"",jerseySize:""});
     /* `nettoie` rend visible ce qui sera gardé : le dossard ne retient
        que les chiffres, et « -5 » devenu 5 en silence faisait ensuite
        refuser « le numéro 5 », qui ne ressemblait à rien de ce qu'on
@@ -16601,6 +18096,33 @@ function renderModal(){
     var notes=h("textarea",{placeholder:"Notes libres…",rows:"2"});
     notes.value=draft.notes||"";
     notes.addEventListener("input",function(e){draft.notes=e.target.value});
+    /* La taille de maillot appartient à l'athlète, pas à la saison : elle
+       se règle ici, et la distribution des maillots la lit. */
+    var taille=h("select",{"aria-label":"Taille de maillot"},h("option",{value:""},"Non renseignée"),
+      JERSEY_SIZES.map(function(x){return h("option",{value:x},x)}));
+    if(draft.jerseySize&&JERSEY_SIZES.indexOf(draft.jerseySize)===-1)
+      taille.appendChild(h("option",{value:draft.jerseySize},draft.jerseySize));
+    taille.value=draft.jerseySize||"";
+    taille.addEventListener("change",function(e){draft.jerseySize=e.target.value});
+    /* Ce que la fiche sait de l'équipement et du physique, en une ligne
+       chacun, avec le chemin vers le détail. */
+    var suivi=null;
+    if(p0){
+      var mainP=season?maillotsEnMain(season.teamId,p0.id):[];
+      var relP=physReleves(p0.id);
+      var allerA=function(type){state.modalDraft=null;openModal(type,p0.id)};
+      suivi=h("div",{className:"card tight",style:{margin:"0 0 10px"}},
+        season?h("div",{className:"row-between",style:{gap:"8px"}},
+          h("div",{className:"muted",style:{minWidth:"0"}},"👕 "+(mainP.length
+            ?mainP.map(function(m){return jerseyNom(m.jersey)}).join(", ")+" — remis le "+fmtShortDay(mainP[0].loan.givenAt)
+            :"Aucun maillot en main")),
+          h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){allerA("jerseyathlete")}},"Maillots ›")):null,
+        h("div",{className:"row-between",style:{gap:"8px",marginTop:season?"6px":"0"}},
+          h("div",{className:"muted",style:{minWidth:"0"}},"📏 "+(relP.length
+            ?plural(relP.length,"séance")+" de tests · dernière le "+fmtShortDay(relP[relP.length-1].date)
+            :"Aucune mesure physique")),
+          h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){allerA("physathlete")}},"Évolution ›")));
+    }
     var btns=[cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
       var f=(draft.firstName||"").trim(),l=(draft.lastName||"").trim();
       if(!f&&!l){showToast("⚠️ Entrez au moins un nom");return}
@@ -16611,10 +18133,12 @@ function renderModal(){
       var b=parseBirth(draft.birth);
       if(!b){showToast("⚠️ Date de naissance illisible — 26/10/2011, ou 2011");return}
       if(p0){
-        Object.assign(p0,{firstName:f,lastName:l,birthDate:b.date,birthYear:b.year,notes:draft.notes||""});
+        Object.assign(p0,{firstName:f,lastName:l,birthDate:b.date,birthYear:b.year,notes:draft.notes||"",
+          jerseySize:draft.jerseySize||""});
         if(entry0)entry0.number=num;
       } else {
-        var np=mkDbPlayer({firstName:f,lastName:l,birthDate:b.date,birthYear:b.year,notes:draft.notes||""});
+        var np=mkDbPlayer({firstName:f,lastName:l,birthDate:b.date,birthYear:b.year,notes:draft.notes||"",
+          jerseySize:draft.jerseySize||""});
         DB.players.push(np);
         if(season)season.roster.push(mkRosterEntry(np.id,num,""));
       }
@@ -16639,6 +18163,8 @@ function renderModal(){
           {inputmode:"numeric",maxlength:"3"},cleanNum):null,
         (season&&(!p0||entry0))?h("div",{className:"muted",style:{margin:"-4px 0 10px"}},
           "Vous pouvez le laisser vide et le renseigner plus tard dans le tableau de sélection."):null,
+        h("label",{className:"field"},h("span",null,"Taille de maillot"),taille),
+        suivi,
         h("label",{className:"field"},h("span",null,"Notes"),notes),
         p0?h("div",{className:"muted"},"Présente dans "+plural(squadsOf(p0.id).length,"équipe-saison")):null),
       btns);
