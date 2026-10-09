@@ -147,6 +147,9 @@ la redistribution est ensuite manuelle.
 | Sauvegarde complète du club, restauration | ● | ○ | ○ | ○ |
 | Configurer le relais et le salon | ● | ○ | ○ | ○ |
 | Inviter un sélectionneur (lien, jeton) | ● | ● | ○ | ○ |
+| Décrire le jeu de maillots, remettre et récupérer un maillot | ○ | ● | ○ | ○ |
+| Saisir une séance de tests physiques | ○ | ● | ○ | ○ |
+| Lire l'évolution physique d'une athlète | ● | ◐ ᵉ | ○ | ○ |
 
 ● autorisé · ◐ sous condition · ○ refusé
 
@@ -154,6 +157,7 @@ la redistribution est ensuite manuelle.
 - **ᵇ** seulement pour une athlète actuellement convoquée dans son équipe.
 - **ᶜ** seulement si l'équipe est en *vue libre*, et seulement pour ses propres vues.
 - **ᵈ** en agissant explicitement dans son contexte de sélectionneur, sur une équipe où il est affecté comme tel.
+- **ᵉ** les mesures prises dans les équipes qu'il entraîne, toutes saisons confondues. La taille de maillot, elle, est une donnée de la fiche, commune au club.
 
 L'administrateur ne saisit pas les matchs et n'évalue pas : ce sont des actes de
 terrain qui engagent leur auteur. Il peut tout lire et tout réparer.

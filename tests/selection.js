@@ -66,11 +66,11 @@ const ERRORS=[];let PASS=0;
   await page.waitForTimeout(200);
 
   say("\n── Le tableau de bord guide le premier geste");
-  await step("six tuiles, et la Sélection dit ce qui attend",async()=>{
+  await step("six tuiles de jeu, deux de suivi, et la Sélection dit ce qui attend",async()=>{
     await page.locator(".tab-btn").filter({hasText:"Saison"}).first().click();
     await page.waitForTimeout(200);
     const n=await page.locator(".hubTile").count();
-    if(n!==6)throw new Error("tuiles="+n);
+    if(n!==8)throw new Error("tuiles="+n);
     const t=await page.locator(".hubTile").filter({hasText:"Sélection"}).first().textContent();
     if(!/à trancher/.test(t))throw new Error("la tuile ne dit pas ce qui attend : "+t);
   });

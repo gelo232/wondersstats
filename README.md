@@ -11,7 +11,7 @@ server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
 GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
-tests/          suite de non-régression Playwright — dix-huit suites
+tests/          suite de non-régression Playwright — vingt-quatre suites
 ```
 
 ---
@@ -183,9 +183,9 @@ La barre du bas porte **trois axes**, pas une liste d'écrans :
 
 | Onglet | Rôle |
 |---|---|
-| 🗓️ **Saison** | Le tableau de bord des **six parties** de la saison |
-| 👥 **Athlètes** | La base du club, partagée entre toutes les saisons |
-| ⚙️ **Réglages** | Saisons · journal des décisions · sortie des données |
+| 🗓️ **Saison** | Le tableau de bord des **six parties** de la saison, et du **suivi de l'effectif** |
+| 👥 **Athlètes** | La base du club, partagée entre toutes les saisons — la fiche porte la **taille de maillot** |
+| ⚙️ **Réglages** | Saisons · **jeu de maillots** · **tests physiques suivis** · journal · sortie des données |
 
 Six onglets auraient tenu 62 px chacun sur un téléphone de 375 px, et tronqué
 quatre libellés sur six. Une barre d'onglets annonce des axes ; les contenus
@@ -201,6 +201,24 @@ offres en attente. Une saison vide dit par où commencer.
 | 🎪 **Tournois** | Tous tournois confondus, par tournoi, par match, par set |
 | 📈 **Objectifs** | Objectifs d'athlète et d'équipe, recalculés à chaque relevé |
 | 📊 **Récap global** | La compilation des cinq autres, par athlète et pour l'équipe |
+
+Sous les six tuiles du jeu, un intertitre **Suivi de l'effectif** en porte deux de
+plus — ce que la saison porte et rend sans que ce soit du jeu :
+
+| Tuile | Ce qu'elle porte |
+|---|---|
+| 📏 **Physique** | Les séances de tests (taille, atteinte, reach bloc, reach attaque, saut…) et la progression de chaque athlète |
+| 👕 **Maillots** | La remise des maillots, leur retour en fin de saison, ce qui reste à récupérer |
+
+Chaque chose est rangée selon ce à quoi elle appartient :
+
+| Donnée | Elle appartient à… | Elle se règle dans… |
+|---|---|---|
+| Taille de maillot | l'**athlète** | `👥 Athlètes → fiche` |
+| Jeu de maillots (numéros, tailles, état) | l'**équipe**, toutes saisons | `⚙️ Réglages → 👕 Maillots` |
+| Remise et retour d'un maillot | la **saison** | `🗓️ Saison → 👕 Maillots` |
+| Tests suivis par l'équipe | l'**équipe**, repris d'une saison à l'autre | `⚙️ Réglages → 📏 Tests physiques` |
+| Séance de tests, mesures | la **saison** | `🗓️ Saison → 📏 Physique` |
 
 La **saisie** n'est pas un onglet : c'est l'acte d'une partie de rencontres —
 « ✏️ Relever », qui propose d'emblée la nature de la partie d'où l'on vient.
@@ -564,6 +582,74 @@ La compilation des cinq autres parties, par athlète et pour l'équipe entière.
 fonctions que les parties. C'est la seule façon qu'un total ne puisse pas
 contredire le détail dont il sort — un cache se serait désynchronisé au premier
 score corrigé, sans que personne le voie.
+
+---
+
+## Maillots
+
+Le **jeu de maillots appartient à l'équipe**, pas à la saison : il se décrit une
+fois, dans `⚙️ Réglages → 👕 Maillots`, et suit l'équipe d'une année sur l'autre.
+`+ Ajouter des maillots` accepte des plages — `1-18, 20, 22` — et peut prendre la
+taille **d'après l'athlète qui porte ce numéro**. Un jeu libéro ou extérieur
+s'ajoute à part, sous son nom de jeu.
+
+La **taille de maillot appartient à l'athlète** : elle se règle sur sa fiche
+(`👥 Athlètes`), ou d'un appui dans la feuille de l'athlète côté Maillots, et vaut
+pour toutes ses équipes.
+
+La **remise et le retour sont des actes de la saison**, dans `🗓️ Saison → 👕
+Maillots` :
+
+- `👕 Remettre (N)` donne à chaque athlète sans maillot celui de **son numéro**
+  — de sa taille quand il y en a plusieurs, un par jeu. Rien n'est remis sans
+  qu'on le confirme, et tout s'annule ;
+- sur chaque ligne, `👕 #7` remet d'un appui le maillot du numéro, `↩ Rendu`
+  enregistre son retour ;
+- la feuille d'une athlète propose les maillots libres, **son numéro et sa taille
+  en tête**, et dit dans quel état un maillot revient : `↩ Rendu`, `〰 Rendu usé`,
+  `✖ Perdu`. C'est l'état que le maillot garde dans le jeu ; un maillot perdu ne
+  se propose plus.
+
+Un maillot est **dehors tant qu'il n'est pas rendu, quelle que soit la saison**.
+Celui qu'on n'a pas récupéré en mai n'est pas proposé en septembre : il paraît
+« à récupérer », avec la saison d'où il vient. Si l'athlète le garde,
+`↻ Elle le garde cette saison` clôt l'ancienne remise et en ouvre une nouvelle.
+
+**En fin de saison** — saison clôturée, ou date de fin passée — la tuile compte les
+maillots à récupérer, et la clôture de la saison prévient s'il en reste. Les
+retours restent possibles après la clôture : on récupère souvent un maillot après
+le dernier match. Une athlète partie en cours de saison reste dans la liste tant
+qu'elle détient un maillot.
+
+Chaque remise, retour ou perte s'inscrit au journal (👕 Maillots).
+
+---
+
+## Suivi physique
+
+Les tests suivis se choisissent dans `⚙️ Réglages → 📏 Tests physiques`. Par
+défaut : **taille, atteinte debout, reach bloc, reach attaque, saut vertical** ;
+l'envergure est proposée, et l'équipe ajoute les siens — un sprint, un lancer —
+avec leur unité et leur sens (*plus bas = mieux* pour un chrono). Le réglage suit
+l'équipe d'une saison à l'autre : sans quoi deux saisons ne se compareraient plus.
+
+**La détente se calcule seule** : reach moins atteinte debout, au bloc comme en
+attaque. Seulement avec une atteinte prise le même jour ou moins de 60 jours
+avant — une atteinte de l'an passé, chez une athlète qui a grandi, gonflerait la
+détente.
+
+Une **séance de tests** se saisit dans `🗓️ Saison → 📏 Physique → + Séance`, **en
+stations** : un test à la fois, toute l'équipe à la file, comme sur le terrain. ↵
+passe à l'athlète suivante ; la mesure précédente est rappelée à côté de chaque
+case, pour qu'une faute de frappe (452 pour 45,2) se voie avant d'être gardée.
+Une case vide n'est pas un zéro : le test n'a pas été passé. Une séance refermée
+sans mesure ne laisse rien.
+
+Le volet **Les athlètes** montre, pour chacune, ses reach et son saut avec l'écart
+depuis la première mesure, et se **range par n'importe quel test**. Sa feuille
+réunit chaque test, sa courbe et ses valeurs datées — **toutes saisons
+confondues**, pour les équipes que l'on entraîne : l'athlète passée des U15 aux
+U16 garde sa progression.
 
 ---
 

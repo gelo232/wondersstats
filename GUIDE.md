@@ -20,9 +20,9 @@ La barre du bas porte **trois axes**, et rien d'autre :
 
 | | |
 |---|---|
-| 🗓️ **Saison** | le tableau de bord des six parties |
-| 👥 **Athlètes** | la base du club, ses fiches, ses numéros |
-| ⚙️ **Réglages** | saisons, journal des décisions, sortie des données |
+| 🗓️ **Saison** | le tableau de bord des six parties, et du suivi de l'effectif |
+| 👥 **Athlètes** | la base du club, ses fiches (taille de maillot comprise), ses numéros |
+| ⚙️ **Réglages** | saisons, jeu de maillots, tests physiques suivis, journal, sortie des données |
 
 L'onglet Saison ouvre **six tuiles**, une par partie, chacune portant son chiffre
 du moment : ce qui reste à trancher, le bilan des matchs, les offres en attente,
@@ -35,7 +35,11 @@ commencer.
            ├─ 🤝 Matchs         amicaux et championnat — par set, par match, tous
            ├─ 🎪 Tournois       par tournoi, par match, par set
            ├─ 📈 Objectifs      par athlète et pour l'équipe
-           └─ 📊 Récap global   les cinq parties réunies
+           ├─ 📊 Récap global   les cinq parties réunies
+           │
+           │  Suivi de l'effectif
+           ├─ 📏 Physique       séances de tests, progression par athlète
+           └─ 👕 Maillots       remise, retour, ce qui reste à récupérer
 ```
 
 Dans chaque partie, `← Saison` ou `← Remonter` ramène d'un cran, et dit toujours où
@@ -704,6 +708,8 @@ Créez une équipe U16 à côté de vos U14, et elle arrive avec :
 | **Rencontres** et **matchs** | aucun |
 | **Formule du score** | valeurs par défaut |
 | **Effectif**, composition de terrain, sous-équipes | vide |
+| **Remises de maillots**, **séances de tests physiques** | aucune |
+| **Jeu de maillots**, **tests physiques suivis** | vides — puis repris d'une saison à l'autre |
 
 Rien ne déborde d'une équipe sur l'autre. Régler les U14 à 80 % de statistiques
 laisse les U16 à 50 %. Convoquer une athlète chez les U14 ne la convoque pas chez
@@ -736,12 +742,20 @@ propose **« reprendre l'effectif d'une saison précédente »** — les joueuse
 reviennent au statut *Candidate*, avec leur numéro et leur position, à
 re-sélectionner.
 
+Le **jeu de maillots** appartient à l'équipe durable : il ne se recopie pas, il est
+le même — et un maillot non rendu la saison passée y paraît encore « à
+récupérer ». Les **tests physiques suivis** sont repris comme la formule.
+
 ```
 Nouvelle saison d'une équipe existante
   ├── formule du score ........ reprise
+  ├── tests physiques suivis .. repris
+  ├── jeu de maillots ......... le même (il appartient à l'équipe)
   ├── effectif ................ sur demande, au statut Candidate
   └── campagnes, vues,
-      soumissions, matchs ..... vierges
+      soumissions, matchs,
+      remises de maillots,
+      séances de tests ........ vierges
 ```
 
 
@@ -901,6 +915,39 @@ un identifiant neuf.
 
 Le journal (`⚙️ Réglages → 📜 Journal`, nature 📥 *Soumissions*) garde la trace de la
 suppression — qui, quelle vue, quand — mais pas le contenu.
+
+---
+
+<a id="effectif"></a>
+
+## 9bis · Le suivi de l'effectif — maillots et physique
+
+### Les maillots, du premier entraînement au dernier match
+
+1. **Une fois** : `⚙️ Réglages → 👕 Maillots → + Ajouter des maillots`. Numéros
+   `1-18`, taille *d'après l'athlète qui porte ce numéro*. Un jeu libéro :
+   `1, 2` dans le jeu « Libéro ».
+2. **Les tailles** : sur la fiche de chaque athlète (`👥 Athlètes`), ou d'un appui
+   sur sa ligne dans `🗓️ Saison → 👕 Maillots`. Elles restent d'une saison à l'autre.
+3. **Le jour de la distribution** : `🗓️ Saison → 👕 Maillots → 👕 Remettre (N)` —
+   chacune reçoit le maillot de son numéro. Les autres : `Remettre…` sur leur
+   ligne, qui propose son numéro et sa taille d'abord.
+4. **En fin de saison** : `↩ Rendu` sur chaque ligne au fil des retours. Un maillot
+   usé ou perdu : touchez la ligne, puis `〰 Rendu usé` ou `✖ Perdu`.
+
+Un maillot pas rendu reste « à récupérer » jusque dans la saison suivante, et ne se
+redistribue pas tant qu'on ne l'a pas récupéré. Si l'athlète le garde pour la
+nouvelle saison : `↻ Elle le garde cette saison`.
+
+### Les tests physiques
+
+`⚙️ Réglages → 📏 Tests physiques` dit ce que l'équipe mesure. Puis, le jour des
+tests : `🗓️ Saison → 📏 Physique → + Séance`. On saisit **station par station** —
+la taille de toute l'équipe, puis l'atteinte, puis les reach — comme les athlètes
+passent devant la toise. La détente au bloc et en attaque se calculent seules.
+
+La progression se lit dans `👥 Les athlètes` (rangées par le test qu'on veut), et
+dans la feuille de chaque athlète, d'une saison à l'autre.
 
 ---
 

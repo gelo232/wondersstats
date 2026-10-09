@@ -893,7 +893,7 @@ const ERRORS=[];let PASS=0;
     await page.locator(".tab-btn").filter({hasText:"Saison"}).first().click();
     await page.waitForTimeout(400);
     const n=await page.locator(".hubTile").count();
-    if(n!==6)throw new Error("tuiles="+n);
+    if(n!==8)throw new Error("tuiles="+n);   /* six temps du jeu + physique et maillots */
     await pasDeDebordement("tableau de bord");
     const t=await txt();
     if(!/\d/.test(t))throw new Error("aucun chiffre sur le tableau de bord");
