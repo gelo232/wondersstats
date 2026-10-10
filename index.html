@@ -1065,7 +1065,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.9.0";
+var APP_VERSION = "7.10.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -1664,9 +1664,16 @@ function mkAssignment(personId,teamId,role){
 }
 /* Le numéro n'est JAMAIS attribué automatiquement : il est saisi par
    l'entraîneur, et reste modifiable ensuite depuis le tableau de sélection. */
+/* Deux numéros, deux usages :
+     · `number` — le numéro de SÉLECTION, celui de la chasuble de tryout.
+       Unique dans toute l'équipe-saison : c'est la seule chose que voient
+       les sélectionneurs, et deux athlètes au même numéro rendraient une
+       évaluation impossible à attribuer.
+     · `jerseyNumber` — le numéro de MAILLOT, floqué. Unique dans la
+       sous-équipe seulement : l'Équipe A et l'Équipe B ont chacune leur 7. */
 function mkRosterEntry(playerId,number,position){
   return {playerId:playerId,number:cleanNum(number),position:position||"",
-          status:"candidate",membership:"active",note:""};
+          jerseyNumber:"",status:"candidate",membership:"active",note:""};
 }
 /* Convocation à une campagne, et décision qui s'ensuit.
 
@@ -2481,7 +2488,8 @@ function shortName(p){
   if(f&&l)return f+" "+l.charAt(0).toUpperCase()+".";
   return f||l||"Sans nom";
 }
-/* Numéro d'athlète — seule information exposée au rôle sélectionneur */
+/* Numéro de SÉLECTION — seule information exposée au rôle sélectionneur.
+   Le numéro de maillot est ailleurs (entry.jerseyNumber, numMaillot). */
 function numOf(squad,pid){var e=rosterEntry(squad,pid);return e&&e.number?e.number:""}
 function numLabel(n){return n?"#"+n:"#?"}
 
@@ -2598,7 +2606,7 @@ function teamViewPlayers(team){
   team.playerIds.forEach(function(pid){
     var p=playerById(pid),e=rosterEntry(season,pid);
     if(!p)return;
-    out.push({id:pid,name:fullName(p),number:e?e.number:"",position:e?e.position:"",stats:statsOf(team,pid)});
+    out.push({id:pid,name:fullName(p),number:e?(e.jerseyNumber||""):"",position:e?e.position:"",stats:statsOf(team,pid)});
   });
   return out;
 }
@@ -3765,8 +3773,14 @@ function attachOrphanSessions(sq){
 
 function normalizeSquad(sq,knownPlayers){
   sq=Object.assign(mkSquad(),sq);
+  var dansEquipeBrut={};(sq.playerIds||[]).forEach(function(pid){dansEquipeBrut[pid]=true});
   sq.roster=(sq.roster||[]).filter(function(e){return e&&knownPlayers[e.playerId]}).map(function(e){
-    return Object.assign(mkRosterEntry(e.playerId),e,{number:cleanNum(e.number),
+    /* Avant la v7.10, un seul numéro servait aux deux usages. Une athlète
+       déjà dans l'équipe garde donc comme numéro de maillot celui qu'elle
+       portait — rien ne change sous ses yeux. Une seule fois : un champ
+       présent, même vide, est un choix de l'entraîneur. */
+    var jn=(e.jerseyNumber===undefined)?(dansEquipeBrut[e.playerId]?e.number:""):e.jerseyNumber;
+    return Object.assign(mkRosterEntry(e.playerId),e,{number:cleanNum(e.number),jerseyNumber:cleanNum(jn),
       status:STATUSES[e.status]?e.status:"candidate",
       membership:MEMBERSHIPS[e.membership]?e.membership:"active"});
   });
@@ -9827,11 +9841,11 @@ function evPlayersList(sq,scope,cle){
   function effDe(x){return familyEff(x.stats,"attaques")}
   var tb=listToolbar({
     key:cle,items:items,
-    search:{of:function(x){return fullName(x.player)+" "+((x.entry&&x.entry.number)||"")},
+    search:{of:function(x){return fullName(x.player)+" "+(numMaillot(sq,x.pid)||"")},
             placeholder:"Nom ou dossard"},
     sorts:[
       {key:"number",label:"Numéro",get:function(x){
-        var n=parseInt((x.entry&&x.entry.number)||"",10);return isFinite(n)?n:null}},
+        var n=parseInt(numMaillot(sq,x.pid)||"",10);return isFinite(n)?n:null}},
       {key:"name",label:"Nom",get:function(x){return fullName(x.player)}},
       {key:"age",label:"Âge",get:function(x){return ageOf(x.player)}},
       {key:"result",label:"Résultat",get:function(x){return x.total}}
@@ -9856,7 +9870,7 @@ function evPlayersList(sq,scope,cle){
         if(x.entry&&MEMBERSHIPS[x.entry.membership]&&x.entry.membership!=="active")
           meta.push(tok("dot",MEMBERSHIPS[x.entry.membership]));
         if(eff!=null)meta.push(tok("dot",{label:"Att. "+fmtEff(eff),color:"var(--txt-dim)"}));
-        return listRow({lead:(x.entry&&x.entry.number)||"—",
+        return listRow({lead:libNum(sq,x.pid)||"—",
           name:fullName(x.player),meta:meta,
           dim:x.entry&&x.entry.membership==="left",
           trail:kpiInline(String(x.total),"gestes"),
@@ -9881,7 +9895,7 @@ function renderEvAthleteModal(){
     buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},
     h("div",null,
       h("div",{className:"muted",style:{marginBottom:"8px"}},
-        numLabel((e&&e.number)||"")+" · "+scope.label),
+        numLabel(libNum(sq,pid))+" · "+scope.label),
       total?h("div",null,
         renderStatFamilies(famProfile(st)),
         h("div",{className:"card tight",style:{marginTop:"10px"}},
@@ -10947,11 +10961,11 @@ function renderPartGoals(sq){
   } else {
     var tb=listToolbar({
       key:"goals-players",items:items,
-      search:{of:function(x){return fullName(x.player)+" "+((x.entry&&x.entry.number)||"")},
+      search:{of:function(x){return fullName(x.player)+" "+(numMaillot(sq,x.pid)||"")},
               placeholder:"Nom ou dossard"},
       sorts:[
         {key:"number",label:"Numéro",get:function(x){
-          var n=parseInt((x.entry&&x.entry.number)||"",10);return isFinite(n)?n:null}},
+          var n=parseInt(numMaillot(sq,x.pid)||"",10);return isFinite(n)?n:null}},
         {key:"name",label:"Nom",get:function(x){return fullName(x.player)}},
         {key:"age",label:"Âge",get:function(x){return ageOf(x.player)}},
         {key:"result",label:"Résultat",get:function(x){return x.atteints}}
@@ -10977,7 +10991,7 @@ function renderPartGoals(sq){
             color:x.atteints===x.objs.length?"var(--ok)":"var(--txt-dim)"}));
           if(x.reculs)meta.push(tok("box",{label:plural(x.reculs,"recul"),icon:"⚠️",
             color:"var(--warn)"}));
-          return listRow({lead:(x.entry&&x.entry.number)||"—",
+          return listRow({lead:libNum(sq,x.pid)||"—",
             name:fullName(x.player),meta:meta,
             trail:kpiInline(String(x.objs.length),"objectifs"),
             onclick:function(){openModal("goalsathlete",x.pid)}});
@@ -11007,7 +11021,7 @@ function renderGoalsAthleteModal(){
     buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},
     h("div",null,
       h("div",{className:"muted",style:{marginBottom:"8px"}},
-        numLabel((e&&e.number)||"")+" · "+plural(objs.length,"objectif")+" en cours"),
+        numLabel(libNum(sq,pid))+" · "+plural(objs.length,"objectif")+" en cours"),
       objs.length
         ? h("div",null,objs.map(function(g){return goalCard(sq,g,evaluerObjectif(sq,g))}))
         : emptyState({icon:"🎯",title:"Aucun objectif",small:true,
@@ -11212,11 +11226,11 @@ function renderPartRecap(sq){
 
   var tb=listToolbar({
     key:"recap-players",items:items,
-    search:{of:function(x){return fullName(x.player)+" "+(x.entry.number||"")},
+    search:{of:function(x){return fullName(x.player)+" "+(numLigne(sq,x.pid)||"")},
             placeholder:"Nom ou dossard"},
     sorts:[
       {key:"number",label:"Numéro",get:function(x){
-        var n=parseInt(x.entry.number||"",10);return isFinite(n)?n:null}},
+        var n=parseInt(numLigne(sq,x.pid)||"",10);return isFinite(n)?n:null}},
       {key:"name",label:"Nom",get:function(x){return fullName(x.player)}},
       {key:"age",label:"Âge",get:function(x){return ageOf(x.player)}},
       {key:"result",label:"Résultat",get:function(x){return x.total}}
@@ -11244,7 +11258,7 @@ function renderPartRecap(sq){
           meta.push(tok("dot",MEMBERSHIPS[x.entry.membership]));
         if(x.objs.length)meta.push(tok("dot",{label:x.atteints+"/"+x.objs.length+" objectifs",
           color:"var(--txt-dim)"}));
-        return listRow({lead:x.entry.number||"—",name:fullName(x.player),meta:meta,
+        return listRow({lead:numLigne(sq,x.pid)||"—",name:fullName(x.player),meta:meta,
           decision:x.entry.status,dim:x.entry.membership==="left",
           trail:kpiInline(String(x.total),"gestes"),
           onclick:function(){openModal("recapathlete",x.pid)}});
@@ -11276,7 +11290,7 @@ function renderRecapAthleteModal(){
 
   var corps=h("div",null);
   corps.appendChild(h("div",{className:"muted",style:{marginBottom:"8px"}},
-    [numLabel((e&&e.number)||""),
+    [numLabel(numLigne(sq,pid)),
      (e&&e.position&&POS_LABELS[e.position])?POS_LABELS[e.position]:null,
      (a!=null)?a+" ans":null].filter(Boolean).join(" · ")));
 
@@ -11621,11 +11635,11 @@ function renderPartPhysique(sq){
     var tri=listState("phys-players").sort;
     var tb=listToolbar({
       key:"phys-players",items:items,minSort:2,defaultSort:"number",
-      search:{of:function(x){return fullName(x.player)+" "+((x.entry&&x.entry.number)||"")},
+      search:{of:function(x){return fullName(x.player)+" "+(numMaillot(sq,x.pid)||"")},
               placeholder:"Nom ou dossard"},
       sorts:[
         {key:"number",label:"Numéro",get:function(x){
-          var n=parseInt((x.entry&&x.entry.number)||"",10);return isFinite(n)?n:null}},
+          var n=parseInt(numMaillot(sq,x.pid)||"",10);return isFinite(n)?n:null}},
         {key:"name",label:"Nom",get:function(x){return fullName(x.player)}}
       ].concat(colonnes.map(function(t){
         return {key:"t_"+t.key,label:physShort(t),dir:t.better==="low"?"asc":"desc",
@@ -11655,7 +11669,7 @@ function renderPartPhysique(sq){
                 " "+PHYS_TONE_FLECHE[ton]+fmtEcartMesure(r.depuis)):null));
           });
           if(!meta.length)meta.push(h("span",{className:"muted"},"Jamais mesurée"));
-          return listRow({lead:(x.entry&&x.entry.number)||"—",name:fullName(x.player),meta:meta,
+          return listRow({lead:libNum(sq,x.pid)||"—",name:fullName(x.player),meta:meta,
             trail:kpiInline(String(x.rel.length),x.rel.length>1?"séances":"séance"),
             ariaLabel:"Évolution physique de "+fullName(x.player),
             onclick:function(){openModal("physathlete",x.pid)}});
@@ -11837,7 +11851,7 @@ function renderPhysSessionModal(){
       });
       champs.push(inp);
       corps.appendChild(h("div",{className:"phys-ligne"},
-        h("div",{className:"lead"},(e&&e.number)||"—"),
+        h("div",{className:"lead"},libNum(sq,pid)||"—"),
         h("div",{className:"pl-nom"},
           h("div",{className:"ellip"},fullName(playerById(pid))),
           h("div",{className:"muted ellip"},avant
@@ -11874,7 +11888,7 @@ function renderPhysAthleteModal(){
   var a=ageOf(p);
   var corps=h("div",null);
   corps.appendChild(h("div",{className:"muted",style:{marginBottom:"8px"}},
-    [e?numLabel(e.number):null,(a!=null)?a+" ans":null,
+    [e?numLabel(libNum(sq,pid)):null,(a!=null)?a+" ans":null,
      p.jerseySize?"maillot "+p.jerseySize:null,
      rel.length?plural(rel.length,"séance")+" de tests":null].filter(Boolean).join(" · ")||"—"));
   if(!rel.length){
@@ -12157,18 +12171,21 @@ function etatMaillot(sq,pid,prets){
     if(!reprise&&!j.playerId&&!j.set&&j.number===numero&&j.size===taille&&jerseyLibre(j,prets))reprise=j;
   });
   var main=maillotsEnMain(sq.teamId,pid,prets);
+  /* Un numéro de maillot porté deux fois dans la sous-équipe ne se
+     produit pas : on ferait deux 7 pour la même équipe. */
+  var doublon=!!(numero&&porteurMaillot(sq,numero,pid));
   var etape;
   if(main.length)etape="remis";
   else if(!taille)etape="taille";
-  else if(!numero)etape="numero";
+  else if(!numero||doublon)etape="numero";
   else if(!bon)etape="produire";
   else etape=prets[bon.id]?"ailleurs":"remettre";
   return {pid:pid,taille:taille,numero:numero,siens:siens,bon:bon,aRefaire:aRefaire,
-    reprise:reprise,main:main,etape:etape};
+    reprise:reprise,main:main,etape:etape,doublon:doublon};
 }
 var ETAPES_MAILLOT={
   taille:{label:"Taille à prendre",icon:"📏",color:"#FBBF24"},
-  numero:{label:"Numéro à attribuer",icon:"🔢",color:"#FBBF24"},
+  numero:{label:"N° de maillot à attribuer",icon:"🔢",color:"#FBBF24"},
   produire:{label:"À produire",icon:"🏭",color:"#60A5FA"},
   remettre:{label:"Prêt à remettre",icon:"👕",color:"#60A5FA"},
   ailleurs:{label:"Son maillot est dehors",icon:"⚠️",color:"#FBBF24"},
@@ -12236,8 +12253,17 @@ function texteCommande(sq){
   lignes.push(compteParTaille(liste).map(function(x){return x.taille+" × "+x.n}).join(" · ")+
     " ("+plural(liste.length,"maillot")+")");
   lignes.push("");
-  liste.slice().sort(function(a,b){return (parseInt(a.numero,10)||0)-(parseInt(b.numero,10)||0)})
-    .forEach(function(e){lignes.push("#"+e.numero+"  "+fullName(playerById(e.pid))+" — "+e.taille)});
+  /* Avec des sous-équipes, deux 7 peuvent partir dans la même commande :
+     chaque ligne dit à quelle sous-équipe le maillot va. */
+  var avecSE=!!(sq.subteams&&sq.subteams.length);
+  liste.slice().sort(function(a,b){
+    var ga=nomGroupeMaillot(sq,groupeMaillot(sq,a.pid)),gb=nomGroupeMaillot(sq,groupeMaillot(sq,b.pid));
+    if(avecSE&&ga!==gb)return ga.localeCompare(gb,"fr");
+    return (parseInt(a.numero,10)||0)-(parseInt(b.numero,10)||0);
+  }).forEach(function(e){
+    var st=avecSE?subteamOf(sq,e.pid):null;
+    lignes.push((avecSE?(st?st.name:"Sans sous-équipe")+" · ":"")+"#"+e.numero+"  "+fullName(playerById(e.pid))+" — "+e.taille);
+  });
   return lignes.join("\n");
 }
 /* Produire : un maillot par athlète, à son numéro et à sa taille. Un
@@ -12285,6 +12311,11 @@ function copierCommande(sq){
   copyText(t).then(function(){showToast("📋 Commande copiée — collez-la dans votre courriel au fournisseur",{tone:"ok",duree:3600})});
 }
 
+/* Ouvrir la numérotation des maillots, éventuellement sur une athlète. */
+function allerNumerotationMaillot(pid){
+  state.tab="players";state.playersPane="numbers";state.numMode="maillot";
+  state.numPlayerM=pid||null;saveUI();render();
+}
 /* Le volet par défaut : la première étape qui n'est pas finie. */
 function voletMaillotsDefaut(sit){
   if(sit.par.taille||sit.par.numero)return "tailles";
@@ -12326,7 +12357,7 @@ function renderPartMaillots(sq){
   var parPid={};sit.etats.forEach(function(e){parPid[e.pid]=e});
   var ids=sit.etats.map(function(e){return e.pid});
   function ligneBase(pid){return {pid:pid,player:playerById(pid),entry:rosterEntry(sq,pid),etat:parPid[pid]}}
-  var triNum={key:"number",label:"Numéro",get:function(x){var n=parseInt((x.entry&&x.entry.number)||"",10);return isFinite(n)?n:null}};
+  var triNum={key:"number",label:"Numéro",get:function(x){var n=parseInt(numMaillot(sq,x.pid)||"",10);return isFinite(n)?n:null}};
   var triNom={key:"name",label:"Nom",get:function(x){return fullName(x.player)}};
   var triTaille={key:"taille",label:"Taille",get:function(x){return x.player.jerseySize?sizeRank(x.player.jerseySize):null}};
 
@@ -12334,19 +12365,23 @@ function renderPartMaillots(sq){
   if(volet==="tailles"){
     corps.appendChild(h("div",{className:"kpiGrid",style:{marginBottom:"12px"}},
       kpi({label:"Tailles prises",value:sit.tailles+"/"+sit.equipe,hint:sit.par.taille?plural(sit.par.taille,"à prendre"):"toutes"}),
-      kpi({label:"Numéros",value:(sit.equipe-sit.par.numero)+"/"+sit.equipe,
-        hint:sit.par.numero?plural(sit.par.numero,"à attribuer"):"attribués"})));
+      kpi({label:"N° de maillot",value:(sit.equipe-sit.par.numero)+"/"+sit.equipe,
+        hint:sit.par.numero?plural(sit.par.numero,"à régler"):"attribués"})));
     corps.appendChild(h("div",{className:"hint"},
       "Prenez d'abord la taille de chaque athlète : les maillots se produisent ensuite, d'après elles. "+
-      "Le numéro est celui que vous attribuez — les athlètes ne le choisissent pas."));
-    if(sit.par.numero)corps.appendChild(h("div",{className:"hint warn"},
-      plural(sit.par.numero,"athlète")+" sans numéro. ",
-      h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){
-        state.tab="players";state.playersPane="numbers";state.numPlayer=null;saveUI();render();
-      }},"🔢 Attribuer les numéros")));
+      "Le numéro de maillot est celui que vous attribuez — les athlètes ne le choisissent pas. "+
+      "Il est unique dans la sous-équipe ; le numéro de sélection, lui, reste celui des tryouts."));
+    if(sit.par.numero){
+      var doubl=sit.etats.filter(function(e){return e.doublon}).length;
+      corps.appendChild(h("div",{className:"hint warn"},
+        (sit.par.numero-doubl?plural(sit.par.numero-doubl,"athlète")+" sans numéro de maillot. ":"")+
+        (doubl?plural(doubl,"athlète")+" avec un numéro en double dans sa sous-équipe. ":""),
+        h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){allerNumerotationMaillot(null)}},
+          "🔢 Numéros de maillot")));
+    }
     var tbT=listToolbar({
       key:"maillots-tailles",items:ids.map(ligneBase),minSort:2,defaultSort:"number",
-      search:{of:function(x){return fullName(x.player)+" "+((x.entry&&x.entry.number)||"")},placeholder:"Nom ou dossard"},
+      search:{of:function(x){return fullName(x.player)+" "+(numMaillot(sq,x.pid)||"")},placeholder:"Nom ou dossard"},
       sorts:[triNum,triNom,triTaille],
       filters:[{key:"taille",label:"Taille",get:function(x){return x.player.jerseySize||"?"},
         options:[{k:"?",l:"Non prise"}].concat(JERSEY_SIZES.map(function(s){return {k:s,l:s}}))}],
@@ -12360,8 +12395,9 @@ function renderPartMaillots(sq){
         sel.addEventListener("change",function(e){
           x.player.jerseySize=e.target.value;scheduleAutoSave();render();
         });
-        return listRow({lead:(x.entry&&x.entry.number)||"—",name:fullName(x.player),
-          meta:[x.etat.numero?null:tok("box",{label:"Numéro ?",color:"#FBBF24"}),
+        return listRow({lead:libNum(sq,x.pid)||"—",name:fullName(x.player),
+          meta:[x.etat.doublon?tok("box",{label:"N° en double",color:"#F87171"})
+              :(x.etat.numero?null:tok("box",{label:"N° de maillot ?",color:"#FBBF24"})),
             x.player.jerseySize?tok("dot",{label:"Taille prise",color:"var(--ok)"}):tok("dot",{label:"Taille à prendre",color:"var(--warn)"})],
           trail:sel,ariaLabel:"Maillot de "+fullName(x.player),
           onclick:function(){openModal("jerseyathlete",x.pid)}});
@@ -12380,7 +12416,7 @@ function renderPartMaillots(sq){
     var parTaille=compteParTaille(neufs);
     if(sit.par.taille||sit.par.numero)corps.appendChild(h("div",{className:"hint warn"},
       (sit.par.taille?plural(sit.par.taille,"taille")+" à prendre":"")+
-      (sit.par.taille&&sit.par.numero?", ":"")+(sit.par.numero?plural(sit.par.numero,"numéro")+" à attribuer":"")+
+      (sit.par.taille&&sit.par.numero?", ":"")+(sit.par.numero?plural(sit.par.numero,"numéro")+" de maillot à régler":"")+
       " : ces athlètes attendent, leur maillot ne peut pas encore se faire. ",
       h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){aller("tailles")}},"① Tailles ›")));
     var carte=h("div",{className:"card tight"});
@@ -12402,7 +12438,7 @@ function renderPartMaillots(sq){
     corps.appendChild(carte);
     var tbP=listToolbar({
       key:"maillots-production",items:ids.map(ligneBase),minSort:2,defaultSort:"number",
-      search:{of:function(x){return fullName(x.player)+" "+((x.entry&&x.entry.number)||"")},placeholder:"Nom ou dossard"},
+      search:{of:function(x){return fullName(x.player)+" "+(numMaillot(sq,x.pid)||"")},placeholder:"Nom ou dossard"},
       sorts:[triNum,triNom,triTaille],
       filters:[{key:"etape",label:"Étape",get:function(x){return x.etat.etape},
         options:Object.keys(ETAPES_MAILLOT).map(function(k){return {k:k,l:ETAPES_MAILLOT[k].label}})}],
@@ -12411,9 +12447,9 @@ function renderPartMaillots(sq){
         if(e.bon)meta.push(tok("pill",{label:"#"+e.bon.number+" · "+e.bon.size,icon:"👕",color:"#34D399"}));
         else if(e.etape==="produire")meta.push(tok("box",{label:(e.reprise?"♻ Repris ":"À produire ")+"#"+e.numero+" · "+e.taille,
           color:"#60A5FA"}));
-        else meta.push(tok("box",ETAPES_MAILLOT[e.etape]));
+        else meta.push(e.doublon?tok("box",{label:"N° de maillot en double",icon:"⚠️",color:"#F87171"}):tok("box",ETAPES_MAILLOT[e.etape]));
         if(e.aRefaire)meta.push(tok("dot",{label:"Ancien maillot à refaire",color:"var(--warn)"}));
-        return listRow({lead:(x.entry&&x.entry.number)||"—",name:fullName(x.player),meta:meta,
+        return listRow({lead:libNum(sq,x.pid)||"—",name:fullName(x.player),meta:meta,
           ariaLabel:"Maillot de "+fullName(x.player),
           onclick:function(){openModal("jerseyathlete",x.pid)}});
       })}
@@ -12469,7 +12505,7 @@ function renderPartMaillots(sq){
   }).filter(function(x){return !x.horsEquipe||x.main.length});
   var tb=listToolbar({
     key:"maillots",items:items,minSort:2,defaultSort:"number",
-    search:{of:function(x){return fullName(x.player)+" "+((x.entry&&x.entry.number)||"")+" "+
+    search:{of:function(x){return fullName(x.player)+" "+(numMaillot(sq,x.pid)||"")+" "+
       x.main.map(function(m){return "#"+m.jersey.number}).join(" ")},placeholder:"Nom, dossard ou maillot"},
     sorts:[triNum,triNom,triTaille],
     filters:[
@@ -12503,7 +12539,7 @@ function renderPartMaillots(sq){
           "aria-label":"Remettre le maillot "+jerseyNom(x.etat.bon)+" à "+fullName(x.player),
           onclick:function(){gesteRemettre(sq,x.etat.bon,x.pid)}},"👕 #"+x.etat.bon.number);
       }
-      return listRow({lead:(x.entry&&x.entry.number)||"—",name:fullName(x.player),meta:meta,
+      return listRow({lead:libNum(sq,x.pid)||"—",name:fullName(x.player),meta:meta,
         dim:x.horsEquipe&&!x.main.length,trail:action,
         ariaLabel:"Maillots de "+fullName(x.player),
         onclick:function(){openModal("jerseyathlete",x.pid)}});
@@ -12569,11 +12605,13 @@ function renderJerseyAthleteModal(){
   corps.appendChild(h("div",{className:"section-title"},"② Son maillot"));
   corps.appendChild(h("div",{className:"row-between",style:{gap:"8px",marginBottom:"8px"}},
     h("div",{className:"muted",style:{minWidth:"0"}},et.numero
-      ?"Numéro attribué : #"+et.numero+" — c'est celui qui sera floqué."
-      :"Aucun numéro attribué. Le numéro vient de l'entraîneur, pas de l'athlète."),
+      ?"Numéro de maillot : #"+et.numero+" — c'est celui qui sera floqué"+
+        (subteamOf(sq,pid)?", unique dans « "+subteamOf(sq,pid).name+" »":"")+"."+
+        (et.doublon?" ⚠️ Il est déjà porté dans cette sous-équipe.":"")
+      :"Aucun numéro de maillot. Il vient de l'entraîneur, pas de l'athlète."),
     h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){
-      closeModal();state.tab="players";state.playersPane="numbers";state.numPlayer=pid;saveUI();render();
-    }},"🔢 Numérotation")));
+      closeModal();allerNumerotationMaillot(pid);
+    }},"🔢 Numéro")));
   if(et.bon){
     corps.appendChild(h("div",{className:"card tight"},"👕 "+jerseyNom(et.bon)+" — produit pour elle",
       h("div",{className:"muted"},prets[et.bon.id]?"Chez "+fullName(playerById(prets[et.bon.id].loan.playerId)):
@@ -14572,14 +14610,22 @@ function renderPlayersTab(){
   if(state.playersPane==="roster")body=renderRosterPane(season);
   else if(state.playersPane==="subteams")body=renderSubteamsPane(season);
   else if(state.playersPane==="numbers"){
-    var np=renderNumberingPane(season);
-    if(np&&np.head){head=np.head;body=np.body}else body=np;
+    /* Deux numéros, deux grilles : la sélection (chasubles de tryout,
+       unique dans l'équipe) et le maillot (floqué, unique dans la
+       sous-équipe). */
+    var mode=state.numMode==="maillot"?"maillot":"selection";
+    var np=mode==="maillot"?renderNumerotationMaillot(season):renderNumberingPane(season);
+    var barreMode=h("div",{className:"pill-row tight"},segmented({label:"Numéro",value:mode,
+      options:[{k:"selection",l:"🎯 Sélection"},{k:"maillot",l:"👕 Maillot"}],
+      onpick:function(v){state.numMode=v;state.numPlayer=null;state.numPlayerM=null;saveUI();render()}}));
+    if(np&&np.head){head=h("div",null,barreMode,np.head);body=np.body}
+    else {head=barreMode;body=np}
   }
   else body=renderDbPane(season);
   /* Deux écrans sous le même volet, deux défilements : sans clé distincte,
      ouvrir la grille la rendait déjà défilée, à la hauteur où l'on avait
      laissé la liste. */
-  var cle="players-"+state.playersPane+(head?"-grille":"");
+  var cle="players-"+state.playersPane+(state.playersPane==="numbers"?"-"+(state.numMode==="maillot"?"m":"s")+(state.numPlayer||state.numPlayerM?"-grille":""):(head?"-grille":""));
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},row,head,
     h("div",{className:"content pad","data-scroll-key":cle},body),
     renderPickBar(season));
@@ -14685,13 +14731,21 @@ function barreSousEquipe(sq,opts){
 /* Ajouter à une sous-équipe RETIRE de l'autre, et de ses line-ups :
    c'est ce qui rend l'appartenance exclusive, quel que soit l'écran. */
 function ajouterASousEquipe(sq,st,pids){
-  var n=0;
+  var n=0,doublons=[];
   (pids||[]).forEach(function(pid){
     if(sq.playerIds.indexOf(pid)===-1||st.playerIds.indexOf(pid)!==-1)return;
     var ancienne=subteamOf(sq,pid);
     if(ancienne)retirerDeSousEquipe(ancienne,pid);
     st.playerIds.push(pid);n++;
+    /* Le numéro de maillot est unique dans la sous-équipe : en changer
+       peut faire tomber sur un 7 déjà porté. On le dit, sans refuser —
+       c'est peut-être le premier geste d'un échange. */
+    var autre=porteurMaillot(sq,numMaillot(sq,pid),pid);
+    if(autre)doublons.push("#"+numMaillot(sq,pid)+" "+shortName(playerById(pid))+" et "+shortName(playerById(autre.playerId)));
   });
+  if(doublons.length)setTimeout(function(){
+    showToast("⚠️ Maillot en double dans « "+st.name+" » : "+doublons.join(", ")+" — 🔢 Numérotation → Maillot",{tone:"warn",duree:6000});
+  },0);
   return n;
 }
 function retirerDeSousEquipe(st,pid){
@@ -14748,7 +14802,90 @@ function ouvrirLineup(st,lu,preselection){
   state.modalSel=lu?lu.playerIds.slice():(preselection||[]).filter(function(pid){return st.playerIds.indexOf(pid)!==-1});
   openModal("lineup",st.id+"|"+(lu?lu.id:""),lu?lu.name:"");
 }
-function numDansSaison(sq,pid){var e=rosterEntry(sq,pid);return (e&&e.number)||""}
+/* Côté équipe — saisie, rencontres, objectifs, physique, maillots,
+   sous-équipes — on parle en numéro de MAILLOT. La sélection garde le
+   sien (numOf, entry.number). */
+function numDansSaison(sq,pid){var e=rosterEntry(sq,pid);return (e&&e.jerseyNumber)||""}
+function numMaillot(sq,pid){return numDansSaison(sq,pid)}
+/* Le groupe dans lequel un numéro de maillot doit être unique : sa
+   sous-équipe, ou « sans sous-équipe ». */
+function groupeMaillot(sq,pid){var st=subteamOf(sq,pid);return st?st.id:""}
+function nomGroupeMaillot(sq,gid){
+  var st=null;(sq.subteams||[]).forEach(function(x){if(x.id===gid)st=x});
+  return st?st.name:(sq.subteams&&sq.subteams.length?"Sans sous-équipe":"L'équipe");
+}
+/* « Équipe A » → « A » ; sinon les trois premières lettres. */
+function codeSousEquipe(st){
+  if(!st)return "";
+  var m=String(st.name||"").trim().match(/(?:^|\s)(\S{1,2})$/);
+  return m?m[1].toUpperCase():String(st.name||"?").trim().slice(0,3);
+}
+/* L'autre athlète de l'équipe qui porte ce numéro de maillot dans le
+   même groupe — celle avec qui il y aurait doublon. */
+function porteurMaillot(sq,num,saufPid,gid){
+  num=cleanNum(num);if(!num||!sq)return null;
+  if(gid===undefined)gid=saufPid?groupeMaillot(sq,saufPid):"";
+  var out=null;
+  (sq.playerIds||[]).forEach(function(pid){
+    if(out||pid===saufPid)return;
+    var e=rosterEntry(sq,pid);
+    if(e&&e.jerseyNumber===num&&groupeMaillot(sq,pid)===gid)out=e;
+  });
+  return out;
+}
+/* Les athlètes dont le numéro de maillot est en double dans son groupe. */
+function doublonsMaillot(sq){
+  var vus={},out={};
+  (sq&&sq.playerIds||[]).forEach(function(pid){
+    var e=rosterEntry(sq,pid);if(!e||!e.jerseyNumber)return;
+    var k=groupeMaillot(sq,pid)+"|"+e.jerseyNumber;
+    if(vus[k]){out[pid]=true;out[vus[k]]=true}else vus[k]=pid;
+  });
+  return out;
+}
+/* Le numéro tel qu'il s'affiche dans une liste de l'équipe : « 7 », ou
+   « A·7 » quand une autre sous-équipe a aussi son 7 — sans quoi deux
+   lignes « 7 » se suivraient sans qu'on sache laquelle est laquelle. */
+function libNum(sq,pid){
+  var n=numMaillot(sq,pid);if(!n)return "";
+  var partage=(sq.playerIds||[]).some(function(x){
+    if(x===pid)return false;var e=rosterEntry(sq,x);return e&&e.jerseyNumber===n;
+  });
+  var st=partage?subteamOf(sq,pid):null;
+  return st?codeSousEquipe(st)+"·"+n:n;
+}
+/* Le numéro d'une ligne qui mêle l'équipe et des convoquées : maillot
+   pour l'équipe, sélection pour les autres. */
+function numLigne(sq,pid){
+  if((sq.playerIds||[]).indexOf(pid)!==-1)return libNum(sq,pid);
+  return numOf(sq,pid);
+}
+/* Poser un numéro de maillot. Même geste que pour la sélection : un
+   numéro déjà porté DANS LE GROUPE s'échange, et on le demande. */
+function assignerMaillot(sq,pid,num,apres){
+  var e=rosterEntry(sq,pid);if(!e)return false;
+  num=cleanNum(num);
+  var avant=e.jerseyNumber||"";
+  function poser(n,autre){
+    e.jerseyNumber=n;
+    logAct("number",logWho(sq,pid)+" : maillot "+(avant||"—")+" → "+(n||"—")+
+      (autre?" (échangé avec "+fullName(playerById(autre.playerId))+")":""),
+      {teamId:sq.teamId,seasonId:sq.seasonId,playerId:pid});
+    scheduleAutoSave();
+  }
+  if(num&&avant===num){poser("",null);if(apres)apres();return true}
+  var autre=porteurMaillot(sq,num,pid);
+  if(autre){
+    var qui=fullName(playerById(autre.playerId)),gr=nomGroupeMaillot(sq,groupeMaillot(sq,pid));
+    return confirmAct((avant
+      ?"Le maillot "+num+" est porté par "+qui+" ("+gr+").\nÉchanger ? "+qui+" prendra le "+avant+"."
+      :"Le maillot "+num+" est porté par "+qui+" ("+gr+").\nLe lui prendre ? "+qui+" se retrouvera sans numéro de maillot."),
+      function(){autre.jerseyNumber=avant;poser(num,autre);if(apres)apres()},
+      {confirm:avant?"Échanger":"Le lui prendre",tone:"primary"});
+  }
+  poser(num,null);if(apres)apres();
+  return true;
+}
 function trierParNumero(sq,ids){
   return ids.slice().sort(function(a,b){
     var na=parseInt(numDansSaison(sq,a),10),nb=parseInt(numDansSaison(sq,b),10);
@@ -15023,7 +15160,8 @@ function renderRosterPane(squad){
     ? h("div",{className:"hint"},"Cochez les athlètes à retirer de la convocation. ",
         "Les raccourcis prennent un statut entier — ",h("b",null,"⛔ Non retenue")," après un tryout.")
     : h("div",{className:"hint"},
-        "Le ",h("b",null,"numéro d'athlète")," est la seule information transmise aux sélectionneurs. Il doit être unique dans la saison. Glissez ☰ pour réordonner."));
+        "Le ",h("b",null,"numéro de sélection")," est la seule information transmise aux sélectionneurs. Il doit être unique dans la saison. "+
+        "Le numéro de maillot, lui, se donne dans 🔢 Numérotation → 👕 Maillot. Glissez ☰ pour réordonner."));
   /* Défaire se fait en lot comme faire : on convoque vingt-huit athlètes
      d'un geste, on doit pouvoir en retirer douze du même. Vider, lui,
      reste à un seul bouton : c'est le geste de la liste montée sur la
@@ -15244,7 +15382,7 @@ function renderNumberingPane(squad){
   /* ── La liste : qui a quoi, et qui n'a rien ───────────────── */
   var wrap=h("div",null,
     h("div",{className:"hint"},
-      "Le ",h("b",null,"numéro d'athlète")," est la seule information transmise aux évaluateurs. ",
+      "Le ",h("b",null,"numéro de sélection")," — la chasuble des tryouts — est la seule information transmise aux évaluateurs. ",
       "Posez la série de chasubles que vous avez en main, puis touchez une athlète : ",
       "vous choisirez son numéro dans la série, et l'écran passera à la suivante."));
 
@@ -15312,6 +15450,136 @@ function renderNumberingPane(squad){
           (STATUSES[e.status]||STATUSES.candidate).label+
           (e.number&&dup[e.number]?" · ⚠️ numéro en double":""))),
       h("span",{className:"muted"},"▸")));
+  });
+  return wrap;
+}
+
+/* ── Numérotation des MAILLOTS ─────────────────────────────────
+   Le numéro floqué. Unique dans la sous-équipe : l'Équipe A et
+   l'Équipe B ont chacune leur 7. Seules les athlètes de l'équipe en
+   portent un — une convoquée n'a pas de maillot. Même geste que pour
+   la sélection : on touche une athlète, puis un numéro de la grille, et
+   l'écran passe à la suivante. Un numéro déjà porté dans SON groupe
+   s'échange ; porté dans une autre sous-équipe, il est libre pour elle. */
+function renderNumerotationMaillot(squad){
+  if(!squad)return h("div",{className:"empty"},"Aucune saison active");
+  var equipe=(squad.playerIds||[]).filter(function(pid){return playerById(pid)});
+  if(!equipe.length)return emptyState({icon:"👕",title:"L'équipe est vide",small:true,
+    sub:"Les numéros de maillot se donnent aux athlètes de l'équipe, une fois leur offre confirmée. "+
+        "Pendant la sélection, c'est le numéro de sélection qui compte."});
+  var doubl=doublonsMaillot(squad);
+  /* Les groupes : chaque sous-équipe, puis celles qui n'en ont pas. */
+  var groupes=(squad.subteams||[]).map(function(st){
+    return {id:st.id,nom:st.name,ids:trierParNumero(squad,subteamMembers(squad,st))};
+  });
+  var sansSE=trierParNumero(squad,equipe.filter(function(pid){return !subteamOf(squad,pid)}));
+  if(sansSE.length||!groupes.length)groupes.push({id:"",nom:groupes.length?"Sans sous-équipe":"L'équipe",ids:sansSE});
+  var ordre=[];groupes.forEach(function(g){ordre=ordre.concat(g.ids)});
+  if(state.numPlayerM&&ordre.indexOf(state.numPlayerM)===-1)state.numPlayerM=null;
+  var plusHaut=20;
+  equipe.forEach(function(pid){var n=parseInt(numMaillot(squad,pid),10);if(n>plusHaut)plusHaut=n});
+  var fin=state.numMaillotTout?99:plusHaut;
+
+  /* ── L'athlète choisie : la grille de SON groupe ─────────── */
+  if(state.numPlayerM){
+    var pid0=state.numPlayerM,e0=rosterEntry(squad,pid0),p0=playerById(pid0);
+    var gid=groupeMaillot(squad,pid0),idx=ordre.indexOf(pid0);
+    function suivanteSans(){
+      for(var i=1;i<=ordre.length;i++){
+        var x=ordre[(idx+i)%ordre.length];
+        if(!numMaillot(squad,x))return x;
+      }
+      return null;
+    }
+    var tete=h("div",{className:"num-head"},
+      h("div",{className:"row-between"},
+        h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){state.numPlayerM=null;render()}},"← Liste"),
+        h("div",{className:"muted"},nomGroupeMaillot(squad,gid))),
+      h("div",{style:{display:"flex",alignItems:"center",gap:"10px",marginTop:"8px"}},
+        h("span",{className:"num-badge"+(doubl[pid0]?" dup":""),style:{display:"inline-flex",alignItems:"center",
+          justifyContent:"center",flexShrink:"0"}},e0.jerseyNumber||"—"),
+        h("div",{style:{flex:"1",minWidth:"0"}},
+          h("div",{className:"pname"},fullName(p0)),
+          h("div",{className:"psub"},(e0.number?"Sélection #"+e0.number+" · ":"")+
+            (e0.jerseyNumber?"Touchez un numéro. Le sien le retire.":"Touchez un numéro de maillot."))),
+        h("div",{className:"btn-row",style:{flexShrink:"0"}},
+          h("button",{className:"btn btn-ghost xs",type:"button",disabled:idx<=0,"aria-label":"Athlète précédente",
+            onclick:function(){state.numPlayerM=ordre[idx-1];render()}},"←"),
+          h("button",{className:"btn btn-ghost xs",type:"button",disabled:idx>=ordre.length-1,"aria-label":"Athlète suivante",
+            onclick:function(){state.numPlayerM=ordre[idx+1];render()}},"→"))));
+    var grille=h("div",{className:"seq-grid"});
+    for(var n=1;n<=fin;n++)(function(t){
+      var porteur=porteurMaillot(squad,t,pid0,gid);
+      var mien=e0.jerseyNumber===t;
+      var tuile=h("button",{className:"seq-tile"+(mien?" mine":"")+(porteur?" taken":""),type:"button",
+        "aria-label":"Maillot "+t+(porteur?" — porté par "+fullName(playerById(porteur.playerId)):""),
+        onclick:function(){
+          assignerMaillot(squad,pid0,t,function(){
+            saveNow();
+            if(e0.jerseyNumber===t){var s2=suivanteSans();if(s2)state.numPlayerM=s2}
+            render();
+          });
+        }},h("span",null,t));
+      if(porteur)tuile.appendChild(h("span",{className:"who"},shortName(playerById(porteur.playerId))));
+      else if(mien)tuile.appendChild(h("span",{className:"who"},shortName(p0)));
+      grille.appendChild(tuile);
+    })(String(n));
+    return {head:tete,body:h("div",null,
+      h("div",{className:"muted",style:{marginBottom:"8px"}},
+        "Grisés : les maillots déjà portés dans « "+nomGroupeMaillot(squad,gid)+" ». "+
+        "Un numéro porté dans une autre sous-équipe reste libre ici."),
+      grille,
+      fin<99?h("button",{className:"btn btn-ghost xs",type:"button",style:{marginTop:"10px"},
+        onclick:function(){state.numMaillotTout=true;render()}},"Jusqu'à 99"):null)};
+  }
+
+  /* ── La liste, sous-équipe par sous-équipe ───────────────── */
+  var wrap=h("div",null,h("div",{className:"hint"},
+    "Le ",h("b",null,"numéro de maillot")," est celui qui est floqué. Il est ",h("b",null,"unique dans la sous-équipe"),
+    " : l'Équipe A et l'Équipe B peuvent avoir chacune leur 7. Le numéro de sélection, lui, reste unique dans toute l'équipe — "+
+    "c'est le seul que voient les sélectionneurs."));
+  var sans=equipe.filter(function(pid){return !numMaillot(squad,pid)});
+  /* Reprendre le numéro de sélection : un geste voulu, jamais d'office,
+     et seulement là où il ne crée pas de doublon dans le groupe. */
+  var reprenables=sans.filter(function(pid){
+    var sel=numOf(squad,pid);return sel&&!porteurMaillot(squad,sel,pid);
+  });
+  var nd=Object.keys(doubl).length;
+  wrap.appendChild(h("div",{className:"kpiGrid",style:{marginBottom:"12px"}},
+    kpi({label:"Numérotées",value:(equipe.length-sans.length)+"/"+equipe.length,hint:sans.length?plural(sans.length,"sans numéro"):"toutes"}),
+    kpi({label:"Doublons",value:String(nd),hint:nd?"dans une même sous-équipe":"aucun"})));
+  if(reprenables.length)wrap.appendChild(h("div",{className:"card tight",style:{marginBottom:"12px"}},
+    h("div",{className:"row-between",style:{gap:"8px"}},
+      h("div",{className:"muted",style:{minWidth:"0"}},
+        plural(reprenables.length,"athlète")+" sans numéro de maillot peu"+(reprenables.length>1?"vent":"t")+
+        " garder son numéro de sélection."),
+      h("button",{className:"btn btn-ghost sm",type:"button",onclick:function(){
+        pushUndoSquad("Numéros de maillot repris de la sélection",squad);
+        var k=0;
+        reprenables.forEach(function(pid){
+          var sel=numOf(squad,pid);
+          if(sel&&!porteurMaillot(squad,sel,pid)){rosterEntry(squad,pid).jerseyNumber=sel;k++}
+        });
+        logAct("number","Numéros de maillot repris de la sélection — "+plural(k,"athlète"),{teamId:squad.teamId,seasonId:squad.seasonId});
+        saveNow();render();
+        showToast("✅ "+plural(k,"numéro")+" de maillot repris",{tone:"ok",action:{label:"Annuler",onclick:doUndo}});
+      }},"Reprendre ("+reprenables.length+")"))));
+  groupes.forEach(function(g){
+    if(!g.ids.length)return;
+    wrap.appendChild(h("div",{className:"section-title"},g.nom+" · "+plural(g.ids.length,"athlète")));
+    g.ids.forEach(function(pid){
+      var e=rosterEntry(squad,pid),p=playerById(pid);
+      wrap.appendChild(h("div",{className:"list-row",style:{cursor:"pointer"},
+        onclick:function(){state.numPlayerM=pid;render()}},
+        h("span",{className:"num-badge"+(doubl[pid]?" dup":""),
+          style:{display:"inline-flex",alignItems:"center",justifyContent:"center",
+            color:e.jerseyNumber?"#F8FAFC":"#94A3B8"}},e.jerseyNumber||"—"),
+        h("div",{className:"body"},
+          h("div",{className:"pname"},fullName(p)),
+          h("div",{className:"psub"},(e.number?"Sélection #"+e.number:"Sans numéro de sélection")+
+            (doubl[pid]?" · ⚠️ maillot en double dans la sous-équipe":""))),
+        h("span",{className:"muted"},"▸")));
+    });
   });
   return wrap;
 }
@@ -15669,7 +15937,7 @@ function saveSession(team,opts){
   var squad=team;
   var entries=team.playerIds.map(function(pid){
     var p=playerById(pid),e=rosterEntry(squad,pid);
-    return {playerId:pid,name:p?fullName(p):"",number:e?e.number:"",position:e?e.position:"",stats:clone(statsOf(team,pid))};
+    return {playerId:pid,name:p?fullName(p):"",number:e?(e.jerseyNumber||""):"",position:e?e.position:"",stats:clone(statsOf(team,pid))};
   }).filter(function(en){return hasStats(en.stats)});
   if(!entries.length){showToast("⚠️ Aucune statistique à enregistrer");return false}
 
@@ -17790,7 +18058,9 @@ function renderModal(){
                  au statut Candidate : rien n'est acquis d'une année sur l'autre. */
               src.roster.forEach(function(e){
                 if(rosterEntry(nsq,e.playerId))return;
-                nsq.roster.push(mkRosterEntry(e.playerId,e.number,e.position));
+                var ne=mkRosterEntry(e.playerId,e.number,e.position);
+                ne.jerseyNumber=cleanNum(e.jerseyNumber);
+                nsq.roster.push(ne);
               });
             });
           }
@@ -18562,9 +18832,10 @@ function renderModal(){
     var p0=T==="editplayer"?playerById(state.modalCtx):null;
     if(T==="editplayer"&&!p0)return null;
     var entry0=(p0&&season)?rosterEntry(season,p0.id):null;
+    var enEquipe0=!!(entry0&&season.playerIds.indexOf(p0.id)!==-1);
     var draft=state.modalDraft||(state.modalDraft=p0
       ?{firstName:p0.firstName,lastName:p0.lastName,birth:fmtBirth(p0),notes:p0.notes,number:entry0?entry0.number:"",
-        jerseySize:p0.jerseySize||""}
+        jerseyNumber:entry0?(entry0.jerseyNumber||""):"",jerseySize:p0.jerseySize||""}
       :{firstName:"",lastName:"",birth:"",notes:"",number:"",jerseySize:""});
     /* `nettoie` rend visible ce qui sera gardé : le dossard ne retient
        que les chiffres, et « -5 » devenu 5 en silence faisait ensuite
@@ -18616,7 +18887,14 @@ function renderModal(){
       if(!f&&!l){showToast("⚠️ Entrez au moins un nom");return}
       var num=cleanNum(draft.number);
       if(num&&season&&numberTaken(season,num,p0?p0.id:null)){
-        showToast("⚠️ Le numéro "+num+" est déjà pris dans cette saison");return;
+        showToast("⚠️ Le numéro de sélection "+num+" est déjà pris dans cette saison");return;
+      }
+      /* Le maillot, lui, n'est unique que dans la sous-équipe. */
+      var numM=cleanNum(draft.jerseyNumber);
+      if(numM&&enEquipe0&&porteurMaillot(season,numM,p0.id)){
+        var autreM=porteurMaillot(season,numM,p0.id);
+        showToast("⚠️ Le maillot "+numM+" est déjà porté par "+shortName(playerById(autreM.playerId))+
+          " dans « "+nomGroupeMaillot(season,groupeMaillot(season,p0.id))+" »",{tone:"warn",duree:4200});return;
       }
       var b=parseBirth(draft.birth);
       if(!b){showToast("⚠️ Date de naissance illisible — 26/10/2011, ou 2011");return}
@@ -18624,6 +18902,10 @@ function renderModal(){
         Object.assign(p0,{firstName:f,lastName:l,birthDate:b.date,birthYear:b.year,notes:draft.notes||"",
           jerseySize:draft.jerseySize||""});
         if(entry0)entry0.number=num;
+        if(entry0&&enEquipe0&&entry0.jerseyNumber!==numM){
+          entry0.jerseyNumber=numM;
+          logAct("number",logWho(season,p0.id)+" : maillot → "+(numM||"—"),{teamId:season.teamId,seasonId:season.seasonId,playerId:p0.id});
+        }
       } else {
         var np=mkDbPlayer({firstName:f,lastName:l,birthDate:b.date,birthYear:b.year,notes:draft.notes||"",
           jerseySize:draft.jerseySize||""});
@@ -18647,10 +18929,12 @@ function renderModal(){
     return modalShell(p0?"Fiche joueuse":"Nouvelle joueuse",
       h("div",null,fld("firstName","Prénom","Prénom"),fld("lastName","Nom","Nom de famille"),
         fld("birth","Date de naissance","26/10/2011 — ou 2011",{maxlength:"10"}),
-        (season&&(!p0||entry0))?fld("number","Numéro d'athlète","À saisir",
+        (season&&(!p0||entry0))?fld("number","Numéro de sélection","À saisir",
           {inputmode:"numeric",maxlength:"3"},cleanNum):null,
         (season&&(!p0||entry0))?h("div",{className:"muted",style:{margin:"-4px 0 10px"}},
-          "Vous pouvez le laisser vide et le renseigner plus tard dans le tableau de sélection."):null,
+          "Celui des tryouts, le seul que voient les sélectionneurs. Vous pouvez le laisser vide et le renseigner plus tard."):null,
+        enEquipe0?fld("jerseyNumber","Numéro de maillot","Floqué — unique dans la sous-équipe",
+          {inputmode:"numeric",maxlength:"3"},cleanNum):null,
         h("label",{className:"field"},h("span",null,"Taille de maillot"),taille),
         suivi,
         h("label",{className:"field"},h("span",null,"Notes"),notes),

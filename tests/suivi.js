@@ -84,8 +84,11 @@ const ERRORS=[];let PASS=0;
      ["Alice","Bouchard","5",""],["Jade","Gagnon","9",""],["Rose","Dubé","4","M"]].forEach(function(n,i){
       var p=mkDbPlayer({firstName:n[0],lastName:n[1],birthYear:"2010",jerseySize:n[3]});
       DB.players.push(p);
-      sq.roster.push(mkRosterEntry(p.id,n[2],"OH"));
-      if(i<5)sq.playerIds.push(p.id);
+      var e=mkRosterEntry(p.id,n[2],"OH");
+      /* Dans l'équipe, le numéro de maillot est posé : c'est l'entraîneur
+         qui le donne (🔢 Numérotation → 👕 Maillot). */
+      if(i<5){e.jerseyNumber=n[2];sq.playerIds.push(p.id)}
+      sq.roster.push(e);
     });
     DB=normalizeDB(DB);
     saveNow();render();
@@ -190,7 +193,7 @@ const ERRORS=[];let PASS=0;
   await step("un numéro changé après coup : le maillot est à refaire, l'ancien retourne au stock",async()=>{
     const r=await page.evaluate(()=>{
       var sq=curSquad(),sofia=DB.players.filter(p=>p.firstName==="Sofia")[0].id;
-      rosterEntry(sq,sofia).number="21";
+      rosterEntry(sq,sofia).jerseyNumber="21";
       var e=etatMaillot(sq,sofia);
       var avant={etape:e.etape,aRefaire:e.aRefaire};
       produireMaillots(sq,aProduire(sq));
@@ -250,7 +253,7 @@ const ERRORS=[];let PASS=0;
     await page.evaluate(i=>openModal("jerseyathlete",i),id);
     await page.waitForTimeout(200);
     const t=await page.textContent(".modal");
-    for(const x of ["① Taille","② Son maillot","③ Remise et retour","Numéro attribué : #3"])
+    for(const x of ["① Taille","② Son maillot","③ Remise et retour","Numéro de maillot : #3"])
       if(!t.includes(x))throw new Error("absent : "+x);
     await page.locator(".modal button").filter({hasText:"Lui remettre"}).click();
     await page.waitForTimeout(200);
@@ -300,7 +303,7 @@ const ERRORS=[];let PASS=0;
       var avant=situationMaillots(sq);
       var s1=mkSeason("Saison 2027");DB.seasons.push(s1);DB.activeSeasonId=s1.id;
       var sq2=ensureSquad(sq.teamId,s1.id);
-      sq.roster.forEach(function(e){sq2.roster.push(mkRosterEntry(e.playerId,e.number,e.position))});
+      sq.roster.forEach(function(e){var ne=mkRosterEntry(e.playerId,e.number,e.position);ne.jerseyNumber=e.jerseyNumber;sq2.roster.push(ne)});
       ["Léa","Sofia","Alice"].forEach(function(f){sq2.playerIds.push(DB.players.filter(p=>p.firstName===f)[0].id)});
       DB=normalizeDB(DB);saveNow();render();
       sq2=curSquad();
