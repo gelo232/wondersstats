@@ -922,29 +922,48 @@ suppression — qui, quelle vue, quand — mais pas le contenu.
 
 ## 9bis · Le suivi de l'effectif — maillots et physique
 
-### Les maillots, du premier entraînement au dernier match
+### Les maillots, athlète par athlète
 
-1. **Une fois** : `⚙️ Réglages → 👕 Maillots → + Ajouter des maillots`. Numéros
-   `1-18`, taille *d'après l'athlète qui porte ce numéro*. Un jeu libéro :
-   `1, 2` dans le jeu « Libéro ».
-2. **Les tailles** : sur la fiche de chaque athlète (`👥 Athlètes`), ou d'un appui
-   sur sa ligne dans `🗓️ Saison → 👕 Maillots`. Elles restent d'une saison à l'autre.
-3. **Le jour de la distribution** : `🗓️ Saison → 👕 Maillots → 👕 Remettre (N)` —
-   chacune reçoit le maillot de son numéro. Les autres : `Remettre…` sur leur
-   ligne, qui propose son numéro et sa taille d'abord.
-4. **En fin de saison** : `↩ Rendu` sur chaque ligne au fil des retours. Un maillot
-   usé ou perdu : touchez la ligne, puis `〰 Rendu usé` ou `✖ Perdu`.
+Les athlètes ne choisissent pas leur numéro : vous le leur attribuez
+(`👥 Athlètes → 🔢 Numérotation`). Le maillot se fait ensuite pour elles, à ce
+numéro et à leur taille.
 
-Un maillot pas rendu reste « à récupérer » jusque dans la saison suivante, et ne se
-redistribue pas tant qu'on ne l'a pas récupéré. Si l'athlète le garde pour la
-nouvelle saison : `↻ Elle le garde cette saison`.
+1. **Les tailles** : `🗓️ Saison → 👕 Maillots → ① Tailles`. Une ligne par
+   athlète, une taille par ligne. Elles restent sur la fiche, d'une saison à
+   l'autre.
+2. **La production** : `② Produire`. Le volet compte les maillots par taille ;
+   `📋 Copier la commande` donne le texte pour le fournisseur, `🏭 Produire (N)`
+   enregistre les maillots — un par athlète, à son numéro, à sa taille. Un maillot
+   de rechange qui lui va déjà est repris au lieu d'être commandé.
+3. **La remise** : `③ Remise → 👕 Remettre (N)` — chacune reçoit le sien.
+4. **En fin de saison** : `↩ Rendu` sur chaque ligne au fil des retours. Usé ou
+   perdu : touchez la ligne, puis `〰 Rendu usé` ou `✖ Perdu`. Un maillot perdu se
+   refait : l'athlète repasse à « à produire ».
+
+Un numéro changé après la production rend le maillot « à refaire » ; produire le
+nouveau rend l'ancien au stock de rechange (`⚙️ Réglages → 👕 Maillots`). Un
+maillot pas rendu reste « à récupérer » jusque dans la saison suivante ; si
+l'athlète le garde : `↻ Elle le garde cette saison`.
 
 ### Les tests physiques
 
 `⚙️ Réglages → 📏 Tests physiques` dit ce que l'équipe mesure. Puis, le jour des
 tests : `🗓️ Saison → 📏 Physique → + Séance`. On saisit **station par station** —
 la taille de toute l'équipe, puis l'atteinte, puis les reach — comme les athlètes
-passent devant la toise. La détente au bloc et en attaque se calculent seules.
+passent devant la toise. ↵ passe à l'athlète suivante ; sur la dernière, à la
+station suivante. Les stations restent en haut de l'écran. Pour mesurer une
+sous-équipe à la fois, touchez-la dans la rangée `🧩`. La détente au bloc et en
+attaque se calculent seules.
+
+### Par sous-équipe, et de la place
+
+Toute la saison se lit **par sous-équipe** : la rangée `🧩 Toute l'équipe · Équipe
+A · Équipe B` paraît dans chaque partie dès que l'équipe en a. Le choix suit d'un
+écran à l'autre, et jusque dans la saisie, où il met ses athlètes sur le terrain.
+
+Pendant une saisie de statistiques, `▾ Replier` (au bout de la barre d'onglets ou
+de la barre d'enregistrement) replie les barres du bas : la grille de compteurs
+reprend la place. `▴ Onglets` les rend.
 
 La progression se lit dans `👥 Les athlètes` (rangées par le test qu'on veut), et
 dans la feuille de chaque athlète, d'une saison à l'autre.

@@ -208,20 +208,52 @@ plus — ce que la saison porte et rend sans que ce soit du jeu :
 | Tuile | Ce qu'elle porte |
 |---|---|
 | 📏 **Physique** | Les séances de tests (taille, atteinte, reach bloc, reach attaque, saut…) et la progression de chaque athlète |
-| 👕 **Maillots** | La remise des maillots, leur retour en fin de saison, ce qui reste à récupérer |
+| 👕 **Maillots** | Par athlète : ① sa taille, ② son maillot produit à son numéro, ③ la remise et le retour |
 
 Chaque chose est rangée selon ce à quoi elle appartient :
 
 | Donnée | Elle appartient à… | Elle se règle dans… |
 |---|---|---|
-| Taille de maillot | l'**athlète** | `👥 Athlètes → fiche` |
-| Jeu de maillots (numéros, tailles, état) | l'**équipe**, toutes saisons | `⚙️ Réglages → 👕 Maillots` |
-| Remise et retour d'un maillot | la **saison** | `🗓️ Saison → 👕 Maillots` |
+| Taille de maillot | l'**athlète** | `🗓️ Saison → 👕 Maillots → ① Tailles`, ou sa fiche |
+| Numéro (floqué sur son maillot) | l'**athlète**, attribué par l'entraîneur | `👥 Athlètes → 🔢 Numérotation` |
+| Maillots produits et rechanges | l'**équipe**, toutes saisons | `🗓️ Saison → 👕 Maillots → ② Produire` · stock dans `⚙️ Réglages → 👕 Maillots` |
+| Remise et retour d'un maillot | la **saison** | `🗓️ Saison → 👕 Maillots → ③ Remise` |
 | Tests suivis par l'équipe | l'**équipe**, repris d'une saison à l'autre | `⚙️ Réglages → 📏 Tests physiques` |
 | Séance de tests, mesures | la **saison** | `🗓️ Saison → 📏 Physique` |
 
 La **saisie** n'est pas un onglet : c'est l'acte d'une partie de rencontres —
-« ✏️ Relever », qui propose d'emblée la nature de la partie d'où l'on vient.
+« ✏️ Relever », qui propose d'emblée la nature de la partie d'où l'on vient. Son
+en-tête dit cette nature (« 🎽 Entraînement »), et `‹` y ramène ; à côté, `↶`
+annule le dernier geste. La remise à zéro des compteurs (`🔄`) est descendue dans
+la barre du bas, loin du retour.
+
+### Par sous-équipe, partout
+
+Quand l'équipe a des **sous-équipes** (Équipe A, Équipe B…), chaque partie de la
+saison porte une rangée `🧩 Toute l'équipe · Équipe A · Équipe B`. Un choix vaut
+pour toute la saison et suit d'un écran à l'autre : on relève l'équipe B, on lit
+ensuite les chiffres de l'équipe B, sans refaire le choix.
+
+| Où | Ce que la sous-équipe borne |
+|---|---|
+| 🎽 Entraînements · 🤝 Matchs · 🎪 Tournois | les athlètes, **et** le total d'équipe — qui reste la somme de ses athlètes |
+| 📊 Récap global | les compteurs et la liste des athlètes (la sélection et les objectifs restent ceux de l'équipe) |
+| 📈 Objectifs | la liste des athlètes |
+| 📏 Physique | la liste, **et la séance de tests** : on mesure l'équipe A, puis l'équipe B |
+| 👕 Maillots | les tailles, la commande, la remise |
+| ✏️ Saisie | la rangée « Groupes » : toucher une sous-équipe met ses athlètes sur le terrain **et** la choisit pour la saison |
+
+Le bilan victoires–défaites d'un match ne change pas : il appartient au match,
+pas à une partie de l'équipe. Une équipe sans sous-équipe ne voit pas la rangée.
+
+### Les barres du bas se replient
+
+Pendant une saisie, ou devant une longue liste, la barre d'onglets et les barres
+d'action prennent jusqu'à 130 px d'un écran de 667. `▾ Replier`, au bout de la
+barre d'onglets ou de la barre d'enregistrement de la saisie, les replie toutes :
+les onglets deviennent une poignée fine (`▴ Onglets`), la barre d'enregistrement
+tient sur une rangée (`⏭` · `💾 Enregistrer` · `▴`). Le choix est retenu d'une
+ouverture à l'autre.
 
 Il ne voit que **son** équipe : roster, statistiques, campagnes et soumissions.
 Il peut ajouter des athlètes à la base du club et inviter des sélectionneurs sur
@@ -587,41 +619,54 @@ score corrigé, sans que personne le voie.
 
 ## Maillots
 
-Le **jeu de maillots appartient à l'équipe**, pas à la saison : il se décrit une
-fois, dans `⚙️ Réglages → 👕 Maillots`, et suit l'équipe d'une année sur l'autre.
-`+ Ajouter des maillots` accepte des plages — `1-18, 20, 22` — et peut prendre la
-taille **d'après l'athlète qui porte ce numéro**. Un jeu libéro ou extérieur
-s'ajoute à part, sous son nom de jeu.
+La gestion des maillots se fait **par athlète**, dans l'ordre où un club la vit.
+`🗓️ Saison → 👕 Maillots` porte trois volets, et s'ouvre sur la première étape
+qui n'est pas finie.
 
-La **taille de maillot appartient à l'athlète** : elle se règle sur sa fiche
-(`👥 Athlètes`), ou d'un appui dans la feuille de l'athlète côté Maillots, et vaut
-pour toutes ses équipes.
+**① Tailles.** On prend d'abord la taille de chaque athlète — une liste, une
+taille par ligne. Elle est rangée sur sa fiche, vaut pour toutes ses équipes et se
+garde d'une saison à l'autre.
 
-La **remise et le retour sont des actes de la saison**, dans `🗓️ Saison → 👕
-Maillots` :
+**② Produire.** Chaque maillot est fait **pour une athlète** : à **son numéro**,
+celui que l'entraîneur lui attribue dans `🔢 Numérotation` — les athlètes ne
+choisissent pas leur numéro —, et à **sa taille**. Le volet compte ce qu'il faut
+produire par taille (`S × 3 · M × 6 · L × 4`), et :
 
-- `👕 Remettre (N)` donne à chaque athlète sans maillot celui de **son numéro**
-  — de sa taille quand il y en a plusieurs, un par jeu. Rien n'est remis sans
-  qu'on le confirme, et tout s'annule ;
-- sur chaque ligne, `👕 #7` remet d'un appui le maillot du numéro, `↩ Rendu`
-  enregistre son retour ;
-- la feuille d'une athlète propose les maillots libres, **son numéro et sa taille
-  en tête**, et dit dans quel état un maillot revient : `↩ Rendu`, `〰 Rendu usé`,
-  `✖ Perdu`. C'est l'état que le maillot garde dans le jeu ; un maillot perdu ne
-  se propose plus.
+- `🏭 Produire (N)` fait les maillots d'un geste, annulable ;
+- `📋 Copier la commande` met dans le presse-papiers le texte à envoyer au
+  fournisseur : le compte par taille, puis une ligne par athlète — numéro, nom,
+  taille ;
+- un maillot de **rechange** du stock qui lui va déjà (même numéro, même taille)
+  est **repris** au lieu d'être commandé ;
+- une athlète sans taille ou sans numéro attend : son maillot ne peut pas encore
+  se faire, et le volet le dit ;
+- si son numéro ou sa taille change après coup, son maillot est **à refaire** ;
+  produire le nouveau rend l'ancien au stock de rechange.
+
+**③ Remise.** `👕 Remettre (N)` donne à chacune le maillot fait pour elle ; sur
+chaque ligne, `👕 #7` remet d'un appui et `↩ Rendu` enregistre le retour. La
+feuille de l'athlète dit dans quel état un maillot revient — `↩ Rendu`,
+`〰 Rendu usé`, `✖ Perdu` — et c'est l'état qu'il garde. **Un maillot perdu se
+refait** : l'athlète repasse à « à produire ». Au besoin, la feuille prête un
+maillot de rechange.
 
 Un maillot est **dehors tant qu'il n'est pas rendu, quelle que soit la saison**.
-Celui qu'on n'a pas récupéré en mai n'est pas proposé en septembre : il paraît
-« à récupérer », avec la saison d'où il vient. Si l'athlète le garde,
-`↻ Elle le garde cette saison` clôt l'ancienne remise et en ouvre une nouvelle.
+Celui qu'on n'a pas récupéré en mai paraît « à récupérer » en septembre, avec la
+saison d'où il vient. Si l'athlète le garde, `↻ Elle le garde cette saison` clôt
+l'ancienne remise et en ouvre une nouvelle.
 
 **En fin de saison** — saison clôturée, ou date de fin passée — la tuile compte les
 maillots à récupérer, et la clôture de la saison prévient s'il en reste. Les
-retours restent possibles après la clôture : on récupère souvent un maillot après
-le dernier match. Une athlète partie en cours de saison reste dans la liste tant
-qu'elle détient un maillot.
+retours restent possibles après la clôture. Une athlète partie en cours de saison
+reste dans la liste tant qu'elle détient un maillot.
 
-Chaque remise, retour ou perte s'inscrit au journal (👕 Maillots).
+Le **stock** (`⚙️ Réglages → 👕 Maillots`) liste tous les maillots de l'équipe :
+pour qui chacun a été fait, chez qui il est, son état. On y ajoute des maillots de
+**rechange** (`+ Rechange`, en plages : `1-18, 20`). La tuile du tableau de bord
+dit toujours le prochain geste : tailles à prendre, numéros à attribuer, maillots
+à produire, à remettre, à récupérer.
+
+Chaque production, remise, retour ou perte s'inscrit au journal (👕 Maillots).
 
 ---
 
@@ -639,11 +684,15 @@ avant — une atteinte de l'an passé, chez une athlète qui a grandi, gonflerai
 détente.
 
 Une **séance de tests** se saisit dans `🗓️ Saison → 📏 Physique → + Séance`, **en
-stations** : un test à la fois, toute l'équipe à la file, comme sur le terrain. ↵
-passe à l'athlète suivante ; la mesure précédente est rappelée à côté de chaque
-case, pour qu'une faute de frappe (452 pour 45,2) se voie avant d'être gardée.
-Une case vide n'est pas un zéro : le test n'a pas été passé. Une séance refermée
-sans mesure ne laisse rien.
+stations** : un test à la fois, toute l'équipe — ou la sous-équipe choisie — à la
+file, comme sur le terrain. L'en-tête **reste collé en haut** : stations (avec
+leur avancement, `✓` quand elles sont complètes), sous-équipe et consigne du test
+restent sous les yeux quand on descend dans la liste. La date et la note sont
+repliées sur une ligne, avec la suppression de la séance. ↵ passe à l'athlète
+suivante, et **sur la dernière, ouvre la station suivante** en y plaçant le
+curseur. La mesure précédente est rappelée sous chaque nom, pour qu'une faute de
+frappe (452 pour 45,2) se voie avant d'être gardée. Une case vide n'est pas un
+zéro : le test n'a pas été passé. Une séance refermée sans mesure ne laisse rien.
 
 Le volet **Les athlètes** montre, pour chacune, ses reach et son saut avec l'écart
 depuis la première mesure, et se **range par n'importe quel test**. Sa feuille
@@ -741,6 +790,23 @@ vous publiez explicitement sur votre propre relais.
 ---
 
 ## Notes de version
+
+### v7.9 — le terrain : par sous-équipe, et de la place
+
+- **Partie Entraînements** : le gros « ✏️ Relever » de l'état vide — le seul
+  bouton visible d'une partie encore vide — ne faisait rien (un clone sans
+  gestionnaire). Réparé, dans les trois parties de rencontres. La saisie a un vrai
+  retour `‹`, dit la nature relevée, et un entraînement s'enregistre comme une
+  **séance** : ni adversaire, ni résultat, et un nom par défaut au lieu du refus
+  « Nommez la rencontre ». Une explication qui porte un bouton ne se replie plus
+  sur lui.
+- **Par sous-équipe, partout** : rencontres, récap, objectifs, physique, maillots
+  et saisie lisent la même sous-équipe choisie.
+- **Barres du bas repliables**, retenues d'une ouverture à l'autre.
+- **Séance de tests physiques** : en-tête collant, six athlètes visibles au lieu
+  de deux sur un 667 px, enchaînement des stations au clavier.
+- **Maillots par athlète** : tailles, puis production à son numéro et à sa
+  taille, commande à copier, remise et retour.
 
 ### v7.2 — le filet de sécurité, et trois promesses tenues
 
