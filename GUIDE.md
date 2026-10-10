@@ -925,8 +925,13 @@ suppression — qui, quelle vue, quand — mais pas le contenu.
 ### Les maillots, athlète par athlète
 
 Les athlètes ne choisissent pas leur numéro : vous le leur attribuez
-(`👥 Athlètes → 🔢 Numérotation`). Le maillot se fait ensuite pour elles, à ce
-numéro et à leur taille.
+(`👥 Athlètes → 🔢 Numérotation → 👕 Maillot`). Ce **numéro de maillot** n'est
+pas celui de la sélection : il est unique dans la sous-équipe — l'Équipe A et
+l'Équipe B peuvent avoir chacune leur 7 —, quand le numéro de sélection reste
+unique dans toute l'équipe, parce que c'est le seul que voient les sélectionneurs.
+`Reprendre (N)` donne le numéro de sélection comme numéro de maillot à celles qui
+n'en ont pas, sans créer de doublon. Le maillot se fait ensuite pour chacune, à ce
+numéro et à sa taille.
 
 1. **Les tailles** : `🗓️ Saison → 👕 Maillots → ① Tailles`. Une ligne par
    athlète, une taille par ligne. Elles restent sur la fiche, d'une saison à

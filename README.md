@@ -215,7 +215,7 @@ Chaque chose est rangée selon ce à quoi elle appartient :
 | Donnée | Elle appartient à… | Elle se règle dans… |
 |---|---|---|
 | Taille de maillot | l'**athlète** | `🗓️ Saison → 👕 Maillots → ① Tailles`, ou sa fiche |
-| Numéro (floqué sur son maillot) | l'**athlète**, attribué par l'entraîneur | `👥 Athlètes → 🔢 Numérotation` |
+| Numéro de maillot (floqué) | l'**athlète**, attribué par l'entraîneur, unique dans la sous-équipe | `👥 Athlètes → 🔢 Numérotation → 👕 Maillot` |
 | Maillots produits et rechanges | l'**équipe**, toutes saisons | `🗓️ Saison → 👕 Maillots → ② Produire` · stock dans `⚙️ Réglages → 👕 Maillots` |
 | Remise et retour d'un maillot | la **saison** | `🗓️ Saison → 👕 Maillots → ③ Remise` |
 | Tests suivis par l'équipe | l'**équipe**, repris d'une saison à l'autre | `⚙️ Réglages → 📏 Tests physiques` |
@@ -345,18 +345,42 @@ titulaire à 8 matchs et une arrivante à 1 se lisent alors sur la même échell
 
 ---
 
-## Numéros d'athlète
+## Numéros : la sélection et le maillot
 
-Le numéro n'est **jamais attribué automatiquement** — vous le saisissez.
+Une athlète porte **deux numéros**, qui ne servent pas à la même chose.
 
-- à la création d'une fiche joueuse (champ *Numéro d'athlète*, facultatif) ;
-- en fin de ligne dans l'ajout en lot : `Léa Tremblay 7` ;
-- **et à tout moment ensuite**, directement dans la case de gauche du tableau
-  `🗓️ Saison → 🎯 Sélection → 👥 Convoquées`.
+| | Numéro de **sélection** | Numéro de **maillot** |
+|---|---|---|
+| Ce que c'est | la chasuble des tryouts | le numéro floqué |
+| Unique dans… | **toute l'équipe-saison** | **sa sous-équipe** — l'Équipe A et l'Équipe B ont chacune leur 7 |
+| Qui le voit | les sélectionneurs — c'est le seul qu'ils voient | l'entraîneur : saisie des stats, rencontres, objectifs, récap, physique, maillots |
+| Qui en a un | toute convoquée | les athlètes de l'équipe (offre confirmée) |
+| Où il se pose | `🔢 Numérotation → 🎯 Sélection`, la fiche, l'ajout en lot, le tableau des convoquées | `🔢 Numérotation → 👕 Maillot`, la fiche |
 
-Un numéro déjà pris est refusé, un doublon s'affiche en rouge, et les joueuses sans
-numéro sont signalées — c'est la seule information que verront vos sélectionneurs,
-elle doit être exacte.
+Aucun des deux n'est **jamais attribué automatiquement** — vous les saisissez.
+
+**Le numéro de sélection** se pose à la création d'une fiche (champ *Numéro de
+sélection*), en fin de ligne dans l'ajout en lot (`Léa Tremblay 7`), dans la case de
+gauche du tableau des convoquées, ou dans la grille de `🔢 Numérotation`. Un numéro
+déjà pris est refusé, un doublon s'affiche en rouge, et les joueuses sans numéro
+sont signalées — c'est la seule information que verront vos sélectionneurs.
+
+**Le numéro de maillot** se pose dans `🔢 Numérotation → 👕 Maillot` : la liste
+est rangée par sous-équipe, et la grille d'une athlète ne grise que les numéros
+déjà portés **dans sa sous-équipe** — un 7 porté en Équipe A reste libre pour
+l'Équipe B. Toucher un numéro pris dans la sous-équipe propose l'échange.
+`Reprendre (N)` donne à celles qui n'en ont pas leur numéro de sélection, seulement
+là où il ne crée pas de doublon. Quand deux athlètes de sous-équipes différentes
+partagent un numéro, les listes les distinguent : **A·7** et **B·7**.
+
+Une athlète qui passe dans l'autre sous-équipe sur un numéro déjà pris : l'écran le
+signale, et le doublon s'affiche en rouge jusqu'à ce qu'on le règle. Un maillot en
+double ne se produit pas.
+
+En passant à la v7.10, une athlète **déjà dans l'équipe** garde comme numéro de
+maillot celui qu'elle portait : rien ne change sous vos yeux. Une athlète qui entre
+dans l'équipe ensuite n'a pas de numéro de maillot tant que vous ne le lui donnez
+pas.
 
 ---
 
@@ -627,9 +651,11 @@ qui n'est pas finie.
 taille par ligne. Elle est rangée sur sa fiche, vaut pour toutes ses équipes et se
 garde d'une saison à l'autre.
 
-**② Produire.** Chaque maillot est fait **pour une athlète** : à **son numéro**,
-celui que l'entraîneur lui attribue dans `🔢 Numérotation` — les athlètes ne
-choisissent pas leur numéro —, et à **sa taille**. Le volet compte ce qu'il faut
+**② Produire.** Chaque maillot est fait **pour une athlète** : à **son numéro de
+maillot**, celui que l'entraîneur lui attribue dans `🔢 Numérotation → 👕 Maillot`
+— les athlètes ne choisissent pas leur numéro ; il est unique dans la sous-équipe —,
+et à **sa taille**. La commande dit à quelle sous-équipe va chaque maillot, et un
+numéro en double dans une sous-équipe bloque la production de ces deux maillots. Le volet compte ce qu'il faut
 produire par taille (`S × 3 · M × 6 · L × 4`), et :
 
 - `🏭 Produire (N)` fait les maillots d'un geste, annulable ;
@@ -790,6 +816,15 @@ vous publiez explicitement sur votre propre relais.
 ---
 
 ## Notes de version
+
+### v7.10 — deux numéros : la sélection et le maillot
+
+Le numéro de sélection (chasuble des tryouts, unique dans l'équipe, le seul que
+voient les sélectionneurs) et le numéro de maillot (floqué, unique dans la
+sous-équipe) sont désormais distincts. `🔢 Numérotation` a deux modes, la fiche
+porte les deux champs, et tout ce qui parle de l'équipe — saisie, rencontres,
+objectifs, récap, physique, maillots — parle en numéro de maillot. Une athlète
+déjà dans l'équipe garde son numéro actuel comme numéro de maillot.
 
 ### v7.9 — le terrain : par sous-équipe, et de la place
 
