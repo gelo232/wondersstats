@@ -12,7 +12,7 @@
        signale — et un maillot en double ne se produit pas ;
      · une athlète qui entre dans l'équipe n'a pas de numéro d'office. */
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde}=require("./gate-helper");
+const {nouveauContexte,sansRacine,franchirGarde}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -22,7 +22,7 @@ const ERRORS=[];let PASS=0;
 
 (async()=>{
   const b=await chromium.launch(EXE?{executablePath:EXE}:{});
-  const ctx=await b.newContext({viewport:{width:375,height:740}});
+  const ctx=await nouveauContexte(b,{viewport:{width:375,height:740}});
   ctx.setDefaultTimeout(8000);
   await sansRacine(ctx);
   const page=await ctx.newPage();

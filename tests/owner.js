@@ -5,6 +5,7 @@
    club ni nomination qu'un autre accepterait, et une pièce bricolée doit
    être rejetée à la vérification. */
 const {chromium}=require("playwright");
+const {nouveauContexte}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -22,7 +23,7 @@ const PASS="proprietaire-de-test-2027";
   /* Un appareil = un contexte navigateur isolé, comme dans la vraie vie. */
   let racine=null;                    // superadmin.json, une fois publié
   const appareil=async(nom)=>{
-    const ctx=await b.newContext({viewport:{width:414,height:896}});
+    const ctx=await nouveauContexte(b,{viewport:{width:414,height:896}});
     ctx.setDefaultTimeout(8000);
     /* La racine de confiance est servie par le dépôt : tant que le
        propriétaire n'a pas publié, elle n'existe pas. */

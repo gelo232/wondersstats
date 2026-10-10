@@ -6,7 +6,7 @@
    saison se décide, et le seul endroit d'où une athlète entre dans
    l'effectif ou en sort. */
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde,accepterDialogue,ouvrirFiltres,ouvrirTris,
+const {nouveauContexte,sansRacine,franchirGarde,accepterDialogue,ouvrirFiltres,ouvrirTris,
        choisirOption,fermerFeuilleListe,texteFeuilleListe,toutEffacerFeuille}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
@@ -17,7 +17,7 @@ const ERRORS=[];let PASS=0;
 
 (async()=>{
   const b=await chromium.launch(EXE?{executablePath:EXE}:{});
-  const ctx=await b.newContext({viewport:{width:414,height:896}});
+  const ctx=await nouveauContexte(b,{viewport:{width:414,height:896}});
   ctx.setDefaultTimeout(8000);
   await sansRacine(ctx);
   const page=await ctx.newPage();

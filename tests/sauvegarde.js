@@ -18,7 +18,7 @@
      complets — était effacé AVANT que le bloc chiffré n'atteigne le
      disque. */
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde,rechargerEtOuvrir}=require("./gate-helper");
+const {nouveauContexte,sansRacine,franchirGarde,rechargerEtOuvrir}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -31,7 +31,7 @@ const ERRORS=[];let PASS=0;
   const step=async(n,f)=>{try{await f();PASS++;say("  ✓ "+n)}
     catch(e){say("  ✗ "+n+" → "+e.message);ERRORS.push(n+": "+e.message)}};
   const ouvrir=async(nom)=>{
-    const ctx=await b.newContext({viewport:{width:414,height:896}});
+    const ctx=await nouveauContexte(b,{viewport:{width:414,height:896}});
     ctx.setDefaultTimeout(9000);
     await sansRacine(ctx);
     const page=await ctx.newPage();

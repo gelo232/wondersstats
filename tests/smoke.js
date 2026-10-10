@@ -1,5 +1,5 @@
 const {chromium}=require("playwright");
-const {franchirGarde}=require("./gate-helper");
+const {nouveauContexte,franchirGarde}=require("./gate-helper");
 const fs=require("fs");
 const {execSync}=require("child_process");
 const LOG=process.env.LOG_FILE||"";
@@ -9,7 +9,7 @@ const EXE=process.env.CHROMIUM_PATH||undefined;
 const ERRORS=[];
 (async()=>{
   const b=await chromium.launch(EXE?{executablePath:EXE}:{});
-  const ctx=await b.newContext({viewport:{width:414,height:896}});
+  const ctx=await nouveauContexte(b,{viewport:{width:414,height:896}});
   ctx.setDefaultTimeout(8000);
   const page=await ctx.newPage();
   page.on("pageerror",e=>ERRORS.push("PAGEERROR: "+e.message));
@@ -63,6 +63,21 @@ const ERRORS=[];
       else {PASS++;say("  ✓ le nom du cache porte la version de l'application")}
     }
   }catch(e){say("  · contrôle du cache ignoré (pas de dépôt git) : "+e.message)}
+
+  /* ── Aucune suite ne crée son contexte à la main ────────────────
+     Les suites simulent le serveur par `ctx.route`, que le service
+     worker contourne. `nouveauContexte` (gate-helper) le bloque ; une
+     suite qui appellerait `newContext` directement redeviendrait
+     intermittente, et ce serait de nouveau la clé d'un autre
+     propriétaire qu'elle lirait. Seule tests/hors-ligne.js garde le
+     service worker : c'est lui qu'elle éprouve. */
+  {
+    const fautives=fs.readdirSync(__dirname).filter(f=>/\.js$/.test(f)&&f!=="gate-helper.js"&&f!=="hors-ligne.js")
+      .filter(f=>/\.newContext\(/.test(fs.readFileSync(__dirname+"/"+f,"utf8")));
+    if(fautives.length)ERRORS.push("CONTEXTE: newContext appelé directement dans "+fautives.join(", ")+
+      " — passer par nouveauContexte (gate-helper)");
+    else {PASS++;say("  ✓ toutes les suites passent par nouveauContexte")}
+  }
 
   /* v4 : les écrans entraîneur vivent dans un contexte (équipe, rôle). */
   const asCoach=async(teamName)=>{

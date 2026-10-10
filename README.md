@@ -817,6 +817,17 @@ vous publiez explicitement sur votre propre relais.
 
 ## Notes de version
 
+### v7.10.1 — des tests qui disent vrai
+
+Aucun changement visible dans l'application. Cinq suites échouaient (`roles`,
+`gate`, `parcours`, `config`, et `sync` par intermittence) pour une seule raison :
+le service worker. Une fois la page rechargée sous son contrôle, ses requêtes —
+la racine de confiance, le relais — échappaient aux simulations des tests et
+partaient vers le vrai serveur. Les suites bloquent désormais le service worker
+par un point unique, `smoke.js` interdit d'y déroger, et une nouvelle suite,
+`hors-ligne.js`, le teste pour de vrai : installation, cache à la version de
+l'application, racine de confiance lue du réseau d'abord, ouverture hors ligne.
+
 ### v7.10 — deux numéros : la sélection et le maillot
 
 Le numéro de sélection (chasuble des tryouts, unique dans l'équipe, le seul que

@@ -1,6 +1,6 @@
 # Suite de non-régression
 
-Vingt-six suites Playwright pilotent l'application réelle dans Chromium et vérifient
+Vingt-sept suites Playwright pilotent l'application réelle dans Chromium et vérifient
 qu'aucune erreur JS n'est levée.
 
 Depuis le verrou, l'application s'ouvre sur un écran de garde. Les suites le
@@ -33,6 +33,7 @@ n'est ajoutée à l'application pour les tests**.
 | `terrain.js` | **Rencontres, saisie, sous-équipes, barres du bas.** Clique **tous** les boutons des trois parties de rencontres, vue équipe et vue athlètes, **sans athlète, avec athlètes sans relevé, et avec un relevé** jusqu'au niveau de la séance — aucune erreur, et « ✏️ Relever », dans l'en-tête comme dans l'état vide (le bouton mort signalé), ouvre la saisie sur la bonne nature ; `‹` y ramène. Un entraînement s'enregistre comme une séance : ni adversaire, ni résultat, nom par défaut. Les barres du bas se replient (place gagnée mesurée), le choix survit au rechargement. **Par sous-équipe** : l'équipe A borne athlètes et total en Entraînements — total égal à la somme de ses athlètes —, et le choix suit dans le récap, les objectifs, le physique, les maillots et la saisie, survit au rechargement, et ne paraît pas sans sous-équipe. Enfin la séance physique : bornée à la sous-équipe, ↵ sur la dernière ouvre la station suivante avec le curseur, l'en-tête reste collé |
 | `numeros.js` | **Deux numéros : la sélection et le maillot.** Une base d'avant ne perd rien — une athlète déjà dans l'équipe garde son numéro comme maillot, une seule fois. Deux 7 dans deux sous-équipes sont acceptés et s'affichent **A·7** et **B·7** ; dans la même sous-équipe la fiche refuse, la grille propose l'échange, un passage d'une sous-équipe à l'autre est signalé. Le numéro de sélection reste unique dans l'équipe et reste le seul du paquet sélectionneur. `🔢 Numérotation → 👕 Maillot` range par sous-équipe et ne grise que les numéros de la sienne ; `Reprendre` copie la sélection sans créer de doublon. La saisie montre et enregistre le maillot, la commande dit la sous-équipe, un doublon ne se produit pas, une nouvelle venue n'a pas de numéro d'office, et une nouvelle saison reprend les maillots |
 | `sync.js` | **Trois navigateurs isolés** contre un relais simulé conforme au contrat v2. Au-delà du parcours nominal, vérifie ce que le relais **refuse** : une vue adressée n'est lisible que par son destinataire, aucun sélectionneur ne peut lister les soumissions (pas même la sienne), une vue forgée par un sélectionneur est rejetée, un jeton inconnu ou révoqué est refusé. Plus : identité estampillée par le relais, catalogue sans nom, relais injoignable signalé |
+| `hors-ligne.js` | **Le service worker, pour de vrai** — la seule suite où il tourne, et la seule qui ne simule rien. Il s'installe et prend la main au chargement suivant ; son cache porte le nom de `sw.js` (`CACHE`) et contient la coquille ; en ligne, `superadmin.json` vient du serveur même quand le cache en garde une autre version ; hors ligne, l'application s'ouvre encore et lit la racine depuis le cache |
 
 ## Exécution
 
@@ -54,6 +55,17 @@ lit « système déjà fondé » et l'écran de garde ne propose plus de le fond
 suite qui passe par la fondation appelle donc `sansRacine(ctx)` (`gate-helper.js`),
 qui sert le fichier d'origine — celui qui se déclare non fondé. Celles qui ont besoin
 d'une racine publiée (`owner`, `config`, `parcours`) posent leur propre route.
+
+**Le service worker est bloqué dans toutes les suites, sauf `hors-ligne.js`.**
+Playwright n'intercepte pas les requêtes émises par un service worker : une fois la
+page rechargée sous son contrôle, `fetch("superadmin.json")` ou un appel au relais
+passent par lui et atteignent le vrai serveur, sans voir les routes de la suite. Le
+propriétaire fondé par la suite perdait alors sa clé au rechargement (la racine lue
+était celle du dépôt, signée par une autre clé), le relais simulé ne recevait rien,
+et l'échec dépendait de l'instant où le service worker s'activait. Toute suite crée
+donc son contexte par `nouveauContexte(navigateur, options)` (`gate-helper.js`), qui
+ajoute `serviceWorkers: "block"` ; `smoke.js` échoue si une suite appelle
+`newContext` directement. Le service worker garde sa couverture dans `hors-ligne.js`.
 
 `season.js` se distingue des autres : elle **instrumente un parcours** de neuf mois
 plutôt que des gestes isolés. Les onze manques relevés par le quatrième audit (⚑)

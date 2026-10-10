@@ -21,3 +21,6 @@ Avant de livrer : `./tests/run.sh` (voir `tests/README.md`). Une suite qui
 - Toute livraison bouge `APP_VERSION` et le `CACHE` de `sw.js`.
 - README, GUIDE et `tests/README.md` suivent les changements visibles.
 - Le texte de l'application et des documents est en français.
+- Une suite de tests crée son contexte par `nouveauContexte` (`tests/gate-helper.js`),
+  qui bloque le service worker : sans cela, ses requêtes échappent aux `ctx.route`
+  des tests. Seule `tests/hors-ligne.js` le laisse tourner.

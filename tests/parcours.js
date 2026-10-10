@@ -9,6 +9,7 @@
    qu'une fonction réponde, mais que ce qui s'affiche corresponde à ce qui
    s'est passé. */
 const {chromium}=require("playwright");
+const {nouveauContexte}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const SHOTS=process.env.SHOT_DIR||"";
@@ -89,7 +90,7 @@ const PASS={
   /* Un appareil = un contexte isolé, avec sa propre vue de la racine. */
   let racine=null;
   const appareil=async(nom,url)=>{
-    const ctx=await b.newContext({viewport:{width:414,height:896},deviceScaleFactor:2});
+    const ctx=await nouveauContexte(b,{viewport:{width:414,height:896},deviceScaleFactor:2});
     ctx.setDefaultTimeout(8000);
     await ctx.route("**/superadmin.json",r=>racine
       ? r.fulfill({status:200,contentType:"application/json",body:JSON.stringify(racine)})
