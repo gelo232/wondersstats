@@ -9,7 +9,7 @@
    — le défaut d'origine — et qu'un écran de saisie ne montre jamais plus
    d'un groupe à la fois. */
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde}=require("./gate-helper");
+const {nouveauContexte,sansRacine,franchirGarde}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -105,7 +105,7 @@ async function serveRelay(route,request){
 (async()=>{
   const b=await chromium.launch(EXE?{executablePath:EXE}:{});
   const mkDevice=async(label)=>{
-    const ctx=await b.newContext({viewport:{width:414,height:896}});
+    const ctx=await nouveauContexte(b,{viewport:{width:414,height:896}});
     ctx.setDefaultTimeout(8000);
     await ctx.route("https://relais.test/**",serveRelay);
     await sansRacine(ctx);
@@ -565,7 +565,7 @@ async function serveRelay(route,request){
      l'application. */
   say("\n── Les chemins de travers d'une invitation");
   const mkVierge=async(label)=>{
-    const ctx=await b.newContext({viewport:{width:414,height:896}});
+    const ctx=await nouveauContexte(b,{viewport:{width:414,height:896}});
     ctx.setDefaultTimeout(8000);
     await ctx.route("https://relais.test/**",serveRelay);   /* pas de sansRacine : système fondé */
     const page=await ctx.newPage();

@@ -9,6 +9,27 @@
    PBKDF2 est calibré par l'appareil, une demi-seconde environ. */
 const PASS = "suite-de-tests-2027";
 
+/* Le SEUL point de création d'un contexte de navigateur pour les suites.
+
+   Les suites simulent ce que le serveur sert — la racine de confiance
+   (`sansRacine`, ou la racine publiée d'owner, config, parcours) et le
+   relais — en interceptant les requêtes avec `ctx.route`. Or Playwright
+   n'intercepte pas les requêtes émises par un SERVICE WORKER. Dès que
+   celui de l'application contrôlait la page — après un rechargement, et
+   selon un minutage variable —, `superadmin.json` partait au vrai
+   serveur de test, qui sert la racine réelle du dépôt : la clé d'un autre
+   propriétaire. La preuve de propriété échouait, et avec elle roles,
+   gate, parcours et config ; sync échouait une fois sur deux, selon que
+   le service worker avait pris la main avant ou après son rechargement.
+
+   On bloque donc le service worker dans toutes les suites : ce qu'elles
+   vérifient est la logique de l'application, contre un serveur simulé
+   qui doit rester LE serveur. Le service worker a sa propre suite
+   (tests/hors-ligne.js), qui ne simule rien. */
+function nouveauContexte(navigateur, opts) {
+  return navigateur.newContext(Object.assign({}, opts || {}, { serviceWorkers: "block" }));
+}
+
 /* Le dépôt publie, à côté de l'application, le vrai `superadmin.json` du
    système en service : une racine fondée. C'est l'état d'un déploiement,
    pas celui d'un appareil qui découvre l'application, et l'écran de garde
@@ -233,7 +254,7 @@ async function texteFeuilleListe(page) {
   return page.textContent(".modal.listsheet .m-body");
 }
 
-module.exports = { PASS, sansRacine, franchirGarde, ouvrirClub, installerClubParDefaut,
+module.exports = { PASS, nouveauContexte, sansRacine, franchirGarde, ouvrirClub, installerClubParDefaut,
   ouvrirFiltres, ouvrirTris, choisirOption, fermerFeuilleListe, texteFeuilleListe,
   toutEffacerFeuille,
   deverrouiller, rechargerEtOuvrir,

@@ -5,7 +5,7 @@
    soit EXACTEMENT celui que rendent les parties dont il sort. Un récap
    qui dérive de son détail est un récap qui ment. */
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde,ouvrirFiltres,ouvrirTris,choisirOption,
+const {nouveauContexte,sansRacine,franchirGarde,ouvrirFiltres,ouvrirTris,choisirOption,
        fermerFeuilleListe,texteFeuilleListe,toutEffacerFeuille}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
@@ -16,7 +16,7 @@ const ERRORS=[];let PASS=0;
 
 (async()=>{
   const b=await chromium.launch(EXE?{executablePath:EXE}:{});
-  const ctx=await b.newContext({viewport:{width:414,height:896}});
+  const ctx=await nouveauContexte(b,{viewport:{width:414,height:896}});
   ctx.setDefaultTimeout(8000);
   await sansRacine(ctx);
   const page=await ctx.newPage();

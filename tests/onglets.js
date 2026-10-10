@@ -18,7 +18,7 @@
    ⚑ une recherche infructueuse n'offrait AUCUN moyen d'en sortir ;
    ⚑ supprimer une fiche laissait une offre qui la désignait encore. */
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde,deverrouiller,ouvrirFiltres,fermerFeuilleListe,
+const {nouveauContexte,sansRacine,franchirGarde,deverrouiller,ouvrirFiltres,fermerFeuilleListe,
        choisirOption,accepterDialogue}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
@@ -37,7 +37,7 @@ const ERRORS=[];let PASS=0;
       if(m.type()==="error"&&!/favicon/.test(t))ERRORS.push("CONSOLE["+nom+"]: "+t)});
   };
 
-  const ctx=await b.newContext({viewport:{width:414,height:896}});
+  const ctx=await nouveauContexte(b,{viewport:{width:414,height:896}});
   ctx.setDefaultTimeout(9000);
   await sansRacine(ctx);
 

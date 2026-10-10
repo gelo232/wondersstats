@@ -12,7 +12,7 @@
    que ce total est ce qui alimente les cumuls, les objectifs et le
    score de sélection. */
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde,rechargerEtOuvrir,accepterDialogue}=require("./gate-helper");
+const {nouveauContexte,sansRacine,franchirGarde,rechargerEtOuvrir,accepterDialogue}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -22,7 +22,7 @@ const ERRORS=[];let PASS=0;
 
 (async()=>{
   const b=await chromium.launch(EXE?{executablePath:EXE}:{});
-  const ctx=await b.newContext({viewport:{width:375,height:667}});
+  const ctx=await nouveauContexte(b,{viewport:{width:375,height:667}});
   ctx.setDefaultTimeout(9000);
   await sansRacine(ctx);
   const page=await ctx.newPage();

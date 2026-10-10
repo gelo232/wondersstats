@@ -9,7 +9,7 @@
    Elle démarre sur une application NON VIERGE : une saison précédente
    avec ses données est déjà là, et rien de ce qui suit ne doit y toucher. */
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde,accepterDialogue,accepterSiDialogue,
+const {nouveauContexte,sansRacine,franchirGarde,accepterDialogue,accepterSiDialogue,
        ouvrirTris,choisirOption,fermerFeuilleListe}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
@@ -21,7 +21,7 @@ const ERRORS=[];let PASS=0;
 
 (async()=>{
   const b=await chromium.launch(EXE?{executablePath:EXE}:{});
-  const ctx=await b.newContext({viewport:{width:375,height:667}});   // le plus petit téléphone visé
+  const ctx=await nouveauContexte(b,{viewport:{width:375,height:667}});   // le plus petit téléphone visé
   ctx.setDefaultTimeout(15000);
   await sansRacine(ctx);
   const page=await ctx.newPage();

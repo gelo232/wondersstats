@@ -5,7 +5,7 @@
    cible inatteignable par construction, coûte plus que de se taire.
    C'est donc surtout la RETENUE de l'application qu'on éprouve ici. */
 const {chromium}=require("playwright");
-const {sansRacine,franchirGarde,accepterDialogue}=require("./gate-helper");
+const {nouveauContexte,sansRacine,franchirGarde,accepterDialogue}=require("./gate-helper");
 const fs=require("fs");
 const LOG=process.env.LOG_FILE||"";
 const say=(m)=>{console.log(m);if(LOG)try{fs.appendFileSync(LOG,m+"\n")}catch(e){}};
@@ -15,7 +15,7 @@ const ERRORS=[];let PASS=0;
 
 (async()=>{
   const b=await chromium.launch(EXE?{executablePath:EXE}:{});
-  const ctx=await b.newContext({viewport:{width:414,height:896}});
+  const ctx=await nouveauContexte(b,{viewport:{width:414,height:896}});
   ctx.setDefaultTimeout(8000);
   await sansRacine(ctx);
   const page=await ctx.newPage();

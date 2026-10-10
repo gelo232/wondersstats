@@ -1,12 +1,12 @@
 const {chromium}=require("playwright");
-const {sansRacine}=require("./gate-helper");
+const {nouveauContexte,sansRacine}=require("./gate-helper");
 const B=process.env.BASE_URL||"http://127.0.0.1:8899";
 let ok=0,bad=[];
 const step=async(n,f)=>{try{await f();ok++;console.log("  ✓ "+n)}catch(e){bad.push(n+" → "+e.message);console.log("  ✗ "+n+" → "+e.message)}};
 
 (async()=>{
   const b=await chromium.launch({executablePath:process.env.CHROMIUM_PATH});
-  const ctx=await b.newContext({viewport:{width:414,height:896}});
+  const ctx=await nouveauContexte(b,{viewport:{width:414,height:896}});
   ctx.setDefaultTimeout(8000);
   await sansRacine(ctx);            /* système non fondé : c'est ce que la suite éprouve */
   const page=await ctx.newPage();
@@ -137,7 +137,7 @@ const step=async(n,f)=>{try{await f();ok++;console.log("  ✓ "+n)}catch(e){bad.
   });
 
   console.log("\n── Reprise d'une base déjà installée (v5.0 en clair)");
-  const ctx3=await b.newContext({viewport:{width:414,height:896}});
+  const ctx3=await nouveauContexte(b,{viewport:{width:414,height:896}});
   ctx3.setDefaultTimeout(8000);
   await sansRacine(ctx3);
   const p3=await ctx3.newPage();
@@ -185,7 +185,7 @@ const step=async(n,f)=>{try{await f();ok++;console.log("  ✓ "+n)}catch(e){bad.
   await ctx3.close();
 
   console.log("\n── Ce que voit quelqu'un qui ouvre l'app sur son mobile");
-  const ctx2=await b.newContext({viewport:{width:414,height:896}});
+  const ctx2=await nouveauContexte(b,{viewport:{width:414,height:896}});
   ctx2.setDefaultTimeout(8000);
   await sansRacine(ctx2);
   const p2=await ctx2.newPage();
