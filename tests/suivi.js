@@ -106,7 +106,7 @@ const ERRORS=[];let PASS=0;
     const second=await page.locator(".hubGrid").nth(1).innerText();
     if(!/Physique/.test(second)||!/Maillots/.test(second))throw new Error("tuiles de suivi mal rangées : "+second);
     const m=await page.locator(".hubTile").filter({hasText:"Maillots"}).first().innerText();
-    if(!/inventaire à créer/.test(m))throw new Error("la tuile ne dit pas par où commencer : "+m);
+    if(!/2 tailles à prendre/.test(m))throw new Error("la tuile ne dit pas par où commencer : "+m);
   });
   await step("les réglages portent l'inventaire et les tests suivis",async()=>{
     await page.locator(".tab-btn").filter({hasText:"Réglages"}).first().click();
@@ -130,118 +130,95 @@ const ERRORS=[];let PASS=0;
     if(s!=="XS")throw new Error("taille="+s);
   });
 
-  say("\n── L'inventaire, une fois");
-  await step("le jeu se crée depuis la partie, en plages, tailles d'après les athlètes",async()=>{
+  say("\n── Maillots ① : les tailles d'abord");
+  await step("la tuile dit le premier geste : les tailles à prendre",async()=>{
+    await page.locator(".tab-btn").filter({hasText:"Saison"}).first().click();
+    await page.waitForTimeout(150);
+    const m=await page.locator(".hubTile").filter({hasText:"Maillots"}).first().innerText();
+    if(!/1 taille à prendre/.test(m))throw new Error("tuile : "+m);
+  });
+  await step("la partie s'ouvre sur les tailles, qui se prennent d'une ligne et vont sur la fiche",async()=>{
     await ouvrirPartie("Maillots");
+    const actif=await page.locator(".seg button.on").first().innerText();
+    if(!/Tailles/.test(actif))throw new Error("volet ouvert : "+actif);
     const t=await txt();
-    if(!/Aucun maillot dans l'inventaire/.test(t))throw new Error("état vide muet");
-    await page.locator("button").filter({hasText:"Créer l'inventaire"}).first().click();
+    if(!/ne le choisissent pas/.test(t))throw new Error("le numéro attribué n'est pas dit");
+    await page.locator('select[aria-label="Taille de maillot de Jade Gagnon"]').selectOption("M");
     await page.waitForTimeout(200);
-    await page.locator(".modal input").first().fill("1-12");
-    await page.locator("#modalOk").click();
+    const s=await page.evaluate(()=>DB.players.filter(p=>p.firstName==="Jade")[0].jerseySize);
+    if(s!=="M")throw new Error("taille de Jade="+s);
+    const suite=await page.locator("button").filter({hasText:"② Production"}).count();
+    if(!suite)throw new Error("toutes les tailles prises, rien ne mène à la production");
+    await pasDeDebordement("Maillots → Tailles");
+  });
+
+  say("\n── Maillots ② : la production");
+  await step("la commande compte par taille, et nomme chaque athlète à son numéro",async()=>{
+    /* Un maillot de rechange #3 L au stock : celui de Maya se reprend
+       au lieu d'être commandé. */
+    await page.evaluate(()=>{
+      var sq=curSquad();state.modalDraft={nums:"3",size:"L",set:""};openModal("jerseysadd");
+      document.getElementById("modalOk").click();
+    });
+    await page.waitForTimeout(200);
+    await page.locator("button").filter({hasText:"② Production"}).first().click();
+    await page.waitForTimeout(200);
+    const actif=await page.locator(".seg button.on").first().innerText();
+    if(!/Produire/.test(actif))throw new Error("volet : "+actif);
+    const tailles=await page.locator(".commande-tailles").innerText();
+    if(tailles.replace(/\s+/g," ").trim()!=="1 XS 1 S 2 M")throw new Error("compte : "+tailles.replace(/\s+/g," "));
+    const t=await page.evaluate(()=>texteCommande(curSquad()));
+    if(!/XS × 1 · S × 1 · M × 2 \(4 maillots\)/.test(t))throw new Error(t);
+    if(!/#7  Léa Tremblay — M/.test(t))throw new Error("ligne de Léa : "+t);
+    if(/Maya/.test(t))throw new Error("le maillot repris du stock est commandé");
+    if(/Rose/.test(t))throw new Error("une athlète hors de l'équipe est commandée");
+    await pasDeDebordement("Maillots → Production");
+  });
+  await step("« Produire » fait un maillot par athlète, à son numéro et à sa taille",async()=>{
+    await page.locator("button").filter({hasText:"🏭 Produire ("}).first().click();
+    await page.waitForTimeout(150);
+    await page.click("#confirmOk");
     await page.waitForTimeout(250);
     const r=await page.evaluate(()=>{
       var t=teamById(curSquad().teamId);
-      var par={};t.jerseys.forEach(j=>par[j.number]=j.size);
-      return {n:t.jerseys.length,s7:par["7"],s12:par["12"],s5:par["5"],s1:par["1"]};
+      return t.jerseys.map(function(j){var p=playerById(j.playerId);return (p?p.firstName:"rechange")+"#"+j.number+"/"+j.size}).sort().join(",");
     });
-    if(r.n!==12)throw new Error("maillots="+r.n);
-    if(r.s7!=="M"||r.s12!=="S"||r.s5!=="XS")throw new Error("tailles non reprises des athlètes : "+JSON.stringify(r));
-    if(r.s1!=="")throw new Error("un numéro sans athlète a reçu une taille inventée : "+r.s1);
+    if(r!=="Alice#5/XS,Jade#9/M,Léa#7/M,Maya#3/L,Sofia#12/S")throw new Error(r);
+    const n=await page.evaluate(()=>aProduire(curSquad()).length);
+    if(n!==0)throw new Error("reste à produire : "+n);
   });
-  await step("un second ajout ne duplique pas, un jeu libéro s'ajoute à part",async()=>{
-    /* Un geste par tour : deux feuilles refermées dans le même tick font
-       deux retours d'historique, ce qu'aucun doigt ne sait faire. */
-    const ajout=async(d)=>{
-      const n=await page.evaluate(d=>{
-        state.modalDraft=d;openModal("jerseysadd");
-        document.getElementById("modalOk").click();
-        return teamById(curSquad().teamId).jerseys.length;
-      },d);
-      await page.waitForTimeout(150);
-      return n;
-    };
-    const apres1=await ajout({nums:"1-3",size:"auto",set:""});
-    const apres2=await ajout({nums:"3",size:"L",set:"Libéro"});
-    const r={apres1:apres1,apres2:apres2,jeux:await page.evaluate(()=>jeuxDe(teamById(curSquad().teamId)))};
-    if(r.apres1!==12)throw new Error("doublons créés : "+r.apres1);
-    if(r.apres2!==13||r.jeux.join()!=="Libéro")throw new Error(JSON.stringify(r));
-  });
-  await step("une plage illisible est refusée sans rien écrire",async()=>{
+  await step("un numéro changé après coup : le maillot est à refaire, l'ancien retourne au stock",async()=>{
     const r=await page.evaluate(()=>{
-      var t=teamById(curSquad().teamId),n=t.jerseys.length;
-      state.modalDraft={nums:"1-x",size:"auto",set:""};openModal("jerseysadd");
-      document.getElementById("modalOk").click();
-      var ouverte=state.modalType==="jerseysadd";closeModal();
-      return {avant:n,apres:t.jerseys.length,ouverte:ouverte,lu:JSON.stringify(lireNumeros("1-3, 7 9;12"))};
+      var sq=curSquad(),sofia=DB.players.filter(p=>p.firstName==="Sofia")[0].id;
+      rosterEntry(sq,sofia).number="21";
+      var e=etatMaillot(sq,sofia);
+      var avant={etape:e.etape,aRefaire:e.aRefaire};
+      produireMaillots(sq,aProduire(sq));
+      var t=teamById(sq.teamId);
+      return {avant:avant,siens:maillotsDe(t,sofia).map(j=>j.number).join(),
+        rechange12:t.jerseys.some(j=>j.number==="12"&&!j.playerId)};
     });
-    if(r.apres!==r.avant)throw new Error("écrit malgré la faute");
-    if(!r.ouverte)throw new Error("la feuille s'est fermée sur une faute");
-    if(r.lu!=='{"nums":["1","2","3","7","9","12"]}')throw new Error("lecture : "+r.lu);
+    if(r.avant.etape!=="produire"||!r.avant.aRefaire)throw new Error(JSON.stringify(r.avant));
+    if(r.siens!=="21")throw new Error("maillots de Sofia : "+r.siens);
+    if(!r.rechange12)throw new Error("l'ancien #12 n'est pas revenu au stock");
   });
 
-  say("\n── La remise");
-  await step("« Remettre selon les numéros » équipe celles dont le numéro est libre",async()=>{
-    await ouvrirPartie("Maillots");
-    await page.locator("button").filter({hasText:"Remettre ("}).first().click();
+  say("\n── Maillots ③ : la remise et le retour");
+  await step("« Remettre » donne à chacune le maillot fait pour elle",async()=>{
+    await page.locator("button").filter({hasText:"③ Remise"}).first().click();
     await page.waitForTimeout(200);
-    await page.locator(".modal button").filter({hasText:"Remettre"}).last().click();
+    await page.locator("button").filter({hasText:"👕 Remettre ("}).first().click();
+    await page.waitForTimeout(150);
+    await page.click("#confirmOk");
     await page.waitForTimeout(250);
     const r=await page.evaluate(()=>{
       var sq=curSquad(),t=teamById(sq.teamId);
-      return sq.jerseyLoans.map(function(l){
-        var j=jerseyById(t,l.jerseyId),p=playerById(l.playerId);
-        return p.firstName+"#"+j.number+(j.set?"/"+j.set:"");
-      }).sort().join(",");
+      return sq.jerseyLoans.map(function(l){var j=jerseyById(t,l.jerseyId);
+        return playerById(l.playerId).firstName+"#"+j.number+(j.playerId===l.playerId?"":"!")}).sort().join(",");
     });
-    /* Maya (#3) reçoit aussi le #3 du jeu libéro : un maillot par jeu. Rose
-       (#4) n'est que convoquée — pas dans l'équipe, rien ne lui revient. */
-    if(r!=="Alice#5,Jade#9,Léa#7,Maya#3,Maya#3/Libéro,Sofia#12")throw new Error(r);
-    const t=await page.locator(".hubTile").count().catch(()=>0);
-    void t;
+    if(r!=="Alice#5,Jade#9,Léa#7,Maya#3,Sofia#21")throw new Error(r);
+    const t=await page.locator(".hubTile").count();void t;
   });
-  await step("un maillot remis n'est plus proposé, ni remis deux fois",async()=>{
-    const r=await page.evaluate(()=>{
-      var sq=curSquad(),prets=pretsOuverts(sq.teamId);
-      var lea=DB.players.filter(p=>p.firstName==="Léa")[0].id;
-      var props=maillotsProposes(sq,DB.players.filter(p=>p.firstName==="Rose")[0].id,prets);
-      return {lot:remisesParNumero(sq,prets).length,
-        sept:props.some(x=>x.jersey.number==="7"),libres:props.length};
-    });
-    if(r.lot!==0)throw new Error("relance du lot : "+r.lot);
-    if(r.sept)throw new Error("le #7, remis, est encore proposé");
-    if(r.libres!==7)throw new Error("libres="+r.libres);
-  });
-  await step("la feuille d'une athlète propose son numéro et sa taille d'abord, et remet d'un geste",async()=>{
-    /* Sofia rend le #12, puis on le lui remet depuis sa feuille. */
-    const id=await pid("Sofia");
-    await page.evaluate(i=>{
-      var sq=curSquad(),t=teamById(sq.teamId);
-      var m=maillotsEnMain(sq.teamId,i)[0];rendreMaillot(m.sq,m.loan,m.jersey,"ok");
-      render();openModal("jerseyathlete",i);
-    },id);
-    await page.waitForTimeout(200);
-    const premier=await page.locator(".modal .chips").nth(1).locator(".chip").first().innerText();
-    if(!/#12/.test(premier)||!/son numéro/.test(premier)||!/sa taille/.test(premier))
-      throw new Error("premier proposé : "+premier);
-    await page.locator(".modal .chips").nth(1).locator(".chip").first().click();
-    await page.waitForTimeout(200);
-    const n=await page.evaluate(i=>maillotsEnMain(curSquad().teamId,i).length,id);
-    if(n!==1)throw new Error("en main="+n);
-    await fermerFeuille();
-  });
-  await step("le journal garde la trace des remises",async()=>{
-    const n=await page.evaluate(()=>DB.log.filter(l=>l.kind==="equip").length);
-    if(n<7)throw new Error("lignes de journal="+n);
-  });
-  await step("la partie Maillots tient à 375 px",async()=>{
-    await ouvrirPartie("Maillots");
-    await pasDeDebordement("Saison → Maillots");
-    const t=await txt();
-    if(!/Équipées/.test(t))throw new Error("pas de compte d'équipées");
-  });
-
-  say("\n── Le retour, et l'état qui suit");
   await step("« ↩ Rendu » en un geste, annulable",async()=>{
     const id=await pid("Jade");
     const row=page.locator(".listRow").filter({hasText:"Jade Gagnon"}).first();
@@ -254,61 +231,64 @@ const ERRORS=[];let PASS=0;
     n=await page.evaluate(i=>maillotsEnMain(curSquad().teamId,i).length,id);
     if(n!==1)throw new Error("l'annulation n'a pas rendu le maillot à Jade");
   });
-  await step("rendu usé, déclaré perdu : le maillot garde cet état et sort du stock",async()=>{
+  await step("rendu usé, déclaré perdu : le maillot garde cet état ; un maillot perdu se refait",async()=>{
     const r=await page.evaluate(()=>{
-      var sq=curSquad(),t=teamById(sq.teamId);
-      var maya=DB.players.filter(p=>p.firstName==="Maya")[0].id;
-      var mains=maillotsEnMain(sq.teamId,maya);
-      var lib=mains.filter(m=>m.jersey.set==="Libéro")[0],dom=mains.filter(m=>!m.jersey.set)[0];
-      gesteRendre(lib.sq,lib.loan,lib.jersey,"worn");
-      gesteRendre(dom.sq,dom.loan,dom.jersey,"lost");
-      var prets=pretsOuverts(sq.teamId);
-      return {lib:lib.jersey.state,dom:dom.jersey.state,
-        domLibre:jerseyLibre(dom.jersey,prets),libLibre:jerseyLibre(lib.jersey,prets),
-        outcome:lib.loan.outcome+"/"+dom.loan.outcome};
+      var sq=curSquad();
+      var maya=DB.players.filter(p=>p.firstName==="Maya")[0].id,alice=DB.players.filter(p=>p.firstName==="Alice")[0].id;
+      var m=maillotsEnMain(sq.teamId,maya)[0],a=maillotsEnMain(sq.teamId,alice)[0];
+      gesteRendre(m.sq,m.loan,m.jersey,"worn");
+      gesteRendre(a.sq,a.loan,a.jersey,"lost");
+      return {maya:m.jersey.state,alice:a.jersey.state,
+        etapeMaya:etatMaillot(sq,maya).etape,etapeAlice:etatMaillot(sq,alice).etape};
     });
-    if(r.lib!=="worn"||r.dom!=="lost")throw new Error(JSON.stringify(r));
-    if(r.domLibre)throw new Error("un maillot perdu est proposé à la remise");
-    if(!r.libLibre)throw new Error("un maillot usé rendu devrait être de nouveau libre");
+    if(r.maya!=="worn"||r.alice!=="lost")throw new Error(JSON.stringify(r));
+    if(r.etapeMaya!=="remettre")throw new Error("un maillot usé rendu se remet : "+r.etapeMaya);
+    if(r.etapeAlice!=="produire")throw new Error("un maillot perdu doit se refaire : "+r.etapeAlice);
   });
-  await step("un maillot chez une athlète ne peut pas être passé « perdu » depuis l'inventaire",async()=>{
+  await step("la feuille d'une athlète suit ses trois étapes, et prête un maillot de rechange",async()=>{
+    const id=await pid("Maya");
+    await page.evaluate(i=>openModal("jerseyathlete",i),id);
+    await page.waitForTimeout(200);
+    const t=await page.textContent(".modal");
+    for(const x of ["① Taille","② Son maillot","③ Remise et retour","Numéro attribué : #3"])
+      if(!t.includes(x))throw new Error("absent : "+x);
+    await page.locator(".modal button").filter({hasText:"Lui remettre"}).click();
+    await page.waitForTimeout(200);
+    const n=await page.evaluate(i=>maillotsEnMain(curSquad().teamId,i).map(m=>m.jersey.number).join(),id);
+    if(n!=="3")throw new Error("en main : "+n);
+    await page.locator(".modal button").filter({hasText:"Prêter un maillot de rechange"}).click();
+    await page.waitForTimeout(150);
+    const ch=await page.locator(".modal .chips").last().innerText();
+    if(!/#12/.test(ch))throw new Error("rechange proposé : "+ch);
+    await fermerFeuille();
+  });
+  await step("le journal garde la trace des productions et des remises",async()=>{
+    const r=await page.evaluate(()=>({prod:DB.log.filter(l=>l.kind==="equip"&&/produits/.test(l.text)).length,
+      tout:DB.log.filter(l=>l.kind==="equip").length}));
+    if(r.prod<2||r.tout<9)throw new Error(JSON.stringify(r));
+  });
+  await step("un maillot chez une athlète ne passe pas « perdu » depuis le stock, ni ne se supprime",async()=>{
     const r=await page.evaluate(()=>{
-      var sq=curSquad(),t=teamById(sq.teamId);
-      var j=t.jerseys.filter(x=>x.number==="7"&&!x.set)[0];
+      var t=teamById(curSquad().teamId);
+      var j=t.jerseys.filter(x=>x.number==="7")[0];
       state.modalDraft=null;openModal("jersey",j.id);
       state.modalDraft.state="lost";
       document.getElementById("modalOk").click();
-      var r={state:j.state,ouverte:state.modalType==="jersey"};closeModal();return r;
+      var r={state:j.state,ouverte:state.modalType==="jersey",pour:/Produit pour Léa/.test(document.querySelector(".modal").textContent)};
+      Array.from(document.querySelectorAll(".modal button")).filter(b=>/Supprimer/.test(b.textContent))[0].click();
+      r.existe=t.jerseys.indexOf(j)!==-1;
+      closeModal();return r;
     });
-    if(r.state!=="ok"||!r.ouverte)throw new Error(JSON.stringify(r));
+    await page.waitForTimeout(150);
+    if(r.state!=="ok"||!r.ouverte||!r.existe)throw new Error(JSON.stringify(r));
+    if(!r.pour)throw new Error("la feuille ne dit pas pour qui le maillot a été fait");
   });
-  await step("un maillot déjà remis ne se supprime pas : il se retire",async()=>{
-    const supprimer=async(num)=>{
-      await page.evaluate(num=>{
-        var t=teamById(curSquad().teamId);
-        var j=t.jerseys.filter(x=>x.number===num&&!x.set)[0];
-        state.modalDraft=null;openModal("jersey",j.id);
-        Array.from(document.querySelectorAll(".modal button")).filter(b=>/Supprimer/.test(b.textContent))[0].click();
-        if(state.modalType)closeModal();
-      },num);
-      await page.waitForTimeout(150);
-    };
-    const n=await page.evaluate(()=>teamById(curSquad().teamId).jerseys.length);
-    const id7=await page.evaluate(()=>teamById(curSquad().teamId).jerseys.filter(x=>x.number==="7"&&!x.set)[0].id);
-    await supprimer("7");
-    await supprimer("11");
-    const r=await page.evaluate(o=>{
-      var t=teamById(curSquad().teamId);
-      return {avant:o.n,apres:t.jerseys.length,sept:t.jerseys.some(x=>x.id===o.id7)};
-    },{n:n,id7:id7});
-    if(!r.sept)throw new Error("le #7, déjà remis, a été supprimé");
-    if(r.apres!==r.avant-1)throw new Error("le #11, jamais remis, devait se supprimer");
-  });
-  await step("l'inventaire des réglages dit où est chaque maillot, et tient à 375 px",async()=>{
+  await step("le stock des réglages dit pour qui et chez qui, et tient à 375 px",async()=>{
     await reglages("Maillots");
     const t=await txt();
+    if(!/Léa T\. · taille M/.test(t))throw new Error("le maillot de Léa n'est pas nommé");
+    if(!/Rechange · taille S/.test(t))throw new Error("l'ancien #12 n'est pas un maillot de rechange");
     if(!/Chez Léa/.test(t))throw new Error("le détenteur n'est pas dit");
-    if(!/Perdu/.test(t))throw new Error("l'état perdu n'est pas montré");
     await pasDeDebordement("Réglages → Maillots");
   });
 
@@ -325,23 +305,23 @@ const ERRORS=[];let PASS=0;
       DB=normalizeDB(DB);saveNow();render();
       sq2=curSquad();
       var lea=DB.players.filter(p=>p.firstName==="Léa")[0].id;
-      var props=maillotsProposes(sq2,lea,pretsOuverts(sq2.teamId));
       var m=situationMaillots(sq2);
       return {finAvant:avant.fin,aRecupAvant:avant.aRecup,
         main:maillotsEnMain(sq2.teamId,lea).map(x=>x.jersey.number+"@"+(x.sq===sq2?"cur":"old")).join(),
-        septPropose:props.some(x=>x.jersey.number==="7"&&!x.jersey.set),aRecup:m.aRecup,
-        loansNeufs:sq2.jerseyLoans.length};
+        etapeLea:etatMaillot(sq2,lea).etape,aRecup:m.aRecup,loansNeufs:sq2.jerseyLoans.length};
     });
     if(!r.finAvant)throw new Error("une saison dont la date de fin est passée n'est pas en fin de saison");
-    if(r.aRecupAvant<4)throw new Error("à récupérer en fin de saison="+r.aRecupAvant);
+    /* Dehors en mai : Léa #7, Sofia #21, Jade #9, Maya #3. Alice a perdu le sien. */
+    if(r.aRecupAvant!==4)throw new Error("à récupérer en fin de saison="+r.aRecupAvant);
     if(r.main!=="7@old")throw new Error("Léa : "+r.main);
-    if(r.septPropose)throw new Error("le #7 de Léa, pas rendu, est proposé dans la nouvelle saison");
     if(r.loansNeufs!==0)throw new Error("la nouvelle saison est née avec des remises");
-    /* Léa, Sofia, Alice gardent un maillot d'avant ; Jade, partie, aussi. */
+    /* Léa et Sofia gardent leur maillot d'avant ; Jade et Maya, parties, aussi. */
     if(r.aRecup!==4)throw new Error("à récupérer="+r.aRecup);
   });
   await step("la partie montre les non rendus d'une ancienne saison, et reconduit d'un geste",async()=>{
     await ouvrirPartie("Maillots");
+    await page.locator("button").filter({hasText:"③ Remise"}).first().click();
+    await page.waitForTimeout(200);
     const t=await txt();
     if(!/Non rendus des saisons passées/.test(t))throw new Error("Jade, partie avec son maillot, n'est pas signalée");
     if(!/Jade Gagnon/.test(t))throw new Error("Jade absente");
@@ -366,13 +346,12 @@ const ERRORS=[];let PASS=0;
       var avant=situationMaillots(sq).equipe;
       rosterEntry(sq,sofia).membership="left";
       var m=situationMaillots(sq);
-      var lot=remisesParNumero(sq,pretsOuverts(sq.teamId)).some(x=>x.pid===sofia);
+      var lot=remisesPrevues(sq,pretsOuverts(sq.teamId)).some(x=>x.pid===sofia);
       rosterEntry(sq,sofia).membership="active";
       return {avant:avant,apres:m.equipe,aRecup:m.aRecup,lot:lot};
     });
     if(r.apres!==r.avant-1)throw new Error("équipe à équiper : "+r.avant+" → "+r.apres);
-    /* Sofia, Alice et Jade ont encore un maillot de 2026 — Léa a reconduit
-       le sien. Partie, Sofia doit toujours rendre le sien. */
+    /* Sofia, Jade et Maya ont encore un maillot de 2026 — Léa a reconduit le sien. */
     if(r.aRecup!==3)throw new Error("à récupérer="+r.aRecup);
     if(r.lot)throw new Error("une athlète partie se voit proposer un maillot");
   });
@@ -440,6 +419,10 @@ const ERRORS=[];let PASS=0;
     await page.locator(".partHead button").filter({hasText:"+ Séance"}).click();
     await page.waitForTimeout(250);
     if(!await page.locator(".modal .phys-inp").count())throw new Error("pas de saisie");
+    /* La date est repliée sous une ligne : on la change rarement. */
+    if(await page.locator(".modal input[type=date]").count())throw new Error("la date occupe encore l'en-tête");
+    await page.locator(".modal .phys-infos").click();
+    await page.waitForTimeout(150);
     await page.locator(".modal input[type=date]").fill("2027-09-10");
     await page.locator(".modal input[type=date]").dispatchEvent("change");
     /* Station « Taille » d'abord : Léa, Sofia, Alice — par numéro : Alice #5, Léa #7, Sofia #12. */
@@ -452,10 +435,10 @@ const ERRORS=[];let PASS=0;
     const err=await inps.nth(2).evaluate(e=>e.classList.contains("err"));
     if(!err)throw new Error("une valeur illisible n'est pas signalée");
     await inps.nth(2).fill("");
-    const chipTxt=await page.locator('.modal .chips [data-test="height"]').innerText();
+    const chipTxt=await page.locator('.modal .phys-stations [data-test="height"]').innerText();
     if(!/2\/3/.test(chipTxt))throw new Error("compteur de station : "+chipTxt);
     for(const [test,vals] of [["standReach",["208","222",""]],["spikeReach",["262","280",""]],["blockReach",["250","268",""]]]){
-      await page.locator('.modal .chips [data-test="'+test+'"]').click();
+      await page.locator('.modal .phys-stations [data-test="'+test+'"]').click();
       await page.waitForTimeout(120);
       for(let i=0;i<vals.length;i++)if(vals[i])await page.locator(".modal .phys-inp").nth(i).fill(vals[i]);
     }
@@ -561,6 +544,7 @@ const ERRORS=[];let PASS=0;
       inc.squads.forEach(function(s){s.teamId="autre-"+s.teamId});
       var pmap={};
       inc.players.forEach(function(p){var n="x-"+p.id;pmap[p.id]=n;p.id=n});
+      inc.teams.forEach(function(x){(x.jerseys||[]).forEach(function(j){if(j.playerId)j.playerId=pmap[j.playerId]})});
       inc.squads.forEach(function(s){
         s.roster.forEach(e=>e.playerId=pmap[e.playerId]);
         s.playerIds=s.playerIds.map(x=>pmap[x]);
@@ -569,22 +553,25 @@ const ERRORS=[];let PASS=0;
         s.campaignRoster.forEach(e=>e.playerId=pmap[e.playerId]);
         s.offers.forEach(o=>o.playerId=pmap[o.playerId]);
       });
-      var jeu=t.jerseys.length;
+      var jeu=t.jerseys.length,loansAvant=0;
+      DB.squads.forEach(function(s){loansAvant+=s.jerseyLoans.length});
       t.jerseys=[];DB.squads=[];DB=normalizeDB(DB);
       mergeDB(inc);
       var t2=DB.teams.filter(x=>x.id===t.id)[0];
       var loans=0,mes=0;
       DB.squads.forEach(function(s){loans+=s.jerseyLoans.length;
         s.physSessions.forEach(se=>Object.keys(se.values).forEach(k=>{if(playerById(k))mes++}))});
-      var res={jeu:jeu,jeu2:t2.jerseys.length,loans:loans,mes:mes,v7:checkV7().length};
+      var siens=t2.jerseys.filter(j=>j.playerId).length,resolus=t2.jerseys.filter(j=>j.playerId&&playerById(j.playerId)).length;
+      var res={jeu:jeu,jeu2:t2.jerseys.length,loans:loans,loansAvant:loansAvant,mes:mes,v7:checkV7().length,siens:siens,resolus:resolus};
       DB=normalizeDB(sauve);saveNow();render();
       return res;
     });
     if(r.jeu2!==r.jeu)throw new Error("jeu : "+r.jeu+" → "+r.jeu2);
-    if(r.loans<8)throw new Error("remises perdues : "+r.loans);
+    if(!r.loansAvant||r.loans!==r.loansAvant)throw new Error("remises : "+r.loansAvant+" → "+r.loans);
     if(r.mes!==4)throw new Error("mesures rattachées="+r.mes);
+    if(!r.siens||r.resolus!==r.siens)throw new Error("maillots d'athlète non rattachés : "+r.resolus+"/"+r.siens);
   });
-  await step("supprimer une fiche n'en laisse ni remise ni mesure",async()=>{
+  await step("supprimer une fiche n'en laisse ni remise ni mesure ; son maillot passe en rechange",async()=>{
     const r=await page.evaluate(()=>{
       var lea=DB.players.filter(p=>p.firstName==="Léa")[0].id;
       deletePlayersFromDb([lea]);
@@ -594,6 +581,7 @@ const ERRORS=[];let PASS=0;
         s.jerseyLoans.forEach(l=>{if(l.playerId===lea)reste++});
         s.physSessions.forEach(se=>{if(se.values[lea])reste++});
       });
+      DB.teams.forEach(t=>t.jerseys.forEach(j=>{if(j.playerId===lea)reste++}));
       return reste;
     });
     if(r!==0)throw new Error("restes="+r);
