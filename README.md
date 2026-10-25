@@ -11,7 +11,7 @@ server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
 GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
-tests/          suite de non-régression Playwright — vingt-quatre suites
+tests/          suite de non-régression Playwright — vingt-huit suites
 ```
 
 ---
@@ -222,10 +222,27 @@ Chaque chose est rangée selon ce à quoi elle appartient :
 | Séance de tests, mesures | la **saison** | `🗓️ Saison → 📏 Physique` |
 
 La **saisie** n'est pas un onglet : c'est l'acte d'une partie de rencontres —
-« ✏️ Relever », qui propose d'emblée la nature de la partie d'où l'on vient. Son
-en-tête dit cette nature (« 🎽 Entraînement »), et `‹` y ramène ; à côté, `↶`
-annule le dernier geste. La remise à zéro des compteurs (`🔄`) est descendue dans
-la barre du bas, loin du retour.
+« ✏️ Relever », qui propose d'emblée la nature de la partie d'où l'on vient (les
+Matchs filtrés sur « Championnat » relèvent du championnat). Son en-tête dit cette
+nature (« 🎽 Entraînement »), et dessous l'équipe et la saison : la barre de
+contexte n'y paraît pas, la place va aux compteurs. `‹` ramène à la partie ; à
+côté, `↶` annule le dernier geste. La remise à zéro des compteurs (`🔄`) est
+descendue dans la barre du bas, loin du retour.
+
+L'écran, de haut en bas, sur un téléphone de 375 × 667 :
+
+| Rangée | Ce qu'elle porte |
+|---|---|
+| Groupes | `🏐 12/12` — qui est sur le terrain, et son panneau : les athlètes à ajouter ou retirer, les **blessées et les parties** à part (hors du terrain d'office), le **filtre de poste** ; puis `Toutes`, les sous-équipes, les line-ups. Un filtre de poste posé se lit en puce (`Poste L ✕`) et s'ôte d'un geste |
+| Athlètes | Le numéro de maillot et le prénom, en rangées entières ; la pastille verte dit combien de gestes sont déjà relevés sur elle |
+| Compteurs | Une rangée par famille : `+` qui compte, `−` dessous qui corrige — grisé à zéro. Deux familles entières tiennent à l'écran |
+| Enregistrer | `⏭ Set suivant`, le set en cours, `↺` `🔄` ; puis `💾 Enregistrer` |
+
+Une blessée ou une partie n'entre jamais d'office sur le terrain — ni par
+`Toutes`, ni par une sous-équipe, ni quand on retire quelqu'un d'autre ; on l'y met
+à la main, depuis le panneau, pour rattraper une feuille de match ancienne. La
+dernière athlète sur le terrain ne se retire pas : un terrain vide se lirait
+« toutes ».
 
 ### Par sous-équipe, partout
 
@@ -241,7 +258,7 @@ ensuite les chiffres de l'équipe B, sans refaire le choix.
 | 📈 Objectifs | la liste des athlètes |
 | 📏 Physique | la liste, **et la séance de tests** : on mesure l'équipe A, puis l'équipe B |
 | 👕 Maillots | les tailles, la commande, la remise |
-| ✏️ Saisie | la rangée « Groupes » : toucher une sous-équipe met ses athlètes sur le terrain **et** la choisit pour la saison |
+| ✏️ Saisie | la rangée « Groupes » : toucher une sous-équipe met ses athlètes disponibles sur le terrain **et** la choisit pour la saison |
 
 Le bilan victoires–défaites d'un match ne change pas : il appartient au match,
 pas à une partie de l'équipe. Une équipe sans sous-équipe ne voit pas la rangée.
@@ -252,8 +269,8 @@ Pendant une saisie, ou devant une longue liste, la barre d'onglets et les barres
 d'action prennent jusqu'à 130 px d'un écran de 667. `▾ Replier`, au bout de la
 barre d'onglets ou de la barre d'enregistrement de la saisie, les replie toutes :
 les onglets deviennent une poignée fine (`▴ Onglets`), la barre d'enregistrement
-tient sur une rangée (`⏭` · `💾 Enregistrer` · `▴`). Le choix est retenu d'une
-ouverture à l'autre.
+tient sur une rangée (`⏭ S2` · `💾 Enregistrer` · `▴`), le set en cours dans le
+bouton. Le choix est retenu d'une ouverture à l'autre.
 
 Il ne voit que **son** équipe : roster, statistiques, campagnes et soumissions.
 Il peut ajouter des athlètes à la base du club et inviter des sélectionneurs sur
@@ -297,6 +314,14 @@ sa date réelle et son lieu.
 Un tournoi se saisit une fois puis se complète : le second match propose
 « Rattacher à » la rencontre du jour. Chaque match garde **son propre adversaire**
 — il change à chaque tour — et son score par set, dont l'issue (V/D/N) est déduite.
+Les matchs d'un tournoi se numérotent dès le premier (`· match 1`, `· match 2`) ; un
+amical ou un match de championnat, qui n'en porte qu'un, ne demande pas de second
+nom.
+
+Les scores se saisissent « nous – eux », deux champs par set. Un set à moitié rempli,
+ou un set vide entre deux sets joués, empêche d'enregistrer et le dit : les sets
+suivants glissaient d'un rang, et la ventilation prêtait au set 2 le score du set 3.
+Après l'enregistrement, `Voir` dans le bandeau mène au match.
 
 Les trois parties de rencontres — **Entraînements**, **Matchs**, **Tournois** —
 lisent les **mêmes** rencontres, filtrées par nature. Rien n'est dupliqué : une
@@ -326,6 +351,10 @@ différences successives de ces bornes, la dernière étant le total : **leur so
 vaut donc le total exactement, par construction**, et non par vérification. Rien
 n'est remis à zéro en cours de match, ce qui permet de corriger un compteur
 *après* avoir clos un set.
+
+Si le nombre de scores saisis ne correspond pas au nombre de sets bornés — un
+« Set suivant » oublié —, la fenêtre d'enregistrement le dit avant d'enregistrer :
+la ventilation suit les bornes, pas les scores.
 
 Les matchs saisis avant cette possibilité ne sont **pas ventilés**. Ils
 s'affichent « Match (non ventilé) » et jamais « Set 1 » — on n'affirme pas une
@@ -816,6 +845,44 @@ vous publiez explicitement sur votre propre relais.
 ---
 
 ## Notes de version
+
+### v7.11 — la saisie, revue de bout en bout
+
+Une revue complète du workflow de saisie des statistiques, sur le plus petit
+téléphone visé (375 × 667). Nouvelle suite : `tests/saisie.js`.
+
+- **La place des compteurs.** Il en restait 102 px — une seule famille de gestes,
+  parfois une demie. La saisie n'a plus la barre de contexte (l'équipe et la
+  saison passent sous le titre), le terrain devient une puce de la rangée des
+  groupes, le filtre de poste vit dans son panneau : deux familles entières
+  tiennent à l'écran, trois barres repliées.
+- **La bande d'athlètes** coupait sa troisième rangée à mi-hauteur et tronquait
+  les noms (« Sofia … ») : des rangées entières, le prénom, une ombre quand il y a
+  la suite, et une pastille qui compte les gestes déjà relevés. L'athlète choisie
+  se voit de loin.
+- **Blessées et parties** étaient comptées dans « Toutes » et dans le terrain
+  sans paraître dans la bande ; retirer une athlète du terrain les y faisait
+  entrer d'un coup, une sous-équipe aussi. Retirer la dernière remettait toute
+  l'équipe sur le terrain.
+- **Le « − »** était un tiret gris de 22 px en grille : un vrai bouton, grisé à
+  zéro, avec un nom accessible — le `+` aussi.
+- **Enregistrer** : les scores de sets prenaient une rangée chacun, sans dire
+  lequel était « nous » ; un set laissé vide au milieu décalait les suivants et la
+  ventilation, un set à moitié rempli était jeté en silence ; le bouton était à
+  aller chercher sous huit champs. Le nom du match n'est plus demandé deux fois
+  pour un amical, un tournoi numérote son premier match, l'écart entre scores et
+  sets bornés est annoncé, et `Voir` mène au match enregistré.
+- **Le bandeau** tenait sur la moitié de l'écran — trois lignes pour « Set 1
+  clos » — et recouvrait la barre d'enregistrement ; il monte en haut quand une
+  fenêtre est ouverte. Les boutons d'une fenêtre restent visibles en bas pendant
+  qu'on fait défiler.
+- **Ailleurs dans le parcours** : Relever depuis les Matchs filtrés sur
+  « Championnat » relevait un amical ; la grille sur tablette en paysage s'ouvrait
+  sur un panneau vide ; le titre de la grille du sélectionneur s'écrasait sur
+  quatre lignes ; « 0 match relevée », « 1 gestes », « ce match sera ventilée »,
+  « tournoi de laval » en minuscules, une séance appelée « ce match », un chemin
+  « Récap → Rencontres » qui n'existe plus, et « joueuse » là où tout le reste dit
+  « athlète ».
 
 ### v7.10.1 — des tests qui disent vrai
 

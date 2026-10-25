@@ -808,11 +808,20 @@ passent en ⛔.
 
 ### Enregistrer un match
 
-`✏️ Saisie` — une joueuse, ses compteurs. Puis `💾 Enregistrer le match`.
+`🤝 Matchs → ✏️ Relever`. En haut, `🏐 12/12` dit qui est sur le terrain : touchez-le
+pour en retirer ou en ajouter, ou pour ne montrer qu'un poste. Une blessée ou une
+partie n'y entre pas d'office. Puis une athlète — son numéro et son prénom dans la
+bande —, et ses gestes : `+` compte, `−` dessous corrige. La pastille verte de la
+puce dit combien de gestes sont déjà relevés sur elle. `⏭ Set suivant` à la fin de
+chaque set, puis `💾 Enregistrer le match`.
 
-La modale demande la **nature** (🏆 Championnat · 🎪 Tournoi · 🤝 Amical ·
+La fenêtre demande la **nature** (🏆 Championnat · 🎪 Tournoi · 🤝 Amical ·
 🎽 Entraînement), le nom de la rencontre, l'adversaire **de ce match**, la date
-réelle et le lieu. Les sets sont facultatifs ; l'issue (V/D/N) s'en déduit.
+réelle et le lieu. Les sets sont facultatifs ; l'issue (V/D/N) s'en déduit. Chaque
+set se saisit « nous – eux » ; un set à moitié rempli, ou un set vide entre deux
+sets joués, est refusé avec le numéro du set en cause. Si vous avez saisi trois
+scores mais n'avez posé qu'une borne, la fenêtre vous le dit avant d'enregistrer.
+Une fois enregistré, `Voir` dans le bandeau ouvre le match.
 
 **Un tournoi se saisit une fois puis se complète.** Au match suivant, le champ
 « Rattacher à » propose les tournois de la saison avec leur date. Le match rattaché
@@ -824,7 +833,7 @@ dans la liste mais « ➕ Nouvelle rencontre » redevient le choix par défaut :
 rattache parce qu'on le veut, jamais par inadvertance.
 
 Chaque match d'un tournoi garde **son propre adversaire** : la question se repose à
-chaque tour.
+chaque tour. Les matchs s'y numérotent dès le premier : « Match 1 », « Match 2 ».
 
 ### Lire le cumul
 
@@ -966,9 +975,10 @@ Toute la saison se lit **par sous-équipe** : la rangée `🧩 Toute l'équipe �
 A · Équipe B` paraît dans chaque partie dès que l'équipe en a. Le choix suit d'un
 écran à l'autre, et jusque dans la saisie, où il met ses athlètes sur le terrain.
 
-Pendant une saisie de statistiques, `▾ Replier` (au bout de la barre d'onglets ou
-de la barre d'enregistrement) replie les barres du bas : la grille de compteurs
-reprend la place. `▴ Onglets` les rend.
+Pendant une saisie de statistiques, deux familles de gestes entières tiennent déjà
+sur un téléphone de 375 × 667. `▾ Replier` (au bout de la barre d'onglets ou de la
+barre d'enregistrement) replie les barres du bas : la grille de compteurs reprend
+encore la place. `▴ Onglets` les rend.
 
 La progression se lit dans `👥 Les athlètes` (rangées par le test qu'on veut), et
 dans la feuille de chaque athlète, d'une saison à l'autre.
