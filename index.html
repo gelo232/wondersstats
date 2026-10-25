@@ -396,7 +396,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .grid-header .stat-labels{display:flex;flex:1;justify-content:space-around}
 .grid-header .stat-lbl{text-align:center;font-size:var(--fs-2xs);font-weight:700}
 @media(min-width:600px){.grid-header .stat-lbl{font-size:var(--fs-xs)}}
-.grid-row{display:flex;align-items:center;padding:5px var(--gutter);border-bottom:1px solid var(--surface)}
+.grid-row{display:flex;align-items:center;padding:6px var(--gutter);border-bottom:1px solid var(--surface)}
 @media(min-width:600px){.grid-row{padding:6px var(--s4)}}
 .grid-row .pname{font-size:var(--fs-sm);font-weight:700;color:var(--txt-strong)}
 @media(min-width:600px){.grid-row .pname{font-size:var(--fs-md)}}
@@ -406,7 +406,13 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .stat-btn{width:var(--tap);height:var(--tap);border-radius:var(--r-md);font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;
   transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease)}
 @media(min-width:600px){.stat-btn{width:52px;height:52px;font-size:20px}}
-.dec-btn{margin-top:2px;font-size:var(--fs-xs);background:none;border:none;color:var(--txt-dim);cursor:pointer;padding:3px var(--s2)}
+/* Le « − » était un tiret gris de 22 px de haut : ni l'allure d'un
+   bouton, ni la taille d'une cible. Il en a l'allure maintenant, et sa
+   zone descend dans la marge de la rangée — jamais sur le « + ». */
+.dec-btn{position:relative;margin-top:3px;min-width:var(--tap);height:30px;padding:0 var(--s2);border-radius:var(--r-sm);
+  border:1px solid var(--line-strong);background:var(--sunken);color:var(--txt-soft);font-size:var(--fs-xl);font-weight:700;line-height:1;cursor:pointer;touch-action:manipulation}
+.dec-btn::after{content:"";position:absolute;left:0;right:0;top:0;height:42px}
+.dec-btn:disabled{opacity:.35;cursor:default}
 .cards-grid{display:grid;grid-template-columns:1fr;gap:var(--s2);max-width:700px;margin:0 auto}
 @media(min-width:600px){.cards-grid{grid-template-columns:1fr 1fr}}
 .p-card{background:var(--surface);border-radius:var(--r-md);padding:var(--s2) var(--s3);border:1px solid var(--line)}
@@ -417,15 +423,38 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .side-btn{display:block;width:100%;min-height:var(--tap);padding:var(--s3) var(--s3);border:none;text-align:left;background:transparent;border-left:3px solid transparent;color:var(--txt-dim);font-weight:700;font-size:var(--fs-sm);cursor:pointer}
 /* 5 % de blanc disparaît au soleil : un fond franc à la place. */
 .side-btn.active{border-left-color:currentColor;background:var(--raised);color:var(--txt-strong)}
-.player-strip{display:flex;gap:6px;padding:var(--s2) var(--gutter);flex-shrink:0;background:var(--surface-2);border-bottom:1px solid var(--surface);flex-wrap:wrap;justify-content:center;max-height:132px;overflow-y:auto}
-.player-chip{padding:6px var(--s2);border-radius:var(--r-md);border:1.5px solid var(--line-strong);font-size:var(--fs-xs);font-weight:700;min-width:48px;min-height:var(--tap);text-align:center;background:var(--surface);color:var(--txt-dim);cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.2;
+/* La bande des athlètes : une grille de rangées entières. Elle était
+   plafonnée à 132 px en flex : la troisième rangée s'y voyait coupée à
+   mi-hauteur, noms tranchés. Ici au plus trois rangées pleines, et si
+   l'équipe en demande plus, une ombre en bas dit qu'il y a la suite. */
+.player-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));grid-auto-rows:46px;gap:6px;
+  padding:6px var(--gutter);flex-shrink:0;border-bottom:1px solid var(--surface);overflow-y:auto;
+  max-height:calc(3 * 46px + 2 * 6px + 12px);
+  background:
+    linear-gradient(var(--surface-2) 30%,rgba(22,32,50,0)) center top / 100% 24px no-repeat local,
+    linear-gradient(rgba(22,32,50,0),var(--surface-2) 70%) center bottom / 100% 24px no-repeat local,
+    radial-gradient(farthest-side at 50% 0,rgba(148,163,184,.45),rgba(148,163,184,0)) center top / 100% 10px no-repeat scroll,
+    radial-gradient(farthest-side at 50% 100%,rgba(148,163,184,.45),rgba(148,163,184,0)) center bottom / 100% 10px no-repeat scroll,
+    var(--surface-2)}
+@media(min-width:600px){.player-strip{grid-template-columns:repeat(auto-fill,minmax(84px,1fr))}}
+.player-chip{position:relative;min-width:0;padding:2px 3px;border-radius:var(--r-md);border:1.5px solid var(--line-strong);text-align:center;background:var(--surface);color:var(--txt-dim);cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15;
   transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
-.player-chip.active{border-color:var(--accent);background:var(--raised);color:var(--on-light)}
-.chip-num{font-size:var(--fs-2xs);color:var(--txt-soft)}
-.chip-name{font-size:var(--fs-xs);max-width:80px;word-break:break-word}
-.court-bar{width:100%}
-.court-bar{padding:var(--s2) var(--gutter);background:var(--surface-2);border-bottom:1px solid var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-sm);color:var(--txt-dim);flex-shrink:0;min-height:var(--tap)}
-.court-panel{padding:var(--s2) var(--gutter);background:var(--bg);border-bottom:1px solid var(--surface);flex-shrink:0;max-height:40vh;overflow-y:auto}
+/* L'athlète choisie se voyait à peine — un liseré bleu sur ardoise. On
+   relève sur elle tout ce qu'on touche : elle se voit de loin. */
+.player-chip.active{border-color:var(--accent-ink);background:var(--accent-solid);color:var(--on-light)}
+.chip-num{font-size:var(--fs-md);font-weight:800;color:var(--txt-strong)}
+.chip-name{font-size:var(--fs-xs);font-weight:700;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player-chip.active .chip-num,.player-chip.active .chip-name{color:var(--on-light)}
+/* Combien de gestes déjà relevés sur elle : on voit d'un coup d'œil qui
+   n'a encore rien. */
+.chip-n{position:absolute;top:2px;right:3px;min-width:15px;height:15px;padding:0 3px;border-radius:var(--r-pill);
+  background:var(--ok-solid);color:var(--on-dark);font-size:10px;font-weight:800;line-height:15px;font-variant-numeric:tabular-nums}
+.chip-n:empty{display:none}
+.court-panel{padding:var(--s2) var(--gutter);background:var(--bg);border-bottom:1px solid var(--surface);flex-shrink:0;max-height:58vh;overflow-y:auto}
+.court-panel .cp-lbl{font-size:var(--fs-2xs);font-weight:800;color:var(--txt-faint);letter-spacing:.6px;text-transform:uppercase;margin:var(--s1) 0}
+.court-panel .cp-lbl+.court-toggle-grid{margin-top:0}
+.court-panel .pos-row{flex-wrap:wrap;margin-bottom:var(--s2)}
+.court-toggle.hors{border-style:dashed;opacity:.75}
 .court-toggle-grid{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--s2)}
 .court-toggle{min-height:var(--tap);padding:0 var(--s2);border-radius:var(--r-sm);border:1.5px solid var(--line-strong);font-size:var(--fs-xs);font-weight:700;background:var(--sunken);color:var(--txt-dim);cursor:pointer;touch-action:manipulation;text-align:left;display:inline-flex;align-items:center;
   transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
@@ -434,27 +463,44 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .subteam-chip{min-height:var(--tap);padding:0 var(--s3);border-radius:var(--r-pill);border:1.5px solid var(--line-strong);font-size:var(--fs-xs);font-weight:700;white-space:nowrap;background:transparent;color:var(--txt-dim);cursor:pointer;display:inline-flex;align-items:center;gap:var(--s1)}
 .subteam-chip.active{background:var(--ok-solid);border-color:var(--ok-ink);color:var(--on-dark)}
 .subteam-chip.lu{border-style:dotted}
-.groupes-saisie{padding:6px 12px;flex-wrap:nowrap;overflow-x:auto;background:var(--sunken);border-bottom:1px solid var(--line)}
+.groupes-saisie{padding:6px 12px;flex-wrap:nowrap;overflow-x:auto;background:var(--sunken);border-bottom:1px solid var(--line);flex-shrink:0}
+/* Le terrain vit dans la rangée des groupes : c'est le même choix — qui
+   est sur le terrain —, il n'avait pas à prendre une bande de plus. */
+.groupes-saisie .gs-lbl{align-self:center;font-size:var(--fs-xs);font-weight:700;color:var(--txt-dim);flex-shrink:0}
+@media(max-width:429px){.groupes-saisie .gs-lbl{display:none}}
+.subteam-chip.court-chip{border-color:var(--accent);color:var(--accent-ink);background:var(--tint-accent);flex-shrink:0}
+.subteam-chip.court-chip[aria-expanded="true"]{background:var(--accent-solid);border-color:var(--accent-ink);color:var(--on-light)}
+.subteam-chip.filtre-on{border-color:var(--eval-ink);background:var(--eval-solid);color:var(--on-light)}
 .subteam-edit{background:none;border:none;font-size:var(--fs-xs);cursor:pointer;padding:0 2px;color:inherit}
-.quick-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:var(--s2) var(--s2)}
+.quick-panel{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:var(--s2) var(--s2)}
 @media(min-width:600px){.quick-panel{padding:var(--s3) var(--s4)}}
-.qp-group{margin-bottom:var(--s2)}
+.qp-group{margin-bottom:var(--s3)}
 .qp-group-title{font-size:var(--fs-2xs);font-weight:800;padding:var(--s1) var(--s2);border-radius:var(--r-xs);margin-bottom:var(--s1);display:inline-block;letter-spacing:.5px}
-.qp-stats-row{display:flex;gap:6px;flex-wrap:wrap}
-.qp-stat-btn{flex:1;min-width:70px;height:var(--tap-lg);min-height:var(--tap-lg);border-radius:var(--r-lg);font-size:var(--fs-sm);font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border:1.5px solid;touch-action:manipulation;-webkit-user-select:none;user-select:none;
-  transition:background var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
-@media(min-width:600px){.qp-stat-btn{min-width:90px;height:64px;min-height:64px}}
-.qp-stat-btn .count{font-size:var(--fs-xl);font-weight:800;line-height:1}
-.qp-stat-btn .lbl{font-size:var(--fs-2xs);font-weight:700;margin-top:2px}
-.qp-dec{font-size:var(--fs-xs);background:none;border:none;color:var(--txt-dim);cursor:pointer;min-height:var(--tap);padding:0 var(--s2);touch-action:manipulation}
-.qp-stat-cell{display:flex;flex-direction:column;align-items:center;flex:1;min-width:70px}
-@media(min-width:600px){.qp-stat-cell{min-width:90px}}
+/* Une rangée par famille, une cellule par compteur, toutes de même
+   largeur. Les boutons gardaient la largeur de leur texte au milieu de
+   cellules de 230 px sur tablette ; ils prennent la cellule, jusqu'à
+   180 px, et la rangée se centre. */
+.qp-stats-row{display:flex;gap:6px;justify-content:center}
+.qp-stat-cell{display:flex;flex-direction:column;align-items:stretch;flex:1 1 0;min-width:0;max-width:180px}
+.qp-stat-btn{width:100%;min-width:0;height:var(--tap-lg);min-height:var(--tap-lg);padding:0 2px;border-radius:var(--r-lg);font-size:var(--fs-sm);font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border:1.5px solid;touch-action:manipulation;-webkit-user-select:none;user-select:none;
+  transition:background var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease),transform var(--dur-fast) var(--ease)}
+@media(min-width:600px){.qp-stat-btn{height:64px;min-height:64px}}
+.qp-stat-btn .count{font-size:var(--fs-xl);font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.qp-stat-btn .lbl{font-size:var(--fs-xs);font-weight:700;margin-top:3px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Le « − » : un vrai bouton, plus bas que le « + », dont la zone de
+   toucher descend dans la marge — vers le titre de la famille suivante,
+   qui n'est pas cliquable. */
+.qp-dec{position:relative;height:30px;margin-top:4px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--sunken);
+  color:var(--txt-soft);font-size:var(--fs-xl);font-weight:700;line-height:1;cursor:pointer;touch-action:manipulation;padding:0}
+.qp-dec::after{content:"";position:absolute;left:0;right:0;top:0;height:var(--tap)}
+.qp-dec:disabled{opacity:.35;cursor:default}
+.qp-stat-btn.flash{transform:scale(1.04)}
 .mode-toggle{min-height:var(--tap);padding:0 var(--s3);border-radius:var(--r-pill);border:1.5px solid var(--line-strong);font-size:var(--fs-xs);font-weight:700;cursor:pointer;background:transparent;color:var(--txt-dim);
   transition:border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
 .mode-toggle.active{border-color:var(--warn);color:var(--warn-ink)}
 .quick-prompt{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--txt-dim);padding:var(--s8);text-align:center}
 .quick-prompt .arrow{font-size:32px;margin-bottom:var(--s2)}
-.save-bar{padding:var(--s2) var(--s4);background:var(--surface-2);border-top:1px solid var(--line);box-shadow:var(--sh-3);flex-shrink:0}
+.save-bar{padding:var(--s2) var(--s3);background:var(--surface-2);border-top:1px solid var(--line);box-shadow:var(--sh-3);flex-shrink:0}
 @media(min-width:600px){.save-bar{padding:var(--s3) var(--s6)}}
 .save-bar .inner{max-width:460px;margin:0 auto}
 
@@ -482,8 +528,12 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .sess-count{font-size:var(--fs-xs);color:var(--txt-faint);text-align:center;margin:var(--s1) 0 6px}
 
 /* ── SELECTOR (rôle sélectionneur) ────────────────── */
-.sv-strip-head{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s2)}
-.sv-fold{flex:1;min-width:0;display:flex;align-items:center;gap:7px;background:none;border:none;color:var(--txt-soft);font-size:var(--fs-xs);font-weight:700;cursor:pointer;min-height:var(--tap);text-align:left}
+/* Le titre de la grille s'écrasait sur une colonne de 50 px — « Toutes /
+   les athl / · 0/3 / évaluées » — contre le tri et « Masquer les
+   faites ». Trop étroit, les outils passent dessous. */
+.sv-strip-head{display:flex;align-items:center;gap:var(--s1) var(--s2);margin-bottom:var(--s2);flex-wrap:wrap}
+.sv-strip-head .sv-outils{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto}
+.sv-fold{flex:1 1 190px;min-width:0;display:flex;align-items:center;gap:7px;background:none;border:none;color:var(--txt-soft);font-size:var(--fs-xs);font-weight:700;cursor:pointer;min-height:var(--tap);text-align:left}
 .sv-fold .muted{margin-left:auto;flex-shrink:0}
 .seq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:7px}
 .seq-tile{height:54px;border-radius:var(--r-md);border:1.5px solid var(--line-strong);background:var(--surface);color:var(--txt-soft);font-weight:800;font-size:var(--fs-lg);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0 2px;touch-action:manipulation;
@@ -554,6 +604,18 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .scrim.bottom{align-items:flex-end;justify-content:center;padding:0}
 .modal{background:var(--surface);border-radius:var(--r-xl);padding:var(--s5);width:100%;max-width:420px;border:1px solid var(--line);max-height:86%;overflow-y:auto;box-shadow:var(--sh-2)}
 .modal h3{margin:0 0 var(--s3);color:var(--txt-strong);font-size:18px}
+/* Les boutons d'une fenêtre restent au bas de l'écran pendant qu'on fait
+   défiler le formulaire : « Enregistrer le match » était sous huit champs
+   et trois sets, à aller chercher — on le prenait pour absent. */
+.modal>.m-actions{position:sticky;bottom:calc(-1 * var(--s5));z-index:2;display:flex;gap:var(--s2);flex-wrap:wrap;
+  margin:var(--s2) calc(-1 * var(--s5)) calc(-1 * var(--s5));padding:var(--s3) var(--s5) var(--s5);
+  background:var(--surface);border-top:1px solid var(--line)}
+/* Côte à côte quand ils tiennent : empilés, « Annuler » et « Enregistrer »
+   prenaient 110 px collés au bas de la fenêtre. */
+.modal>.m-actions>.btn.full{flex:1 1 120px;width:auto}
+/* Une fenêtre ouverte : le bandeau monte en haut de l'écran, au lieu de
+   recouvrir les champs et les boutons qu'on remplit. */
+#app.toast-haut .toast{bottom:auto;top:calc(var(--s2) + env(safe-area-inset-top))}
 .modal input,.modal textarea,.modal select{width:100%;background:var(--sunken);border:1.5px solid var(--line-strong);border-radius:var(--r-sm);padding:11px var(--s3);color:var(--txt-strong);font-size:var(--fs-input);outline:none;margin-bottom:var(--s3);min-height:var(--tap)}
 .modal input[type=range]{-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;background:var(--line);padding:0;border:0;min-height:0}
 .modal input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--eval);border:2px solid var(--bg)}
@@ -587,7 +649,12 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .modal.confirm p+p{margin-top:var(--s2);color:var(--txt-dim);font-size:var(--fs-sm)}
 /* Le toast descend au pouce et perd son fond ardoise, qui interdisait
    tout texte coloré : la couleur passe dans un liseré de 4 px. */
-.toast{position:absolute;left:50%;bottom:calc(76px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:100;max-width:calc(100% - 2 * var(--gutter));display:flex;align-items:center;gap:var(--s2);
+/* `width:max-content` : sans lui, un bloc absolu posé à left:50 % ne
+   prend que la moitié de la largeur restante — le bandeau tenait sur
+   187 px d'un écran de 375, et « Set 1 clos — set 2 en cours » sur trois
+   lignes. `--toast-bas` le pose au-dessus des barres du bas (onglets,
+   enregistrement de la saisie), qu'il recouvrait. */
+.toast{position:absolute;left:50%;bottom:var(--toast-bas,calc(76px + env(safe-area-inset-bottom)));transform:translateX(-50%);z-index:100;width:max-content;max-width:calc(100% - 2 * var(--gutter));display:flex;align-items:center;gap:var(--s2);
   background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);
   border-radius:var(--r-md);padding:var(--s3) var(--s4);box-shadow:var(--sh-2);
   color:var(--txt-strong);font-size:var(--fs-sm);font-weight:600;animation:toastIn var(--dur) var(--ease)}
@@ -596,7 +663,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .toast.danger{border-left-color:var(--danger)}
 .toast .t-act{flex-shrink:0;color:var(--accent-ink);font-weight:800;font-size:var(--fs-xs);text-decoration:underline;min-height:var(--tap);display:flex;align-items:center;padding:0 var(--s1);background:none;border:none;cursor:pointer}
 @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
-.autosave-indicator{display:flex;align-items:center;gap:6px;font-size:var(--fs-2xs);color:var(--txt-faint);padding:var(--s1) 0}
+.autosave-indicator{display:flex;align-items:center;gap:6px;font-size:var(--fs-2xs);color:var(--txt-faint);padding:var(--s1) 0;white-space:nowrap;flex-shrink:0}
 .autosave-indicator .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);flex-shrink:0}
 .autosave-indicator.saving .dot{background:var(--warn);animation:pulse .6s ease infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
@@ -607,7 +674,12 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .set-pair{display:flex;align-items:center;gap:var(--s1)}
 .set-in{width:44px;height:var(--tap);border-radius:var(--r-sm);background:var(--sunken);border:1.5px solid var(--line-strong);
   color:var(--txt-strong);font-size:var(--fs-input);font-weight:700;text-align:center;outline:none;margin:0}
+/* `.modal input` (largeur 100 %, marge basse) l'emportait sur `.set-in` :
+   chaque set prenait une rangée entière, deux champs de 140 px. */
+.modal .set-in{width:56px;min-width:0;margin:0;padding:0 var(--s1)}
 .set-in:focus{border-color:var(--focus)}
+.set-cell.incomplet .set-in{border-color:var(--warn)}
+.sets-row{gap:var(--s3) var(--s4)}
 .set-sep{color:var(--txt-dim);font-weight:700}
 .ev-card{background:var(--surface);border-radius:var(--r-lg);border:1px solid var(--line);margin-bottom:var(--s3);overflow:hidden}
 .ev-head{padding:var(--s3) var(--s3);display:flex;align-items:center;gap:var(--s2);border-left:4px solid var(--line)}
@@ -1020,6 +1092,10 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    n'enregistre rien, et confondre les deux coûterait un match. */
 .save-bar .markRow{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s2)}
 .save-bar .sb-row{display:flex;gap:var(--s2);align-items:center}
+.save-bar .sb-row .btn-save{min-width:0;overflow:hidden}
+/* Sous 360 px, l'état de sauvegarde se dit par sa pastille seule : son
+   texte rognait « Enregistrer le matc ». */
+@media(max-width:359px){.save-bar .sb-row .autosave-indicator{font-size:0;gap:0}}
 .save-bar.compact{padding:6px var(--s3)}
 .save-bar.compact .btn-save{min-height:var(--tap)}
 /* Barres du bas repliées : la barre d'onglets devient une poignée, les
@@ -1035,8 +1111,11 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .bas-replie .actionBar .ab-row .btn{min-height:var(--tap)}
 .bas-replie .pick-bar{padding:6px var(--gutter)}
 .bas-replie .pick-bar .pick-warn{display:none}
-.save-bar .markRow .mk-note{flex:1;min-width:0;font-size:var(--fs-2xs);color:var(--txt-faint);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Deux lignes plutôt qu'une coupée : « Set 1 en cours — bornez pour
+   ve… » ne disait pas ce que le bouton d'à côté fait. */
+.save-bar .markRow .mk-note{flex:1;min-width:0;font-size:var(--fs-xs);line-height:1.3;color:var(--txt-faint);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.save-bar .markRow .mk-note b{color:var(--txt-soft)}
 
 /* ── §15-§17 · ventiler un match après coup ─────────────
    Une colonne par set, une dernière pour ce qui n'a pas encore trouvé
@@ -1065,7 +1144,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.10.1";
+var APP_VERSION = "7.11.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -7174,9 +7253,13 @@ function renderCtxBar(){
       h("span",{"aria-hidden":"true"},"👤")));
 }
 
-function renderPosFilter(){
-  return h("div",{className:"pos-row"},POSITIONS.map(function(p){
-    var btn=h("button",{className:"pill sm"+(state.posFilter===p.key?" active":""),onclick:function(){
+/* `cles` : les postes à proposer, quand on ne veut que ceux qui sont là. */
+function renderPosFilter(cles){
+  var opts=cles?POSITIONS.filter(function(p){return cles.indexOf(p.key)!==-1}):POSITIONS;
+  return h("div",{className:"pos-row",role:"group","aria-label":"Filtrer par poste"},opts.map(function(p){
+    var btn=h("button",{className:"pill sm"+(state.posFilter===p.key?" active":""),type:"button",
+      "aria-pressed":state.posFilter===p.key?"true":"false",
+      title:p.key==="NONE"?"Sans poste":(POS_LABELS[p.key]||null),onclick:function(){
       state.posFilter=p.key;state.sortBy=null;saveUI();render();
     }},p.label);
     if(state.posFilter===p.key)btn.style.background="#6D28D9";
@@ -8366,12 +8449,29 @@ function fermerToast(){
   var t=app&&app.querySelector(".toast");
   if(t&&t.parentNode)t.parentNode.removeChild(t);
 }
+/* Le bandeau se pose juste au-dessus des barres du bas — onglets ou
+   poignée, barre d'enregistrement de la saisie, barres d'action —, qu'il
+   recouvrait à 76 px fixes : « ⏭ Set suivant » et « Enregistrer »
+   disparaissaient sous lui pendant cinq secondes. */
+function poserToast(){
+  var app=document.getElementById("app");if(!app||!app.getBoundingClientRect)return;
+  var r=app.getBoundingClientRect(),haut=r.bottom;
+  var barres=app.querySelectorAll(".tab-bar,.tab-handle,.save-bar,.actionBar,.pick-bar,.update-bar");
+  for(var i=0;i<barres.length;i++){
+    if(barres[i].closest&&barres[i].closest(".modal"))continue;
+    var b=barres[i].getBoundingClientRect();
+    if(b.height&&b.top>r.top+r.height/2&&b.top<haut)haut=b.top;
+  }
+  app.style.setProperty("--toast-bas",Math.max(8,Math.round(r.bottom-haut+8))+"px");
+  app.classList.toggle("toast-haut",!!app.querySelector(".modal-bg,.scrim"));
+}
 function showToast(msg,opts){
   if(typeof opts==="number")opts={duree:opts};
   opts=opts||{};
   state.toast=msg;state.toastOpts=opts;
   var app=document.getElementById("app");if(!app)return;
   var old=app.querySelector(".toast");if(old)old.parentNode.removeChild(old);
+  poserToast();
   app.appendChild(toastNode());
   if(toastTimer)clearTimeout(toastTimer);
   toastTimer=setTimeout(function(){toastTimer=null;fermerToast()},
@@ -9818,11 +9918,13 @@ function evTeamCard(sq,scope){
     hint:plural(scopePlayers(sq,scope,per).length,"athlète")}));
   var atk=familyEff(st,"attaques");
   if(atk!=null)tuiles.push(kpi({label:"Efficacité attaque",value:fmtEff(atk),
-    hint:familyVolume(st,"attaques")+" gestes"}));
+    hint:plural(familyVolume(st,"attaques"),"geste")}));
   wrap.appendChild(h("div",{className:"kpiGrid"},tuiles));
   wrap.appendChild(h("div",{className:"card tight"},
     h("div",{className:"muted",style:{marginBottom:"6px"}},
-      (stSE?"« "+stSE.name+" »":"L'équipe")+", "+scope.label.toLowerCase()),
+      /* Le nom d'une rencontre est un nom propre : « tournoi de laval »
+         ne se lisait pas. Seul « Tout » se fond dans la phrase. */
+      (stSE?"« "+stSE.name+" »":"L'équipe")+" · "+(scope.label==="Tout"?"toutes les rencontres":scope.label)),
     total?renderStatFamilies(famProfile(st))
          :h("div",{className:"muted"},"Aucun compteur relevé sur ce périmètre.")));
   return wrap;
@@ -9873,7 +9975,7 @@ function evPlayersList(sq,scope,cle){
         return listRow({lead:libNum(sq,x.pid)||"—",
           name:fullName(x.player),meta:meta,
           dim:x.entry&&x.entry.membership==="left",
-          trail:kpiInline(String(x.total),"gestes"),
+          trail:kpiInline(String(x.total),x.total>1?"gestes":"geste"),
           onclick:function(){openModal("evathlete",x.pid)}});
       });
     }
@@ -9938,16 +10040,20 @@ function splitKeyCourante(se){
 function renderVentilation(sq,se){
   var wrap=h("div",null);
   var dispo=splitCompteurs(se);
+  /* Une séance d'entraînement se ventile aussi : on ne l'appelle pas
+     « ce match ». */
+  var evV=eventOf(sq,se),seance=!!evV&&evV.kind==="training";
+  var Ce=seance?"Cette séance":"Ce match",ce=seance?"cette séance":"ce match";
 
   if(!sessionIsSplit(se)){
     if(!dispo.length){
       wrap.appendChild(h("div",{className:"hint"},
-        "Ce match ne porte aucun compteur : il n'y a rien à ventiler."));
+        Ce+" ne porte aucun compteur : il n'y a rien à ventiler."));
       return wrap;
     }
     wrap.appendChild(h("div",{className:"hint"},
-      "Ce match n'a pas été relevé set par set — il est d'avant cette possibilité, "+
-      "ou il a été saisi d'un bloc. Son total reste exact ; seule la répartition manque. "+
+      Ce+" n'a pas été relevé"+(seance?"e":"")+" set par set — "+(seance?"elle":"il")+" est d'avant cette possibilité, "+
+      "ou "+(seance?"elle":"il")+" a été saisi"+(seance?"e":"")+" d'un bloc. Son total reste exact ; seule la répartition manque. "+
       "Si vous avez votre feuille de match, vous pouvez la reporter ici : rien ne "+
       "s'additionne, on DÉPLACE ce qui est déjà compté."));
     var n=(se.result&&se.result.sets||[]).length||3;
@@ -9957,7 +10063,7 @@ function renderVentilation(sq,se){
         splitPrepare(se,n);
         state.splitOpen=true;state.splitKey=null;
         saveNow();showToast("Reportez chaque set — le reste se déduit",{tone:"ok"});render();
-      }},"🎽 Ventiler ce match en "+plural(n,"set")));
+      }},"🎽 Ventiler "+ce+" en "+plural(n,"set")));
     return wrap;
   }
 
@@ -9967,8 +10073,8 @@ function renderVentilation(sq,se){
 
   wrap.appendChild(h("div",{className:reste?"hint warn":"hint ok"},
     reste?("Il reste "+plural(reste,"geste")+" à placer. Tant qu'il en reste, ils sont "+
-           "comptés dans le match sans appartenir à un set.")
-         :"Ventilation complète : la somme des sets vaut exactement le total du match."));
+           "comptés dans "+(seance?"la séance":"le match")+" sans appartenir à un set.")
+         :"Ventilation complète : la somme des sets vaut exactement le total "+(seance?"de la séance.":"du match.")));
 
   if(!state.splitOpen){
     wrap.appendChild(h("button",{className:"btn btn-ghost full",type:"button",
@@ -9991,7 +10097,7 @@ function renderVentilation(sq,se){
   wrap.appendChild(pills);
 
   if(!key){
-    wrap.appendChild(h("div",{className:"hint"},"Aucun compteur relevé sur ce match."));
+    wrap.appendChild(h("div",{className:"hint"},"Aucun compteur relevé sur "+ce+"."));
     return wrap;
   }
   var sel=h("select",{"aria-label":"Compteur à ventiler"},
@@ -10051,7 +10157,7 @@ function renderVentilation(sq,se){
     h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){
       openConfirm({
         title:"Défaire la ventilation ?",
-        body:"Le match redeviendra « non ventilé ».",
+        body:(seance?"La séance redeviendra « non ventilée ».":"Le match redeviendra « non ventilé »."),
         detail:"Son total n'a jamais bougé : aucun compteur n'est perdu.",
         confirm:"Défaire",tone:"danger",
         onconfirm:function(){
@@ -10180,18 +10286,48 @@ function evChildren(sq,k){
   return wrap;
 }
 
+/* La partie de la saison qui montre une nature de rencontre. */
+function sectionOfKind(kind){
+  for(var i=0;i<SEASON_SECTIONS.length;i++){
+    var s=SEASON_SECTIONS[i];
+    if(s.key!=="recap"&&s.kinds&&s.kinds.indexOf(kind)!==-1)return s;
+  }
+  return SECTION_BY_KEY.matches;
+}
+/* Descendre jusqu'à un match enregistré, dans la partie qui le montre.
+   Après « Enregistrer », la saisie restait seule à l'écran, sans chemin
+   vers ce qu'on venait d'enregistrer. */
+function voirSession(sq,seId){
+  var se=null;(sq.sessions||[]).forEach(function(x){if(x.id===seId)se=x});
+  var ev=se?eventOf(sq,se):null;
+  if(!ev)return;
+  var sec=sectionOfKind(ev.kind);
+  /* Un filtre « Amicaux » posé sur les Matchs cacherait un match de
+     championnat qu'on vient d'enregistrer. */
+  if(sec.key==="matches"&&state.cumulKind&&state.cumulKind!=="all"&&state.cumulKind!==ev.kind)state.cumulKind="all";
+  state.evSujet="team";
+  state.evPath={section:sec.key,eventId:ev.id,sessionId:se.id};
+  navToSection(sec.key);
+}
+
 /* Ouvrir la saisie depuis une partie. On retient d'où l'on vient : la
    saisie n'avait aucun retour — le « ↩ » en tête, que tout le monde
    prenait pour un retour, est l'annulation du dernier geste. */
 function ouvrirSaisie(sq,k){
   var s=SECTION_BY_KEY[k]||{};
-  state.inputKind=s.defaultKind||(sectionKinds(k)?sectionKinds(k)[0]:"league");
+  var ks=sectionKinds(k)||[];
+  state.inputKind=s.defaultKind||(ks.length?ks[0]:"league");
+  /* Les Matchs filtrés sur « Championnat » relevaient un amical : la
+     nature qu'on regarde est celle qu'on relève. */
+  if(k==="matches"&&sq&&state.cumulKind&&ks.indexOf(state.cumulKind)!==-1&&
+     kindsPresent(sq).indexOf("league")!==-1)state.inputKind=state.cumulKind;
   state.inputFrom=SECTION_BY_KEY[k]?k:null;
   /* La sous-équipe choisie dans la partie suit dans la saisie : on y
-     retrouve ses athlètes sur le terrain, sans refaire le choix. */
+     retrouve ses athlètes disponibles sur le terrain, sans refaire le
+     choix — une blessée n'y entre pas. */
   var st=sq?sousEquipeActive(sq):null;
   if(st){
-    var membres=subteamMembers(sq,st);
+    var membres=idsDispoSaisie(sq,subteamMembers(sq,st));
     if(membres.length){sq.lineup=membres.slice();state.quickPlayer=null}
   }
   navTo(mkRoute("legacy","input"));
@@ -10226,7 +10362,8 @@ function renderEventPart(sq,k){
       h("div",{className:"ph-ttl"},profond?scope.label:(s.label||"Rencontres")),
       h("div",{className:"ph-sub"},
         profond?(s.label||"")+" · "+plural(scope.sessions.length,k==="training"?"séance":"match")
-               :plural(scope.sessions.length,k==="training"?"séance":"match")+" relevée"+(scope.sessions.length>1?"s":""))),
+               :plural(scope.sessions.length,k==="training"?"séance":"match")+
+                (k==="training"?" relevée":" relevé")+(scope.sessions.length>1?"s":""))),
     h("div",{className:"ph-act"},relever()));
 
   /* Le sélecteur de nature ne paraît que si la saison porte vraiment
@@ -11171,7 +11308,7 @@ function renderPartRecap(sq){
           hint:L.sets?plural(L.sets,"match")+" ventilé(s)":"non ventilés"}));
       var atk=familyEff(L.stats,"attaques");
       if(atk!=null)tuiles.push(kpi({label:"Efficacité attaque",value:fmtEff(atk),
-        hint:familyVolume(L.stats,"attaques")+" gestes"}));
+        hint:plural(familyVolume(L.stats,"attaques"),"geste")}));
       corps.appendChild(h("div",{className:"section-title"},L.icon+" "+L.label));
       corps.appendChild(h("div",{className:"kpiGrid"},tuiles));
       corps.appendChild(h("div",{className:"card tight"},
@@ -11260,7 +11397,7 @@ function renderPartRecap(sq){
           color:"var(--txt-dim)"}));
         return listRow({lead:numLigne(sq,x.pid)||"—",name:fullName(x.player),meta:meta,
           decision:x.entry.status,dim:x.entry.membership==="left",
-          trail:kpiInline(String(x.total),"gestes"),
+          trail:kpiInline(String(x.total),x.total>1?"gestes":"geste"),
           onclick:function(){openModal("recapathlete",x.pid)}});
       });
     }
@@ -13291,8 +13428,8 @@ function renderBaselineCompare(squad,pid){
     var g=SG[l.family];
     wrap.appendChild(h("div",{className:"fam-row"},
       h("span",{className:"fam-name",style:{color:encreFam(g)}},g.name),
-      h("span",{className:"fam-eff",title:l.fromVol+" gestes"},fmtEff(l.fromEff)),
-      h("span",{className:"fam-eff",title:l.toVol+" gestes"},fmtEff(l.toEff)),
+      h("span",{className:"fam-eff",title:plural(l.fromVol,"geste")},fmtEff(l.fromEff)),
+      h("span",{className:"fam-eff",title:plural(l.toVol,"geste")},fmtEff(l.toEff)),
       h("span",{className:"fam-vol",style:{textAlign:"right"}},
         l.delta==null
           ? h("span",{style:{color:"#94A3B8"}},"—")
@@ -13362,7 +13499,7 @@ function renderStatFamilies(c){
     wrap.appendChild(h("div",{className:"fam-row"},
       h("span",{className:"fam-name",style:{color:encreFam(g)}},g.name),
       h("span",{className:"fam-eff"},fmtEff(fam.eff)),
-      h("span",{className:"fam-vol"},fam.volume+" gestes"),
+      h("span",{className:"fam-vol"},plural(fam.volume,"geste")),
       fam.scale!=null
         ? h("span",{className:"badge",style:{background:scoreColor(fam.scale)+"20",color:scoreColor(fam.scale)}},fam.scale.toFixed(1))
         : h("span",{className:"badge",style:{background:"#33415530",color:"#94A3B8"}},"trop peu")));
@@ -15601,26 +15738,50 @@ function renderInputTab(){
   var season=curSquad(),team=season;
   if(!season||!team)return emptyBlock("🏐","Aucune équipe","Créez une saison et une équipe pour saisir des statistiques.",null);
   if(!team.playerIds.length)return emptyBlock("👥","Équipe vide",
-    "Retenez des joueuses dans l'onglet Sélection, ou composez l'équipe manuellement.",
+    "Retenez des athlètes dans la partie Sélection, ou composez l'équipe dans 👥 Athlètes.",
     h("button",{className:"btn btn-primary",onclick:function(){
       navToSection("selection");
     }},"Aller à la sélection"));
   return state.inputMode==="quick"?renderQuickInput(team):renderGridInput(team);
 }
 
+/* Les athlètes qui peuvent jouer : ni blessées, ni parties. C'est la
+   règle de lineupPlayers quand rien n'est choisi — mais la rangée des
+   groupes comptait tout l'effectif (« Toutes (8) » pour six puces), et
+   retirer UNE athlète du terrain y faisait entrer d'un coup les blessées
+   et les parties. Une sous-équipe aussi. */
+function dispoSaisie(team){
+  return teamViewPlayers(team).filter(function(p){
+    var e=rosterEntry(team,p.id);return !e||e.membership==="active";
+  });
+}
+function idsDispoSaisie(team,ids){
+  var ok={};dispoSaisie(team).forEach(function(p){ok[p.id]=1});
+  return (ids||[]).filter(function(pid){return ok[pid]});
+}
+/* Les postes portés par les athlètes données, dans l'ordre du menu :
+   proposer « OPP » à une équipe sans pointue, c'est proposer de tout
+   vider. « Toutes » est toujours là. */
+function postesPresents(list){
+  var vus={ALL:1};
+  list.forEach(function(p){vus[p.position||"NONE"]=1});
+  return POSITIONS.filter(function(o){return vus[o.key]}).map(function(o){return o.key});
+}
+
+/* La rangée du haut de la saisie : qui est sur le terrain.
+   Elle portait trois bandes pour un seul choix — « Groupes », une barre
+   « Terrain : 12/12 joueuses », puis les postes —, soit 150 px d'un écran
+   de 667 où la grille de compteurs n'en gardait que cent. Le terrain est
+   désormais la première puce de la rangée, et son panneau porte aussi le
+   filtre de poste ; un filtre posé reste visible, en puce, et s'ôte d'un
+   geste. */
 function renderCourtBar(team){
-  var season=team;
   var all=teamViewPlayers(team);
+  var dispo=dispoSaisie(team),dispoIds=dispo.map(function(p){return p.id});
   var allOn=!team.lineup||!team.lineup.length;
-  var count=allOn?all.length:team.lineup.length;
-  /* Un <button>, pas un <div> : le premier geste de chaque match était
-     inatteignable au clavier, jamais annoncé comme un bouton, et ne
-     disait pas s'il était ouvert. */
-  var bar=h("button",{className:"court-bar",type:"button",
-    "aria-expanded":state.courtPanelOpen?"true":"false",
-    onclick:function(){state.courtPanelOpen=!state.courtPanelOpen;render()}},
-    h("span",null,"🏐 Terrain : "+count+"/"+all.length+" joueuses"),
-    h("span",null,state.courtPanelOpen?"▲":"▼"));
+  var surTerrain=lineupPlayers(team);
+  var horsDispo=all.filter(function(p){return dispoIds.indexOf(p.id)===-1});
+  var total=dispo.length+surTerrain.filter(function(p){return dispoIds.indexOf(p.id)===-1}).length;
 
   function sameSet(a,b){
     if(!a||!b||a.length!==b.length)return false;
@@ -15629,20 +15790,21 @@ function renderCourtBar(team){
   }
   /* Sous-équipes et line-ups, toujours sous les yeux pendant la saisie
      — match comme entraînement. Toucher une sous-équipe met toutes ses
-     athlètes sur le terrain ; toucher un line-up, les siennes. « +
-     Line-up » part des athlètes sur le terrain, dans la sous-équipe qui
-     les contient. On les compose dans Athlètes → Sous-équipes. */
+     athlètes disponibles sur le terrain ; toucher un line-up, les
+     siennes. « + Line-up » part des athlètes sur le terrain, dans la
+     sous-équipe qui les contient. On les compose dans Athlètes →
+     Sous-équipes. */
   /* Toucher une sous-équipe ici, c'est aussi la choisir pour le reste de
      la saison (state.sousEquipe) : on relève l'équipe B, on lit ensuite
      les chiffres de l'équipe B, sans refaire le choix. */
   function puceGroupe(libelle,ids,sousTitre,stId){
-    var membres=ids.filter(function(pid){return team.playerIds.indexOf(pid)!==-1});
+    var membres=idsDispoSaisie(team,ids);
     var match=!allOn&&membres.length&&sameSet(team.lineup,membres);
     return h("button",{className:"subteam-chip"+(match?" active":"")+(sousTitre?" lu":""),type:"button",
       "aria-pressed":match?"true":"false",
       onclick:function(){
-        if(!membres.length){showToast("⚠️ « "+libelle+" » n'a aucune athlète");return}
-        team.lineup=membres.slice();state.quickPlayer=null;
+        if(!membres.length){showToast("⚠️ « "+libelle+" » n'a aucune athlète disponible");return}
+        team.lineup=membres.slice();
         if(!state.sousEquipe)state.sousEquipe={};
         state.sousEquipe[team.id]=stId;saveUI();
         scheduleAutoSave();render();
@@ -15653,15 +15815,26 @@ function renderCourtBar(team){
     puces.push(puceGroupe(st.name,st.playerIds,false,st.id));
     (st.lineups||[]).forEach(function(lu){puces.push(puceGroupe(lu.name,lu.playerIds,true,st.id))});
   });
-  var groupesRow=h("div",{className:"subteam-row groupes-saisie",role:"group","aria-label":"Sous-équipes et line-ups"},
-    h("span",{className:"muted",style:{alignSelf:"center",fontSize:"12px",fontWeight:"700"}},"Groupes"),
+  var ouvert=!!state.courtPanelOpen;
+  var poste=POSITIONS.filter(function(o){return o.key===state.posFilter})[0];
+  var groupesRow=h("div",{className:"subteam-row groupes-saisie",role:"group","aria-label":"Sur le terrain : sous-équipes et line-ups"},
+    h("span",{className:"gs-lbl"},"Groupes"),
+    h("button",{className:"subteam-chip court-chip",type:"button",
+      "aria-expanded":ouvert?"true":"false",
+      "aria-label":"Sur le terrain : "+surTerrain.length+" sur "+total+" — "+(ouvert?"fermer":"choisir les athlètes et le poste"),
+      onclick:function(){state.courtPanelOpen=!state.courtPanelOpen;render()}},
+      "🏐 "+surTerrain.length+"/"+total+" "+(ouvert?"▴":"▾")),
+    (state.posFilter&&state.posFilter!=="ALL")?h("button",{className:"subteam-chip filtre-on",type:"button",
+      "aria-label":"Filtre de poste "+(poste?poste.label:state.posFilter)+" — le retirer",
+      onclick:function(){state.posFilter="ALL";state.sortBy=null;saveUI();render()}},
+      "Poste "+(poste?poste.label:state.posFilter)+" ✕"):null,
     h("button",{className:"subteam-chip"+(allOn?" active":""),type:"button","aria-pressed":allOn?"true":"false",
-      onclick:function(){team.lineup=[];state.quickPlayer=null;
+      onclick:function(){team.lineup=[];
         if(state.sousEquipe){delete state.sousEquipe[team.id];saveUI()}
-        scheduleAutoSave();render()}},"Toutes ("+all.length+")"),
+        scheduleAutoSave();render()}},"Toutes ("+dispo.length+")"),
     puces,
-    h("button",{className:"subteam-chip",type:"button",style:{borderStyle:"dashed"},onclick:function(){
-      var surTerrain=allOn?all.map(function(p){return p.id}):team.lineup.slice();
+    h("button",{className:"subteam-chip",type:"button",style:{borderStyle:"dashed",flexShrink:"0"},onclick:function(){
+      var ids=surTerrain.map(function(p){return p.id});
       if(!team.subteams.length){
         creerSousEquipe(team,function(st){
           showToast("« "+st.name+" » créée. Ajoutez-y des athlètes dans Athlètes → Sous-équipes, puis ses line-ups.");
@@ -15671,29 +15844,56 @@ function renderCourtBar(team){
       /* La sous-équipe qui contient le plus d'athlètes sur le terrain. */
       var cible=team.subteams[0],meilleur=-1;
       team.subteams.forEach(function(st){
-        var n=surTerrain.filter(function(pid){return st.playerIds.indexOf(pid)!==-1}).length;
+        var n=ids.filter(function(pid){return st.playerIds.indexOf(pid)!==-1}).length;
         if(n>meilleur){meilleur=n;cible=st}
       });
-      ouvrirLineup(cible,null,surTerrain);
+      ouvrirLineup(cible,null,ids);
     }},team.subteams.length?"+ Line-up":"+ Sous-équipe"));
-  if(!state.courtPanelOpen)return h("div",null,groupesRow,bar);
+  if(!ouvert)return groupesRow;
 
-  var toggles=h("div",{className:"court-toggle-grid"},all.map(function(p){
-    var on=allOn||team.lineup.indexOf(p.id)!==-1;
-    return h("button",{className:"court-toggle"+(on?" on":""),
-      "aria-pressed":on?"true":"false",onclick:function(){
-      if(allOn)team.lineup=all.map(function(x){return x.id});
-      var i=team.lineup.indexOf(p.id);
-      if(i!==-1)team.lineup.splice(i,1);else team.lineup.push(p.id);
-      if(team.lineup.length===all.length)team.lineup=[];
-      state.quickPlayer=null;scheduleAutoSave();render();
-    }},(p.number?"#"+p.number+" ":"")+shortName(playerById(p.id)));
-  }));
-
-  return h("div",null,groupesRow,bar,h("div",{className:"court-panel"},toggles,
-    h("button",{className:"btn btn-ghost xs",style:{marginTop:"8px"},onclick:function(){
-      team.lineup=[];state.quickPlayer=null;scheduleAutoSave();render();
-    }},"Toutes sur le terrain")));
+  function basculer(pid){
+    if(allOn)team.lineup=dispoIds.slice();
+    var i=team.lineup.indexOf(pid);
+    if(i!==-1){
+      /* Un terrain vide se lirait « toutes » : on ne retire pas la
+         dernière, ce qui remettait toute l'équipe sur le terrain. */
+      if(team.lineup.length===1){showToast("⚠️ Gardez au moins une athlète sur le terrain");return}
+      team.lineup.splice(i,1);
+    } else team.lineup.push(pid);
+    if(sameSet(team.lineup,dispoIds))team.lineup=[];
+    scheduleAutoSave();render();
+  }
+  function puceAthlete(p,hors){
+    var on=allOn?!hors:team.lineup.indexOf(p.id)!==-1;
+    var e=rosterEntry(team,p.id),m=e&&MEMBERSHIPS[e.membership];
+    return h("button",{className:"court-toggle"+(on?" on":"")+(hors?" hors":""),type:"button",
+      "aria-pressed":on?"true":"false",
+      title:hors&&m?m.label:null,
+      onclick:function(){basculer(p.id)}},
+      (hors&&m?m.icon+" ":"")+(p.number?"#"+p.number+" ":"")+shortName(playerById(p.id)));
+  }
+  var panneau=h("div",{className:"court-panel","data-scroll-key":"court-panel"},
+    h("div",{className:"cp-lbl"},"Sur le terrain — touchez pour ajouter ou retirer"),
+    h("div",{className:"court-toggle-grid"},dispo.map(function(p){return puceAthlete(p,false)})));
+  if(horsDispo.length)panneau.appendChild(h("div",null,
+    h("div",{className:"cp-lbl",style:{marginTop:"var(--s3)"}},"Blessées ou parties — hors du terrain d'office"),
+    h("div",{className:"court-toggle-grid"},horsDispo.map(function(p){return puceAthlete(p,true)}))));
+  var postes=postesPresents(surTerrain);
+  if(postes.length>2||state.posFilter!=="ALL"){
+    if(postes.indexOf(state.posFilter)===-1)postes.push(state.posFilter);
+    panneau.appendChild(h("div",{className:"cp-lbl",style:{marginTop:"var(--s3)"}},"Poste — n'affiche que lui"));
+    panneau.appendChild(renderPosFilter(postes));
+  }
+  panneau.appendChild(h("div",{className:"btn-row",style:{marginTop:"var(--s2)"}},
+    allOn?null:h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){
+      team.lineup=[];
+      if(state.sousEquipe){delete state.sousEquipe[team.id];saveUI()}
+      scheduleAutoSave();render();
+    }},"Toutes sur le terrain"),
+    h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){
+      state.courtPanelOpen=false;render();
+    }},"Fermer ▴")));
+  return h("div",{style:{display:"flex",flexDirection:"column",flexShrink:"0"}},groupesRow,panneau);
 }
 
 /* Deux bornes identiques feraient un set vide qu'on n'a pas voulu : on
@@ -15775,7 +15975,7 @@ function saveBar(team){
   }},entr?"💾 Enregistrer la séance":"💾 Enregistrer le match");
   var clore=h("button",{className:"btn btn-ghost sm",type:"button",
     "aria-label":"Clore le set "+(n+1)+" et passer au suivant",
-    onclick:function(){markNextSet(team)}},state.basReplie?"⏭":"⏭ Set suivant");
+    onclick:function(){markNextSet(team)}},state.basReplie?"⏭ S"+(n+1):"⏭ Set suivant");
   /* Repliée, la barre tient sur une rangée : la grille de compteurs
      reprend la hauteur que prenaient la note et l'état de sauvegarde. */
   if(state.basReplie)return h("div",{className:"save-bar compact"},h("div",{className:"inner"},
@@ -15784,10 +15984,10 @@ function saveBar(team){
     h("div",{className:"markRow"},
       clore,
       h("div",{className:"mk-note"},
-        n?("Set "+(n+1)+" en cours · "+plural(n,"set")+" borné"+(n>1?"s":""))
-         :"Set 1 en cours — bornez pour ventiler"),
+        n?[h("b",null,"Set "+(n+1)+" en cours")," · "+plural(n,"set")+" borné"+(n>1?"s":"")]
+         :[h("b",null,"Set 1 en cours")," · à la fin du set, touchez ⏭"]),
       n?h("button",{className:"btn btn-ghost xs",type:"button",
-        "aria-label":"Retirer la dernière borne de set",
+        "aria-label":"Retirer la dernière borne de set",title:"Retirer la dernière borne de set",
         onclick:function(){unmarkSet(team)}},"↺"):null,
       h("button",{className:"btn btn-ghost xs",type:"button",
         "aria-label":"Remettre les compteurs à zéro",title:"Remettre les compteurs à zéro",
@@ -15795,98 +15995,177 @@ function saveBar(team){
     h("div",{className:"sb-row"},enregistrer,renderAutoSave(),boutonReplier())));
 }
 
+/* Un compteur : « + » qui compte, « − » qui corrige. Écrit une fois pour
+   la saisie de l'entraîneur et pour le panneau du sélectionneur, qui en
+   tenaient chacun une copie. `lire()` rend la valeur ; `ecrire(n, geste)`
+   la pose — l'appelant y empile l'annulation et planifie la sauvegarde ;
+   `apres()` est prévenu de chaque geste. Rien n'est redessiné : un
+   rendu complet à chaque toucher ferait sauter le défilement. */
+function celluleCompteur(g,s,lire,ecrire,apres){
+  var countSpan=h("span",{className:"count"},"0");
+  var dec;
+  var btn=h("button",{className:"qp-stat-btn",type:"button",
+    style:{borderColor:g.color,background:g.color+"15",color:"#F8FAFC"},
+    onclick:function(){
+      ecrire(lire()+1,"+1");maj();
+      btn.style.background=g.color;btn.style.color=onColor(g.color);btn.classList.add("flash");
+      setTimeout(function(){btn.style.background=g.color+"15";btn.style.color="#F8FAFC";btn.classList.remove("flash")},180);
+      if(apres)apres();
+    }},countSpan,h("span",{className:"lbl"},s.label));
+  dec=h("button",{className:"qp-dec",type:"button",onclick:function(){
+    var v=lire();if(v<=0)return;
+    ecrire(v-1,"−1");maj();
+    if(apres)apres();
+  }},"−");
+  function maj(){
+    var v=lire();
+    countSpan.textContent=String(v);
+    dec.disabled=v<=0;
+    btn.setAttribute("aria-label",g.name+" — "+s.label+" : "+v+". Ajouter un.");
+    dec.setAttribute("aria-label","Retirer un « "+s.label+" » ("+g.name+")");
+  }
+  maj();
+  return h("div",{className:"qp-stat-cell"},btn,dec);
+}
+
+function prenomPuce(p){
+  var x=playerById(p.id);
+  return (x&&(x.firstName||"").trim())||shortName(x);
+}
 function renderQuickInput(team){
-  var filtered=filterP(lineupPlayers(team));
+  var surTerrain=lineupPlayers(team);
+  var filtered=filterP(surTerrain);
   var sel=null;
   if(state.quickPlayer)filtered.forEach(function(p){if(p.id===state.quickPlayer)sel=p});
   if(!sel)state.quickPlayer=null;
 
-  var posRow=h("div",{className:"filter-bar",style:{padding:"6px 12px"}},renderPosFilter());
-  var strip=h("div",{className:"player-strip"},filtered.map(function(p){
-    return h("button",{className:"player-chip"+(p.id===state.quickPlayer?" active":""),onclick:function(){
-      state.quickPlayer=p.id;render();
-    }},p.number?h("span",{className:"chip-num"},"#"+p.number):null,
-      h("span",{className:"chip-name"},shortName(playerById(p.id))));
-  }));
+  /* Le nombre de gestes déjà relevés sur chacune, dans sa puce. Le
+     prénom seul — « Sofia N. » ne tenait pas dans 44 px et finissait en
+     « Sofia … » ; l'initiale ne revient que pour départager deux Sofia. */
+  var pastilles={},prenoms={};
+  filtered.forEach(function(p){var f=prenomPuce(p);prenoms[f]=(prenoms[f]||0)+1});
+  function nomPuce(p){var f=prenomPuce(p);return prenoms[f]>1?shortName(playerById(p.id)):f}
+  var strip=h("div",{className:"player-strip","data-scroll-key":"player-strip",role:"group","aria-label":"Athlètes sur le terrain"},
+    filtered.map(function(p){
+      var n=sumStats(p.stats);
+      pastilles[p.id]=h("span",{className:"chip-n","aria-hidden":"true"},n?String(n):"");
+      return h("button",{className:"player-chip"+(p.id===state.quickPlayer?" active":""),type:"button",
+        "aria-pressed":p.id===state.quickPlayer?"true":"false",
+        title:p.name+(p.position?" · "+p.position:""),
+        "aria-label":(p.number?"#"+p.number+" ":"")+p.name+(n?" — "+plural(n,"geste")+" relevé"+(n>1?"s":""):""),
+        onclick:function(){state.quickPlayer=p.id;render()}},
+        p.number?h("span",{className:"chip-num"},"#"+p.number):null,
+        h("span",{className:"chip-name"},nomPuce(p)),
+        pastilles[p.id]);
+    }));
+  /* Le panneau du terrain liste déjà les mêmes athlètes, en plus grand :
+     la bande se retire tant qu'il est ouvert. */
+  if(state.courtPanelOpen)strip=null;
 
   var panel;
-  if(!filtered.length)panel=h("div",{className:"empty"},"Aucune joueuse à cette position");
+  if(!filtered.length){
+    /* Un filtre de poste posé ailleurs — dans le récap, il est commun —
+       vidait la saisie avec pour seule explication « Aucune joueuse à
+       cette position ». On dit lequel, et on l'ôte d'un geste. */
+    var poste=POSITIONS.filter(function(o){return o.key===state.posFilter})[0];
+    panel=h("div",{className:"quick-prompt"},
+      h("div",{style:{fontSize:"14px",marginBottom:"10px"}},
+        surTerrain.length
+          ?"Aucune athlète sur le terrain au poste « "+(poste?poste.label:state.posFilter)+" »."
+          :"Aucune athlète sur le terrain."),
+      surTerrain.length&&state.posFilter!=="ALL"
+        ?h("button",{className:"btn btn-ghost sm",type:"button",onclick:function(){
+            state.posFilter="ALL";state.sortBy=null;saveUI();render();
+          }},"Afficher tous les postes"):null);
+    strip=null;
+  }
   else if(sel){
+    var majPastille=function(){
+      var n=sumStats(sel.stats),el=pastilles[sel.id];
+      if(el)el.textContent=n?String(n):"";
+    };
     panel=h("div",{className:"quick-panel","data-scroll-key":"quick-panel"},SG_KEYS.map(function(k){
       var g=SG[k];
       return h("div",{className:"qp-group"},
         h("div",{className:"qp-group-title",style:{background:g.color+"20",color:encreFam(g)}},g.name),
         h("div",{className:"qp-stats-row"},g.stats.map(function(s){
-          var countSpan=h("span",{className:"count"},String(sel.stats[s.key]));
-          var btn=h("button",{className:"qp-stat-btn",style:{borderColor:g.color,background:g.color+"15",color:"#F8FAFC"},onclick:function(){
-            pushUndoStats(shortName(playerById(sel.id))+" · "+s.label+" +1");
-            sel.stats[s.key]++;countSpan.textContent=String(sel.stats[s.key]);
-            btn.style.background=g.color;btn.style.color=onColor(g.color);btn.style.transform="scale(1.05)";
-            setTimeout(function(){btn.style.background=g.color+"15";btn.style.color="#F8FAFC";btn.style.transform="scale(1)"},180);
-            scheduleAutoSave();
-          }},countSpan,h("span",{className:"lbl"},s.label));
-          var dec=h("button",{className:"qp-dec",onclick:function(){
-            if(sel.stats[s.key]<=0)return;
-            pushUndoStats(shortName(playerById(sel.id))+" · "+s.label+" −1");
-            sel.stats[s.key]--;countSpan.textContent=String(sel.stats[s.key]);scheduleAutoSave();
-          }},"−");
-          return h("div",{className:"qp-stat-cell"},btn,dec);
+          return celluleCompteur(g,s,
+            function(){return sel.stats[s.key]||0},
+            function(v,geste){
+              pushUndoStats(shortName(playerById(sel.id))+" · "+s.label+" "+geste);
+              sel.stats[s.key]=v;scheduleAutoSave();
+            },majPastille);
         })));
     }));
-  } else panel=h("div",{className:"quick-prompt"},h("div",{className:"arrow"},"↑"),h("div",{style:{fontSize:"14px"}},"Sélectionnez une joueuse"));
+  } else panel=h("div",{className:"quick-prompt"},h("div",{className:"arrow"},"↑"),
+    h("div",{style:{fontSize:"14px"}},"Choisissez une athlète, puis touchez ses gestes"));
 
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
-    renderCourtBar(team),posRow,strip,panel,saveBar(team));
+    renderCourtBar(team),strip,panel,saveBar(team));
 }
 
 function renderGridInput(team){
-  var view=VIEWS[state.viewIdx];
+  var view=VIEWS[state.viewIdx]||VIEWS[0];
   var groups=view.groups.map(function(k){return Object.assign({},SG[k],{id:k})});
-  var filtered=filterP(lineupPlayers(team));
-  var visGid=groups.length===1?groups[0].id:state.expandedGroup;
+  var surTerrain=lineupPlayers(team);
+  var filtered=filterP(surTerrain);
   var useSide=isLand()&&isTablet()&&groups.length>1;
+  if(state.expandedGroup&&!groups.some(function(g){return g.id===state.expandedGroup}))state.expandedGroup=null;
+  /* La colonne des familles est là, sur tablette en paysage : laisser le
+     panneau vide sous « ← Sélectionnez » faisait toucher pour rien. */
+  var visGid=groups.length===1?groups[0].id:(state.expandedGroup||(useSide?groups[0].id:null));
 
   var viewRow=h("div",{className:"pill-row"},VIEWS.map(function(v,i){
-    var b=h("button",{className:"pill"+(i===state.viewIdx?" active":""),onclick:function(){
+    var b=h("button",{className:"pill"+(i===state.viewIdx?" active":""),type:"button",
+      "aria-pressed":i===state.viewIdx?"true":"false",onclick:function(){
       state.viewIdx=i;state.expandedGroup=null;saveUI();render();
     }},v.label);
     if(i===state.viewIdx)paintOn(b,"#F59E0B");
     return b;
   }));
-  var filterBar=h("div",{className:"filter-bar"},renderPosFilter(),
-    (groups.length>1&&!useSide)?h("div",{className:"sub-pills"},groups.map(function(g){
-      var b=h("button",{className:"pill sm"+(visGid===g.id?" active":""),onclick:function(){
+  var filterBar=(groups.length>1&&!useSide)?h("div",{className:"filter-bar"},
+    h("div",{className:"sub-pills",role:"group","aria-label":"Famille de gestes"},groups.map(function(g){
+      var b=h("button",{className:"pill sm"+(visGid===g.id?" active":""),type:"button",
+        "aria-pressed":visGid===g.id?"true":"false",onclick:function(){
         state.expandedGroup=visGid===g.id?null:g.id;render();
       }},g.name);
       if(visGid===g.id)paintOn(b,g.color);
       return b;
-    })):null);
+    }))):null;
 
   function buildGrid(g){
     var nw=isTablet()?"130px":"100px";
     var header=h("div",{className:"grid-header"},
-      h("div",{className:"lbl",style:{width:nw}},"JOUEUSE"),
+      h("div",{className:"lbl",style:{width:nw,flexShrink:"0"}},"ATHLÈTE"),
       h("div",{className:"stat-labels"},g.stats.map(function(s){
         return h("div",{className:"stat-lbl",style:{color:encreFam(g),width:(100/g.stats.length)+"%"}},s.label);
       })));
     var rows=filtered.map(function(p){
+      var nom=shortName(playerById(p.id));
       return h("div",{className:"grid-row"},
-        h("div",{style:{width:nw,flexShrink:"0"}},
-          h("div",{className:"pname"},(p.number?"#"+p.number+" ":"")+shortName(playerById(p.id))),
+        h("div",{style:{width:nw,flexShrink:"0",minWidth:"0"}},
+          h("div",{className:"pname ellip"},(p.number?"#"+p.number+" ":"")+nom),
           h("div",{className:"ppos"},p.position||"")),
         h("div",{className:"stats-cells"},g.stats.map(function(s){
-          var btn=h("button",{className:"stat-btn",style:{border:"2px solid "+g.color,background:g.color+"15",color:"#F8FAFC"},onclick:function(){
-            pushUndoStats(shortName(playerById(p.id))+" · "+s.label+" +1");
-            p.stats[s.key]++;btn.textContent=String(p.stats[s.key]);
+          var dec;
+          function maj(){
+            var v=p.stats[s.key]||0;
+            btn.textContent=String(v);dec.disabled=v<=0;
+            btn.setAttribute("aria-label",nom+" — "+s.label+" : "+v+". Ajouter un.");
+          }
+          var btn=h("button",{className:"stat-btn",type:"button",style:{border:"2px solid "+g.color,background:g.color+"15",color:"#F8FAFC"},onclick:function(){
+            pushUndoStats(nom+" · "+s.label+" +1");
+            p.stats[s.key]=(p.stats[s.key]||0)+1;maj();
             btn.style.background=g.color;btn.style.color=onColor(g.color);btn.style.transform="scale(1.1)";
             setTimeout(function(){btn.style.background=g.color+"15";btn.style.color="#F8FAFC";btn.style.transform="scale(1)"},220);
             scheduleAutoSave();
-          }},String(p.stats[s.key]));
-          var dec=h("button",{className:"dec-btn",onclick:function(){
-            if(p.stats[s.key]<=0)return;
-            pushUndoStats(shortName(playerById(p.id))+" · "+s.label+" −1");
-            p.stats[s.key]--;btn.textContent=String(p.stats[s.key]);scheduleAutoSave();
+          }},"0");
+          dec=h("button",{className:"dec-btn",type:"button","aria-label":"Retirer un « "+s.label+" » à "+nom,onclick:function(){
+            if((p.stats[s.key]||0)<=0)return;
+            pushUndoStats(nom+" · "+s.label+" −1");
+            p.stats[s.key]--;maj();scheduleAutoSave();
           }},"−");
+          maj();
           return h("div",{className:"stat-cell",style:{width:(100/g.stats.length)+"%"}},btn,dec);
         })));
     });
@@ -15894,29 +16173,43 @@ function renderGridInput(team){
   }
 
   var main;
-  if(!filtered.length)main=h("div",{className:"empty"},"Aucune joueuse à cette position");
+  if(!filtered.length){
+    var poste=POSITIONS.filter(function(o){return o.key===state.posFilter})[0];
+    main=h("div",{className:"quick-prompt"},
+      h("div",{style:{fontSize:"14px",marginBottom:"10px"}},
+        surTerrain.length
+          ?"Aucune athlète sur le terrain au poste « "+(poste?poste.label:state.posFilter)+" »."
+          :"Aucune athlète sur le terrain."),
+      surTerrain.length&&state.posFilter!=="ALL"
+        ?h("button",{className:"btn btn-ghost sm",type:"button",onclick:function(){
+            state.posFilter="ALL";state.sortBy=null;saveUI();render();
+          }},"Afficher tous les postes"):null);
+  }
   else if(useSide){
-    var nav=h("div",{className:"side-nav"},groups.map(function(g){
-      var b=h("button",{className:"side-btn"+(visGid===g.id?" active":""),style:{color:visGid===g.id?g.color:"#94A3B8"},onclick:function(){
+    var nav=h("div",{className:"side-nav",role:"group","aria-label":"Famille de gestes"},groups.map(function(g){
+      var b=h("button",{className:"side-btn"+(visGid===g.id?" active":""),type:"button",
+        "aria-pressed":visGid===g.id?"true":"false",
+        style:{color:visGid===g.id?g.color:"#94A3B8"},onclick:function(){
         state.expandedGroup=g.id;render();
       }},g.name);
       if(visGid===g.id)b.style.background=g.color+"10";
       return b;
     }));
     main=h("div",{className:"side-layout"},nav,
-      h("div",{style:{flex:"1",overflowY:"auto"}},visGid?buildGrid(SG[visGid]):h("div",{className:"empty"},"← Sélectionnez")));
+      h("div",{style:{flex:"1",overflowY:"auto"},"data-scroll-key":"grid-side"},buildGrid(SG[visGid])));
   }
   else if(visGid)main=buildGrid(SG[visGid]);
   else main=h("div",{style:{padding:isTablet()?"16px":"10px"}},
-    h("p",{style:{color:"#94A3B8",fontSize:"12px",textAlign:"center",margin:"0 0 10px"}},"Sélectionnez une catégorie"),
+    h("p",{style:{color:"#94A3B8",fontSize:"12px",textAlign:"center",margin:"0 0 10px"}},
+      "Choisissez une famille, au-dessus ou sur la carte d'une athlète"),
     h("div",{className:"cards-grid"},filtered.map(function(p){
       return h("div",{className:"p-card"},
         h("div",{style:{fontSize:"14px",fontWeight:"700",color:"#F8FAFC"}},
           (p.number?"#"+p.number+" ":"")+shortName(playerById(p.id))+" ",
-          h("span",{style:{fontWeight:"400",color:"#94A3B8",fontSize:"11px"}},p.position||"")),
+          h("span",{style:{fontWeight:"400",color:"#94A3B8",fontSize:"12px"}},p.position||"")),
         h("div",{className:"tags"},groups.map(function(g){
-          var tot=g.stats.reduce(function(s,st){return s+p.stats[st.key]},0);
-          return h("button",{className:"tag-btn",style:{background:g.color+"15",color:encreFam(g),border:"1px solid "+g.color+"40"},onclick:function(){
+          var tot=g.stats.reduce(function(s,st){return s+(p.stats[st.key]||0)},0);
+          return h("button",{className:"tag-btn",type:"button",style:{background:g.color+"15",color:encreFam(g),border:"1px solid "+g.color+"40"},onclick:function(){
             state.expandedGroup=g.id;render();
           }},g.name+" "+tot);
         })));
@@ -16457,7 +16750,21 @@ function matchLabel(ev,se){
     var reste=nom.slice(pre.length).trim();
     if(reste)return reste.charAt(0).toUpperCase()+reste.slice(1);
   }
+  /* Le premier match d'un tournoi portait le nom du tournoi lui-même : à
+     côté de « Match 2 », il se lit « Match 1 », à son rang. */
+  if(ev.name&&nom===ev.name&&kindIsMulti(ev.kind)){
+    var rang=sessionsDuTournoi(ev,se);
+    if(rang)return "Match "+rang;
+  }
   return nom;
+}
+/* Rang d'un match dans sa rencontre, du premier joué au dernier. */
+function sessionsDuTournoi(ev,se){
+  var sq=curSquad();if(!sq)return 0;
+  var ss=sessionsOfEvent(sq,ev.id).slice().sort(function(a,b){
+    return String(a.date||"").localeCompare(String(b.date||""));
+  });
+  return ss.indexOf(se)+1;
 }
 
 function advLabel(g){
@@ -17344,7 +17651,7 @@ function renderSvEval(){
     }},h("span",null,state.svTilesOpen?"▾":"▸"),
       h("span",null,(gCour?gCour.name:"Toutes les athlètes")+" · "+faits+"/"+ordered.length+" évaluées"),
       h("span",{className:"muted"},state.svTilesOpen?"replier":"déplier")),
-    h("div",{style:{display:"flex",gap:"6px",alignItems:"center",flexWrap:"wrap"}},
+    h("div",{className:"sv-outils"},
       (function(){
         var sel=h("select",{className:"sv-tri","aria-label":"Ordre des numéros"},
           SV_TRIS.map(function(t){
@@ -17437,21 +17744,12 @@ function renderSvPlayerPanel(src,pid,ordered){
       panel.appendChild(h("div",{className:"qp-group"},
         h("div",{className:"qp-group-title",style:{background:g.color+"20",color:encreFam(g)}},g.name),
         h("div",{className:"qp-stats-row"},g.stats.map(function(s){
-          var countSpan=h("span",{className:"count"},String(d.stats[s.key]||0));
-          var btn=h("button",{className:"qp-stat-btn",style:{borderColor:g.color,background:g.color+"15",color:"#F8FAFC"},onclick:function(){
-            pushUndoView(numLabel(num)+" · "+s.label+" +1",v);
-            d.stats[s.key]=(d.stats[s.key]||0)+1;
-            countSpan.textContent=String(d.stats[s.key]);
-            btn.style.background=g.color;btn.style.color=onColor(g.color);btn.style.transform="scale(1.05)";
-            setTimeout(function(){btn.style.background=g.color+"15";btn.style.color="#F8FAFC";btn.style.transform="scale(1)"},180);
-            scheduleAutoSave();
-          }},countSpan,h("span",{className:"lbl"},s.label));
-          var dec=h("button",{className:"qp-dec",onclick:function(){
-            if(!d.stats[s.key])return;
-            pushUndoView(numLabel(num)+" · "+s.label+" −1",v);
-            d.stats[s.key]--;countSpan.textContent=String(d.stats[s.key]);scheduleAutoSave();
-          }},"−");
-          return h("div",{className:"qp-stat-cell"},btn,dec);
+          return celluleCompteur(g,s,
+            function(){return d.stats[s.key]||0},
+            function(n,geste){
+              pushUndoView(numLabel(num)+" · "+s.label+" "+geste,v);
+              d.stats[s.key]=n;scheduleAutoSave();
+            });
         }))));
     });
   }
@@ -17658,7 +17956,7 @@ function modalShell(title,body,buttons,maxWidth){
     enfermerFocus(h("div",{className:"modal",role:"dialog","aria-modal":"true","aria-label":title,
       style:maxWidth?{maxWidth:maxWidth}:null,onclick:function(e){e.stopPropagation()}},
       h("h3",null,title),body,
-      h("div",{style:{display:"flex",gap:"8px",marginTop:"6px",flexWrap:"wrap"}},buttons))));
+      h("div",{className:"m-actions"},buttons))));
 }
 /* Le numéro d'une athlète tel qu'il faut le lire pour une campagne : celui
    qu'elle porte aujourd'hui, et celui qu'elle portait alors s'il a changé.
@@ -19042,6 +19340,7 @@ function renderModal(){
       if(evSd&&evSd.date)sd.day=evSd.date;
     }
     var entrS=!sd.eventId&&sd.kind==="training";
+    var multiS=sd.eventId||kindIsMulti(sd.kind);
 
     var body=h("div",null);
 
@@ -19078,7 +19377,7 @@ function renderModal(){
          laissait croire qu'on enregistrait un match. Son nom est
          facultatif — « Entraînement du 10 oct. » par défaut. */
       body.appendChild(f("eventName",kindIsMulti(sd.kind)?"Nom du tournoi":(entrS?"Nom de la séance (facultatif)":"Nom de la rencontre (facultatif)"),
-        kindIsMulti(sd.kind)?"Ex. Tournoi de Sherbrooke":(entrS?nomParDefaut(sd):"Ex. Journée 3")));
+        kindIsMulti(sd.kind)?"Ex. Tournoi de Sherbrooke":nomParDefaut(sd)));
       if(!entrS)body.appendChild(f("opponent",kindIsMulti(sd.kind)?"Adversaire de ce match":"Adversaire",
         "Ex. Les Lions"));
       body.appendChild(h("div",{className:"grid2"},
@@ -19086,9 +19385,10 @@ function renderModal(){
         f("location","Lieu","Ex. Sherbrooke")));
     } else {
       var evCur=eventById(sqS,sd.eventId);
-      body.appendChild(h("div",{className:"note"},"Match rattaché à ",h("b",null,eventLabel(evCur)),
+      var dejaS=sessionsOfEvent(sqS,evCur.id).length;
+      body.appendChild(h("div",{className:"note",style:{marginBottom:"var(--s3)"}},"Match rattaché à ",h("b",null,eventLabel(evCur)),
         " du ",h("b",null,fmtDay(evCur.date)),
-        " — ",plural(sessionsOfEvent(sqS,evCur.id).length,"match")," déjà enregistré(s).",
+        " — "+(dejaS?plural(dejaS,"match")+" déjà enregistré"+(dejaS>1?"s":""):"aucun match encore")+".",
         evCur.date!==todayISO()?h("div",{className:"muted",style:{marginTop:"4px"}},
           "Ce match sera daté du jour de la rencontre, pas d'aujourd'hui."):null));
       /* Dans un tournoi on change d'adversaire à chaque tour : la question
@@ -19098,74 +19398,140 @@ function renderModal(){
       body.appendChild(h("label",{className:"field"},h("span",null,"Adversaire de ce match"),advInp));
     }
 
-    if(!entrS){
-      var nomInp=h("input",{placeholder:sd.eventId?"Ex. contre les Aigles":"Laisser vide pour reprendre le nom",value:sd.name});
+    /* Le nom du match n'a de sens que dans un tournoi, qui en porte
+       plusieurs. Un amical, un match de championnat, n'en ont qu'un :
+       on demandait deux fois le même nom. */
+    if(multiS){
+      var numS=(sd.eventId?sessionsOfEvent(sqS,sd.eventId).length:0)+1;
+      var nomInp=h("input",{placeholder:"Par défaut : match "+numS,value:sd.name});
       nomInp.addEventListener("input",function(e){sd.name=e.target.value});
-      body.appendChild(h("label",{className:"field"},h("span",null,"Ce match"),nomInp));
+      body.appendChild(h("label",{className:"field"},h("span",null,"Ce match (facultatif)"),nomInp));
     }
 
-    /* Résultat : les sets, dont l'issue se déduit. */
+    /* Résultat : les sets, dont l'issue se déduit. Deux champs côte à
+       côte, « nous » puis « eux » — rien ne disait lequel était lequel. */
     var setsWrap=h("div",{className:"sets-row"});
+    var setCells=[];
+    function setsRemplis(){
+      return sd.sets.filter(function(x){return x.us!==""&&x.them!==""});
+    }
+    /* Ce qui empêche d'enregistrer : un set à moitié rempli, ou un set
+       vide entre deux sets joués — les suivants glissaient alors d'un
+       rang, et la ventilation prêtait au set 2 le score du set 3. */
+    function fauteSets(){
+      var dernier=-1,i;
+      for(i=0;i<sd.sets.length;i++)if(sd.sets[i].us!==""||sd.sets[i].them!=="")dernier=i;
+      for(i=0;i<=dernier;i++){
+        var x=sd.sets[i];
+        if((x.us==="")!==(x.them===""))return {i:i,msg:"Set "+(i+1)+" : il manque un des deux scores."};
+        if(x.us===""&&x.them==="")return {i:i,msg:"Set "+(i+1)+" sans score, alors que le set "+(dernier+1)+" en a un."};
+      }
+      return null;
+    }
     function refreshBilan(){
-      var r={sets:sd.sets.filter(function(x){return x.us!==""&&x.them!==""})
-        .map(function(x){return {us:parseInt(x.us,10)||0,them:parseInt(x.them,10)||0}})};
+      var r={sets:setsRemplis().map(function(x){return {us:parseInt(x.us,10)||0,them:parseInt(x.them,10)||0}})};
+      var faute=fauteSets();
+      setCells.forEach(function(c,i){c.classList.toggle("incomplet",!!faute&&faute.i===i)});
       var el=document.getElementById("setBilan");
-      if(!el)return;
-      var o=resultOutcome(r);
-      el.textContent=hasResult(r)?(resultLabel(r)+" · "+(o?OUTCOMES[o].label:"")):"Facultatif";
-      el.style.color=o?OUTCOMES[o].color:"#94A3B8";
+      if(el){
+        var o=resultOutcome(r);
+        el.textContent=faute?("⚠️ "+faute.msg)
+          :(hasResult(r)?(resultLabel(r)+" · "+(o?OUTCOMES[o].label:"")):"Facultatif");
+        el.style.color=faute?"var(--warn-ink)":(o?OUTCOMES[o].color:"#94A3B8");
+      }
+      /* Plus (ou moins) de scores que de sets bornés : la ventilation suit
+         les bornes, pas les scores. Un « Set suivant » oublié se voit ici,
+         avant d'enregistrer, et non dans le détail du match. */
+      var ec=document.getElementById("setEcart"),nR=r.sets.length;
+      if(ec){
+        var ecart=nMarks&&nR&&nR!==nMarks+1;
+        ec.style.display=ecart?"":"none";
+        if(ecart)ec.textContent="⚠️ "+plural(nR,"score")+" de set pour "+plural(nMarks+1,"set")+" borné"+(nMarks+1>1?"s":"")+
+          " : la ventilation suit les bornes posées pendant la saisie, pas les scores.";
+      }
     }
     if(!entrS)sd.sets.forEach(function(set,i){
-      var a=h("input",{className:"set-in",inputmode:"numeric",maxlength:"2",placeholder:"—",value:set.us});
-      var b2=h("input",{className:"set-in",inputmode:"numeric",maxlength:"2",placeholder:"—",value:set.them});
+      var a=h("input",{className:"set-in",inputmode:"numeric",maxlength:"2",placeholder:"nous",value:set.us,
+        "aria-label":"Set "+(i+1)+" — nos points"});
+      var b2=h("input",{className:"set-in",inputmode:"numeric",maxlength:"2",placeholder:"eux",value:set.them,
+        "aria-label":"Set "+(i+1)+" — points de l'adversaire"});
       a.addEventListener("input",function(e){set.us=cleanNum(e.target.value).slice(0,2);e.target.value=set.us;refreshBilan()});
       b2.addEventListener("input",function(e){set.them=cleanNum(e.target.value).slice(0,2);e.target.value=set.them;refreshBilan()});
-      setsWrap.appendChild(h("div",{className:"set-cell"},
+      var cell=h("div",{className:"set-cell"},
         h("div",{className:"set-lbl"},"Set "+(i+1)),
-        h("div",{className:"set-pair"},a,h("span",{className:"set-sep"},"–"),b2)));
+        h("div",{className:"set-pair"},a,h("span",{className:"set-sep"},"–"),b2));
+      setCells.push(cell);
+      setsWrap.appendChild(cell);
     });
     if(!entrS)body.appendChild(h("div",{className:"field"},
-      h("label",null,"Résultat"),setsWrap,
+      h("label",null,"Résultat — nos points, puis les leurs"),setsWrap,
       h("div",{id:"setBilan",className:"muted",style:{marginTop:"6px",fontWeight:"700"}},"Facultatif"),
+      h("div",{id:"setEcart",className:"hint warn",style:{marginTop:"6px",display:"none"}}),
       h("div",{className:"btn-row",style:{marginTop:"8px"}},
-        h("button",{className:"btn btn-ghost xs",onclick:function(){
+        h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){
           sd.sets.push({us:"",them:""});render();
         }},"+ Set"),
-        sd.sets.length>1?h("button",{className:"btn btn-ghost xs",onclick:function(){
+        sd.sets.length>1?h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){
           sd.sets.pop();render();
         }},"− Set"):null)));
 
     /* Ce que la ventilation va produire, dit AVANT d'enregistrer : après,
        le total est figé et les sets ne se redécoupent plus tout seuls. */
-    if(entrS&&!nMarks){}
-    else if(nMarks)body.appendChild(h("div",{className:"hint"},
-      "⏭ "+plural(nMarks,"borne")+" posée"+(nMarks>1?"s":"")+" : "+(entrS?"cette séance":"ce match")+" sera ventilée en ",
+    var quoiS=entrS?"cette séance":"ce match";
+    if(nMarks)body.appendChild(h("div",{className:"hint"},
+      "⏭ "+plural(nMarks,"borne")+" posée"+(nMarks>1?"s":"")+" : "+quoiS+" sera ventilé"+(entrS?"e":"")+" en ",
       h("b",null,plural(nMarks+1,"set")),". La somme des sets vaut le total, par construction."));
-    else body.appendChild(h("div",{className:"muted"},
+    else if(!entrS)body.appendChild(h("div",{className:"muted"},
       "Aucune borne de set posée : ce match sera enregistré sans ventilation, et "+
-      "s'affichera « Match (non ventilé) ». Vous pourrez le ventiler plus tard, depuis 🗓️ Saison → la rencontre → Ventilation."));
+      "s'affichera « Match (non ventilé) ». Vous pourrez le ventiler plus tard, depuis la rencontre → Ventilation."));
 
-    body.appendChild(h("div",{className:"muted"},
-      entrS?"Les compteurs seront remis à zéro pour la séance suivante. Elle reste consultable dans 🗓️ Saison → 🎽 Entraînements."
-           :"Les compteurs seront remis à zéro pour le match suivant. Le match reste consultable dans Récap → 🏐 Rencontres."));
+    var partieS=sectionOfKind(sd.eventId?(eventById(sqS,sd.eventId)||{}).kind:sd.kind);
+    body.appendChild(h("div",{className:"muted",style:{marginTop:"var(--s2)"}},
+      "Les compteurs seront remis à zéro pour "+(entrS?"la séance suivante":"le match suivant")+". "+
+      (entrS?"Elle":"Il")+" reste consultable dans 🗓️ Saison → "+partieS.icon+" "+partieS.label+"."));
 
-    return modalShell(entrS?"Enregistrer la séance":"Enregistrer le match",body,
-      [cancel,h("button",{id:"modalOk",className:"btn btn-save full",onclick:function(){
-        var ev=sd.eventId?eventById(sqS,sd.eventId):null;
-        /* Plus de « ⚠️ Nommez la rencontre » : un bouton Enregistrer qui
-           refuse d'enregistrer, tout en bas d'une feuille qu'il faut
-           faire défiler, passait pour un bouton cassé. Un nom par défaut
-           — la nature, l'adversaire, la date — vaut mieux qu'un refus. */
-        var nomEv=(sd.eventName||"").trim()||(ev?"":nomParDefaut(sd));
-        var sets=entrS?[]:sd.sets.filter(function(x){return x.us!==""&&x.them!==""})
-          .map(function(x){return {us:parseInt(x.us,10)||0,them:parseInt(x.them,10)||0}});
-        var nom=(sd.name||"").trim()||nomEv||(ev?ev.name+" · match "+(sessionsOfEvent(sqS,ev.id).length+1):"Match");
-        var ok=saveSession(sqS,{
-          eventId:sd.eventId||"",kind:sd.kind,eventName:nomEv||nom,
-          opponent:(sd.opponent||"").trim(),day:sd.day||todayISO(),
-          location:(sd.location||"").trim(),name:nom,result:{sets:sets}});
-        if(ok){state.modalDraft=null;closeModal();showToast(entrS?"✅ Séance enregistrée":"✅ Match enregistré")}
-      }},"Enregistrer")],"440px");
+    var ok=h("button",{id:"modalOk",className:"btn btn-save full",type:"button",onclick:function(){
+      var ev=sd.eventId?eventById(sqS,sd.eventId):null;
+      var faute=entrS?null:fauteSets();
+      if(faute){
+        refreshBilan();
+        showToast("⚠️ "+faute.msg,{tone:"warn"});
+        var cible=setCells[faute.i]&&setCells[faute.i].querySelectorAll("input");
+        if(cible&&cible.length){
+          var vide=cible[0].value===""?cible[0]:cible[1];
+          try{vide.focus();vide.scrollIntoView({block:"center"})}catch(e){}
+        }
+        return;
+      }
+      /* Plus de « ⚠️ Nommez la rencontre » : un bouton Enregistrer qui
+         refuse d'enregistrer, tout en bas d'une feuille qu'il faut
+         faire défiler, passait pour un bouton cassé. Un nom par défaut
+         — la nature, l'adversaire, la date — vaut mieux qu'un refus. */
+      var nomEv=(sd.eventName||"").trim()||(ev?"":nomParDefaut(sd));
+      /* Les sets gardent leur rang : seuls les vides de la fin tombent. */
+      var sets=entrS?[]:setsRemplis()
+        .map(function(x){return {us:parseInt(x.us,10)||0,them:parseInt(x.them,10)||0}});
+      /* Le premier match d'un tournoi portait le nom du tournoi, les
+         suivants « · match 2 » : la liste se lisait « Tournoi de Laval »,
+         « Match 2 ». Tous sont numérotés. */
+      var nom=(sd.name||"").trim()||
+        (ev?ev.name+" · match "+(sessionsOfEvent(sqS,ev.id).length+1)
+           :(kindIsMulti(sd.kind)?nomEv+" · match 1":nomEv))||"Match";
+      var okS=saveSession(sqS,{
+        eventId:sd.eventId||"",kind:sd.kind,eventName:nomEv||nom,
+        opponent:(sd.opponent||"").trim(),day:sd.day||todayISO(),
+        location:(sd.location||"").trim(),name:nom,result:{sets:sets}});
+      if(okS){
+        var se=sqS.sessions[0];
+        state.modalDraft=null;closeModal();
+        /* Où est passé ce qu'on vient d'enregistrer : un geste pour le voir. */
+        showToast(entrS?"✅ Séance enregistrée":"✅ Match enregistré",{tone:"ok",
+          action:se?{label:"Voir",onclick:function(){voirSession(sqS,se.id)}}:null});
+      }
+    }},"Enregistrer");
+    var modS=modalShell(entrS?"Enregistrer la séance":"Enregistrer le match",body,[cancel,ok],"440px");
+    setTimeout(refreshBilan,0);
+    return modS;
   }
 
   if(T==="editevent"){
@@ -19868,6 +20234,7 @@ document.addEventListener("keydown",function(e){
 function restoreScrollPos(){
   requestAnimationFrame(function(){
     replierHints();
+    poserToast();
     var els=document.querySelectorAll(".content,.quick-panel,[data-scroll-key]");
     for(var i=0;i<els.length;i++){
       var k=scrollKeyOf(els[i]);
@@ -19901,9 +20268,18 @@ function render(){
   var title=TITLES[state.tab]||"WonderStats";
   /* La nature relevée, plutôt que le mode : on doit savoir si l'on saisit
      un entraînement ou un match avant de toucher un compteur. */
+  /* La saisie n'a pas la barre de contexte : 45 px qu'on rend aux
+     compteurs. Ce qu'elle disait — l'équipe, la saison — passe sous le
+     titre ; on en change en revenant par « ‹ ». */
+  var saisieCoach=isCoachCtx()&&state.tab==="input"&&!!squad;
+  var sousTitre=null;
   if(state.tab==="input"){
     var kI=EVENT_KINDS[state.inputKind]||null;
     title=kI?(kI.icon+" "+kI.label):(state.inputMode==="quick"?"Saisie rapide":"Saisie grille");
+    if(saisieCoach){
+      var trI=curTeamRecord(),stI=sousEquipeActive(squad);
+      sousTitre=[trI?trI.name:"",stI?stI.name:"",season?season.name:""].filter(Boolean).join(" · ");
+    }
   }
 
   /* Boutons d'en-tête */
@@ -19922,12 +20298,18 @@ function render(){
         "aria-label":"Retour"+(depuis?" à "+SECTION_BY_KEY[depuis].label:" à la saison"),
         onclick:function(){if(depuis)navToSection(depuis);else navTo(mkRoute("season"))}},"‹"),
       undoBtn);
+    /* Le bouton dit le mode où il mène ; son nom accessible le dit en
+       toutes lettres. L'athlète choisie en mode rapide le reste quand on
+       y revient. */
     var isQuick=state.inputMode==="quick";
-    rightEl=h("button",{className:"mode-toggle"+(isQuick?"":" active"),onclick:function(){
-      state.inputMode=isQuick?"grid":"quick";state.quickPlayer=null;saveUI();render();
-    }},isQuick?"Grille":"Rapide");
+    rightEl=h("button",{className:"mode-toggle"+(isQuick?"":" active"),type:"button",
+      "aria-label":isQuick?"Passer en mode grille":"Passer en mode rapide",
+      title:isQuick?"Passer en mode grille":"Passer en mode rapide",onclick:function(){
+      state.inputMode=isQuick?"grid":"quick";saveUI();render();
+    }},isQuick?"▦ Grille":"☝ Rapide");
   } else if(isSelectorCtx()&&state.tab==="sv_eval"){
-    var ub=h("button",{className:"btn btn-undo xs",disabled:!undoStack.length,onclick:doUndo},"↩");
+    var ub=h("button",{className:"btn btn-undo xs",disabled:!undoStack.length,onclick:doUndo,
+      "aria-label":"Annuler le dernier geste",title:"Annuler le dernier geste"},"↶");
     ub.id="undoBtn";leftEl=ub;
   }
   if(!rightEl)rightEl=ctxBadge();
@@ -19936,8 +20318,8 @@ function render(){
       state.modalDraft=null;openModal("savesession");
     }},"💾");
 
-  app.appendChild(renderHeader(title,leftEl,rightEl));
-  app.appendChild(renderCtxBar());
+  app.appendChild(renderHeader(sousTitre?[title,h("span",{className:"h-sub"},sousTitre)]:title,leftEl,rightEl));
+  if(!saisieCoach)app.appendChild(renderCtxBar());
   var cb=renderConflitBanner();
   if(cb)app.appendChild(cb);
   var sb=renderStorageBanner();
