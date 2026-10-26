@@ -407,6 +407,17 @@ const ESPION=()=>{
     egal(r.aw+"x"+r.ah,"180x180","taille de l'icône iOS");
     egal(r.transparent,0,"pixels transparents dans l'icône iOS (iOS les peint en noir)");
     attendre(r.favicon!=="icon.png","l'onglet porte le logo de WonderStats");
+    /* Le cadran porte le logo du club : au cœur de l'icône, sur fond blanc,
+       le bleu Wonders (#004982) des ailes et du lettrage. */
+    const bleu=await p.evaluate(async()=>{
+      const i=new Image();await new Promise(ok=>{i.onload=ok;i.src="chrono-icon-512.png"});
+      const cv=document.createElement("canvas");cv.width=512;cv.height=512;const g=cv.getContext("2d");g.drawImage(i,0,0);
+      const d=g.getImageData(146,166,220,220).data;let n=0;
+      for(let k=0;k<d.length;k+=4)if(Math.abs(d[k]-0x00)<40&&Math.abs(d[k+1]-0x49)<40&&Math.abs(d[k+2]-0x82)<40)n++;
+      return n/(220*220);
+    });
+    /* 24 % avec le logo ; l'ancien cadran, aiguille et graduations, en donnait 6. */
+    attendre(bleu>0.15,"le logo Wonders n'est pas au cadran ("+(bleu*100).toFixed(1)+" % de bleu Wonders)");
     await c.close();
   });
   await step("Chrome et Android : l'invitation du navigateur devient un bouton « Installer »",async()=>{
