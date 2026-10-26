@@ -400,7 +400,8 @@ déjà portés **dans sa sous-équipe** — un 7 porté en Équipe A reste libre
 l'Équipe B. Toucher un numéro pris dans la sous-équipe propose l'échange.
 `Reprendre (N)` donne à celles qui n'en ont pas leur numéro de sélection, seulement
 là où il ne crée pas de doublon. Quand deux athlètes de sous-équipes différentes
-partagent un numéro, les listes les distinguent : **A·7** et **B·7**.
+partagent un numéro, chacune s'affiche avec **son** numéro, « 7 », et son nom les
+distingue — jamais « A·7 », qui n'est le numéro de personne.
 
 Une athlète qui passe dans l'autre sous-équipe sur un numéro déjà pris : l'écran le
 signale, et le doublon s'affiche en rouge jusqu'à ce qu'on le règle. Un maillot en
@@ -845,6 +846,15 @@ vous publiez explicitement sur votre propre relais.
 ---
 
 ## Notes de version
+
+### v7.11.1 — le numéro, sans préfixe
+
+Deux athlètes de sous-équipes différentes qui portaient le même numéro s'affichaient
+« A·7 » et « B·7 » dans les listes de l'équipe — rencontres, récap, objectifs,
+physique et sa séance de tests, maillots —, les autres simplement « 7 ». Certaines
+athlètes avaient donc un numéro préfixé, et ce numéro n'était celui de personne.
+Chacune s'affiche désormais avec le numéro qu'elle porte ; le nom, sur la même
+ligne, distingue les deux 7, comme dans la saisie.
 
 ### v7.11 — la saisie, revue de bout en bout
 
