@@ -7,7 +7,7 @@
    worker promet :
      · il s'installe, et prend la main au chargement suivant ;
      · son cache porte la version de l'application (sw.js → CACHE) ;
-     · hors ligne, l'application s'ouvre encore ;
+     · hors ligne, l'application s'ouvre encore, et la page Chrono aussi ;
      · la racine de confiance (superadmin.json) n'est PAS servie depuis le
        cache quand le réseau répond : c'est le fichier du serveur qui fait
        foi, sans quoi une refondation ne serait vue qu'au démarrage suivant. */
@@ -47,6 +47,7 @@ const ERRORS=[];let PASS=0;
     });
     if(r.ks.length!==1||r.ks[0]!==cacheAttendu)throw new Error("caches : "+JSON.stringify(r.ks)+" ≠ "+cacheAttendu);
     if(!r.urls.some(u=>/index\.html$/.test(u)))throw new Error("index.html absent du cache : "+r.urls.join(","));
+    if(!r.urls.some(u=>/chrono\.html$/.test(u)))throw new Error("chrono.html absent du cache : "+r.urls.join(","));
   });
 
   say("\n── La racine de confiance");
@@ -70,6 +71,15 @@ const ERRORS=[];let PASS=0;
     await page.waitForFunction(()=>typeof window.gate!=="undefined",null,{timeout:15000});
     const t=await page.textContent("body");
     if(!t||t.length<20)throw new Error("page vide hors ligne");
+  });
+  await step("sans réseau, le chrono d'entraînement s'ouvre aussi",async()=>{
+    /* Au bord d'un terrain, le réseau manque souvent : la page Chrono est
+       dans la coquille du service worker, et se suffit à elle-même. */
+    const p=await ctx.newPage();
+    p.on("pageerror",e=>ERRORS.push("PAGEERROR[chrono]: "+e.message));
+    await p.goto(BASE+"/chrono.html");
+    await p.waitForSelector("#p-tot",{timeout:10000});
+    await p.close();
   });
   await step("sans réseau, la racine de confiance se lit depuis le cache",async()=>{
     const r=await page.evaluate(async()=>{
