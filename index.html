@@ -1144,7 +1144,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.11.0";
+var APP_VERSION = "7.11.1";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -14951,12 +14951,6 @@ function nomGroupeMaillot(sq,gid){
   var st=null;(sq.subteams||[]).forEach(function(x){if(x.id===gid)st=x});
   return st?st.name:(sq.subteams&&sq.subteams.length?"Sans sous-équipe":"L'équipe");
 }
-/* « Équipe A » → « A » ; sinon les trois premières lettres. */
-function codeSousEquipe(st){
-  if(!st)return "";
-  var m=String(st.name||"").trim().match(/(?:^|\s)(\S{1,2})$/);
-  return m?m[1].toUpperCase():String(st.name||"?").trim().slice(0,3);
-}
 /* L'autre athlète de l'équipe qui porte ce numéro de maillot dans le
    même groupe — celle avec qui il y aurait doublon. */
 function porteurMaillot(sq,num,saufPid,gid){
@@ -14980,16 +14974,14 @@ function doublonsMaillot(sq){
   });
   return out;
 }
-/* Le numéro tel qu'il s'affiche dans une liste de l'équipe : « 7 », ou
-   « A·7 » quand une autre sous-équipe a aussi son 7 — sans quoi deux
-   lignes « 7 » se suivraient sans qu'on sache laquelle est laquelle. */
+/* Le numéro tel qu'il s'affiche dans une liste de l'équipe : celui qui
+   est floqué, et rien d'autre. Il s'écrivait « A·7 » quand une autre
+   sous-équipe avait aussi son 7 : certaines athlètes portaient alors un
+   numéro préfixé, les autres non, et « A·7 » n'est le numéro de
+   personne. Chaque ligne porte le nom, qui suffit à distinguer deux 7 —
+   la saisie le faisait déjà ainsi. */
 function libNum(sq,pid){
-  var n=numMaillot(sq,pid);if(!n)return "";
-  var partage=(sq.playerIds||[]).some(function(x){
-    if(x===pid)return false;var e=rosterEntry(sq,x);return e&&e.jerseyNumber===n;
-  });
-  var st=partage?subteamOf(sq,pid):null;
-  return st?codeSousEquipe(st)+"·"+n:n;
+  return numMaillot(sq,pid);
 }
 /* Le numéro d'une ligne qui mêle l'équipe et des convoquées : maillot
    pour l'équipe, sélection pour les autres. */

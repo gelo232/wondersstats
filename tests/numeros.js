@@ -82,7 +82,7 @@ const ERRORS=[];let PASS=0;
   });
 
   say("\n── Le numéro de maillot, unique dans la sous-équipe");
-  await step("deux 7 dans deux sous-équipes : accepté, et distingués « A·7 » et « B·7 »",async()=>{
+  await step("deux 7 dans deux sous-équipes : accepté, et chacune s'affiche « 7 », sans préfixe",async()=>{
     const jade=await pid("Jade");
     await page.evaluate(i=>{state.tab="players";state.playersPane="db";render();openModal("editplayer",i)},jade);
     await pause();
@@ -94,7 +94,7 @@ const ERRORS=[];let PASS=0;
         selJade:rosterEntry(sq,jade).number,doublons:Object.keys(doublonsMaillot(sq)).length};
     });
     if(r.jade!=="7")throw new Error("refusé : "+JSON.stringify(r));
-    if(r.libL!=="A·7"||r.libJ!=="B·7")throw new Error("libellés : "+r.libL+" / "+r.libJ);
+    if(r.libL!=="7"||r.libJ!=="7")throw new Error("libellés : "+r.libL+" / "+r.libJ);
     if(r.selJade!=="9")throw new Error("le numéro de sélection a bougé : "+r.selJade);
     if(r.doublons)throw new Error("doublon signalé à tort");
   });
@@ -198,10 +198,30 @@ const ERRORS=[];let PASS=0;
     });
     if(r!=="7")throw new Error("numéro enregistré : "+r);
   });
-  await step("les listes de l'équipe distinguent les deux 7",async()=>{
+  /* Les deux 7 se lisaient « A·7 » et « B·7 » : certaines athlètes
+     avaient un numéro préfixé, les autres non. Le numéro affiché est
+     celui du maillot, le nom distingue les deux. Partout : listes des
+     parties, récap, objectifs, physique et sa séance, maillots. */
+  await step("les listes de l'équipe montrent le vrai numéro, sans préfixe de sous-équipe",async()=>{
+    const ecrans=[
+      ["physique",()=>{state.physSujet="players";navToSection("physique")}],
+      ["matchs",()=>{state.evSujet="players";state.evPath=null;navToSection("matches")}],
+      ["récap",()=>{state.recapSujet="players";navToSection("recap")}],
+      ["objectifs",()=>{state.goalSujet="players";navToSection("goals")}],
+      ["maillots",()=>{navToSection("maillots")}]];
+    for(const [nom,f] of ecrans){
+      await page.evaluate(f);await pause();
+      const t=await page.evaluate(()=>document.getElementById("app").innerText);
+      const m=t.match(/[A-ZÉ]{1,3}·\d+/);
+      if(m)throw new Error(nom+" : « "+m[0]+" »");
+    }
     await page.evaluate(()=>{state.physSujet="players";navToSection("physique")});await pause();
-    const leads=await page.evaluate(()=>Array.from(document.querySelectorAll(".listRow .lead")).map(e=>e.textContent).join(","));
-    if(!/A·7/.test(leads)||!/B·7/.test(leads))throw new Error("leads : "+leads);
+    const leads=await page.evaluate(()=>Array.from(document.querySelectorAll(".listRow .lead")).map(e=>e.textContent));
+    if(leads.filter(x=>x==="7").length<2)throw new Error("leads : "+leads.join(","));
+    await page.locator(".partHead button").filter({hasText:"Séance"}).first().click();await pause(250);
+    const s=await page.evaluate(()=>Array.from(document.querySelectorAll(".modal .phys-ligne .lead")).map(e=>e.textContent));
+    await page.evaluate(()=>closeModal());await pause();
+    if(s.some(x=>/·/.test(x))||s.filter(x=>x==="7").length<2)throw new Error("séance de tests : "+s.join(","));
   });
   await step("les maillots : deux #7 se produisent, la commande dit pour quelle sous-équipe",async()=>{
     const r=await page.evaluate(()=>{
