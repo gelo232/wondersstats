@@ -857,8 +857,9 @@ autant que le téléphone.
 
 **Une application à part entière.** Comme WonderStats, le chrono s'installe : son
 propre manifeste (`chrono.webmanifest`, identifiant et portée `chrono.html`, distincts
-de ceux de WonderStats), son propre logo — un chronomètre aux couleurs du club,
-lisible jusqu'à 48 px et taillé pour le masque rond d'Android —, et le service worker
+de ceux de WonderStats), son propre logo — le logo des Wonders au cadran d'un
+chronomètre, l'arc ambre du temps sur la lunette, taillé pour le masque rond
+d'Android —, et le service worker
 commun pour le hors-ligne. Sur Chrome, Edge et Android, le bouton `📲 Installer` de
 l'en-tête lance l'installation ; sur iPhone et iPad, il mène au mode d'emploi de
 Safari (`Partager → Sur l'écran d'accueil`). Une fois installé, il ne s'affiche plus.
@@ -914,6 +915,15 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 ---
 
 ## Notes de version
+
+### v7.12.2 — le logo des Wonders au cadran du chrono
+
+L'icône du chrono porte désormais le logo du club : les ailes, le ballon et
+« Wonders » occupent le cadran du chronomètre, l'arc ambre du temps court sur la
+lunette. Le logo est lu dans `icon.png`, celui de WonderStats, pour qu'il n'en
+existe qu'un. Chrono 1.1.1. Une icône déjà sur l'écran d'accueil d'un iPhone ou
+d'un iPad ne change pas d'elle-même : il faut retirer l'application et la
+réinstaller, après avoir exporté ses séances.
 
 ### v7.12.1 — le chrono s'installe sous son propre logo
 
@@ -1577,3 +1587,7 @@ python3 -m http.server 8899
 ```
 
 Non-régression : voir [`tests/README.md`](tests/README.md).
+
+Les icônes du chrono (`chrono-icon-512.png`, `-192`, `-180`) se tirent de
+`chrono-icon.svg`, qui lit le logo du club dans `icon.png` : l'ouvrir servi depuis le
+dossier, en faire une capture de 1024 × 1024, puis la réduire aux trois tailles.

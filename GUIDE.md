@@ -1019,7 +1019,7 @@ sélection. Les données vivent dans le navigateur ; la phrase de passe ne se re
 
 Le chrono vit sur sa propre page, `chrono.html`, à côté de l'application. Il ne
 demande ni phrase de passe ni rôle. Il s'installe comme WonderStats, sous son propre
-logo — le chronomètre bleu et ambre : `📲 Installer`, en haut de la page, lance
+logo — celui des Wonders, au cadran d'un chronomètre : `📲 Installer`, en haut de la page, lance
 l'installation sur Chrome et Android, et donne sur iPhone et iPad le chemin de Safari
 (`Partager → Sur l'écran d'accueil → Ajouter`). Il s'ouvre ensuite depuis l'écran
 d'accueil, en plein écran, même sans réseau.
