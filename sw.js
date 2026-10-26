@@ -1,4 +1,4 @@
-/* WonderStats — service worker
+/* WonderStats — service worker (sert aussi la page Chrono, chrono.html)
    App-shell en cache-first (démarrage instantané hors-ligne),
    revalidation en arrière-plan. Requêtes non-GET et cross-origin ignorées. */
 /* Le nom du cache est ce qui déclenche la mise à jour : le navigateur ne
@@ -7,8 +7,9 @@
    jamais « Une nouvelle version est disponible » — le nouveau code
    n'arriverait qu'au chargement suivant, en silence. À bouger donc à
    chaque livraison, version de l'application ou simple correctif. */
-var CACHE = "wonderstats-v7-11-1";
-var SHELL = ["./", "./index.html", "./manifest.json", "./icon.png"];
+var CACHE = "wonderstats-v7-12-0";
+var SHELL = ["./", "./index.html", "./manifest.json", "./icon.png",
+             "./chrono.html", "./chrono.webmanifest"];
 
 self.addEventListener("install", function (e) {
   e.waitUntil(

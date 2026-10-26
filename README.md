@@ -6,12 +6,14 @@ Fichier unique, sans dépendance, installable et **fonctionnelle hors-ligne** (P
 ```
 index.html      application complète (HTML + CSS + JS vanilla)
 manifest.json   métadonnées PWA
-sw.js           service worker (app-shell en cache-first)
+chrono.html     chrono d'entraînement — une page à part, sans lien avec les données
+chrono.webmanifest  métadonnées PWA du chrono
+sw.js           service worker (app-shell en cache-first, chrono compris)
 server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
 GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
-tests/          suite de non-régression Playwright — vingt-huit suites
+tests/          suite de non-régression Playwright — vingt-neuf suites
 ```
 
 ---
@@ -845,7 +847,72 @@ vous publiez explicitement sur votre propre relais.
 
 ---
 
+## Chrono d'entraînement
+
+`chrono.html` est une page à part, à côté de l'application : le chronomètre des
+exercices d'une séance d'entraînement. Elle ne lit ni n'écrit rien de WonderStats —
+pas de phrase de passe, pas de rôle — et s'installe seule sur l'écran d'accueil
+(« Chrono »). Elle vise la tablette posée au bord du terrain autant que le téléphone.
+
+**Le modèle**
+
+- Une **séance** a un nom, une **heure de début**, et des exercices joués dans l'ordre.
+- Un **exercice** peut contenir des **sous-exercices**, sans limite de profondeur.
+- Seul un exercice **du dernier niveau** porte une durée. Un parent n'en a pas
+  d'autre que la somme de ses sous-exercices.
+- Tout exercice, parent compris, a un nombre de **répétitions** (1 par défaut) et
+  une **pause** entre deux répétitions. Répéter un parent rejoue tous ses
+  sous-exercices : « Gainage, 3 tours, 1 min de pause ». Une pause laissée vide est
+  **libre** : chronométrée, sans sonnerie.
+- L'heure de chaque exercice se déduit : début de la séance, plus tout ce qui le précède.
+
+**En séance**
+
+1. La fin d'un exercice du dernier niveau **sonne**, et sonne **jusqu'à ce qu'on
+   l'arrête** : tout l'écran devient le bouton d'arrêt.
+2. La pause entre deux répétitions part **seule**, au moment où l'exercice finit, et
+   sonne à son tour quand elle est écoulée. Son dépassement se compte (`+0:12`).
+3. L'exercice suivant ne démarre **que sur votre geste**. L'attente se chronomètre.
+4. Un écart avec l'horaire s'affiche en continu ; suspendre, recommencer, terminer
+   avant l'heure, passer ou refaire un exercice sont à un toucher. Le déroulé note
+   le temps réel de chaque exercice et de chaque pause, et la séance finit sur un bilan.
+
+**Le son, sur iPhone, iPad et Android**
+
+- Un navigateur ne joue aucun son avant un premier toucher. La page le dit tant que
+  le son n'est pas actif (`🔕 Son inactif`), et `🔔 Tester` le vérifie.
+- Chaque sonnerie à venir est **programmée d'avance sur l'horloge audio** : elle tombe
+  à l'heure même quand le navigateur ralentit la page.
+- Sur iPhone et iPad, les sonneries passent **même interrupteur sur silencieux**
+  (session audio « lecture », Safari 16.4 et plus ; avant, un son muet joué au premier
+  toucher obtient le même effet). Elles coupent alors la musique d'une autre
+  application ; `Séances → Laisser jouer la musique` la garde, mais le mode silencieux
+  coupe alors aussi les sonneries. Le volume qui compte est celui des médias.
+- La page garde l'**écran allumé** pendant la séance. Sur Android la sonnerie vibre aussi.
+
+**Ce que la page ne peut pas faire.** Une page web ne programme pas le réveil du
+téléphone. Écran verrouillé ou application quittée, iPhone et iPad mettent la page en
+veille, et la sonnerie peut rester muette : gardez la page **au premier plan**. Si une
+sonnerie est tombée pendant que la page était cachée, la page le dit au retour. Une
+séance en cours survit à un rechargement, à la seconde près.
+
+**Les données** restent sur l'appareil. `Exporter` puis `Importer` font passer les
+séances d'un appareil à l'autre : une séance déjà connue est mise à jour, pas
+dupliquée. La page fonctionne hors ligne une fois ouverte.
+
+---
+
 ## Notes de version
+
+### v7.12 — le chrono d'entraînement
+
+Une nouvelle page, `chrono.html` : définir des exercices et sous-exercices, une heure
+de début, des durées, des répétitions et des pauses, puis chronométrer la séance. La
+fin de chaque exercice du dernier niveau sonne jusqu'au geste de l'entraîneur·e, la
+pause qui suit part seule, l'exercice suivant attend le signal. Pensée pour iPhone,
+iPad et Android : sonneries programmées sur l'horloge audio, mode silencieux franchi
+sur iOS, écran maintenu allumé, reprise après rechargement. Service worker : la page
+est dans la coquille. Nouvelle suite : `tests/chrono.js`.
 
 ### v7.11.1 — le numéro, sans préfixe
 

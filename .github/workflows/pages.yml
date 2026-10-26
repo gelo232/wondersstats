@@ -39,6 +39,8 @@ jobs:
         run: |
           mkdir -p site
           cp index.html manifest.json sw.js icon.png superadmin.json site/
+          # Le chrono d'entraînement : une page à part, servie à côté.
+          cp chrono.html chrono.webmanifest site/
           # Une page 404 qui renvoie sur l'application : ouvrir une adresse
           # un peu fausse ne doit pas donner un cul-de-sac.
           cp index.html site/404.html

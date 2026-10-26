@@ -1012,3 +1012,57 @@ part des statistiques étant à 50 % par défaut. Notes, avis et statuts ne boug
 
 **Sauvegardez.** `⚙️ Réglages → 🗓️ Saisons → 📤 Sauvegarde` avant chaque séance de
 sélection. Les données vivent dans le navigateur ; la phrase de passe ne se retrouve pas.
+
+---
+
+## 11 · Le chrono d'entraînement
+
+Le chrono vit sur sa propre page, `chrono.html`, à côté de l'application. Il ne
+demande ni phrase de passe ni rôle : on l'ouvre, on l'ajoute à l'écran d'accueil
+(Safari : `Partager → Sur l'écran d'accueil` ; Chrome : `Installer l'application`),
+et il s'ouvre ensuite comme une application, même sans réseau.
+
+**Préparer la séance, la veille.** `Séances → + Nouvelle séance`, un nom, l'heure de
+début. Chaque exercice se nomme ; `⋯` en ajoute un après, ou un **sous-exercice**
+dessous. Seuls les exercices du dernier niveau (pastille ambre) prennent une durée :
+`5` pour cinq minutes, `5:30`, `0:45`, `45s`. Un exercice qui regroupe des
+sous-exercices (pastille creuse) affiche la somme, rien d'autre.
+
+`−` et `+` règlent les **répétitions** — sur un exercice, ou sur un groupe entier
+(« Gainage en circuit, 3 tours »). Dès deux répétitions, la case **Pause** paraît :
+le temps de récupération entre deux répétitions. Laissée vide, la pause est libre —
+elle se chronomètre, mais ne sonne pas. Chaque ligne affiche son créneau
+(`18:05 → 18:12`) ; le haut de page, la durée totale et la fin prévue.
+
+**Au gymnase.** Posez la tablette, ouvrez `Chrono`, touchez `🔔 Tester` : vous devez
+entendre trois bips. Montez le volume des médias. Sur iPhone et iPad, l'interrupteur
+silencieux ne coupe pas les sonneries ; il les couperait si `Laisser jouer la
+musique` est coché, dans `Séances`.
+
+`▶ Démarrer la séance`. Le grand compteur décompte l'exercice en cours ; au-dessus,
+le chemin (`Échauffement › Gainage en circuit (tour 1/3)`), dessous une barre par
+niveau, et l'avance ou le retard sur l'horaire.
+
+- **À la fin d'un exercice**, l'écran entier sonne et clignote, jusqu'à ce que vous
+  le touchiez. S'il est suivi d'une pause, elle a déjà commencé : la récupération
+  se compte depuis la sonnerie, pas depuis votre toucher.
+- **À la fin de la pause**, nouvelle sonnerie. Si l'équipe n'est pas prête, la pause
+  continue de se compter en dépassement (`+0:12`), en rouge.
+- **L'exercice suivant attend votre signal** : `▶ Démarrer la répétition 2/3`, ou
+  `▶ Démarrer : Réception sur service`. Le temps d'attente est relevé.
+- `⏸ Suspendre` arrête l'exercice (pas l'horloge : le retard se creuse),
+  `↺ Recommencer` le reprend à zéro, `⏭ Terminer` le clôt avant l'heure, sans
+  sonnerie. Entre deux exercices, `⏭ Passer` saute celui qui attend et
+  `⏮ Refaire le précédent` y revient.
+
+Le déroulé, à côté sur tablette, dessous sur téléphone, note le temps réel de chaque
+exercice et de chaque pause. La séance finit sur un bilan : durée prévue et réelle,
+temps d'exercice, de pauses, d'attentes.
+
+**Ce qu'il faut savoir.** Gardez la page au premier plan : écran verrouillé ou
+application quittée, iPhone et iPad endorment la page et la sonnerie peut rester
+muette. La page garde l'écran allumé d'elle-même ; si elle ne le peut pas, elle
+vous demande de régler le verrouillage automatique sur « Jamais ». Une séance en
+cours survit à un rechargement ; le son, lui, attend un toucher pour revenir — le
+bandeau `🔕 Son inactif` le rappelle. Pour passer les séances de la tablette au
+téléphone : `Séances → Exporter`, puis `Importer` sur l'autre appareil.
