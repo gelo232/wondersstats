@@ -9,8 +9,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="chrono.webmanifest">
-<link rel="icon" href="icon.png">
-<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="chrono-icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="chrono-icon-180.png">
 <meta name="theme-color" content="#0F172A">
 <title>Chrono — Les Wonders</title>
 <style>
@@ -52,13 +52,16 @@ button,input{font:inherit;color:inherit}
 header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:15;background:var(--surface-2);border-bottom:1px solid var(--line)}
 header.top .wrap{display:flex;align-items:center;gap:12px;padding-block:8px;flex-wrap:wrap}
 .brand{display:flex;flex-direction:column;min-width:0;flex:1}
+.logo{width:36px;height:36px;border-radius:9px;flex:none}
+.install{border-color:var(--accent)}
+.install ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
 .brand b{font-size:17px;color:var(--txt-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brand span{font-size:12px;color:var(--txt-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tabs{display:flex;gap:4px;background:var(--sunken);padding:4px;border-radius:var(--r-md)}
 .tabs button{border:0;background:transparent;color:var(--txt-dim);font-weight:650;padding:10px 14px;min-height:44px;border-radius:var(--r-sm);cursor:pointer}
 .tabs button[aria-selected="true"]{background:var(--surface);color:var(--txt-strong)}
 .tabs .live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-left:6px;vertical-align:1px}
-@media (max-width:560px){ header.top .wrap{flex-direction:column;align-items:stretch;gap:6px} .tabs button{flex:1;padding-inline:6px} }
+@media (max-width:560px){ header.top .wrap{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 10px} .tabs{grid-column:1 / -1} .tabs button{flex:1;padding-inline:6px} }
 main{padding-block:16px 48px}
 
 /* ── Éléments communs ──────────────────────────────── */
@@ -197,7 +200,9 @@ input:invalid{border-color:var(--danger)}
 <body>
 <header class="top">
   <div class="wrap">
+    <img class="logo" src="chrono-icon-192.png" alt="" width="36" height="36">
     <div class="brand"><b id="h-title">Chrono</b><span id="h-sub">Les Wonders · entraînement</span></div>
+    <button class="btn sm" id="b-installer" hidden>📲 Installer</button>
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button role="tab" id="tab-seances" data-tab="seances" aria-selected="false">Séances</button>
       <button role="tab" id="tab-preparer" data-tab="preparer" aria-selected="true">Préparer</button>
@@ -235,7 +240,7 @@ input:invalid{border-color:var(--danger)}
      arrête la sonnerie ; la pause qui suit part seule, et sonne à son tour ;
    · l'exercice suivant ne démarre que sur un geste de l'entraîneure.          */
 "use strict";
-var CHRONO_VERSION = "1.0.0";
+var CHRONO_VERSION = "1.1.0";
 var CLE = "wonders-chrono", CLE_RUN = "wonders-chrono:en-cours", CLE_TAB = "wonders-chrono:onglet";
 var $ = function (id) { return document.getElementById(id); };
 var seq = 0;
@@ -654,7 +659,7 @@ function entete() {
 
 /* ── Séances ─────────────────────────────────────────── */
 function rendreSeances() {
-  var h = '<div class="row" style="justify-content:space-between"><p class="sec">Vos séances</p><div class="row">' +
+  var h = installHtml() + '<div class="row" style="justify-content:space-between"><p class="sec">Vos séances</p><div class="row">' +
     '<button class="btn primary" data-a="nouvelle">+ Nouvelle séance</button>' +
     '<button class="btn" data-a="exporter">Exporter</button><button class="btn" data-a="importer">Importer</button></div></div>';
   h += '<div class="slist">' + D.seances.map(function (s) {
@@ -684,6 +689,7 @@ $("v-seances").addEventListener("click", function (e) {
   if (a === "exporter") return exporter();
   if (a === "importer") return $("import-file").click();
   if (a === "tester") return testerSon();
+  if (a === "installer") return installer();
   if (!s) return;
   if (a === "ouvrir") { D.courante = s.id; sauver(); montrer("preparer"); return; }
   if (a === "chrono") { D.courante = s.id; sauver(); montrer("chrono"); return; }
@@ -1095,6 +1101,45 @@ function rendreSonnerie() {
 }
 $("ring").addEventListener("click", function () { arreterSonnerie(); });
 
+/* ── Installation ────────────────────────────────────────
+   Comme WonderStats : un manifeste, une icône à elle, le service worker.
+   Chrome, Edge et Android proposent l'installation d'un geste
+   (beforeinstallprompt), que la page reprend à son compte. Safari ne la
+   propose que par Partager → Sur l'écran d'accueil : la page l'explique.
+   Une fois l'application installée, plus rien ne s'affiche. */
+var invite = null;
+function installee() {
+  try { return window.matchMedia("(display-mode: standalone)").matches || window.matchMedia("(display-mode: fullscreen)").matches || navigator.standalone === true; }
+  catch (e) { return false; }
+}
+function modeInstallation() { return installee() ? null : invite ? "invite" : IOS ? "ios" : "menu"; }
+function rendreInstallation() { var m = modeInstallation(); $("b-installer").hidden = m !== "invite" && m !== "ios"; }
+window.addEventListener("beforeinstallprompt", function (e) {
+  e.preventDefault(); invite = e; rendreInstallation(); if (onglet === "seances") rendreSeances();
+});
+window.addEventListener("appinstalled", function () {
+  invite = null; rendreInstallation(); if (onglet === "seances") rendreSeances();
+  toast("Chrono est installé : il s'ouvre depuis l'écran d'accueil.");
+});
+function installer() {
+  /* L'invitation du navigateur ne sert qu'une fois ; refusée, il en
+     renverra une autre plus tard. */
+  if (invite) { var e = invite; invite = null; try { e.prompt(); } catch (x) {} rendreInstallation(); if (onglet === "seances") rendreSeances(); return; }
+  montrer("seances");   /* la carte d'installation ouvre l'onglet, en haut */
+}
+$("b-installer").addEventListener("click", installer);
+function installHtml() {
+  var m = modeInstallation(); if (!m) return "";
+  var h = '<div class="card stack install" id="installer-carte"><p class="sec">Installer Chrono</p>';
+  if (m === "invite") h += '<p class="note">Chrono s\'installe comme une application : son icône sur l\'écran d\'accueil, en plein écran, et hors ligne.</p>' +
+    '<div class="row"><button class="btn primary" data-a="installer">📲 Installer Chrono</button></div>';
+  else if (m === "ios") h += '<ol class="note"><li>Ouvrez cette page dans <b>Safari</b>.</li><li>Touchez <b>Partager</b>, le carré d\'où sort une flèche.</li>' +
+    '<li>Choisissez <b>Sur l\'écran d\'accueil</b>, puis <b>Ajouter</b>.</li></ol>' +
+    '<p class="note">L\'application installée garde ses propres séances, à part de Safari : préparez-les dedans, ou faites-les passer par Exporter puis Importer.</p>';
+  else h += '<p class="note">Dans le menu du navigateur, choisissez <b>Installer l\'application</b> ou <b>Ajouter à l\'écran d\'accueil</b>.</p>';
+  return h + '</div>';
+}
+
 /* ── Démarrage ───────────────────────────────────────── */
 document.querySelectorAll(".tabs button").forEach(function (b) { b.addEventListener("click", function () { montrer(b.dataset.tab); }); });
 var cacheeDepuis = null;
@@ -1118,6 +1163,7 @@ try { onglet = localStorage.getItem(CLE_TAB) || "preparer"; } catch (e) {}
 if (["seances", "preparer", "chrono"].indexOf(onglet) < 0) onglet = "preparer";
 if (enCours()) onglet = "chrono";
 avancer();
+rendreInstallation();
 montrer(onglet);
 setInterval(function () {
   /* Pas de rendu complet ici : il reconstruirait l'éditeur sous les doigts

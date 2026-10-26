@@ -367,6 +367,79 @@ const ESPION=()=>{
     await c.close();
   });
 
+  say("\n── Installation");
+  await step("le manifeste est installable, sans erreur, et ne recouvre pas WonderStats",async()=>{
+    const c=await nouveauContexte(b,{viewport:{width:390,height:844}});
+    const p=await ouvrir(c,"installation");
+    const cdp=await c.newCDPSession(p);
+    const ie=(await cdp.send("Page.getInstallabilityErrors")).installabilityErrors;
+    attendre(!ie.length,"Chromium refuse l'installation : "+JSON.stringify(ie));
+    const am=await cdp.send("Page.getAppManifest");
+    attendre(!am.errors.length&&/chrono\.webmanifest$/.test(am.url),"manifeste : "+am.url+" "+JSON.stringify(am.errors));
+    const m=JSON.parse(am.data);
+    egal(m.id,"./chrono.html","id (distinct de WonderStats)");
+    egal(m.start_url,"./chrono.html","start_url");
+    egal(m.scope,"./chrono.html","portée limitée au chrono");
+    egal(m.display,"standalone","affichage");
+    await c.close();
+  });
+  await step("une icône à lui, aux tailles déclarées, maskable comprise, et une icône iOS opaque",async()=>{
+    const c=await nouveauContexte(b,{viewport:{width:390,height:844}});
+    const p=await ouvrir(c,"icônes");
+    const r=await p.evaluate(async()=>{
+      const m=await (await fetch("chrono.webmanifest")).json();
+      const charge=(src)=>new Promise(ok=>{const i=new Image();i.onload=()=>ok({w:i.naturalWidth,h:i.naturalHeight,i:i});i.onerror=()=>ok(null);i.src=src});
+      const icones=[];
+      for(const ic of m.icons){const x=await charge(ic.src);icones.push({src:ic.src,sizes:ic.sizes,purpose:ic.purpose,w:x&&x.w,h:x&&x.h})}
+      const apple=document.querySelector('link[rel="apple-touch-icon"]').getAttribute("href");
+      const a=await charge(apple);
+      const cv=document.createElement("canvas");cv.width=a.w;cv.height=a.h;const g=cv.getContext("2d");g.drawImage(a.i,0,0);
+      const d=g.getImageData(0,0,a.w,a.h).data;let transparent=0;for(let k=3;k<d.length;k+=4)if(d[k]<255)transparent++;
+      return {icones,apple,aw:a.w,ah:a.h,transparent,favicon:document.querySelector('link[rel="icon"]').getAttribute("href")};
+    });
+    r.icones.forEach(ic=>{
+      attendre(/^chrono-icon-/.test(ic.src),"icône empruntée : "+ic.src);
+      egal(ic.w+"x"+ic.h,ic.sizes,"taille réelle de "+ic.src);
+    });
+    for(const t of ["192x192","512x512"])for(const pu of ["any","maskable"])
+      attendre(r.icones.some(ic=>ic.sizes===t&&ic.purpose===pu),"pas d'icône "+t+" "+pu);
+    egal(r.apple,"chrono-icon-180.png","icône iOS");
+    egal(r.aw+"x"+r.ah,"180x180","taille de l'icône iOS");
+    egal(r.transparent,0,"pixels transparents dans l'icône iOS (iOS les peint en noir)");
+    attendre(r.favicon!=="icon.png","l'onglet porte le logo de WonderStats");
+    await c.close();
+  });
+  await step("Chrome et Android : l'invitation du navigateur devient un bouton « Installer »",async()=>{
+    const c=await nouveauContexte(b,{viewport:{width:390,height:844}});
+    const p=await ouvrir(c,"android");
+    attendre(!(await p.isVisible("#b-installer")),"bouton sans invitation");
+    await p.evaluate(()=>{const e=new Event("beforeinstallprompt",{cancelable:true});e.prompt=()=>{window.__invite=(window.__invite||0)+1};
+      e.userChoice=Promise.resolve({outcome:"accepted"});window.dispatchEvent(e)});
+    attendre(await p.isVisible("#b-installer"),"pas de bouton Installer");
+    await p.click("#tab-seances");
+    attendre(await p.isVisible('#installer-carte [data-a="installer"]'),"pas de carte d'installation");
+    await p.click("#b-installer");
+    egal(await p.evaluate(()=>window.__invite),1,"invitation du navigateur");
+    attendre(!(await p.isVisible("#b-installer")),"le bouton survit à une invitation consommée");
+    await c.close();
+  });
+  await step("iPhone et iPad : le bouton mène au mode d'emploi de Safari ; installée, plus rien",async()=>{
+    const ua="Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
+    const c=await nouveauContexte(b,{viewport:{width:390,height:844},userAgent:ua,isMobile:true,hasTouch:true});
+    const p=await ouvrir(c,"iphone");
+    await p.click("#b-installer");
+    attendre(!(await p.isHidden("#v-seances")),"le bouton n'ouvre pas les séances");
+    attendre(/Sur l'écran d'accueil/.test(await txt(p,"#installer-carte")),"pas de mode d'emploi");
+    await c.close();
+    const c2=await nouveauContexte(b,{viewport:{width:390,height:844},userAgent:ua,isMobile:true,hasTouch:true});
+    await c2.addInitScript(()=>{Object.defineProperty(navigator,"standalone",{value:true,configurable:true})});
+    const p2=await ouvrir(c2,"iphone-installé");
+    attendre(!(await p2.isVisible("#b-installer")),"bouton dans l'application installée");
+    await p2.click("#tab-seances");
+    egal(await p2.locator("#installer-carte").count(),0,"carte dans l'application installée");
+    await c2.close();
+  });
+
   say("\n── Écrans");
   for(const [w,h] of [[375,667],[768,1024],[1024,768],[1366,1024]]){
     await step("rien ne déborde à "+w+"×"+h+", sur les trois onglets et en séance",async()=>{

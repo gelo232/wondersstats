@@ -7,9 +7,10 @@
    jamais « Une nouvelle version est disponible » — le nouveau code
    n'arriverait qu'au chargement suivant, en silence. À bouger donc à
    chaque livraison, version de l'application ou simple correctif. */
-var CACHE = "wonderstats-v7-12-0";
+var CACHE = "wonderstats-v7-12-1";
 var SHELL = ["./", "./index.html", "./manifest.json", "./icon.png",
-             "./chrono.html", "./chrono.webmanifest"];
+             "./chrono.html", "./chrono.webmanifest",
+             "./chrono-icon-192.png", "./chrono-icon-512.png", "./chrono-icon-180.png"];
 
 self.addEventListener("install", function (e) {
   e.waitUntil(

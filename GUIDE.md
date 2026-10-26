@@ -1018,9 +1018,15 @@ sélection. Les données vivent dans le navigateur ; la phrase de passe ne se re
 ## 11 · Le chrono d'entraînement
 
 Le chrono vit sur sa propre page, `chrono.html`, à côté de l'application. Il ne
-demande ni phrase de passe ni rôle : on l'ouvre, on l'ajoute à l'écran d'accueil
-(Safari : `Partager → Sur l'écran d'accueil` ; Chrome : `Installer l'application`),
-et il s'ouvre ensuite comme une application, même sans réseau.
+demande ni phrase de passe ni rôle. Il s'installe comme WonderStats, sous son propre
+logo — le chronomètre bleu et ambre : `📲 Installer`, en haut de la page, lance
+l'installation sur Chrome et Android, et donne sur iPhone et iPad le chemin de Safari
+(`Partager → Sur l'écran d'accueil → Ajouter`). Il s'ouvre ensuite depuis l'écran
+d'accueil, en plein écran, même sans réseau.
+
+Sur iPhone et iPad, l'application installée ne voit pas les séances préparées dans
+Safari : installez-la d'abord et préparez vos séances dedans, ou faites-les passer
+par `Séances → Exporter` puis `Importer`.
 
 **Préparer la séance, la veille.** `Séances → + Nouvelle séance`, un nom, l'heure de
 début. Chaque exercice se nomme ; `⋯` en ajoute un après, ou un **sous-exercice**

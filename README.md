@@ -8,6 +8,7 @@ index.html      application complète (HTML + CSS + JS vanilla)
 manifest.json   métadonnées PWA
 chrono.html     chrono d'entraînement — une page à part, sans lien avec les données
 chrono.webmanifest  métadonnées PWA du chrono
+chrono-icon-*.png   logo du chrono (192, 512, 180 pour iOS) ; source : chrono-icon.svg
 sw.js           service worker (app-shell en cache-first, chrono compris)
 server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
@@ -851,8 +852,18 @@ vous publiez explicitement sur votre propre relais.
 
 `chrono.html` est une page à part, à côté de l'application : le chronomètre des
 exercices d'une séance d'entraînement. Elle ne lit ni n'écrit rien de WonderStats —
-pas de phrase de passe, pas de rôle — et s'installe seule sur l'écran d'accueil
-(« Chrono »). Elle vise la tablette posée au bord du terrain autant que le téléphone.
+pas de phrase de passe, pas de rôle. Elle vise la tablette posée au bord du terrain
+autant que le téléphone.
+
+**Une application à part entière.** Comme WonderStats, le chrono s'installe : son
+propre manifeste (`chrono.webmanifest`, identifiant et portée `chrono.html`, distincts
+de ceux de WonderStats), son propre logo — un chronomètre aux couleurs du club,
+lisible jusqu'à 48 px et taillé pour le masque rond d'Android —, et le service worker
+commun pour le hors-ligne. Sur Chrome, Edge et Android, le bouton `📲 Installer` de
+l'en-tête lance l'installation ; sur iPhone et iPad, il mène au mode d'emploi de
+Safari (`Partager → Sur l'écran d'accueil`). Une fois installé, il ne s'affiche plus.
+Sur iOS, l'application installée garde ses séances à part de Safari : on les prépare
+dedans, ou on les fait passer par `Exporter` puis `Importer`.
 
 **Le modèle**
 
@@ -903,6 +914,16 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 ---
 
 ## Notes de version
+
+### v7.12.1 — le chrono s'installe sous son propre logo
+
+Le chrono s'installait avec le logo de WonderStats : deux icônes identiques sur
+l'écran d'accueil. Il a désormais le sien (`chrono-icon-*.png`, source
+`chrono-icon.svg`), en 192 et 512 px, en version maskable pour Android et en 180 px
+opaque pour iOS, repris en tête de page. Son manifeste limite sa portée à
+`chrono.html` : il ne revendique plus les pages de WonderStats. Un bouton
+`📲 Installer` reprend l'invitation de Chrome et d'Android ; sur iPhone et iPad, il
+mène au mode d'emploi de Safari. Chrono 1.1.0.
 
 ### v7.12 — le chrono d'entraînement
 

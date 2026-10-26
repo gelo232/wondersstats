@@ -48,6 +48,7 @@ const ERRORS=[];let PASS=0;
     if(r.ks.length!==1||r.ks[0]!==cacheAttendu)throw new Error("caches : "+JSON.stringify(r.ks)+" ≠ "+cacheAttendu);
     if(!r.urls.some(u=>/index\.html$/.test(u)))throw new Error("index.html absent du cache : "+r.urls.join(","));
     if(!r.urls.some(u=>/chrono\.html$/.test(u)))throw new Error("chrono.html absent du cache : "+r.urls.join(","));
+    if(!r.urls.some(u=>/chrono-icon-192\.png$/.test(u)))throw new Error("l'icône du chrono est absente du cache : "+r.urls.join(","));
   });
 
   say("\n── La racine de confiance");
