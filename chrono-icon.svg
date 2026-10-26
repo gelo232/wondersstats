@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Chrono — Les Wonders. Le chronomètre aux couleurs du club : bleu
+       Wonders, gris-bleu des coutures du ballon, et l'ambre des exercices
+       du dernier niveau, ceux qui sonnent. Tout tient dans le cercle sûr
+       d'une icône « maskable » (80 % du côté). -->
+  <defs>
+    <radialGradient id="fond" cx="50%" cy="38%" r="78%">
+      <stop offset="0" stop-color="#0A5C9E"/>
+      <stop offset="1" stop-color="#003A68"/>
+    </radialGradient>
+    <clipPath id="cadran"><circle cx="512" cy="566" r="262"/></clipPath>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#fond)"/>
+  <rect x="448" y="156" width="128" height="60" rx="20" fill="#FFFFFF"/>
+  <rect x="484" y="206" width="56" height="70" fill="#FFFFFF"/>
+  <g transform="rotate(45 512 566)"><rect x="480" y="222" width="64" height="70" rx="16" fill="#B5C7D3"/></g>
+  <circle cx="512" cy="566" r="300" fill="#FFFFFF"/>
+  <circle cx="512" cy="566" r="262" fill="#EEF3F8"/>
+  <g clip-path="url(#cadran)" fill="none" stroke="#C9D7E3" stroke-width="20" stroke-linecap="round">
+    <path d="M290 430 C 410 520, 470 690, 440 860"/>
+    <path d="M370 330 C 540 440, 610 630, 590 860"/>
+    <path d="M240 650 C 420 610, 640 650, 800 770"/>
+  </g>
+  <path d="M512 566 L512 304 A262 262 0 0 1 738.9 697.0 Z" fill="#F59E0B"/>
+  <g stroke="#004982" stroke-linecap="round"><line x1="512.0" y1="318.0" x2="512.0" y2="364.0" stroke-width="16"/><line x1="636.0" y1="351.2" x2="622.0" y2="375.5" stroke-width="10"/><line x1="726.8" y1="442.0" x2="702.5" y2="456.0" stroke-width="10"/><line x1="760.0" y1="566.0" x2="714.0" y2="566.0" stroke-width="16"/><line x1="726.8" y1="690.0" x2="702.5" y2="676.0" stroke-width="10"/><line x1="636.0" y1="780.8" x2="622.0" y2="756.5" stroke-width="10"/><line x1="512.0" y1="814.0" x2="512.0" y2="768.0" stroke-width="16"/><line x1="388.0" y1="780.8" x2="402.0" y2="756.5" stroke-width="10"/><line x1="297.2" y1="690.0" x2="321.5" y2="676.0" stroke-width="10"/><line x1="264.0" y1="566.0" x2="310.0" y2="566.0" stroke-width="16"/><line x1="297.2" y1="442.0" x2="321.5" y2="456.0" stroke-width="10"/><line x1="388.0" y1="351.2" x2="402.0" y2="375.5" stroke-width="10"/></g>
+  <line x1="512" y1="566" x2="680.9" y2="663.5" stroke="#004982" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="512" cy="566" r="38" fill="#004982"/>
+  <circle cx="512" cy="566" r="14" fill="#FFFFFF"/>
+</svg>
