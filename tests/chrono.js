@@ -61,10 +61,18 @@ const ESPION=()=>{
   const txt=(page,sel)=>page.textContent(sel).then(t=>(t||"").trim());
   const attendre=(c,msg)=>{if(!c)throw new Error(msg)};
   const egal=(a,e,msg)=>{if(a!==e)throw new Error((msg||"")+" : « "+a+" » au lieu de « "+e+" »")};
-  const idDe=(page,nom)=>page.evaluate(n=>{for(const r of document.querySelectorAll(".node"))
-    if(r.querySelector(":scope > .l1 input.nom").value===n)return r.dataset.id;return null},nom);
-  const ligne=(id)=>'.node[data-id="'+id+'"]';
+  /* L'éditeur : une ligne par exercice ; la toucher ouvre ses réglages dessous. */
+  const idDe=(page,nom)=>page.evaluate(n=>{for(const r of document.querySelectorAll("#v-preparer .ex"))
+    if(r.querySelector(":scope > .ex-row .ex-nom").textContent===n)return r.dataset.id;return null},nom);
+  const ligne=(id)=>'#v-preparer .ex[data-id="'+id+'"]';
+  const rangee=(id)=>ligne(id)+" > .ex-row";
+  const panneau=(id)=>ligne(id)+" > .ex-panel";
   const saisir=async(page,sel,v)=>{await page.fill(sel,v);await page.press(sel,"Enter")};
+  const ouvrirEx=async(page,id)=>{if(!(await page.locator(panneau(id)).count()))await page.click(rangee(id)+" .ex-main")};
+  const duree=(id,champ)=>panneau(id)+' .dur[data-champ="'+champ+'"]';
+  const regler=async(page,id,champ,mm,ss)=>{const d=duree(id,champ);
+    await page.fill(d+" .d-mm",String(mm));await page.fill(d+" .d-ss",String(ss));await page.press(d+" .d-ss","Enter")};
+  const lue=async(page,id,champ)=>(await page.inputValue(duree(id,champ)+" .d-mm"))+":"+(await page.inputValue(duree(id,champ)+" .d-ss"));
   /* « avance 4:12 » → −252 ; « retard 0:40 » → 40 ; « à l'heure » → 0. */
   const ecart=async(page)=>{const t=await txt(page,"#c-ecart"),m=t.match(/(avance|retard) (\d+):(\d\d)/);
     return m?(m[1]==="retard"?1:-1)*(+m[2]*60+ +m[3]):0};
@@ -88,9 +96,17 @@ const ESPION=()=>{
   });
   await step("un parent n'a pas de durée à lui : seulement la somme de ses sous-exercices",async()=>{
     const id=await idDe(page,"Gainage en circuit");
-    egal(await page.locator(ligne(id)+" > .l2 input.duree").count(),0,"champ Durée sur un parent");
-    egal(await txt(page,ligne(id)+" > .l2 .tour"),"1:50","un tour");
-    egal(await txt(page,ligne(id)+" > .l2 .tot"),"7:30","3 tours + 2 pauses d'une minute");
+    egal(await txt(page,rangee(id)+" .ex-total"),"7′30″","3 tours + 2 pauses d'une minute");
+    await ouvrirEx(page,id);
+    egal(await page.locator(duree(id,"duree")).count(),0,"réglage de durée sur un parent");
+    attendre(/^Un tour 1′50″ · Total 7′30″/.test(await txt(page,panneau(id)+" .ex-resume")),"résumé : "+await txt(page,panneau(id)+" .ex-resume"));
+    await page.click(panneau(id)+' [data-a="ok"]');
+    egal(await page.locator(panneau(id)).count(),0,"« Terminé » ne referme pas");
+  });
+  await step("les durées s'écrivent 7′30″ : elles ne se confondent pas avec une heure",async()=>{
+    const id=await idDe(page,"Échauffement");
+    egal(await txt(page,rangee(id)+" .ex-total"),"18′30″");
+    egal(await txt(page,rangee(id)+" .ex-h"),"18:00");
   });
 
   say("\n── Préparer une séance");
@@ -102,59 +118,78 @@ const ESPION=()=>{
     await page.fill("#p-debut","18:00");await page.press("#p-debut","Enter");
     egal(await txt(page,"#h-title"),"Test chrono","titre");
   });
-  await step("un exercice reçoit des sous-exercices ; le premier hérite de sa durée",async()=>{
+  await step("un exercice reçoit des sous-exercices ; le premier hérite de sa durée et s'ouvre, nom prêt à taper",async()=>{
     idG=await idDe(page,"Échauffement");
-    await saisir(page,ligne(idG)+" > .l1 input.nom","Gainage");
-    await page.click(ligne(idG)+' [data-a="menu"]');
-    await page.click(ligne(idG)+' [data-a="enfant"]');
+    await ouvrirEx(page,idG);
+    await saisir(page,panneau(idG)+" .ex-nom-in","Gainage");
+    egal(await txt(page,rangee(idG)+" .ex-nom"),"Gainage","nom sur la ligne");
+    await page.click(panneau(idG)+' [data-a="enfant"]');
     idP=await idDe(page,"Nouveau sous-exercice");
-    egal(await page.inputValue(ligne(idP)+" input.duree"),"10:00","durée héritée");
-    await saisir(page,ligne(idP)+" > .l1 input.nom","Planche");
-    await saisir(page,ligne(idP)+" input.duree","0:40");
-    await page.click(ligne(idP)+' [data-a="menu"]');
-    await page.click(ligne(idP)+' [data-a="apres"]');
+    egal(await lue(page,idP,"duree"),"10:00","durée héritée");
+    attendre(await page.evaluate(()=>document.activeElement&&document.activeElement.classList.contains("ex-nom-in")),"le nom n'a pas le curseur");
+    await saisir(page,panneau(idP)+" .ex-nom-in","Planche");
+    await regler(page,idP,"duree",0,40);
+    await page.click(panneau(idP)+' [data-a="apres"]');
     idL=await idDe(page,"Nouvel exercice");
-    await saisir(page,ligne(idL)+" > .l1 input.nom","Planche latérale");
-    attendre(await page.evaluate(([g,l])=>!!document.querySelector('.node[data-id="'+l+'"]')&&
-      [...document.querySelectorAll(".node")].map(r=>r.dataset.id).indexOf(l)>[...document.querySelectorAll(".node")].map(r=>r.dataset.id).indexOf(g),[idG,idL]),
-      "le nouvel exercice n'est pas sous Gainage");
+    await saisir(page,panneau(idL)+" .ex-nom-in","Planche latérale");
+    const fils=await page.$$eval(ligne(idG)+" > .ex-kids > .ex",e=>e.map(x=>x.dataset.id));
+    egal(fils.join(","),[idP,idL].join(","),"sous-exercices de Gainage");
   });
-  await step("les durées se lisent : « 45s », « 5 », « 0:30 » ; une saisie illisible est refusée",async()=>{
-    await saisir(page,ligne(idL)+" input.duree","45s");
-    egal(await page.inputValue(ligne(idL)+" input.duree"),"0:45");
-    await saisir(page,ligne(idL)+" input.duree","5");
-    egal(await page.inputValue(ligne(idL)+" input.duree"),"5:00");
-    await saisir(page,ligne(idL)+" input.duree","0:30");
-    await saisir(page,ligne(idL)+" input.duree","abc");
-    attendre(/ne se lit pas/.test(await txt(page,"#toast")),"pas d'avertissement");
-    egal(await page.inputValue(ligne(idL)+" input.duree"),"0:30","valeur rétablie");
+  await step("les durées se règlent au pavé numérique : minutes, secondes, pas et durées toutes faites",async()=>{
+    await regler(page,idL,"duree",0,45);
+    egal(await txt(page,rangee(idL)+" .ex-total"),"45″","ligne à jour sans rien reconstruire");
+    await page.click(duree(idL,"duree")+' [data-a="dplus"]');
+    egal(await lue(page,idL,"duree"),"0:50","pas de 5 s sous la minute");
+    await page.click(duree(idL,"duree")+' .pre[data-v="300"]');
+    egal(await lue(page,idL,"duree"),"5:00","durée toute faite");
+    attendre(await page.isVisible(duree(idL,"duree")+' .pre.on[data-v="300"]'),"la durée choisie ne se voit pas");
+    await page.click(duree(idL,"duree")+' [data-a="dmoins"]');
+    egal(await lue(page,idL,"duree"),"4:45","pas de 15 s sous cinq minutes");
+    await saisir(page,duree(idL,"duree")+" .d-mm","1:30");
+    egal(await lue(page,idL,"duree"),"1:30","« 1:30 » tapé d'un bloc");
+    await saisir(page,duree(idL,"duree")+" .d-ss","abc");
+    await toastDit(page,/Écrivez des chiffres/);
+    egal(await lue(page,idL,"duree"),"1:30","valeur rétablie");
+    await regler(page,idL,"duree",0,30);
   });
   await step("répétitions (1 par défaut) et pause entre elles, sur une feuille comme sur un parent",async()=>{
-    egal(await txt(page,ligne(idL)+" > .l2 .step output"),"1","répétitions par défaut");
-    egal(await page.locator(ligne(idL)+" > .l2 input.pause").count(),0,"pause avant toute répétition");
-    await page.click(ligne(idL)+' > .l2 [data-a="plus"]');
-    await saisir(page,ligne(idL)+" > .l2 input.pause","0:10");
-    egal(await txt(page,ligne(idL)+" > .l2 .tot"),"1:10","2 × 0:30 + 0:10");
-    await page.click(ligne(idG)+' > .l2 [data-a="plus"]');
-    await page.click(ligne(idG)+' > .l2 [data-a="plus"]');
-    await saisir(page,ligne(idG)+" > .l2 input.pause","1");
-    egal(await txt(page,ligne(idG)+" > .l2 .tour"),"1:50","un tour");
-    egal(await txt(page,ligne(idG)+" > .l2 .tot"),"7:30","3 tours + 2 pauses");
+    egal(await txt(page,panneau(idL)+" .step output"),"1","répétitions par défaut");
+    egal(await page.locator(duree(idL,"pause")).count(),0,"pause avant toute répétition");
+    await page.click(panneau(idL)+' .step [data-a="plus"]');
+    attendre(await page.isVisible(duree(idL,"pause")+' .pre.on[data-v="0"]'),"pause libre par défaut");
+    await page.click(duree(idL,"pause")+' .pre[data-v="10"]');
+    egal(await txt(page,rangee(idL)+" .ex-total"),"1′10″","2 × 30″ + 10″");
+    egal(await txt(page,rangee(idL)+" .ex-info"),"2 × 30″pause 10″","étiquettes de la ligne");
+    await ouvrirEx(page,idG);
+    await page.click(panneau(idG)+' .step [data-a="plus"]');
+    await page.click(panneau(idG)+' .step [data-a="plus"]');
+    await page.click(duree(idG,"pause")+' .pre[data-v="60"]');
+    attendre(/^Un tour 1′50″ · Total 7′30″ · de 18:00 à 18:07/.test(await txt(page,panneau(idG)+" .ex-resume")),"résumé : "+await txt(page,panneau(idG)+" .ex-resume"));
     egal(await txt(page,"#p-tot"),"7 min 30 s","durée de la séance");
     egal(await txt(page,"#p-fin"),"18:07","fin prévue");
     egal(await txt(page,"#p-nb"),"9","passages : 3 planches + 6 planches latérales");
   });
-  await step("la séance survit au rechargement",async()=>{
+  await step("un groupe se replie d'un toucher, le reste au rechargement, et tout se déplie d'un coup",async()=>{
+    await page.click(panneau(idG)+' [data-a="ok"]');
+    await page.click(rangee(idG)+" .pli");
+    attendre(await page.isHidden(ligne(idG)+" > .ex-kids"),"les sous-exercices restent affichés");
+    attendre(/2 exercices/.test(await txt(page,rangee(idG)+" .ex-info")),"le groupe replié ne dit pas ce qu'il contient");
     await page.reload();
     await page.waitForSelector("#p-tot");
     egal(await txt(page,"#h-title"),"Test chrono");
     egal(await txt(page,"#p-tot"),"7 min 30 s");
+    attendre(await page.isHidden(ligne(idG)+" > .ex-kids"),"le repli est oublié au rechargement");
+    await page.click('#v-preparer [data-a="tout-deplier"]');
+    attendre(await page.isVisible(ligne(idG)+" > .ex-kids"),"« Tout déplier » ne déplie pas");
+    await page.click('#v-preparer [data-a="tout-plier"]');
+    attendre(await page.isHidden(ligne(idG)+" > .ex-kids"),"« Tout replier » ne replie pas");
+    await page.click('#v-preparer [data-a="tout-deplier"]');
   });
 
   say("\n── Le chrono");
-  await step("démarrer : le premier exercice part, sa sonnerie est déjà programmée",async()=>{
-    await page.click("#tab-chrono");
-    await page.click('[data-a="lancer"]');
+  await step("« Lancer la séance » ouvre le chrono et part ; la sonnerie est déjà programmée",async()=>{
+    await page.click("#p-lancer");
+    attendre(await page.isVisible("#v-chrono"),"le chrono ne s'ouvre pas");
     await page.clock.runFor(500);
     egal(await txt(page,"#c-nom"),"Planche");
     egal(await txt(page,"#c-count"),"0:40");
@@ -196,7 +231,7 @@ const ESPION=()=>{
   await step("à la fin de la répétition, la pause part seule",async()=>{
     await page.clock.runFor(30000);
     attendre(await page.isVisible("#ring"),"pas de sonnerie");
-    egal(await txt(page,"#ring-sub"),"La pause de 0:10 a commencé.");
+    egal(await txt(page,"#ring-sub"),"La pause de 10″ a commencé.");
     egal(await txt(page,"#c-phase"),"Pause");
     egal(await txt(page,"#c-nom"),"Pause · Planche latérale");
     egal(await txt(page,"#c-rep"),"Avant la répétition 2 sur 2");
@@ -235,8 +270,19 @@ const ESPION=()=>{
     await page.clock.runFor(300);
     egal(await txt(page,"#c-nom"),"Planche latérale");
     egal(await txt(page,"#c-rep"),"Répétition 2 sur 2");
-    const r=await page.$$eval(".plan .p .real",e=>e.map(x=>x.textContent));
-    attendre(r.length===1&&/→ 0:[12]\d/.test(r[0]),"pause relevée : "+JSON.stringify(r));
+    const info=await txt(page,'#c-plan .pl.leaf[data-id="'+idL+'"] .pl-info');
+    attendre(/pauses prises [12]\d″/.test(info),"pause relevée : "+info);
+  });
+  await step("le déroulé se regroupe : le bloc en cours ouvert, son tour dit, ses passages en pastilles",async()=>{
+    const bloc='#c-plan .pl.group.bloc[data-id="'+idG+'"]';
+    attendre(await page.isVisible(bloc+" > .pl-kids"),"le bloc en cours est replié");
+    attendre(/tour 1\/3/.test(await txt(page,bloc+" > .pl-row")),"le tour du groupe n'est pas dit");
+    const occ=await page.$$eval('#c-plan .pl.leaf[data-id="'+idL+'"] .occ i',e=>e.map(x=>x.className));
+    egal(occ.join(","),"done,cur,todo,todo,todo,todo","pastilles des six passages de la planche latérale");
+    egal(await page.getAttribute('#c-plan .pl.leaf[data-id="'+idP+'"]',"class"),"pl leaf part","planche faite au premier tour, à refaire");
+    await page.click(bloc+" > .pl-row");
+    attendre(await page.isHidden(bloc+" > .pl-kids"),"le bloc ne se replie pas");
+    await page.click(bloc+" > .pl-row");
   });
   await step("suspendre fige l'exercice et sa sonnerie ; reprendre les rend",async()=>{
     await page.clock.runFor(5000);
@@ -280,7 +326,7 @@ const ESPION=()=>{
     egal(await txt(page,"#c-nom"),"Séance arrêtée");
     attendre(await page.isVisible(".bilan"),"pas de bilan");
     await page.click('[data-a="fermer"]');
-    attendre(await page.isVisible('[data-a="lancer"]'),"pas de retour au départ");
+    attendre(await page.isVisible('#v-chrono [data-a="lancer"]'),"pas de retour au départ");
   });
 
   say("\n── Pause libre et fin de séance");
@@ -289,12 +335,14 @@ const ESPION=()=>{
     await page.click('[data-a="nouvelle"]');
     await saisir(page,"#p-nom","Sprints");
     const id=await idDe(page,"Échauffement");
-    await saisir(page,ligne(id)+" > .l1 input.nom","Sprint");
-    await saisir(page,ligne(id)+" input.duree","0:20");
-    await page.click(ligne(id)+' > .l2 [data-a="plus"]');
-    egal(await page.inputValue(ligne(id)+" input.pause"),"","pause libre par défaut");
+    await ouvrirEx(page,id);
+    await saisir(page,panneau(id)+" .ex-nom-in","Sprint");
+    await regler(page,id,"duree",0,20);
+    await page.click(panneau(id)+' .step [data-a="plus"]');
+    egal(await lue(page,id,"pause"),"0:00","pause libre par défaut");
+    egal(await txt(page,rangee(id)+" .ex-info"),"2 × 20″pause libre");
     await page.click("#tab-chrono");
-    await page.click('[data-a="lancer"]');
+    await page.click('#v-chrono [data-a="lancer"]');
     await page.clock.runFor(20500);
     attendre(await page.isVisible("#ring"),"pas de sonnerie de fin");
     egal(await txt(page,"#ring-sub"),"Pause libre : elle est chronométrée.");
@@ -352,6 +400,20 @@ const ESPION=()=>{
     fs.unlinkSync(faux);
   });
   fs.unlinkSync(fichier);
+
+  await step("avant le départ, le déroulé prévu se lit par blocs : le premier ouvert, les autres repliés",async()=>{
+    await tab.click('.scard:has-text("U14 Bleues") [data-a="chrono"]');
+    const blocs=await tab.$$eval("#c-plan > .pl",e=>e.map(x=>x.querySelector(".pl-nom").textContent.trim()+(x.classList.contains("bloc")?"[bloc]":"")));
+    egal(blocs.join(" | "),"Échauffement[bloc] | Réception[bloc] | Attaque en position 4 | Match dirigé | Retour au calme","blocs du déroulé");
+    const ouverts=await tab.$$eval("#c-plan > .pl.bloc",e=>e.map(x=>!x.querySelector(":scope > .pl-kids").hidden));
+    egal(ouverts.join(","),"true,false","Échauffement ouvert, Réception replié");
+    await tab.click('#c-plan > .pl.bloc:nth-child(2) > .pl-row');
+    attendre(await tab.isVisible("#c-plan > .pl.bloc:nth-child(2) > .pl-kids"),"Réception ne s'ouvre pas");
+    await tab.click('#v-chrono [data-a="plan-tout"][data-v="0"]');
+    egal(await tab.locator("#c-plan .pl-kids:visible").count(),0,"« Tout replier » laisse des blocs ouverts");
+    await tab.click('#v-chrono [data-a="plan-tout"][data-v="1"]');
+    egal(await tab.locator("#c-plan .pl-kids:not(:visible)").count(),0,"« Tout déplier » laisse des blocs fermés");
+  });
 
   say("\n── iPhone et iPad");
   await step("la session audio passe en « playback » : les sonneries passent le mode silencieux",async()=>{
@@ -460,16 +522,24 @@ const ESPION=()=>{
         const d=await debordement(tab);
         if(d>0)throw new Error(t+" déborde de "+d+" px");
       }
-      await tab.click('[data-a="lancer"]');
+      await tab.click('#v-chrono [data-a="lancer"]');
       await tab.clock.runFor(500);
       const d=await debordement(tab);
       await tab.click('[data-a="arreter"]');await tab.click('[data-a="arreter"]');await tab.click('[data-a="fermer"]');
       if(d>0)throw new Error("le chrono déborde de "+d+" px");
     });
   }
+  await step("sur téléphone, les onglets sont en bas, sous le pouce ; sur tablette, en haut",async()=>{
+    await tab.setViewportSize({width:375,height:667});
+    let r=await tab.locator("#tab-chrono").boundingBox();
+    attendre(r&&r.y+r.height>=667-8&&r.y>667-80,"téléphone : onglet à y="+(r&&r.y));
+    await tab.setViewportSize({width:1024,height:768});
+    r=await tab.locator("#tab-chrono").boundingBox();
+    attendre(r&&r.y<80,"tablette : onglet à y="+(r&&r.y));
+  });
   await step("en séance, les commandes se touchent : au moins 48 px de haut",async()=>{
     await tab.setViewportSize({width:375,height:667});
-    await tab.click('[data-a="lancer"]');
+    await tab.click('#v-chrono [data-a="lancer"]');
     const hs=await tab.$$eval(".ctl .btn",e=>e.map(x=>x.getBoundingClientRect().height));
     attendre(hs.length>=4&&hs.every(x=>x>=48),"hauteurs : "+hs.join(","));
   });

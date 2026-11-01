@@ -878,6 +878,21 @@ dedans, ou on les fait passer par `Exporter` puis `Importer`.
   **libre** : chronométrée, sans sonnerie.
 - L'heure de chaque exercice se déduit : début de la séance, plus tout ce qui le précède.
 
+**Préparer**
+
+- Chaque exercice tient sur une ligne : son nom, ses répétitions et sa pause, son
+  total, son heure. La toucher ouvre ses réglages juste dessous, un seul à la fois.
+- Un **groupe se replie** d'un toucher sur son chevron, et reste replié d'une visite
+  à l'autre ; replié, il dit combien d'exercices il contient. `Tout replier` et
+  `Tout déplier` font la séance entière.
+- Une durée se règle **sans clavier** : `−` et `+` par pas qui grandissent avec elle
+  (5″ sous la minute, 15″ jusqu'à cinq minutes, 30″ jusqu'à vingt), des durées toutes
+  faites (`30″`, `45″`, `1′`, `5′`…), ou les minutes et les secondes au pavé
+  numérique — celui de l'iPad n'a pas de « : ».
+- Les durées prévues s'écrivent à la façon du sport — `40″`, `7′30″` — pour ne
+  jamais se confondre avec une heure (`18:30`) ; le décompte, lui, reste `7:30`.
+- `▶ Lancer la séance` part de la préparation : il ouvre le chrono et démarre.
+
 **En séance**
 
 1. La fin d'un exercice du dernier niveau **sonne**, et sonne **jusqu'à ce qu'on
@@ -886,8 +901,16 @@ dedans, ou on les fait passer par `Exporter` puis `Importer`.
    sonne à son tour quand elle est écoulée. Son dépassement se compte (`+0:12`).
 3. L'exercice suivant ne démarre **que sur votre geste**. L'attente se chronomètre.
 4. Un écart avec l'horaire s'affiche en continu ; suspendre, recommencer, terminer
-   avant l'heure, passer ou refaire un exercice sont à un toucher. Le déroulé note
-   le temps réel de chaque exercice et de chaque pause, et la séance finit sur un bilan.
+   avant l'heure, passer ou refaire un exercice sont à un toucher.
+5. Le **déroulé se regroupe** comme la séance : un bloc par exercice de premier
+   niveau, replié sauf celui en cours, qui s'ouvre de lui-même quand le chrono y
+   entre et dit son tour (`tour 2/3`). Dedans, une ligne par exercice et une pastille
+   par passage — fait, en cours, à venir, sauté. Chaque ligne donne son heure prévue
+   et sa durée, réelle une fois faite, pauses prises comprises. La séance finit sur
+   un bilan.
+
+Sur téléphone, les trois onglets passent en bas de l'écran, sous le pouce ; sur
+tablette, ils restent en haut, et le déroulé se tient à côté du chrono.
 
 **Le son, sur iPhone, iPad et Android**
 
@@ -915,6 +938,19 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 ---
 
 ## Notes de version
+
+### v7.13 — le chrono se replie, se regroupe, et se manie au pouce
+
+- **Préparer** : une ligne par exercice, ses réglages ouverts dessous d'un toucher ;
+  les groupes se replient (et le restent), `Tout replier` / `Tout déplier`. Les
+  durées se règlent par `−` / `+`, par durées toutes faites, ou en minutes et
+  secondes au pavé numérique : le « : » qui manquait au pavé de l'iPad empêchait de
+  taper `0:45`. `▶ Lancer la séance` depuis la préparation.
+- **Chrono** : le déroulé suit l'arbre de la séance — blocs repliables, celui en cours
+  ouvert avec son tour, une pastille par passage, durées réelles et pauses prises.
+- **Partout** : onglets en bas sur téléphone, durées notées `7′30″` pour ne plus les
+  lire comme des heures, un message qui ne recouvre plus le bouton visé, export et
+  import rangés à part. Chrono 1.2.0.
 
 ### v7.12.2 — le logo des Wonders au cadran du chrono
 

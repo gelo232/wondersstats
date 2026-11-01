@@ -58,11 +58,21 @@ header.top .wrap{display:flex;align-items:center;gap:12px;padding-block:8px;flex
 .brand b{font-size:17px;color:var(--txt-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brand span{font-size:12px;color:var(--txt-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tabs{display:flex;gap:4px;background:var(--sunken);padding:4px;border-radius:var(--r-md)}
-.tabs button{border:0;background:transparent;color:var(--txt-dim);font-weight:650;padding:10px 14px;min-height:44px;border-radius:var(--r-sm);cursor:pointer}
+.tabs button{position:relative;display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;color:var(--txt-dim);font-weight:650;padding:10px 14px;min-height:44px;border-radius:var(--r-sm);cursor:pointer}
 .tabs button[aria-selected="true"]{background:var(--surface);color:var(--txt-strong)}
-.tabs .live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-left:6px;vertical-align:1px}
-@media (max-width:560px){ header.top .wrap{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 10px} .tabs{grid-column:1 / -1} .tabs button{flex:1;padding-inline:6px} }
+.tabs svg{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tabs button.live::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--tint-ok)}
 main{padding-block:16px 48px}
+/* Sur téléphone, les onglets passent en bas, sous le pouce. */
+@media (max-width:760px){
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:16;border-radius:0;gap:0;background:var(--surface-2);border-top:1px solid var(--line);
+    padding:4px max(8px,env(safe-area-inset-right,0px)) calc(4px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
+  .tabs button{flex:1;flex-direction:column;gap:2px;font-size:12px;padding:6px 4px;min-height:54px}
+  .tabs button[aria-selected="true"]{background:transparent;color:var(--accent-ink)}
+  .tabs button.live::after{position:absolute;top:6px;left:calc(50% + 10px)}
+  main{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+  .toast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+}
 
 /* ── Éléments communs ──────────────────────────────── */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-strong);background:var(--surface);
@@ -88,7 +98,8 @@ input:invalid{border-color:var(--danger)}
 .num{font-family:var(--fm);font-variant-numeric:tabular-nums}
 .empty{padding:24px;text-align:center;color:var(--txt-dim)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:40;background:var(--raised);color:var(--txt-strong);
-  border:1px solid var(--line-strong);border-radius:var(--r-md);padding:12px 16px;max-width:min(560px,calc(100vw - 32px));box-shadow:0 4px 14px rgba(0,0,0,.42)}
+  border:1px solid var(--line-strong);border-radius:var(--r-md);padding:12px 16px;max-width:min(560px,calc(100vw - 32px));box-shadow:0 4px 14px rgba(0,0,0,.42);
+  pointer-events:none}   /* un message ne doit jamais recouvrir le bouton qu'on vise */
 
 /* ── Séances ───────────────────────────────────────── */
 .slist{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
@@ -105,25 +116,70 @@ input:invalid{border-color:var(--danger)}
 .summary b{display:block;font:700 19px var(--fm);font-variant-numeric:tabular-nums;color:var(--txt-strong)}
 .summary span{font-size:12px;color:var(--txt-dim)}
 .locked{border:1px solid var(--warn);background:var(--tint-warn);color:var(--warn-ink);border-radius:var(--r-md);padding:10px 12px;font-size:14px}
+.btn.big{min-height:56px;font-size:17px;width:100%}
+.tb{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.tb .sec{flex:1}
+.chip{display:inline-block;font:600 12px var(--ff);padding:2px 8px;border-radius:var(--r-pill);background:var(--sunken);color:var(--txt-soft);white-space:nowrap}
+.chip.warn{background:var(--tint-warn);color:var(--warn-ink)}
+.chip.cur{background:var(--tint-warn);color:var(--warn-ink)}
+/* L'arbre : une ligne par exercice, les sous-exercices dans un retrait que
+   souligne un filet ; un groupe replié ne montre que sa ligne. */
 .tree{display:flex;flex-direction:column}
-.node{--indent:22px;display:flex;flex-direction:column;gap:6px;padding:10px 0 10px calc(var(--d) * var(--indent));border-bottom:1px solid var(--line)}
-@media (max-width:560px){ .node{--indent:12px} .node .l2{padding-left:0} .menu{padding-left:0} }
-.node:last-child{border-bottom:0}
-.node .l1{display:flex;align-items:center;gap:8px;min-width:0}
-.node .l1 input{flex:1;font-weight:600}
-.node.group > .l1 input{font-weight:750}
+.ex{display:flex;flex-direction:column}
+.ex-row{display:flex;align-items:stretch;border-bottom:1px solid var(--line)}
+.ex.open > .ex-row{border-bottom-color:transparent}
+.pli,.pli-vide{width:40px;flex:none;display:grid;place-items:center;border:0;background:transparent;color:var(--txt-dim);cursor:pointer;padding:0}
+.pli svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+.pli[aria-expanded="false"] svg{transform:rotate(-90deg)}
+.pli:hover{color:var(--txt-strong)}
+.ex-main{flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:inherit;text-align:left;padding:10px 4px 10px 0;min-height:56px;cursor:pointer;border-radius:var(--r-sm)}
+.ex-main:hover:not(:disabled){background:rgba(148,163,184,.06)}
+.ex-main:disabled{cursor:default}
+.ex.open > .ex-row .ex-main{background:var(--tint-accent)}
 .dot{width:12px;height:12px;border-radius:50%;flex:none;border:2px solid var(--accent-ink)}
-.node.leaf .dot{background:var(--warn);border-color:var(--warn)}
-.node .l2{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;padding-left:20px}
-.fld{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--txt-dim);font-weight:600}
-.fld input{width:76px;text-align:center;font-family:var(--fm);font-variant-numeric:tabular-nums;padding:8px 6px}
-.step{display:inline-flex;align-items:center;background:var(--sunken);border:1px solid var(--line);border-radius:var(--r-sm)}
-.step button{width:40px;height:40px;border:0;background:transparent;color:var(--txt);font-size:18px;cursor:pointer}
+.ex.leaf > .ex-row .dot{background:var(--warn);border-color:var(--warn)}
+.ex-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.ex-nom{font-weight:600;color:var(--txt-strong);overflow-wrap:anywhere}
+.ex.group > .ex-row .ex-nom{font-weight:750}
+.ex-info{display:flex;flex-wrap:wrap;gap:4px}
+.ex-info:empty{display:none}
+.ex-r{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:none}
+.ex-r b{font:700 15px var(--ff);font-variant-numeric:tabular-nums;color:var(--txt-strong)}
+.ex-r small{font:12px var(--fm);color:var(--txt-faint)}
+.ex-kids{margin-left:19px;padding-left:10px;border-left:2px solid var(--line)}
+@media (min-width:761px){ .ex-kids{margin-left:19px;padding-left:18px} }
+.ajout{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--accent-ink);font-weight:600;padding:12px 4px;min-height:44px;cursor:pointer;border-bottom:1px solid var(--line)}
+.ajout.grand{border:1px dashed var(--line-strong);border-radius:var(--r-md);text-align:center;margin-top:12px;font-size:16px}
+/* Les réglages d'un exercice s'ouvrent sous sa ligne. */
+.ex-panel{display:flex;flex-direction:column;gap:14px;margin:0 0 10px 40px;padding:14px;background:var(--sunken);border:1px solid var(--accent);border-radius:var(--r-md)}
+/* Sur téléphone, les réglages sortent du retrait des groupes : toute la largeur. */
+@media (max-width:560px){
+  .ex-kids{margin-left:12px;padding-left:6px}
+  .ex-panel{margin-left:calc(var(--d,0) * -20px);padding:12px}
+  .db{width:44px;height:44px}
+  .dur-in input[type=text]{width:52px}
+}
+.ex-panel .f{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--txt-dim);font-weight:600}
+.ex-panel input[type=text]{background:var(--bg)}
+.ex-resume{font-family:var(--fm);font-size:13px}
+.ex-actions{display:flex;flex-wrap:wrap;gap:6px}
+.ex-ok{align-self:flex-start;min-width:140px}
+.step{display:inline-flex;align-items:center;align-self:flex-start;background:var(--bg);border:1px solid var(--line);border-radius:var(--r-sm)}
+.step button{width:48px;height:48px;border:0;background:transparent;color:var(--txt);font-size:22px;cursor:pointer}
 .step button:disabled{opacity:.35}
-.step output{min-width:40px;text-align:center;font:700 15px var(--fm);color:var(--txt-strong)}
-.calc{font:600 14px var(--fm);font-variant-numeric:tabular-nums;color:var(--txt-soft)}
-.when{font:12px var(--fm);font-variant-numeric:tabular-nums;color:var(--txt-faint);margin-left:auto}
-.menu{display:flex;flex-wrap:wrap;gap:6px;padding-left:20px}
+.step output{min-width:44px;text-align:center;font:700 18px var(--fm);color:var(--txt-strong)}
+/* Une durée : − et + par pas qui grandissent avec elle, minutes et secondes
+   au clavier numérique (le « : » manque au pavé de l'iPad), et des durées
+   toutes faites. */
+.dur{display:flex;flex-direction:column;gap:8px}
+.dur-in{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.db{width:48px;height:48px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--txt);font-size:22px;cursor:pointer}
+.db:disabled{opacity:.35;cursor:default}
+.dur-in label{display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--txt-dim);font-weight:600}
+.dur-in input[type=text]{width:58px;text-align:center;font:700 18px var(--fm);padding:8px 4px}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.pre{border:1px solid var(--line);background:var(--bg);color:var(--txt-soft);font:600 14px var(--ff);font-variant-numeric:tabular-nums;padding:6px 10px;min-height:36px;border-radius:var(--r-pill);cursor:pointer}
+.pre.on{background:var(--accent-solid);border-color:var(--accent-solid);color:var(--on-light)}
 
 /* ── Chrono ────────────────────────────────────────── */
 .runwrap{display:grid;grid-template-columns:1fr;gap:16px;align-items:start}
@@ -162,17 +218,44 @@ input:invalid{border-color:var(--danger)}
 .sound .state.on{color:var(--ok-ink)}
 .sound .state.off{color:var(--warn-ink)}
 .alertbar{display:flex;gap:10px;align-items:center;border-radius:var(--r-md);padding:12px 14px;background:var(--tint-warn);border:1px solid var(--warn);color:var(--txt-strong);cursor:pointer;width:100%;text-align:left;font-size:15px}
-.plan{display:flex;flex-direction:column;max-height:none}
-.plan > div{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:4px 10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px;align-items:baseline}
-.plan > div:last-child{border-bottom:0}
-.plan .t{font:12px var(--fm);font-variant-numeric:tabular-nums;color:var(--txt-faint)}
-.plan .d{font:13px var(--fm);font-variant-numeric:tabular-nums;color:var(--txt-dim);text-align:right}
-.plan small{display:block;color:var(--txt-faint);font-size:12px}
-.plan .p{font-size:13px;color:var(--ok-ink)}
-.plan .p .d{color:var(--ok-ink)}
-.plan .done{opacity:.55}
-.plan .cur{color:var(--txt-strong);font-weight:650;opacity:1}
-.plan .cur .t{color:var(--warn-ink)}
+/* Le déroulé suit l'arbre de la séance : un bloc par exercice de premier
+   niveau, replié sauf celui en cours ; dedans, une ligne par exercice, et
+   une pastille par passage. */
+.plan{display:flex;flex-direction:column}
+.pl{display:flex;flex-direction:column}
+.pl-row{display:flex;align-items:center;gap:10px;width:100%;padding:9px 2px;min-height:48px;border:0;border-bottom:1px solid var(--line);background:transparent;color:inherit;text-align:left;font:inherit}
+button.pl-row{cursor:pointer}
+button.pl-row:hover{background:rgba(148,163,184,.06)}
+.plan > .pl:last-child > .pl-row, .plan > .pl:last-child > .pl-kids > .pl:last-child > .pl-row{border-bottom:0}
+.pl-chev{width:18px;height:18px;flex:none;fill:none;stroke:var(--txt-dim);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+.pl-row[aria-expanded="false"] .pl-chev{transform:rotate(-90deg)}
+.st{width:12px;height:12px;border-radius:50%;flex:none;border:2px solid var(--line-strong)}
+.pl.done > .pl-row .st{background:var(--ok);border-color:var(--ok)}
+.pl.cur > .pl-row .st{background:var(--warn);border-color:var(--warn);box-shadow:0 0 0 4px var(--tint-warn)}
+.pl.next > .pl-row .st{border-color:var(--warn)}
+.pl.part > .pl-row .st{border-color:var(--ok);background:linear-gradient(90deg,var(--ok) 50%,transparent 50%)}
+.pl-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.pl-nom{font-weight:600;color:var(--txt);overflow-wrap:anywhere}
+.pl.group > .pl-row .pl-nom{font-weight:750}
+.pl.bloc > .pl-row .pl-nom{font-size:16px}
+.pl-info{font-size:12px;color:var(--txt-dim);display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.pl.done > .pl-row .pl-nom{color:var(--txt-dim)}
+.pl.cur > .pl-row .pl-nom,.pl.next > .pl-row .pl-nom{color:var(--txt-strong)}
+.pl-r{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:none}
+.pl-r small{font:12px var(--fm);color:var(--txt-faint)}
+.pl-r b{font:600 14px var(--ff);font-variant-numeric:tabular-nums;color:var(--txt-dim)}
+.pl-r b.real{color:var(--txt-soft)}
+.pl-r b.real.late{color:var(--warn-ink)}
+.pl-kids{margin-left:6px;padding-left:12px;border-left:2px solid var(--line)}
+.pl.cur > .pl-kids,.pl.next > .pl-kids{border-left-color:var(--warn)}
+.occ{display:inline-flex;flex-wrap:wrap;gap:3px}
+.occ i{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--line-strong)}
+.occ i.done{background:var(--ok);border-color:var(--ok)}
+.occ i.cur{background:var(--warn);border-color:var(--warn)}
+.occ i.next{border-color:var(--warn)}
+.occ i.saute{background:linear-gradient(135deg,transparent 42%,var(--danger-ink) 42% 58%,transparent 58%);border-color:var(--danger-ink)}
+.plan-tb{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.plan-tb .sec{flex:1}
 .real{color:var(--txt-soft)}
 .real.late{color:var(--warn-ink)}
 .bilan{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
@@ -204,9 +287,9 @@ input:invalid{border-color:var(--danger)}
     <div class="brand"><b id="h-title">Chrono</b><span id="h-sub">Les Wonders · entraînement</span></div>
     <button class="btn sm" id="b-installer" hidden>📲 Installer</button>
     <nav class="tabs" role="tablist" aria-label="Sections">
-      <button role="tab" id="tab-seances" data-tab="seances" aria-selected="false">Séances</button>
-      <button role="tab" id="tab-preparer" data-tab="preparer" aria-selected="true">Préparer</button>
-      <button role="tab" id="tab-chrono" data-tab="chrono" aria-selected="false">Chrono</button>
+      <button role="tab" id="tab-seances" data-tab="seances" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>Séances</button>
+      <button role="tab" id="tab-preparer" data-tab="preparer" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-4-4L4 16z"/><path d="M14 6l4 4"/></svg>Préparer</button>
+      <button role="tab" id="tab-chrono" data-tab="chrono" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 2M10 2.5h4M18.5 6l1.5-1.5"/></svg>Chrono</button>
     </nav>
   </div>
 </header>
@@ -240,7 +323,7 @@ input:invalid{border-color:var(--danger)}
      arrête la sonnerie ; la pause qui suit part seule, et sonne à son tour ;
    · l'exercice suivant ne démarre que sur un geste de l'entraîneure.          */
 "use strict";
-var CHRONO_VERSION = "1.1.1";
+var CHRONO_VERSION = "1.2.0";
 var CLE = "wonders-chrono", CLE_RUN = "wonders-chrono:en-cours", CLE_TAB = "wonders-chrono:onglet";
 var $ = function (id) { return document.getElementById(id); };
 var seq = 0;
@@ -252,6 +335,14 @@ function fmt(sec) {
   sec = Math.max(0, Math.round(sec));
   var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
   return (h ? h + ":" + (m < 10 ? "0" : "") + m : m) + ":" + (s < 10 ? "0" : "") + s;
+}
+/* Une durée prévue s'écrit à la façon du sport — 40″, 7′30″, 1h05′ — pour ne
+   jamais se confondre avec une heure (18:30) ; le décompte, lui, reste 7:30. */
+function fmtD(sec) {
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 60) return sec + "″";
+  var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  return (h ? h + "h" + (m < 10 ? "0" : "") + m + "′" : m + "′") + (s ? (s < 10 ? "0" : "") + s + "″" : "");
 }
 function fmtLong(sec) {
   sec = Math.round(sec);
@@ -650,34 +741,32 @@ function entete() {
   var titre = RS && enCours() ? RS.nom : s ? s.nom : "Chrono";
   $("h-title").textContent = titre;
   $("h-sub").textContent = RS && enCours() ? "Séance en cours · début " + hhmm(RS.lance) : s ? "Début " + s.debut + " · " + fmtLong(totalSeance(s)) : "Les Wonders · entraînement";
-  var live = enCours() ? "1" : "";
-  if ($("tab-chrono").dataset.live !== live) {
-    $("tab-chrono").dataset.live = live;
-    $("tab-chrono").innerHTML = "Chrono" + (live ? '<span class="live" aria-label="en cours"></span>' : "");
-  }
+  $("tab-chrono").classList.toggle("live", enCours());
+  $("tab-chrono").setAttribute("aria-label", enCours() ? "Chrono, séance en cours" : "Chrono");
 }
 
 /* ── Séances ─────────────────────────────────────────── */
 function rendreSeances() {
-  var h = installHtml() + '<div class="row" style="justify-content:space-between"><p class="sec">Vos séances</p><div class="row">' +
-    '<button class="btn primary" data-a="nouvelle">+ Nouvelle séance</button>' +
-    '<button class="btn" data-a="exporter">Exporter</button><button class="btn" data-a="importer">Importer</button></div></div>';
+  var h = installHtml() + '<div class="tb"><p class="sec">Vos séances</p><button class="btn primary" data-a="nouvelle">+ Nouvelle séance</button></div>';
   h += '<div class="slist">' + D.seances.map(function (s) {
-    var items = deplier(s), live = RS && enCours() && RS.sid === s.id;
+    var live = RS && enCours() && RS.sid === s.id, nb = nbFeuilles(s.exercices), base = debutPrevu(s), tot = totalSeance(s);
     return '<div class="card scard' + (s.id === D.courante ? " cur" : "") + '" data-sid="' + s.id + '">' +
       '<h3>' + esc(s.nom) + (live ? ' <span class="badge ok">en cours</span>' : s.id === D.courante ? ' <span class="badge">ouverte</span>' : "") + '</h3>' +
-      '<div class="meta num">Début ' + esc(s.debut) + ' · ' + fmtLong(totalSeance(s)) + ' · ' + items.filter(function (i) { return i.t === "w"; }).length + ' passages chronométrés</div>' +
-      '<div class="row"><button class="btn sm" data-a="ouvrir">Préparer</button><button class="btn sm" data-a="chrono">Chrono</button>' +
-      '<button class="btn sm" data-a="dupliquer">Dupliquer</button>' +
-      '<button class="btn sm danger' + (arme === "sup:" + s.id ? " armed" : "") + '" data-a="supprimer"' + (live ? " disabled" : "") + '>' + (arme === "sup:" + s.id ? "Supprimer « " + esc(s.nom) + " » ?" : "Supprimer") + '</button></div></div>';
+      '<div class="meta"><span class="num">' + esc(s.debut) + ' → ' + hhmm(base + tot * 1000) + '</span> · ' + fmtLong(tot) + ' · ' + nb + ' exercice' + (nb > 1 ? "s" : "") + '</div>' +
+      '<div class="row"><button class="btn sm" data-a="ouvrir">✏️ Préparer</button><button class="btn sm primary" data-a="chrono">⏱ Chrono</button>' +
+      '<button class="btn sm ghost" data-a="dupliquer">Dupliquer</button>' +
+      '<button class="btn sm ghost danger' + (arme === "sup:" + s.id ? " armed" : "") + '" data-a="supprimer"' + (live ? " disabled" : "") + '>' + (arme === "sup:" + s.id ? "Supprimer « " + esc(s.nom) + " » ?" : "Supprimer") + '</button></div></div>';
   }).join("") + '</div>';
   if (!D.seances.length) h += '<div class="card empty">Aucune séance. Créez-en une, ou importez un fichier exporté depuis un autre appareil.</div>';
   h += '<div class="card stack"><p class="sec">Son</p>' +
     '<p class="note">Sur iPhone et iPad, les sonneries passent même interrupteur sur silencieux, mais elles coupent la musique d\'une autre application. ' +
     'Cochez la case pour garder la musique : le mode silencieux coupera alors aussi les sonneries. Le volume qui compte est celui des médias.</p>' +
-    '<label class="row" style="gap:10px;font-size:15px"><input type="checkbox" id="melange"' + (D.reglages.melange ? " checked" : "") + ' style="width:22px;height:22px"> Laisser jouer la musique des autres applications</label>' +
+    '<label style="display:flex;align-items:center;gap:10px;font-size:15px;cursor:pointer"><input type="checkbox" id="melange"' + (D.reglages.melange ? " checked" : "") + ' style="width:22px;height:22px;flex:none"> Laisser jouer la musique des autres applications</label>' +
     '<div class="row"><button class="btn" data-a="tester">🔔 Tester la sonnerie</button><span class="note" id="s-etat"></span></div></div>';
-  h += '<p class="note">Chrono ' + CHRONO_VERSION + ' · les séances restent sur cet appareil. Exporter puis Importer les fait passer sur un autre.</p>';
+  h += '<div class="card stack"><p class="sec">D\'un appareil à l\'autre</p>' +
+    '<p class="note">Les séances restent sur cet appareil. Exportez-les dans un fichier, puis importez ce fichier sur la tablette ou le téléphone d\'à côté : une séance déjà connue est mise à jour, pas dupliquée.</p>' +
+    '<div class="row"><button class="btn" data-a="exporter">Exporter les séances</button><button class="btn" data-a="importer">Importer un fichier</button></div></div>';
+  h += '<p class="note">Chrono ' + CHRONO_VERSION + "</p>";
   $("v-seances").innerHTML = h;
   rendreSon();
 }
@@ -685,13 +774,13 @@ $("v-seances").addEventListener("click", function (e) {
   var b = e.target.closest("button[data-a]"); if (!b) return;
   var a = b.dataset.a, card = b.closest("[data-sid]"), sid = card && card.dataset.sid;
   var s = sid && D.seances.filter(function (x) { return x.id === sid; })[0];
-  if (a === "nouvelle") { var n = { id: uid(), nom: "Nouvelle séance", debut: "18:00", exercices: [mkEx("Échauffement", mn(10))] }; D.seances.unshift(n); D.courante = n.id; sauver(); montrer("preparer"); var i = $("p-nom"); if (i) { i.focus(); i.select(); } return; }
+  if (a === "nouvelle") { var n = { id: uid(), nom: "Nouvelle séance", debut: "18:00", exercices: [mkEx("Échauffement", mn(10))] }; D.seances.unshift(n); D.courante = n.id; ouvert = null; sauver(); montrer("preparer"); var i = $("p-nom"); if (i) { i.focus(); i.select(); } return; }
   if (a === "exporter") return exporter();
   if (a === "importer") return $("import-file").click();
   if (a === "tester") return testerSon();
   if (a === "installer") return installer();
   if (!s) return;
-  if (a === "ouvrir") { D.courante = s.id; sauver(); montrer("preparer"); return; }
+  if (a === "ouvrir") { if (D.courante !== s.id) ouvert = null; D.courante = s.id; sauver(); montrer("preparer"); return; }
   if (a === "chrono") { D.courante = s.id; sauver(); montrer("chrono"); return; }
   if (a === "dupliquer") {
     var c = normSeance(JSON.parse(JSON.stringify(s)));
@@ -740,70 +829,139 @@ $("import-file").addEventListener("change", function () {
   r.readAsText(f);
 });
 
-/* ── Préparer ────────────────────────────────────────── */
-var menuOuvert = null;
+/* ── Préparer ────────────────────────────────────────────
+   Une liste qu'on parcourt, des réglages qu'on ouvre. Chaque exercice tient
+   sur une ligne : son nom, ses répétitions, son total, son heure. La toucher
+   ouvre ses réglages juste dessous, et un seul à la fois. Un groupe se
+   replie d'un toucher sur son chevron, et le reste d'une visite à l'autre. */
+var ouvert = null, CLE_PLIS = "wonders-chrono:replis", replis = {};
+try { replis = JSON.parse(localStorage.getItem(CLE_PLIS)) || {}; } catch (e) { replis = {}; }
+function sauverPlis() { try { localStorage.setItem(CLE_PLIS, JSON.stringify(replis)); } catch (e) {} }
+var CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 function verrouillee(s) { return !!(s && RS && enCours() && RS.sid === s.id); }
+function nbFeuilles(l) { return l.reduce(function (a, n) { return a + (n.enfants.length ? nbFeuilles(n.enfants) : 1); }, 0); }
+function idsGroupes(l, r) { r = r || []; l.forEach(function (n) { if (n.enfants.length) { r.push(n.id); idsGroupes(n.enfants, r); } }); return r; }
+function pad2(n) { return (n < 10 ? "0" : "") + n; }
+function infoEx(n) {
+  var c = [], g = !!n.enfants.length;
+  if (!g && !n.duree) c.push('<span class="chip warn">durée à régler</span>');
+  if (!g && n.duree && n.repetitions > 1) c.push('<span class="chip">' + n.repetitions + " × " + fmtD(n.duree) + "</span>");
+  if (g && n.repetitions > 1) c.push('<span class="chip">' + n.repetitions + " tours</span>");
+  if (n.repetitions > 1) c.push('<span class="chip">' + (n.pause ? "pause " + fmtD(n.pause) : "pause libre") + "</span>");
+  if (g && replis[n.id]) { var f = nbFeuilles(n.enfants); c.push('<span class="chip">' + f + " exercice" + (f > 1 ? "s" : "") + "</span>"); }
+  return c.join("");
+}
+function resumeEx(n, base, off) {
+  var t = total(n);
+  return (n.enfants.length ? "Un tour " + fmtD(unTour(n)) + " · " : "") + "Total " + fmtD(t) + " · de " + hhmm(base + off * 1000) + " à " + hhmm(base + (off + t) * 1000);
+}
+var PRESETS = { duree: [30, 45, 60, 120, 300, 600, 900, 1200], pause: [0, 10, 15, 30, 60, 120] };
+function dureeCtl(champ, v) {
+  v = v || 0;
+  return '<div class="dur" data-champ="' + champ + '"><div class="dur-in">' +
+    '<button type="button" class="db" data-a="dmoins" aria-label="Moins"' + (v <= 0 ? " disabled" : "") + '>−</button>' +
+    '<label><input type="text" inputmode="numeric" class="d-mm" value="' + Math.floor(v / 60) + '" aria-label="Minutes">min</label>' +
+    '<label><input type="text" inputmode="numeric" class="d-ss" value="' + pad2(v % 60) + '" aria-label="Secondes">s</label>' +
+    '<button type="button" class="db" data-a="dplus" aria-label="Plus">+</button></div>' +
+    '<div class="presets">' + PRESETS[champ].map(function (p) {
+      return '<button type="button" class="pre' + (p === v ? " on" : "") + '" data-a="dval" data-v="' + p + '">' + (p ? fmtD(p) : "Libre") + "</button>";
+    }).join("") + "</div></div>";
+}
+/* Des pas qui grandissent avec la durée : 5 s sous la minute, 15 s jusqu'à
+   cinq minutes, 30 s jusqu'à vingt, la minute au-delà. */
+function pas(v, sens) {
+  var r = sens > 0 ? v : v - 1, p = r < 60 ? 5 : r < 300 ? 15 : r < 1200 ? 30 : 60;
+  return sens > 0 ? Math.min(36000, Math.floor(v / p) * p + p) : Math.max(0, Math.ceil(v / p) * p - p);
+}
+function panneau(n, base, off, d) {
+  var f = trouver(n.id), g = !!n.enfants.length, sup = arme === "del:" + n.id, prec = f.i > 0 ? f.liste[f.i - 1] : null;
+  return '<div class="ex-panel" style="--d:' + d + '">' +
+    '<label class="f">Nom<input type="text" class="ex-nom-in" value="' + esc(n.nom) + '" enterkeyhint="done"></label>' +
+    (g ? "" : '<div class="f"><span>Durée</span>' + dureeCtl("duree", n.duree) + "</div>") +
+    '<div class="f"><span>' + (g ? "Nombre de tours" : "Répétitions") + '</span><div class="step">' +
+      '<button type="button" data-a="moins" aria-label="Une de moins"' + (n.repetitions <= 1 ? " disabled" : "") + ">−</button>" +
+      "<output>" + n.repetitions + '</output><button type="button" data-a="plus" aria-label="Une de plus"' + (n.repetitions >= 99 ? " disabled" : "") + ">+</button></div></div>" +
+    (n.repetitions > 1 ? '<div class="f"><span>Pause entre deux ' + (g ? "tours" : "répétitions") + " — « Libre » : chronométrée, sans sonnerie</span>" + dureeCtl("pause", n.pause) + "</div>" : "") +
+    '<p class="note ex-resume">' + resumeEx(n, base, off) + "</p>" +
+    '<div class="ex-actions">' +
+      '<button class="btn sm" data-a="enfant">+ Sous-exercice</button>' +
+      '<button class="btn sm" data-a="apres">+ Exercice après</button>' +
+      '<button class="btn sm" data-a="copie">Dupliquer</button>' +
+      '<button class="btn sm" data-a="haut"' + (f.i === 0 ? " disabled" : "") + ">↑ Monter</button>" +
+      '<button class="btn sm" data-a="bas"' + (f.i === f.liste.length - 1 ? " disabled" : "") + ">↓ Descendre</button>" +
+      (prec ? '<button class="btn sm" data-a="dans">→ Dans « ' + esc(prec.nom) + " »</button>" : "") +
+      (f.parent ? '<button class="btn sm" data-a="hors">← Sortir de « ' + esc(f.parent.nom) + " »</button>" : "") +
+      '<button class="btn sm danger' + (sup ? " armed" : "") + '" data-a="supprimer">' +
+        (sup ? (g ? "Supprimer avec ses sous-exercices ?" : "Confirmer la suppression") : "Supprimer") + "</button>" +
+    '</div><button class="btn primary ex-ok" data-a="ok">Terminé</button></div>';
+}
+function ligneEx(n, off, base, lock, d) {
+  d = d || 0;
+  var g = !!n.enfants.length, plie = g && !!replis[n.id], open = ouvert === n.id && !lock;
+  var h = '<div class="ex ' + (g ? "group" : "leaf") + (open ? " open" : "") + '" data-id="' + n.id + '"><div class="ex-row">' +
+    (g ? '<button class="pli" data-a="plier" aria-expanded="' + !plie + '" aria-label="' + (plie ? "Déplier « " : "Replier « ") + esc(n.nom) + ' »">' + CHEVRON + "</button>"
+       : '<span class="pli-vide"></span>') +
+    '<button class="ex-main" data-a="ouvrir" aria-expanded="' + open + '"' + (lock ? " disabled" : "") + '><span class="dot" aria-hidden="true"></span>' +
+      '<span class="ex-txt"><span class="ex-nom">' + esc(n.nom) + '</span><span class="ex-info">' + infoEx(n) + "</span></span>" +
+      '<span class="ex-r"><small class="ex-h">' + hhmm(base + off * 1000) + '</small><b class="ex-total">' + fmtD(total(n)) + "</b></span></button></div>" +
+    (open ? panneau(n, base, off, d) : "");
+  if (g) {
+    h += '<div class="ex-kids"' + (plie ? " hidden" : "") + ">";
+    var o = off;
+    n.enfants.forEach(function (c) { h += ligneEx(c, o, base, lock, d + 1); o += total(c); });
+    if (!lock) h += '<button class="ajout" data-a="ajout-dans">+ Ajouter dans « ' + esc(n.nom) + " »</button>";
+    h += "</div>";
+  }
+  return h + "</div>";
+}
 function rendrePreparer() {
   var s = courante(), v = $("v-preparer");
-  if (!s) { v.innerHTML = '<div class="card empty">Aucune séance ouverte. <button class="btn primary" data-a="aller-seances">Voir les séances</button></div>'; return; }
-  var lock = verrouillee(s), dis = lock ? " disabled" : "", base = debutPrevu(s), tot = totalSeance(s), items = deplier(s);
-  var h = lock ? '<div class="locked">Cette séance tourne dans le chrono. Arrêtez-la pour la modifier.</div>' : "";
+  if (!s) { v.innerHTML = '<div class="card empty stack"><p class="note" style="margin:auto">Aucune séance ouverte.</p><button class="btn primary" data-a="aller-seances">Choisir ou créer une séance</button></div>'; return; }
+  var lock = verrouillee(s), dis = lock ? " disabled" : "", base = debutPrevu(s), tot = totalSeance(s), manque = sansDuree(s);
+  var h = lock ? '<div class="locked">Cette séance tourne dans le chrono : elle se modifie une fois arrêtée.</div>' : "";
   h += '<div class="card stack"><div class="row">' +
-    '<label class="f" style="flex:1;min-width:180px">Séance<input type="text" id="p-nom" value="' + esc(s.nom) + '"' + dis + '></label>' +
-    '<label class="f">Heure de début<input type="time" id="p-debut" value="' + esc(s.debut) + '"' + dis + '></label></div>' +
+    '<label class="f" style="flex:1;min-width:180px">Nom de la séance<input type="text" id="p-nom" value="' + esc(s.nom) + '"' + dis + ' enterkeyhint="done"></label>' +
+    '<label class="f">Heure de début<input type="time" id="p-debut" value="' + esc(s.debut) + '"' + dis + "></label></div>" +
     '<div class="summary"><div><b id="p-tot">' + fmtLong(tot) + '</b><span>durée totale</span></div>' +
     '<div><b id="p-fin">' + hhmm(base + tot * 1000) + '</b><span>fin prévue</span></div>' +
-    '<div><b id="p-nb">' + items.filter(function (i) { return i.t === "w"; }).length + '</b><span>passages chronométrés</span></div></div></div>';
-  h += '<p class="note warn" id="p-manque"></p>';
-  h += '<p class="sec">Exercices</p><div class="card"><div class="tree">';
-  var lignes = [];
-  (function go(liste, depth, off) {
-    liste.forEach(function (n) {
-      var feuille = !n.enfants.length, t = total(n);
-      lignes.push('<div class="node ' + (feuille ? "leaf" : "group") + '" style="--d:' + Math.min(depth, 6) + '" data-id="' + n.id + '">' +
-        '<div class="l1"><span class="dot" aria-hidden="true"></span>' +
-        '<input type="text" class="nom" value="' + esc(n.nom) + '" aria-label="Nom de l\'exercice"' + dis + '>' +
-        '<button class="ico" data-a="menu" aria-label="Actions sur ' + esc(n.nom) + '" aria-expanded="' + (menuOuvert === n.id) + '"' + dis + '>⋯</button></div>' +
-        '<div class="l2">' +
-        (feuille ? '<label class="fld">Durée<input type="text" class="duree" inputmode="decimal" placeholder="m:ss" value="' + (n.duree ? fmt(n.duree) : "") + '"' + dis + '></label>'
-                 : '<span class="fld">Un tour <span class="calc tour">' + fmt(unTour(n)) + '</span></span>') +
-        '<span class="fld">' + (feuille ? "Répétitions" : "Tours") + '<span class="step"><button data-a="moins" aria-label="Une de moins"' + (lock || n.repetitions <= 1 ? " disabled" : "") + '>−</button>' +
-          '<output>' + n.repetitions + '</output><button data-a="plus" aria-label="Une de plus"' + (lock || n.repetitions >= 99 ? " disabled" : "") + '>+</button></span></span>' +
-        (n.repetitions > 1 ? '<label class="fld">Pause<input type="text" class="pause" inputmode="decimal" placeholder="libre" value="' + (n.pause ? fmt(n.pause) : "") + '"' + dis + '></label>' : "") +
-        ((n.repetitions > 1 || !feuille) ? '<span class="fld">Total <span class="calc tot">' + fmt(t) + '</span></span>' : "") +
-        '<span class="when">' + hhmm(base + off * 1000) + ' → ' + hhmm(base + (off + t) * 1000) + '</span></div>' +
-        (menuOuvert === n.id && !lock ? menuHtml(n) : "") + '</div>');
-      /* Les sous-exercices s'affichent une fois, à l'heure de leur premier tour. */
-      if (!feuille) go(n.enfants, depth + 1, off);
-      off += t;
-    });
-  })(s.exercices, 0, 0);
-  h += (lignes.join("") || '<div class="empty">Aucun exercice. Ajoutez le premier.</div>') + '</div></div>';
-  h += '<div class="row"><button class="btn primary" data-a="ajouter"' + dis + '>+ Exercice</button>' +
-    '<button class="btn" data-a="aller-chrono">Aller au chrono →</button></div>' +
-    '<p class="note">Durée : « 5 » pour 5 minutes, « 5:30 », « 0:45 » ou « 45s ». Une pause laissée vide est libre : elle se chronomètre sans sonner.</p>';
+    '<div><b id="p-nb">' + deplier(s).filter(function (i) { return i.t === "w"; }).length + "</b><span>passages chronométrés</span></div></div>" +
+    '<p class="note warn" id="p-manque"></p>' +
+    (lock ? '<button class="btn primary big" data-a="aller-chrono">Voir le chrono</button>'
+          : '<button class="btn go big" id="p-lancer" data-a="lancer-seance">▶ Lancer la séance</button>') + "</div>";
+  var gs = idsGroupes(s.exercices);
+  h += '<div class="tb"><p class="sec">Exercices</p>' +
+    (gs.length ? '<button class="btn ghost sm" data-a="tout-deplier">Tout déplier</button><button class="btn ghost sm" data-a="tout-plier">Tout replier</button>' : "") + "</div>";
+  var lignes = "", o = 0;
+  s.exercices.forEach(function (n) { lignes += ligneEx(n, o, base, lock); o += total(n); });
+  h += '<div class="card"><div class="tree">' + (lignes || '<p class="empty">Aucun exercice pour l\'instant.</p>') + "</div>" +
+    (lock ? "" : '<button class="ajout grand" data-a="ajouter">+ Ajouter un exercice</button>') + "</div>";
+  h += '<p class="note">Touchez un exercice pour régler sa durée, ses répétitions et ses pauses. Le chevron replie un groupe et ses sous-exercices.</p>';
   v.innerHTML = h;
   majPreparer();
 }
 /* Après une saisie, seuls les nombres déduits changent : on les met à jour
    sans reconstruire les champs. Reconstruire ici détruirait le bouton que
-   l'entraîneure est en train de toucher — la saisie quitte son champ au
+   l'entraîneur est en train de toucher — la saisie quitte son champ au
    moment même où le doigt se pose ailleurs. */
 function majPreparer() {
   var s = courante(); if (!s || !$("p-tot")) return;
   var base = debutPrevu(s), tot = totalSeance(s), manque = sansDuree(s);
-  $("p-tot").textContent = fmtLong(tot);
-  $("p-fin").textContent = hhmm(base + tot * 1000);
-  $("p-nb").textContent = deplier(s).filter(function (i) { return i.t === "w"; }).length;
-  $("p-manque").textContent = manque.length ? "Durée à saisir : " + manque.join(", ") + ". Le chrono ne démarre pas sans elle." : "";
+  var set = function (el, t, html) { if (!el) return; if (html) { if (el.innerHTML !== t) el.innerHTML = t; } else if (el.textContent !== t) el.textContent = t; };
+  set($("p-tot"), fmtLong(tot)); set($("p-fin"), hhmm(base + tot * 1000));
+  set($("p-nb"), String(deplier(s).filter(function (i) { return i.t === "w"; }).length));
+  set($("p-manque"), manque.length ? "Durée à régler : " + manque.join(", ") + "." : "");
   $("p-manque").hidden = !manque.length;
+  if ($("p-lancer")) $("p-lancer").disabled = !!manque.length || !s.exercices.length;
   (function go(liste, off) {
     liste.forEach(function (n) {
-      var row = document.querySelector('.node[data-id="' + n.id + '"]'), t = total(n), x;
-      if (row) {
-        if ((x = row.querySelector(":scope > .l2 .tour"))) x.textContent = fmt(unTour(n));
-        if ((x = row.querySelector(":scope > .l2 .tot"))) x.textContent = fmt(t);
-        row.querySelector(":scope > .l2 .when").textContent = hhmm(base + off * 1000) + " → " + hhmm(base + (off + t) * 1000);
+      var el = document.querySelector('.ex[data-id="' + n.id + '"]'), t = total(n);
+      if (el) {
+        var row = el.querySelector(":scope > .ex-row");
+        set(row.querySelector(".ex-nom"), n.nom);
+        set(row.querySelector(".ex-info"), infoEx(n), true);
+        set(row.querySelector(".ex-total"), fmtD(t));
+        set(row.querySelector(".ex-h"), hhmm(base + off * 1000));
+        set(el.querySelector(":scope > .ex-panel .ex-resume"), resumeEx(n, base, off));
       }
       go(n.enfants, off);
       off += t;
@@ -811,38 +969,49 @@ function majPreparer() {
   })(s.exercices, 0);
   entete();
 }
-function menuHtml(n) {
-  var f = trouver(n.id), sup = arme === "del:" + n.id;
-  return '<div class="menu">' +
-    '<button class="btn sm" data-a="enfant">+ Sous-exercice</button>' +
-    '<button class="btn sm" data-a="apres">+ Exercice après</button>' +
-    '<button class="btn sm" data-a="copie">Dupliquer</button>' +
-    '<button class="btn sm" data-a="haut"' + (f.i === 0 ? " disabled" : "") + '>↑ Monter</button>' +
-    '<button class="btn sm" data-a="bas"' + (f.i === f.liste.length - 1 ? " disabled" : "") + '>↓ Descendre</button>' +
-    '<button class="btn sm" data-a="dans"' + (f.i === 0 ? " disabled" : "") + '>→ Sous l\'exercice précédent</button>' +
-    '<button class="btn sm" data-a="hors"' + (f.parent ? "" : " disabled") + '>← Remonter d\'un niveau</button>' +
-    '<button class="btn sm danger' + (sup ? " armed" : "") + '" data-a="supprimer">' +
-      (sup ? (n.enfants.length ? "Supprimer avec ses sous-exercices ?" : "Confirmer la suppression") : "Supprimer") + '</button></div>';
+function lireDur(dur) {
+  var mm = dur.querySelector(".d-mm").value.trim(), ss = dur.querySelector(".d-ss").value.trim();
+  if (/[:hms,.]/i.test(mm)) return lireDuree(mm);          // « 1:30 » tapé d'un bloc
+  if (!/^\d*$/.test(mm) || !/^\d*$/.test(ss)) return null;
+  return Math.min(36000, (parseInt(mm, 10) || 0) * 60 + (parseInt(ss, 10) || 0));
 }
 function changeArbre(focusId) {
   sauver(); rendre();
-  if (focusId) { var el = document.querySelector('.node[data-id="' + focusId + '"] input.nom'); if (el) { el.focus(); el.select(); } }
+  if (focusId) {
+    var el = document.querySelector('.ex[data-id="' + focusId + '"] > .ex-panel .ex-nom-in');
+    if (el) { el.focus(); el.select(); }
+    var p = document.querySelector('.ex[data-id="' + focusId + '"]');
+    if (p && p.scrollIntoView) try { p.scrollIntoView({ block: "nearest" }); } catch (e) {}
+  }
 }
 function neufIds(n) { n.id = uid(); n.enfants.forEach(neufIds); return n; }
-function agir(id, a) {
-  var s = courante(); if (!s || verrouillee(s)) return;
-  if (a === "ajouter") { var e0 = mkEx("Nouvel exercice", mn(5)); s.exercices.push(e0); menuOuvert = null; return changeArbre(e0.id); }
+function agir(id, a, b) {
+  var s = courante(); if (!s) return;
+  if (a === "tout-plier") { idsGroupes(s.exercices).forEach(function (g) { replis[g] = true; }); sauverPlis(); ouvert = null; return rendre(); }
+  if (a === "tout-deplier") { idsGroupes(s.exercices).forEach(function (g) { delete replis[g]; }); sauverPlis(); return rendre(); }
+  if (a === "plier") {
+    if (replis[id]) delete replis[id]; else { replis[id] = true; if (ouvert && ouvert !== id && trouverDans(id, ouvert)) ouvert = null; }
+    sauverPlis(); return rendre();
+  }
+  if (verrouillee(s)) return;
+  if (a === "ajouter") { var e0 = mkEx("Nouvel exercice", mn(5)); s.exercices.push(e0); ouvert = e0.id; return changeArbre(e0.id); }
   var f = trouver(id); if (!f) return;
   var n = f.n;
-  if (a === "menu") { menuOuvert = menuOuvert === id ? null : id; arme = null; return rendre(); }
+  if (a === "ouvrir") { ouvert = ouvert === id ? null : id; arme = null; return changeArbre(); }
+  if (a === "ok") { ouvert = null; arme = null; return changeArbre(); }
   if (a === "plus" || a === "moins") { n.repetitions = entier(n.repetitions + (a === "plus" ? 1 : -1), 1, 99, 1); return changeArbre(); }
-  if (a === "enfant") {
+  if (a === "dmoins" || a === "dplus" || a === "dval") {
+    var champ = b.closest(".dur").dataset.champ, v = n[champ] || 0;
+    n[champ] = a === "dval" ? +b.dataset.v : pas(v, a === "dplus" ? 1 : -1);
+    return changeArbre();
+  }
+  if (a === "enfant" || a === "ajout-dans") {
     /* Une feuille qui reçoit un sous-exercice lui transmet sa durée : le total ne bouge pas. */
     var c = mkEx("Nouveau sous-exercice", n.enfants.length ? mn(5) : (n.duree || mn(5)));
-    n.enfants.push(c); delete n.duree; menuOuvert = null; return changeArbre(c.id);
+    n.enfants.push(c); delete n.duree; delete replis[n.id]; sauverPlis(); ouvert = c.id; return changeArbre(c.id);
   }
-  if (a === "apres") { var e = mkEx("Nouvel exercice", mn(5)); f.liste.splice(f.i + 1, 0, e); menuOuvert = null; return changeArbre(e.id); }
-  if (a === "copie") { var cp = neufIds(JSON.parse(JSON.stringify(n))); f.liste.splice(f.i + 1, 0, cp); menuOuvert = null; return changeArbre(cp.id); }
+  if (a === "apres") { var e = mkEx("Nouvel exercice", mn(5)); f.liste.splice(f.i + 1, 0, e); ouvert = e.id; return changeArbre(e.id); }
+  if (a === "copie") { var cp = neufIds(JSON.parse(JSON.stringify(n))); cp.nom = n.nom + " (copie)"; f.liste.splice(f.i + 1, 0, cp); ouvert = cp.id; return changeArbre(cp.id); }
   if (a === "haut" && f.i > 0) f.liste.splice(f.i - 1, 0, f.liste.splice(f.i, 1)[0]);
   if (a === "bas" && f.i < f.liste.length - 1) f.liste.splice(f.i + 1, 0, f.liste.splice(f.i, 1)[0]);
   if (a === "dans" && f.i > 0) {
@@ -851,7 +1020,7 @@ function agir(id, a) {
       /* Le précédent devient un groupe : sa durée devient son premier sous-exercice. */
       prec.enfants.push(mkEx(prec.nom, prec.duree || mn(5))); delete prec.duree;
     }
-    prec.enfants.push(f.liste.splice(f.i, 1)[0]);
+    prec.enfants.push(f.liste.splice(f.i, 1)[0]); delete replis[prec.id]; sauverPlis();
   }
   if (a === "hors" && f.parent) {
     var g = trouver(f.parent.id);
@@ -860,32 +1029,43 @@ function agir(id, a) {
   }
   if (a === "supprimer") {
     if (arme !== "del:" + id) { armer("del:" + id); return rendre(); }
-    arme = null; menuOuvert = null; f.liste.splice(f.i, 1);
+    arme = null; ouvert = null; f.liste.splice(f.i, 1);
     if (f.parent && !f.parent.enfants.length) f.parent.duree = mn(5);
+    toast("« " + n.nom + " » supprimé.");
   }
   changeArbre();
 }
+/* `id` est-il dans le sous-arbre du groupe `g` ? */
+function trouverDans(g, id) { var f = trouver(g); return !!(f && trouver(id, f.n.enfants)); }
 $("v-preparer").addEventListener("click", function (e) {
-  var b = e.target.closest("button[data-a]"); if (!b) return;
-  if (b.dataset.a === "aller-seances") return montrer("seances");
-  if (b.dataset.a === "aller-chrono") return montrer("chrono");
-  var row = b.closest(".node");
-  agir(row ? row.dataset.id : null, b.dataset.a);
+  var b = e.target.closest("button[data-a]"); if (!b || b.disabled) return;
+  var a = b.dataset.a;
+  if (a === "aller-seances") return montrer("seances");
+  if (a === "aller-chrono") return montrer("chrono");
+  if (a === "lancer-seance") { montrer("chrono"); return lancerSeance(); }
+  var row = b.closest(".ex");
+  agir(row ? row.dataset.id : null, a, b);
 });
 $("v-preparer").addEventListener("change", function (e) {
   var s = courante(), el = e.target; if (!s || verrouillee(s)) return;
   if (el.id === "p-nom") { s.nom = el.value.trim() || "Séance"; el.value = s.nom; sauver(); return majPreparer(); }
   if (el.id === "p-debut") { if (/^\d{2}:\d{2}$/.test(el.value)) { s.debut = el.value; sauver(); } else el.value = s.debut; return majPreparer(); }
-  var row = el.closest(".node"), f = row && trouver(row.dataset.id); if (!f) return;
-  if (el.classList.contains("nom")) { f.n.nom = el.value.trim() || "Sans nom"; el.value = f.n.nom; }
-  if (el.classList.contains("duree") || el.classList.contains("pause")) {
-    var cle = el.classList.contains("duree") ? "duree" : "pause", d = lireDuree(el.value);
-    if (d === null) { toast("« " + el.value + " » ne se lit pas comme une durée. Écrivez 5, 5:30, 0:45 ou 45s."); el.value = f.n[cle] ? fmt(f.n[cle]) : ""; return; }
-    f.n[cle] = d; el.value = d ? fmt(d) : "";
+  var row = el.closest(".ex"), f = row && trouver(row.dataset.id); if (!f) return;
+  if (el.classList.contains("ex-nom-in")) { f.n.nom = el.value.trim() || "Sans nom"; el.value = f.n.nom; }
+  var dur = el.closest(".dur");
+  if (dur) {
+    var champ = dur.dataset.champ, d = lireDur(dur);
+    if (d === null) toast("Écrivez des chiffres : les minutes dans la première case, les secondes dans la seconde.");
+    else f.n[champ] = d;
+    var v = f.n[champ] || 0;
+    dur.querySelector(".d-mm").value = Math.floor(v / 60); dur.querySelector(".d-ss").value = pad2(v % 60);
+    dur.querySelector('[data-a="dmoins"]').disabled = v <= 0;
+    dur.querySelectorAll(".pre").forEach(function (p) { p.classList.toggle("on", +p.dataset.v === v); });
   }
   sauver(); majPreparer();
 });
 $("v-preparer").addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.tagName === "INPUT") e.target.blur(); });
+$("v-preparer").addEventListener("focusin", function (e) { if (e.target.matches && e.target.matches(".d-mm,.d-ss")) e.target.select(); });
 
 /* ── Chrono ──────────────────────────────────────────── */
 var cleChrono = "";
@@ -946,7 +1126,8 @@ function construireChrono() {
       '<div class="status">Début prévu ' + esc(s.debut) + ' · fin prévue ' + hhmm(base + tot * 1000) + '</div>' +
       (manque.length ? '<div class="status warn">Durée à saisir : ' + esc(manque.join(", ")) + '</div>' : "") + '</div>' +
       '<div class="ctl"><button class="btn go main" id="c-main" data-a="lancer"' + (manque.length || !items.length ? " disabled" : "") + '>▶ Démarrer la séance</button></div>' +
-      sonHtml() + '</div><div class="side stack"><p class="sec">Déroulé prévu</p><div class="card"><div class="plan" id="c-plan">' + planHtml(items, base, {}, -1, false) + '</div></div></div></div>';
+      sonHtml() + '</div>' + planBloc("Déroulé prévu") + '</div>';
+    rendrePlan(); rendreSon();
     return;
   }
   var it = RS.items[RS.k], fini = RS.phase === "fini";
@@ -966,11 +1147,11 @@ function construireChrono() {
     h += '<div class="ctl"><button class="btn go main" id="c-main" data-a="demarrer">' + esc(libelleDemarrer()) + '</button>' +
       '<button class="btn" data-a="refaire">⏮ Refaire le précédent</button><button class="btn" data-a="passer">⏭ Passer</button>' + boutonArret() + '</div>';
   }
-  h += '<div class="next" id="c-next"></div>' + sonHtml() + '</div>' +
-    '<div class="side stack"><p class="sec">Déroulé' + (RS.recale ? " · recalé sur le départ réel" : "") + '</p><div class="card"><div class="plan" id="c-plan">' +
-    planHtml(RS.items, RS.ancre, RS.journal, fini ? RS.items.length : RS.k, true) + '</div></div></div></div>';
+  h += '<div class="next" id="c-next"></div>' + sonHtml() + '</div>' + planBloc("Déroulé" + (RS.recale ? " · recalé sur le départ réel" : "")) + '</div>';
   v.innerHTML = h;
-  var cur = v.querySelector(".plan .cur"), box = $("c-plan");
+  rendrePlan(); rendreSon();
+  /* Sur tablette, le déroulé se place sur l'exercice en cours. */
+  var cur = v.querySelector(".pl.leaf.cur, .pl.leaf.next"), box = $("c-plan");
   if (cur && box && window.innerWidth >= 900) box.parentNode.scrollTop = Math.max(0, cur.offsetTop - box.parentNode.offsetTop - 80);
 }
 function boutonArret() {
@@ -979,18 +1160,88 @@ function boutonArret() {
 function sonHtml() {
   return '<div class="sound"><span>Son</span><span class="state" id="c-son"></span><button class="btn sm" data-a="tester">🔔 Tester</button><span id="c-ecran"></span></div>';
 }
-function planHtml(items, base, journal, k, run) {
-  return items.map(function (it, i) {
-    var j = journal[i] || {}, cls = (i < k ? "done" : i === k ? "cur" : "");
-    if (it.t === "p") {
-      return '<div class="p ' + cls + '"><span class="t"></span><span>Pause' + (it.groupe ? " entre deux tours" : "") + (it.dur ? "" : " libre") + '</span><span class="d">' +
-        (it.dur ? fmt(it.dur) : "—") + (j.reel != null ? ' <span class="real' + (j.reel > it.dur + 5 && it.dur ? " late" : "") + '">→ ' + fmt(j.reel) + '</span>' : "") + '</span></div>';
+/* Le déroulé, regroupé comme la séance. L'arbre se refait depuis les
+   intervalles (leur chemin dit à quel groupe chacun appartient) : il vaut
+   donc aussi pour une séance lancée avant cette version. Chaque nœud garde
+   tous ses intervalles, tours et pauses compris. */
+var plisPlan = {}, courantsPlan = "";
+function arbreDeroule(items) {
+  var racine = [], nodes = {};
+  items.forEach(function (it, i) {
+    var chemin = it.chemin.concat([{ id: it.id, nom: it.nom, reps: it.reps }]), enfants = racine;
+    chemin.forEach(function (c, d) {
+      var n = nodes[c.id];
+      if (!n) { n = nodes[c.id] = { id: c.id, nom: c.nom, reps: c.reps, d: d, enfants: [], items: [], feuille: false }; enfants.push(n); }
+      n.items.push(i); enfants = n.enfants;
+    });
+    if (it.t === "w") nodes[it.id].feuille = true;
+  });
+  return racine;
+}
+function planGroupe(items, base, journal, k, phase) {
+  var fini = phase === "fini", actif = phase === "travail" || phase === "pause";
+  var etatIdx = function (i) { return fini || i < k ? "done" : i === k ? (actif ? "cur" : "next") : "todo"; };
+  var etat = function (n) {
+    if (fini || n.items[n.items.length - 1] < k) return "done";
+    if (n.items.indexOf(k) >= 0) return actif ? "cur" : "next";
+    return n.items[0] < k ? "part" : "todo";          // fait au premier tour, à refaire au suivant
+  };
+  var deplie = function (n) { return plisPlan[n.id] != null ? plisPlan[n.id] : (etat(n) === "cur" || etat(n) === "next"); };
+  function rendNoeud(n) {
+    var e = etat(n), g = !n.feuille, prem = items[n.items[0]], prevu = 0, reel = 0, aReel = false, pauses = 0, aPause = false, sautes = 0;
+    var propres = n.items.filter(function (i) { return items[i].id === n.id; });
+    n.items.forEach(function (i) {
+      var j = journal[i] || {}; prevu += items[i].dur;
+      if (j.reel != null) { reel += j.reel; aReel = true; }
+      if (items[i].t === "p" && items[i].id === n.id && j.reel != null) { pauses += j.reel; aPause = true; }
+      if (j.saute && items[i].t === "w") sautes++;
+    });
+    var pz = propres.map(function (i) { return items[i]; }).filter(function (x) { return x.t === "p"; })[0];
+    var info = [];
+    if (!g) info.push((n.reps > 1 ? n.reps + " × " : "") + fmtD(items[propres[0]].dur));
+    if (g && n.reps > 1) info.push(n.reps + " tours");
+    if (n.reps > 1) info.push(pz && pz.dur ? "pause " + fmtD(pz.dur) : "pause libre");
+    if (aPause) info.push("pauses prises " + fmtD(pauses));
+    if (sautes) info.push(sautes + " sauté" + (sautes > 1 ? "s" : ""));
+    /* Le tour en cours d'un groupe répété, dit sur sa ligne. */
+    var tour = "";
+    if (g && n.reps > 1 && (e === "cur" || e === "next")) {
+      var x = items[k], c = x.chemin.filter(function (y) { return y.id === n.id; })[0];
+      tour = c ? "tour " + c.rep + "/" + n.reps : x.id === n.id && x.t === "p" ? "avant le tour " + (x.apres + 1) + "/" + n.reps : "";
     }
-    var ch = cheminTexte(it), extra = j.saute ? " · sauté" : j.attente != null && j.attente >= 5 ? " · attente " + fmt(j.attente) : "";
-    return '<div class="' + cls + '"><span class="t">' + hhmm(base + it.o * 1000) + '</span><span>' + esc(libelleTravail(it)) +
-      ((ch || extra) ? '<small>' + esc(ch) + esc(extra) + '</small>' : "") + '</span><span class="d">' + fmt(it.dur) +
-      (j.reel != null ? ' <span class="real' + (j.reel > it.dur + 5 ? " late" : "") + '">→ ' + fmt(j.reel) + '</span>' : "") + '</span></div>';
-  }).join("");
+    var occ = !g && propres.length > 1 ? '<span class="occ" aria-hidden="true">' + propres.filter(function (i) { return items[i].t === "w"; }).map(function (i) {
+      return '<i class="' + ((journal[i] || {}).saute ? "saute" : etatIdx(i)) + '"></i>'; }).join("") + "</span>" : "";
+    var droite = '<span class="pl-r"><small>' + hhmm(base + prem.o * 1000) + "</small>" +
+      (!aReel ? '<b title="durée prévue">' + fmtD(prevu) + "</b>"
+        : e === "done" ? '<b class="real' + (reel > prevu + 5 ? " late" : "") + '" title="durée réelle, prévue ' + fmtD(prevu) + '">' + fmtD(reel) + "</b>"
+        : '<b title="fait / prévu"><span class="real">' + fmtD(reel) + "</span> / " + fmtD(prevu) + "</b>") + "</span>";
+    var corps = '<span class="st" aria-hidden="true"></span><span class="pl-txt"><span class="pl-nom">' + esc(n.nom) +
+      (tour ? ' <span class="chip cur">' + tour + "</span>" : "") + "</span>" +
+      (info.length || occ ? '<span class="pl-info">' + esc(info.join(" · ")) + occ + "</span>" : "") + "</span>" + droite;
+    if (!g) return '<div class="pl leaf ' + e + '" data-id="' + n.id + '"><div class="pl-row">' + corps + "</div></div>";
+    var o = deplie(n);
+    return '<div class="pl group ' + e + (n.d === 0 ? " bloc" : "") + '" data-id="' + n.id + '">' +
+      '<button class="pl-row" data-a="pli-plan" aria-expanded="' + o + '"><svg class="pl-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>' + corps + "</button>" +
+      '<div class="pl-kids"' + (o ? "" : " hidden") + ">" + n.enfants.map(rendNoeud).join("") + "</div></div>";
+  }
+  /* Quand le chrono entre dans un nouveau groupe, il s'ouvre, même replié à la main. */
+  var cour = arbreCourant(items, k).join("/");
+  if (cour !== courantsPlan) { courantsPlan = cour; arbreCourant(items, k).forEach(function (id) { delete plisPlan[id]; }); }
+  return arbreDeroule(items).map(rendNoeud).join("");
+}
+function arbreCourant(items, k) { var it = items[k]; return it ? it.chemin.map(function (c) { return c.id; }).concat([it.id]) : []; }
+function donneesPlan() {
+  if (RS) return { items: RS.items, base: RS.ancre, journal: RS.journal, k: RS.phase === "fini" ? RS.items.length : RS.k, phase: RS.phase };
+  var s = courante(); return s ? { items: deplier(s), base: debutPrevu(s), journal: {}, k: 0, phase: "pret" } : null;
+}
+function rendrePlan() {
+  var d = donneesPlan(), box = $("c-plan"); if (!d || !box) return;
+  box.innerHTML = planGroupe(d.items, d.base, d.journal, d.k, d.phase);
+}
+function planBloc(titre) {
+  return '<div class="side stack"><div class="plan-tb"><p class="sec">' + titre + '</p><button class="btn ghost sm" data-a="plan-tout" data-v="1">Tout déplier</button>' +
+    '<button class="btn ghost sm" data-a="plan-tout" data-v="0">Tout replier</button></div><div class="card"><div class="plan" id="c-plan"></div></div>' +
+    '<p class="note">À droite : l\'heure prévue, puis la durée — prévue, réelle une fois faite.</p></div>';
 }
 function bilanHtml() {
   var tr = 0, pa = 0, at = 0;
@@ -1031,10 +1282,10 @@ function majChrono() {
     rep = it.groupe ? "Avant le tour " + (it.apres + 1) + " sur " + it.reps : "Avant la répétition " + (it.apres + 1) + " sur " + it.reps;
     if (!it.dur) { txt = fmt(e); cls += " up"; st = "Pause libre : chronométrée, sans sonnerie. Démarrez quand vous voulez."; }
     else if (e < it.dur) { txt = fmt(Math.ceil(it.dur - e - 0.001)); if (it.dur - e <= 10) cls += " low"; st = "Reprise prévue à " + hhmm(RS.debut + it.dur * 1000, true); }
-    else { txt = "+" + fmt(e - it.dur); cls += " over"; st = "Pause de " + fmt(it.dur) + " dépassée : démarrez " + (nx ? libelleTravail(nx) : "la suite") + "."; }
+    else { txt = "+" + fmt(e - it.dur); cls += " over"; st = "Pause de " + fmtD(it.dur) + " dépassée : démarrez " + (nx ? libelleTravail(nx) : "la suite") + "."; }
   } else {
     ph = "En attente de votre signal"; nom = it.nom; rep = it.reps > 1 ? "Répétition " + it.rep + " sur " + it.reps : "";
-    txt = fmt(e); cls += " up"; st = "Attente depuis " + hhmm(RS.debut, true) + " · " + fmt(it.dur) + " à faire";
+    txt = fmt(e); cls += " up"; st = "Attente depuis " + hhmm(RS.debut, true) + " · " + fmtD(it.dur) + " à faire";
   }
   set("c-crumbs", crumbs); set("c-phase", ph); set("c-nom", nom); set("c-rep", rep); set("c-status", st);
   if (c.textContent !== txt) c.textContent = txt;
@@ -1051,8 +1302,8 @@ function majChrono() {
   if (!fini) {
     var k = RS.phase === "travail" ? RS.k + 1 : RS.phase === "pause" ? RS.k + 2 : RS.k + 1, suiv = RS.items[k];
     var pre = RS.phase === "travail" ? "Ensuite : " : "Puis : ";
-    if (suiv && suiv.t === "p") nxt = pre + "<b>pause " + (suiv.dur ? fmt(suiv.dur) : "libre") + "</b>" + (prochainTravail(k) ? ", puis " + esc(libelleTravail(prochainTravail(k))) : "");
-    else if (suiv) nxt = pre + "<b>" + esc(libelleTravail(suiv)) + "</b> · " + fmt(suiv.dur);
+    if (suiv && suiv.t === "p") nxt = pre + "<b>pause " + (suiv.dur ? fmtD(suiv.dur) : "libre") + "</b>" + (prochainTravail(k) ? ", puis " + esc(libelleTravail(prochainTravail(k))) : "");
+    else if (suiv) nxt = pre + "<b>" + esc(libelleTravail(suiv)) + "</b> · " + fmtD(suiv.dur);
     else nxt = "Dernier exercice de la séance.";
   }
   var ne = $("c-next"); if (ne && ne.innerHTML !== nxt) ne.innerHTML = nxt;
@@ -1066,6 +1317,12 @@ function rendreSon() {
 $("v-chrono").addEventListener("click", function (e) {
   var b = e.target.closest("button[data-a]"); if (!b) return;
   var a = b.dataset.a;
+  if (a === "pli-plan") { var pl = b.closest(".pl"); plisPlan[pl.dataset.id] = b.getAttribute("aria-expanded") !== "true"; return rendrePlan(); }
+  if (a === "plan-tout") {
+    var d = donneesPlan(); if (!d) return;
+    (function go(l) { l.forEach(function (n) { if (!n.feuille) { plisPlan[n.id] = b.dataset.v === "1"; go(n.enfants); } }); })(arbreDeroule(d.items));
+    return rendrePlan();
+  }
   if (a === "lancer") return lancerSeance();
   if (a === "tester") return testerSon();
   if (a === "son") { debloquerSon(); return; }
@@ -1089,7 +1346,7 @@ function rendreSonnerie() {
   if (so.type === "fin") {
     what = "Fin : " + libelleTravail(it);
     var nx = RS.items[so.k + 1];
-    sub = nx && nx.t === "p" ? (nx.dur ? "La pause de " + fmt(nx.dur) + " a commencé." : "Pause libre : elle est chronométrée.") : nx ? "Prochain : " + libelleTravail(nx) + ". Il démarrera sur votre signal." : "";
+    sub = nx && nx.t === "p" ? (nx.dur ? "La pause de " + fmtD(nx.dur) + " a commencé." : "Pause libre : elle est chronométrée.") : nx ? "Prochain : " + libelleTravail(nx) + ". Il démarrera sur votre signal." : "";
   } else if (so.type === "reprise") {
     var w = RS.items[so.k + 1];
     what = "Fin de la pause"; sub = w ? "À vous de lancer : " + libelleTravail(w) + "." : "";

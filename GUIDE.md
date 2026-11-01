@@ -1029,23 +1029,34 @@ Safari : installez-la d'abord et préparez vos séances dedans, ou faites-les pa
 par `Séances → Exporter` puis `Importer`.
 
 **Préparer la séance, la veille.** `Séances → + Nouvelle séance`, un nom, l'heure de
-début. Chaque exercice se nomme ; `⋯` en ajoute un après, ou un **sous-exercice**
-dessous. Seuls les exercices du dernier niveau (pastille ambre) prennent une durée :
-`5` pour cinq minutes, `5:30`, `0:45`, `45s`. Un exercice qui regroupe des
-sous-exercices (pastille creuse) affiche la somme, rien d'autre.
+début. Chaque exercice tient sur une ligne ; **touchez-la** pour ouvrir ses réglages
+dessous : son nom, sa durée, ses répétitions, sa pause. `+ Sous-exercice` en met un
+dessous, `+ Exercice après` à côté ; `→ Dans « … »` range l'exercice dans celui qui
+le précède, `← Sortir de « … »` l'en ressort. `Terminé` referme.
 
-`−` et `+` règlent les **répétitions** — sur un exercice, ou sur un groupe entier
-(« Gainage en circuit, 3 tours »). Dès deux répétitions, la case **Pause** paraît :
-le temps de récupération entre deux répétitions. Laissée vide, la pause est libre —
-elle se chronomètre, mais ne sonne pas. Chaque ligne affiche son créneau
-(`18:05 → 18:12`) ; le haut de page, la durée totale et la fin prévue.
+Seuls les exercices du dernier niveau (pastille ambre) prennent une durée. Elle se
+règle sans clavier : `−` et `+`, ou une durée toute faite (`30″`, `45″`, `1′`, `5′`,
+`10′`…) ; au besoin, les minutes et les secondes se tapent chacune dans sa case. Un
+exercice qui regroupe des sous-exercices (pastille creuse) affiche la somme, rien
+d'autre. Les durées s'écrivent `7′30″`, les heures `18:05` : on ne confond plus
+« 18′30″ de bloc » et « début à 18:30 ».
+
+`−` et `+` règlent aussi les **répétitions** — d'un exercice, ou d'un groupe entier
+(« Gainage en circuit, 3 tours »). Dès deux répétitions, la **pause** paraît : le
+temps de récupération entre deux répétitions. `Libre`, elle se chronomètre mais ne
+sonne pas.
+
+Une longue séance se lit mieux **repliée** : le chevron devant un groupe le replie
+(la ligne dit alors « 4 exercices »), `Tout replier` ne laisse que les grands blocs.
+Le repli tient d'une visite à l'autre. En haut, la durée totale, la fin prévue, et
+`▶ Lancer la séance`.
 
 **Au gymnase.** Posez la tablette, ouvrez `Chrono`, touchez `🔔 Tester` : vous devez
 entendre trois bips. Montez le volume des médias. Sur iPhone et iPad, l'interrupteur
 silencieux ne coupe pas les sonneries ; il les couperait si `Laisser jouer la
 musique` est coché, dans `Séances`.
 
-`▶ Démarrer la séance`. Le grand compteur décompte l'exercice en cours ; au-dessus,
+`▶ Lancer la séance` (ou `▶ Démarrer la séance` dans `Chrono`). Le grand compteur décompte l'exercice en cours ; au-dessus,
 le chemin (`Échauffement › Gainage en circuit (tour 1/3)`), dessous une barre par
 niveau, et l'avance ou le retard sur l'horaire.
 
@@ -1061,9 +1072,14 @@ niveau, et l'avance ou le retard sur l'horaire.
   sonnerie. Entre deux exercices, `⏭ Passer` saute celui qui attend et
   `⏮ Refaire le précédent` y revient.
 
-Le déroulé, à côté sur tablette, dessous sur téléphone, note le temps réel de chaque
-exercice et de chaque pause. La séance finit sur un bilan : durée prévue et réelle,
-temps d'exercice, de pauses, d'attentes.
+Le déroulé, à côté sur tablette, dessous sur téléphone, se lit par **blocs**, comme
+la séance : celui en cours est ouvert et dit son tour (`tour 2/3`), les autres sont
+repliés — un toucher les ouvre. Chaque exercice y montre une pastille par passage
+(verte : fait, ambre : en cours, barrée : sauté), son heure prévue et sa durée,
+réelle une fois faite, pauses prises comprises. La séance finit sur un bilan : durée
+prévue et réelle, temps d'exercice, de pauses, d'attentes.
+
+Sur téléphone, les onglets `Séances`, `Préparer` et `Chrono` sont en bas de l'écran.
 
 **Ce qu'il faut savoir.** Gardez la page au premier plan : écran verrouillé ou
 application quittée, iPhone et iPad endorment la page et la sonnerie peut rester
