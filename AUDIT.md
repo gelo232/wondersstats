@@ -1117,3 +1117,83 @@ le placement des inconnues qui divise l'écart espéré par au moins trois,
 aucune athlète d'une vue qui n'y figure pas, le paquet du sélectionneur
 qui les emporte, la survie au rechargement, et la sortie d'une
 décommandée de sa vague.
+
+---
+
+## Audit v7.15 — la consultation des statistiques de tournoi et de match
+
+Un audit mesuré, au navigateur, de tout ce qui SE LIT après la refonte de la
+saisie (v7.14) : les parties Tournois et Matchs à leurs quatre niveaux (partie,
+rencontre, match, set), le panneau `📊` de la feuille, et la fiche d'une athlète
+ou de l'équipe. Sur un téléphone de 375 × 667 et une tablette de 1024 × 768,
+avec une saison de douze athlètes, deux tournois de trois et quatre matchs, des
+amicaux, une journée de championnat et un match d'avant la ventilation.
+
+### Ce qui tenait
+
+Les chiffres. Global = rencontre = somme des matchs = somme des sets ; l'équipe
+vaut la somme de ses athlètes à chaque niveau ; un match en cours ne compte pas
+au bilan. Rien de ce qui suit n'est une erreur de calcul : ce sont des chiffres
+justes qu'on ne pouvait pas lire, ou pas tous.
+
+### Ce qui ne tenait pas — mesuré
+
+| # | Défaut | Mesure |
+|---|---|---|
+| C1 | L'en-tête du tableau disparaissait dès qu'on faisait défiler les athlètes : douze lignes, et plus aucun nom de colonne | `thead` à −218 px du haut de l'écran |
+| C2 | Trier une colonne de droite ramenait le tableau à gauche : on ne voyait plus la colonne qu'on venait de trier | défilement horizontal 124 → 0 px |
+| C3 | Choisir « Habiletés », au bout de la rangée, faisait sortir sa pastille de l'écran | pastille active hors de vue |
+| C4 | Les habiletés affichaient une « efficacité » de +1.00 : aucun de leurs compteurs n'est négatif, ce chiffre ne mesurait rien | colonne `Eff.` présente |
+| C5 | Filtrer sur l'attaque laissait la passeuse et les libéros en lignes de zéros entre les attaquantes | 4 lignes de zéros sur 12 |
+| C6 | En-têtes de 33 px, sans bouton : inatteignables au clavier, sous la cible de 44 px | 33 px |
+| C7 | Aucun tri par nom ou par numéro, aucun filtre de poste | — |
+| C8 | Aucune moyenne par match ou par set joué : une titulaire à quatre matchs et une remplaçante à un ne se comparaient pas | — |
+| C9 | Aucune part en % (« 41 % de kills ») ; aucun point ni faute direct ; aucun export | — |
+| C10 | « Bilan 2–1–1 » sans dire l'ordre ; les listes de rencontres taisaient les nuls (« 2V–1D » pour quatre matchs) ; une rencontre d'un seul match nul n'affichait rien | — |
+| C11 | « Set 1 · Tournois · 1 match » : le titre d'un set ne disait ni le match ni le tournoi | — |
+| C12 | La fiche reprenait un composant de la sélection et affichait « trop peu » à côté de chaque famille ; une athlète absente d'un match y apparaissait en zéros, comme si elle avait tout raté | — |
+| C13 | Trois chiffres-clés sur deux colonnes, dont « Gestes relevés », qui ne dit rien de la qualité ; la troisième tuile laissait un trou | — |
+| C14 | Sur tablette en paysage, la liste des matchs et le tableau s'empilaient : descendre d'un match faisait perdre les chiffres de vue | — |
+
+### Ce qui a été fait
+
+- **Le tableau défile dans son cadre**, en hauteur comme en largeur : l'en-tête et
+  la colonne des noms restent en place, une ombre dit qu'il reste des colonnes à
+  droite (C1). Le défilement **horizontal** est conservé d'un rendu à l'autre, et
+  ce qui est choisi — la famille, le set — est ramené à l'écran (C2, C3).
+- **Chaque en-tête est un bouton de 44 px** ; celui des noms trie par numéro, puis
+  par nom, puis rend l'ordre de l'équipe (C6, C7).
+- **Un filtre de poste** ; la première ligne devient alors le total de ce poste.
+  **Les athlètes sans geste dans la famille lue sont repliées**, et se rappellent
+  d'un geste (C5, C7).
+- **Les valeurs se lisent en total, `/ match`, `/ set`** — divisées par ce que
+  chacune a réellement joué — **ou en %** de leur famille (C8, C9).
+- **« Tout » ajoute les points directs** (aces, attaques et blocs gagnants) **et les
+  fautes directes** (service, attaque, réception, bloc). **Les habiletés se lisent
+  en volume**, jamais en efficacité (C4, C9).
+- **`📤 CSV`** exporte le tableau tel qu'il est lu — élément, mode, poste (C9).
+- **Six chiffres-clés compacts**, trois par rangée : le bilan qui nomme son ordre
+  (`Bilan V–D–N`), les sets gagnés–perdus, les points pour–contre et leur écart —
+  ou le résultat et les points d'un match, le score d'un set — puis les efficacités
+  d'attaque, de réception et de service (C10, C13).
+- **Le fil d'un niveau** dit d'où il vient (`Invitation de Sherbrooke › Match 2 ›
+  contre Ours`) ; les listes disent les nuls et le score d'un match seul (C10, C11).
+- **La fiche** : chaque famille sur une jauge centrée sur zéro, avec ses compteurs ;
+  une famille choisie, sa répartition en barre et l'efficacité qui la résume ; les
+  points et fautes directs ; le détail un niveau plus bas où chaque match dit son
+  adversaire et son issue, et où un match **non joué** se dit tel quel ; `‹ ›` pour
+  passer d'une athlète à la suivante dans l'ordre du tableau (C12).
+- **Sur tablette en paysage, deux colonnes** : on parcourt à gauche, on lit à droite
+  (C14). Le panneau `📊` de la feuille reçoit les mêmes chiffres-clés et le même
+  tableau.
+
+### Vérification
+
+`tests/consultation.js` — vingt-quatre contrôles, dont **vingt-deux échouent sur
+la v7.14**. Chaque chiffre affiché y est recalculé à part, depuis les relevés :
+sets et points du bilan, points et fautes directs, moyennes par set joué athlète
+par athlète, parts en % qui font cent, total d'un poste, export CSV comparé à
+l'écran. Les deux contrôles qui passaient déjà sont ceux qui doivent continuer de
+passer : aucun débordement à 375 px, et une saison chargée qui se lit en moins de
+150 ms par écran.
+

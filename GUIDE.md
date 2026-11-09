@@ -886,11 +886,35 @@ clair ce qui est cumulé.
 `÷ Par match` divise par le nombre de matchs joués par chacune : une titulaire à 8
 matchs et une arrivante à 1 deviennent comparables.
 
-`🤝 Matchs` et `🎪 Tournois` se lisent à chaque niveau de la même façon : les
-chiffres-clés, ce que le niveau contient (les tournois, leurs matchs, leurs sets), puis
-le **tableau des statistiques** — l'équipe en tête, chaque athlète dessous, filtrable
-par élément de stat ou compilé, chaque ligne ouvrant sa fiche détaillée un niveau plus
-bas. Le bilan ne compte que les matchs terminés.
+### Lire un tournoi, un match, un set
+
+`🎪 Tournois → Invitation de Sherbrooke`. En tête, six chiffres : `Bilan V–D–N 2–1–1`
+(les matchs terminés), `Sets 6–4`, `Points 235–211` et l'écart, puis les efficacités
+d'attaque, de réception et de service. Dessous, les matchs (`contre Ours · 2–1 V`),
+puis le **tableau** : l'équipe en tête, chaque athlète dessous.
+
+- **Ce qu'on lit** : `Tout` pour toutes les familles d'un coup — leur efficacité de −1
+  à +1, les **points directs** (aces, attaques et blocs gagnants) et les **fautes
+  directes** —, ou un élément : `Attaque` montre Kill, Réussie, Erreur, le total et
+  l'efficacité. La passeuse et les libéros, sans attaque, sont repliées : `+ 4
+  athlètes sans geste en attaque` les rappelle.
+- **Comment on le lit** : `Total`, ou `/ match` et `/ set` pour comparer une
+  titulaire et une remplaçante sur ce que chacune a joué, ou `%` pour la part de
+  chaque compteur (« 41 % de kills »).
+- **Qui** : `Postes` n'en garde qu'un, et la première ligne devient leur total.
+- **Dans quel ordre** : touchez une colonne, puis encore pour l'inverser ; `Athlète`
+  trie par numéro, puis par nom.
+- `📤 CSV` emporte le tableau tel quel dans un tableur.
+
+Touchez une athlète : sa **fiche** montre chaque famille sur une jauge — à droite du
+zéro ce qui rapporte, à gauche ce qui coûte —, puis son détail **match par match**
+(chacun avec son adversaire et son issue ; un match non joué le dit). `‹ ›` passe à la
+suivante sans refermer. La ligne `Équipe` ouvre la même fiche pour toute l'équipe.
+
+Descendez d'un cran — un match, puis un set — et tout se relit au même endroit, avec
+le fil en tête (`Invitation de Sherbrooke › Match 2 › contre Ours`). Sur une tablette
+en paysage, la liste reste à gauche et le tableau à droite. Le bilan ne compte que
+les matchs terminés.
 
 ---
 

@@ -14,7 +14,7 @@ server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
 GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
-tests/          suite de non-régression Playwright — trente suites
+tests/          suite de non-régression Playwright — trente et une suites
 ```
 
 ---
@@ -370,22 +370,44 @@ samedi et saisi dimanche reste daté de samedi, et ses matchs avec lui.
 
 ### Lire les statistiques
 
-Chaque niveau — partie → tournoi → match → set — se lit de la même façon : ses
-chiffres-clés (bilan des matchs terminés, gestes, efficacité d'attaque), ce qu'il
-contient (avec ses gestes de correction), puis **un seul tableau** :
+Chaque niveau — partie → tournoi → match → set — se lit de la même façon. Son
+**fil** dit d'où il vient (`Invitation de Sherbrooke › Match 2 › contre Ours`).
+Puis :
 
-- l'**équipe** en tête — la somme de ses athlètes, jamais une donnée à part — et
-  **chaque athlète** dessous, ou la sous-équipe choisie ;
-- l'**élément de stat** : `Tout` compile les sept familles en efficacité (−1 à +1,
-  volume en petit) et compte les gestes ; `Service`, `Réception`, `Passe`, `Attaque`,
-  `Bloc`, `Défense`, `Habiletés` montrent leurs compteurs, leur total et leur
-  efficacité ;
-- une colonne se trie d'un toucher, l'équipe restant en tête.
+- **six chiffres-clés**, trois par rangée : le **bilan** qui nomme son ordre
+  (`Bilan V–D–N`, matchs terminés seulement), les **sets** gagnés–perdus et les
+  **points** pour–contre avec leur écart — ou, pour un match, son résultat et ses
+  points ; pour un set, son score — puis les efficacités d'**attaque**, de
+  **réception** et de **service** ;
+- ce que le niveau contient — les rencontres (avec leurs nuls : `2V–1D–1N`), les
+  matchs (`2–1 V`), les sets — et ses gestes de correction ;
+- **un seul tableau** : l'**équipe** en tête — la somme de ses athlètes, jamais une
+  donnée à part —, **chaque athlète** dessous.
 
-Une ligne ouvre la **fiche** de l'athlète, ou de l'équipe, sur ce périmètre, détaillée
-**un niveau plus bas** : par set pour un match, par match pour un tournoi, par
-rencontre pour la partie entière — avec le total, et le même filtre d'élément. Le même
-tableau sert dans la feuille (`📊 Stats`), au set, au match et au tournoi.
+Le tableau se règle sans quitter l'écran :
+
+| Réglage | Ce qu'il fait |
+|---|---|
+| Élément de stat | `Tout` compile les familles en efficacité (−1 à +1, volume en petit), puis **Pts** (aces, attaques et blocs gagnants), **Fautes** (service, attaque, réception, bloc) et gestes. `Service`, `Réception`, `Passe`, `Attaque`, `Bloc`, `Défense`, `Habiletés` montrent leurs compteurs, leur total et leur efficacité — sauf les habiletés, qui n'ont aucun compteur négatif et se lisent en volume |
+| Valeurs | `Total`, `/ match`, `/ set` — divisés par ce que **chacune** a joué : une titulaire à quatre matchs et une remplaçante à un se comparent —, ou `%` de la famille (« 41 % de kills ») |
+| Poste | N'affiche qu'un poste ; la première ligne devient le total de ce poste |
+| Colonnes | Un toucher trie, un second inverse. `Athlète` trie par numéro, puis par nom, puis rend l'ordre de l'équipe |
+| `📤 CSV` | Exporte le tableau tel qu'il est lu, pour un tableur |
+
+L'en-tête et la colonne des noms restent en place quand on fait défiler ; une ombre
+dit qu'il reste des colonnes à droite. Une athlète sans geste dans l'élément lu est
+repliée (`+ 4 athlètes sans geste en attaque` la rappelle).
+
+Une ligne ouvre la **fiche** de l'athlète, ou de l'équipe, sur ce périmètre :
+chaque famille sur une jauge centrée sur zéro avec ses compteurs, ou la répartition
+d'une famille en barre ; ses points et fautes directs ; et son détail **un niveau
+plus bas** — par set pour un match, par match pour un tournoi (chacun avec son
+adversaire et son issue), par rencontre pour la partie. Un match qu'elle n'a pas
+joué se dit tel quel. `‹ ›` passe à l'athlète précédente ou suivante, dans l'ordre
+du tableau. Le même tableau, les mêmes chiffres-clés et la même fiche servent dans
+la feuille (`📊 Stats`), au set, au match et au tournoi.
+
+Sur tablette en paysage, deux colonnes : on parcourt à gauche, on lit à droite.
 
 Les matchs relevés avant la ventilation par set ne sont **pas ventilés**. Ils
 s'affichent « Match (non ventilé) » et jamais « Set 1 » — on n'affirme pas une
@@ -965,6 +987,29 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 ---
 
 ## Notes de version
+
+### v7.15 — la consultation des stats, auditée et complétée
+
+Un audit mesuré de tout ce qui se lit dans les tournois et les matchs, à
+375 × 667 et à 1024 × 768 (détail : `AUDIT.md`, « Audit v7.15 »). Nouvelle suite :
+`tests/consultation.js`, dont vingt-deux contrôles sur vingt-quatre échouent sur la
+v7.14.
+
+- **Le tableau se lit en le faisant défiler** : l'en-tête et les noms restent en
+  place ; trier une colonne de droite ne ramène plus le tableau à gauche ; la
+  famille choisie ne sort plus de l'écran.
+- **Il est complet** : tri par numéro ou par nom, filtre de poste, valeurs en total,
+  `/ match`, `/ set` (par ce que chacune a joué) ou `%`, points et fautes directs,
+  export `📤 CSV`. Les athlètes sans geste dans l'élément lu sont repliées ; les
+  habiletés ne prétendent plus à une efficacité de +1.00.
+- **Des chiffres-clés qui disent ce qu'ils comptent** : `Bilan V–D–N`, sets, points
+  et écart, efficacités d'attaque, de réception et de service. Les listes disent les
+  nuls ; le fil d'un set dit son tournoi et son match.
+- **Une fiche à lire** : jauges centrées sur zéro, répartition d'une famille,
+  détail par set ou par match avec l'issue, match non joué signalé, `‹ ›` d'une
+  athlète à l'autre.
+- **Tablette en paysage** : la liste à gauche, le tableau à droite. Des en-têtes de
+  44 px, atteignables au clavier.
 
 ### v7.14 — la feuille de match : saisir, consulter et corriger un tournoi
 
