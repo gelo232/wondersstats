@@ -1255,6 +1255,45 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .rep-k.neg i{background:var(--danger-solid)}
 .rep-k.neu i{background:var(--neutral-solid)}
 .rep-eff{margin-top:var(--s2);font-size:var(--fs-xs);color:var(--txt-dim)}
+/* ── Évolution : la courbe, la matrice ─────────────────────────── */
+.st-vue{margin:var(--s1) 0 var(--s2)}
+.evo-reg{display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap;margin-bottom:var(--s2)}
+.evo-reg .evo-met{flex:1 1 180px;min-height:var(--tap);background:var(--sunken);color:var(--txt-strong);
+  border:1.5px solid var(--line-strong);border-radius:var(--r-sm);padding:0 var(--s2);font-size:var(--fs-sm);font-weight:700}
+.evo-reg .seg{flex:1 1 100%}
+.evo-reg .st-poste{flex:0 0 96px;min-height:var(--tap);background:var(--sunken);color:var(--txt-strong);
+  border:1.5px solid var(--line-strong);border-radius:var(--r-sm);padding:0 var(--s2);font-size:var(--fs-xs);font-weight:700}
+.evo-courbe{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s2) var(--s2) var(--s1);margin-bottom:var(--s2)}
+.evo-svg-c{position:relative}
+.evo-svg{display:block;width:100%;height:auto;max-height:300px;overflow:visible}
+.evo-grille{stroke:var(--line);stroke-width:1}
+.evo-zero{stroke:var(--line-strong);stroke-width:1}
+.evo-axe{fill:var(--txt-faint);font-size:10px;font-variant-numeric:tabular-nums}
+.evo-val{fill:var(--txt-strong);font-size:11px;font-weight:800}
+.evo-reticule{stroke:var(--txt-faint);stroke-width:1}
+.evo-hit{cursor:pointer;outline:none}
+.evo-info{position:absolute;top:0;transform:translateX(-50%);pointer-events:none;z-index:2;max-width:230px;
+  background:var(--surface-2);border:1px solid var(--line-strong);border-radius:var(--r-sm);padding:6px 8px;
+  font-size:var(--fs-xs);color:var(--txt-soft);box-shadow:var(--sh-2)}
+.evo-info-t{color:var(--txt-dim);margin-bottom:3px}
+.evo-info-l{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.evo-info-l i,.evo-leg i{display:inline-block;width:14px;height:2px;border-radius:1px;flex-shrink:0}
+.evo-info-l b{color:var(--txt-strong)}
+.evo-leg{display:flex;gap:var(--s4);font-size:var(--fs-xs);color:var(--txt-soft);margin:2px 0 4px 4px}
+.evo-leg span{display:inline-flex;align-items:center;gap:6px}
+.evo-note{margin:2px 4px 0}
+.evo-resume{font-size:var(--fs-xs);color:var(--txt-soft);line-height:1.6;margin-bottom:var(--s2)}
+.evo-t{font-weight:800;white-space:nowrap}
+.evo-t.bien,.evo-d.bien{color:var(--ok-ink)}
+.evo-t.mal,.evo-d.mal{color:var(--danger-ink)}
+.evo-t.stable,.evo-t.nul{color:var(--txt-dim)}
+.evo-table td.evo-c{color:var(--txt-strong);font-weight:700}
+.evo-table td.evo-c.faible{opacity:.5;font-style:italic;font-weight:400}
+.evo-table td.evo-c.nul{color:var(--txt-faint);font-weight:400}
+.evo-table td.evo-tc{text-align:left}
+.evo-table td.evo-d{font-weight:700}
+.evo-cles{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:var(--s2);font-size:10px;color:var(--txt-dim)}
+.evo-cle b{color:var(--txt-soft)}
 .st-table{border-collapse:separate;border-spacing:0;width:100%;font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
 .st-table thead th{position:sticky;top:0;z-index:2;background:var(--surface-2);color:var(--txt-dim);
   font-size:var(--fs-2xs);font-weight:800;letter-spacing:.3px;padding:var(--s2) 6px;white-space:nowrap;
@@ -1291,7 +1330,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.16.0";
+var APP_VERSION = "7.17.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -10391,13 +10430,27 @@ function blocStatistiques(sq,scope,src){
     choixPoste.value=r.poste;
     choixPoste.addEventListener("change",function(e){state.statPoste=e.target.value;render()});
   }
+  /* Deux lectures du même périmètre : où en est-on (le tableau), et
+     comment on y est arrivé (l'évolution, d'une étape à l'autre). */
+  var pd=total?pasDispo(sq,scope):[];
+  var vue=(state.statVue==="evolution"&&pd.length)?"evolution":"tableau";
+  var bascule=pd.length?h("div",{className:"st-vue"},segmented({label:"Lecture",value:vue,
+    options:[{k:"tableau",l:"📊 Tableau"},{k:"evolution",l:"📈 Évolution"}],
+    onpick:function(v){state.statVue=v;render()}})):null;
+  var nomPer=(scope.label==="Tout"?"toutes les rencontres":scope.label)+(stSE?" · « "+stSE.name+" »":"");
+  if(vue==="evolution")return h("div",{className:"st-bloc"},
+    h("div",{className:"st-tete"},
+      h("div",{className:"section-title"},"Évolution · "+nomPer),
+      h("button",{className:"btn btn-ghost xs st-csv",type:"button","aria-label":"Exporter cette évolution en CSV",
+        onclick:function(){exporterEvolution(sq,scope,src)}},"📤 CSV")),
+    bascule,
+    blocEvolution(sq,scope,src,choixPoste));
   return h("div",{className:"st-bloc"},
     h("div",{className:"st-tete"},
-      h("div",{className:"section-title"},"Statistiques · "+
-        (scope.label==="Tout"?"toutes les rencontres":scope.label)+(stSE?" · « "+stSE.name+" »":"")+
-        " · "+plural(total,"geste")),
+      h("div",{className:"section-title"},"Statistiques · "+nomPer+" · "+plural(total,"geste")),
       h("button",{className:"btn btn-ghost xs st-csv",type:"button","aria-label":"Exporter ce tableau en CSV",
         onclick:function(){exporterTableau(scope,r.lignes,fam,mode)}},"📤 CSV")),
+    bascule,
     total?pastillesFamille():null,
     !total?emptyState({icon:"📊",title:"Aucun geste relevé",small:true,
       sub:scope.niveau==="set"?"Ce set est vide pour l'instant : relevez, et le tableau se remplit."
@@ -10408,6 +10461,465 @@ function blocStatistiques(sq,scope,src){
       choixPoste):null,
     total?tableauStats(r.lignes,{cle:cle,mode:mode,fam:fam,masquerVides:true,ordreFiche:true}):null,
     total?legendeStats(fam,mode):null);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ÉVOLUTION — d'un set à l'autre, d'un match à l'autre, d'un
+   tournoi à l'autre
+
+   Le tableau dit où en est l'équipe ; il ne dit pas si elle avance.
+   La fiche montrait bien le détail un niveau plus bas, mais en
+   colonnes de compteurs : rien ne disait que l'attaque de Léa était
+   passée de −0,10 à +0,38 en quatre matchs.
+
+   Une ÉTAPE est un set, un match ou une rencontre, dans l'ordre où ils
+   ont été joués. Un INDICATEUR se lit à chaque étape :
+     · une efficacité (attaque, réception, service, passe, bloc,
+       défense) — un ratio, comparable d'une étape à l'autre quel que
+       soit le volume ;
+     · un rythme — points directs, fautes directes, gestes — rapporté
+       au set joué, sans quoi un match en trois sets « progresserait »
+       sur un match en deux.
+   Une efficacité calculée sur moins de trois gestes se montre, pâle,
+   mais n'entre pas dans la tendance : un 1 sur 1 n'est pas un progrès.
+   La tendance est la droite des moindres carrés sur les étapes
+   retenues, rapportée à l'écart entre la première et la dernière ; en
+   deçà d'un seuil (0,10 d'efficacité, 15 % d'un rythme), elle se dit
+   « stable » plutôt que d'inventer un mouvement. */
+var METRIQUES=[
+  {k:"attaques",l:"Efficacité en attaque",court:"Attaque",eff:true},
+  {k:"reception",l:"Efficacité en réception",court:"Réception",eff:true},
+  {k:"services",l:"Efficacité au service",court:"Service",eff:true},
+  {k:"passes",l:"Efficacité en passe",court:"Passe",eff:true},
+  {k:"blocs",l:"Efficacité au bloc",court:"Bloc",eff:true},
+  {k:"defense",l:"Efficacité en défense",court:"Défense",eff:true},
+  {k:"pts",l:"Points directs par set",court:"Pts / set",keys:PTS_KEYS},
+  {k:"fautes",l:"Fautes directes par set",court:"Fautes / set",keys:FAUTE_KEYS,moinsMieux:true},
+  {k:"gestes",l:"Gestes par set",court:"Gestes / set"}
+];
+var EVO_MIN_VOL=3;
+function metriqueLue(){
+  for(var i=0;i<METRIQUES.length;i++)if(METRIQUES[i].k===state.evoMetrique)return METRIQUES[i];
+  return METRIQUES[0];
+}
+function fmtMetrique(m,v){
+  if(v==null)return "—";
+  return m.eff?fmtEff(v):(Math.round(v*10)/10).toFixed(1);
+}
+function fmtEcartMetrique(m,d){
+  if(d==null)return "—";
+  return (d>0?"+":(d<0?"−":"±"))+(m.eff?Math.abs(d).toFixed(2):(Math.round(Math.abs(d)*10)/10).toFixed(1));
+}
+/* La valeur d'un indicateur sur une étape. `pid` absent : l'équipe. */
+function valeurMetrique(m,st,jeu,pid){
+  if(pid&&!sumStats(st))return {v:null,vol:0,absente:true};
+  if(m.eff){
+    var vol=familyVolume(st,m.k);
+    return {v:familyEff(st,m.k),vol:vol,faible:vol>0&&vol<EVO_MIN_VOL};
+  }
+  if(!jeu||!jeu.sets)return {v:null,vol:0};
+  var n=m.keys?sommeCles(st,m.keys):sumStats(st);
+  return {v:n/jeu.sets,vol:jeu.sets,brut:n};
+}
+
+function chronoSe(a,b){
+  return String(a.day||"").localeCompare(String(b.day||""))||String(a.date||"").localeCompare(String(b.date||""));
+}
+/* Les étapes d'un périmètre, dans l'ordre du jeu. */
+function sequenceEvolution(sq,scope,pas){
+  var ss=scope.sessions.slice().sort(chronoSe);
+  var evIds={};ss.forEach(function(se){evIds[se.eventId]=1});
+  var unSeulEv=Object.keys(evIds).length===1;
+  function nomMatch(se){
+    var ev=eventOf(sq,se);
+    if(!ev)return se.name||"Match";
+    if(unSeulEv)return matchLabel(ev,se);
+    return kindIsMulti(ev.kind)?(ev.name||"")+" · "+matchLabel(ev,se):(ev.name||matchLabel(ev,se));
+  }
+  function issue(se){
+    if(se.live)return "en cours";
+    var o=resultOutcome(se.result);
+    return hasResult(se.result)?resultLabel(se.result)+(o?" "+OUTCOMES[o].short:""):"";
+  }
+  if(pas==="rencontre"){
+    var groupes={},ordre=[];
+    ss.forEach(function(se){
+      if(!groupes[se.eventId]){groupes[se.eventId]=[];ordre.push(se.eventId)}
+      groupes[se.eventId].push(se);
+    });
+    ordre.sort(function(a,b){
+      var ea=eventById(sq,a)||{},eb=eventById(sq,b)||{};
+      return String(ea.date||"").localeCompare(String(eb.date||""))||chronoSe(groupes[a][0],groupes[b][0]);
+    });
+    var tousTournois=ordre.every(function(id){var ev=eventById(sq,id);return ev&&kindIsMulti(ev.kind)});
+    return ordre.map(function(id,i){
+      var ev=eventById(sq,id)||{},g=groupes[id],v=0,d=0,n=0;
+      g.forEach(function(se){var o=issueDe(se);if(o==="win")v++;else if(o==="loss")d++;else if(o==="draw")n++});
+      return {cle:id,court:(tousTournois?"T":"R")+(i+1),label:(ev.name||"Rencontre")+" · "+fmtShortDay(ev.date),
+        scope:mkScope(ev.name||"Rencontre",g,null,null,"rencontre"),
+        info:plural(g.length,"match")+((v||d||n)?" · "+v+"V–"+d+"D"+(n?"–"+n+"N":""):"")};
+    });
+  }
+  if(pas==="match")return ss.map(function(se,i){
+    var nom=nomMatch(se)+(se.opponent?" · "+se.opponent:"");
+    return {cle:se.id,court:"M"+(i+1),label:nom,scope:mkScope(nom,[se],null,null,"match"),
+      info:issue(se),live:!!se.live};
+  });
+  /* Par set : un match d'avant la ventilation n'a pas de sets à
+     montrer — il est compté à part, et dit. */
+  var out=[],unMatch=ss.length===1;
+  ss.forEach(function(se,mi){
+    if(!sessionIsSplit(se))return;
+    var n=0;
+    se.sets.forEach(function(b,i){
+      if(b.reconciled)return;
+      n++;
+      var sc=scoreSet(se,i);
+      out.push({cle:se.id+"#"+i,court:unMatch?"S"+n:"M"+(mi+1)+"·S"+n,
+        label:(unMatch?"":nomMatch(se)+" · ")+"Set "+n,
+        scope:mkScope("Set "+n,[se],se,i,"set"),
+        info:(sc.us||sc.them)?sc.us+"–"+sc.them:""});
+    });
+  });
+  return out;
+}
+function nonVentiles(scope){
+  return scope.sessions.filter(function(se){return !sessionIsSplit(se)}).length;
+}
+/* Les pas possibles sur un périmètre : seulement ceux qui donnent au
+   moins deux étapes, et pas deux fois la même suite. */
+function pasDispo(sq,scope){
+  if(!scope||scope.niveau==="set")return [];
+  var out=[];
+  if(scope.niveau==="tout"){
+    var evs={};scope.sessions.forEach(function(se){evs[se.eventId]=1});
+    var nEv=Object.keys(evs).length;
+    if(nEv>1&&nEv<scope.sessions.length){
+      var tous=Object.keys(evs).every(function(id){var ev=eventById(sq,id);return ev&&kindIsMulti(ev.kind)});
+      out.push({k:"rencontre",l:tous?"Par tournoi":"Par rencontre"});
+    }
+  }
+  if(scope.niveau!=="match"&&scope.sessions.length>1)out.push({k:"match",l:"Par match"});
+  if(sequenceEvolution(sq,scope,"set").length>1)out.push({k:"set",l:"Par set"});
+  return out;
+}
+function pasLu(sq,scope){
+  var p=pasDispo(sq,scope);
+  if(!p.length)return null;
+  return p.some(function(x){return x.k===state.evoPas})?state.evoPas:p[0].k;
+}
+/* Une suite de valeurs, pour l'équipe (pids absent), une athlète (un
+   identifiant), ou un groupe d'athlètes (un poste). */
+function serieEvolution(sq,etapes,m,qui){
+  var per=perimetreSE(sq);
+  return etapes.map(function(it){
+    var st,jeu,pid=null;
+    if(!qui){st=scopeTeamStats(it.scope,per);jeu=jeuDuPerimetre(it.scope,null)}
+    else if(typeof qui==="string"){pid=qui;st=scopeStats(it.scope,qui);jeu=jeuDuPerimetre(it.scope,qui)}
+    else {st=emptyS();qui.forEach(function(x){addStats(st,scopeStats(it.scope,x))});jeu=jeuDuPerimetre(it.scope,null)}
+    return valeurMetrique(m,st,jeu,pid);
+  });
+}
+/* La tendance : la pente des moindres carrés sur les étapes retenues,
+   ramenée à l'écart entre la première et la dernière. */
+function tendanceEvolution(vals,m){
+  var pts=[];
+  vals.forEach(function(x,i){if(x.v!=null&&!x.faible)pts.push({i:i,v:x.v})});
+  if(pts.length<2)return null;
+  var n=pts.length,mx=0,my=0;
+  pts.forEach(function(p){mx+=p.i;my+=p.v});mx/=n;my/=n;
+  var num=0,den=0;
+  pts.forEach(function(p){num+=(p.i-mx)*(p.v-my);den+=(p.i-mx)*(p.i-mx)});
+  var pente=den?num/den:0,ecart=pente*(pts[n-1].i-pts[0].i);
+  var seuil=m.eff?0.10:Math.max(0.3,0.15*Math.abs(my));
+  var sens=Math.abs(ecart)<seuil?"flat":(ecart>0?"up":"down");
+  var meilleur=pts[0],moins=pts[0];
+  pts.forEach(function(p){
+    if(m.moinsMieux?p.v<meilleur.v:p.v>meilleur.v)meilleur=p;
+    if(m.moinsMieux?p.v>moins.v:p.v<moins.v)moins=p;
+  });
+  return {ecart:ecart,sens:sens,bien:sens==="flat"?null:((sens==="up")!==!!m.moinsMieux),
+    n:n,premier:pts[0],dernier:pts[n-1],meilleur:meilleur,moins:moins};
+}
+function jetonTendance(t,m){
+  if(!t)return h("span",{className:"evo-t nul",title:"Moins de deux étapes retenues"},"—");
+  var f={up:"↗",down:"↘",flat:"→"}[t.sens];
+  return h("span",{className:"evo-t "+(t.bien===true?"bien":(t.bien===false?"mal":"stable")),
+    title:t.sens==="flat"?"Stable":(t.bien?"En progrès":"En recul")},
+    f+" "+(t.sens==="flat"?"stable":fmtEcartMetrique(m,t.ecart)));
+}
+
+/* ── La courbe ────────────────────────────────────────────────────
+   Une ligne par sujet, 2 px ; l'athlète en bleu, l'équipe en gris de
+   référence (palette validée contre la surface sombre : séparation
+   normale ΔE 16,3, daltonismes ≥ 11,4). Grille en filets, zéro marqué
+   pour une efficacité, une seule valeur écrite — la dernière de la
+   série suivie. Un point creux : moins de trois gestes. Toucher ou
+   survoler une colonne affiche toutes les séries à cette étape ; le
+   tableau dessous redit tout, sans survol. */
+var EVO_COUL={sujet:"#3B82F6",equipe:"#64748B"};
+function svgEl(tag,attrs){
+  var el=document.createElementNS("http://www.w3.org/2000/svg",tag);
+  Object.keys(attrs||{}).forEach(function(k){if(attrs[k]!=null)el.setAttribute(k,attrs[k])});
+  return el;
+}
+function pasPropre(x){
+  var p=Math.pow(10,Math.floor(Math.log(x)/Math.LN10)),r=x/p;
+  return (r<=1?1:(r<=2?2:(r<=2.5?2.5:(r<=5?5:10))))*p;
+}
+function courbeEvolution(etapes,series,m){
+  var W=340,H=196,PL=38,PR=16,PT=16,PB=30,w=W-PL-PR,hh=H-PT-PB;
+  var tout=[];
+  series.forEach(function(s){s.vals.forEach(function(x){if(x.v!=null)tout.push(x.v)})});
+  if(!tout.length)return emptyState({icon:"📈",title:"Rien à tracer",small:true,
+    sub:"Aucune valeur pour cet indicateur sur ces étapes."});
+  var lo,hi;
+  if(m.eff){
+    lo=Math.min(0,Math.min.apply(null,tout));hi=Math.max(0,Math.max.apply(null,tout));
+    var marge=Math.max(0.1,(hi-lo)*0.12);lo=Math.max(-1,lo-marge);hi=Math.min(1,hi+marge);
+  } else {lo=0;hi=Math.max.apply(null,tout)*1.15||1}
+  var pas=pasPropre((hi-lo)/4),ticks=[];
+  for(var t=Math.ceil(lo/pas-1e-9)*pas;t<=hi+1e-9;t+=pas)ticks.push(Math.round(t*1000)/1000);
+  function X(i){return PL+(etapes.length===1?w/2:i*w/(etapes.length-1))}
+  function Y(v){return PT+hh-(v-lo)/(hi-lo)*hh}
+  var svg=svgEl("svg",{viewBox:"0 0 "+W+" "+H,class:"evo-svg",role:"img",
+    "aria-label":m.l+" — "+series.map(function(s){
+      var t=tendanceEvolution(s.vals,m);
+      return s.nom+" : "+(t?(t.sens==="flat"?"stable":(t.sens==="up"?"en hausse ":"en baisse ")+fmtEcartMetrique(m,t.ecart)):"pas de tendance");
+    }).join(" ; ")});
+  ticks.forEach(function(tv){
+    svg.appendChild(svgEl("line",{x1:PL,x2:W-PR,y1:Y(tv),y2:Y(tv),class:tv===0&&m.eff?"evo-zero":"evo-grille"}));
+    var tx=svgEl("text",{x:PL-6,y:Y(tv)+3.5,class:"evo-axe","text-anchor":"end"});
+    tx.textContent=m.eff?(tv>0?"+":"")+tv.toFixed(pas<0.1?2:1):String(Math.round(tv*10)/10);
+    svg.appendChild(tx);
+  });
+  /* Les étiquettes d'étape : toutes si elles tiennent, sinon une sur k. */
+  var tous=Math.max(1,Math.ceil(etapes.length/(w/34)));
+  etapes.forEach(function(it,i){
+    if(i%tous&&i!==etapes.length-1)return;
+    var tx=svgEl("text",{x:X(i),y:H-10,class:"evo-axe","text-anchor":"middle"});
+    tx.textContent=it.court;svg.appendChild(tx);
+  });
+  /* Les lignes, interrompues là où une étape manque. */
+  series.slice().reverse().forEach(function(s){
+    var d="",ouvert=false;
+    s.vals.forEach(function(x,i){
+      if(x.v==null){ouvert=false;return}
+      d+=(ouvert?"L":"M")+X(i).toFixed(1)+" "+Y(x.v).toFixed(1)+" ";ouvert=true;
+    });
+    if(d)svg.appendChild(svgEl("path",{d:d,fill:"none",stroke:s.couleur,"stroke-width":2,
+      "stroke-linejoin":"round","stroke-linecap":"round"}));
+    s.vals.forEach(function(x,i){
+      if(x.v==null)return;
+      svg.appendChild(svgEl("circle",{cx:X(i),cy:Y(x.v),r:s.principal?4.5:3.5,
+        fill:x.faible?"var(--surface)":s.couleur,stroke:x.faible?s.couleur:"var(--surface)",
+        "stroke-width":2,class:x.faible?"evo-pt faible":"evo-pt"}));
+    });
+  });
+  /* Une seule valeur écrite : la dernière de la série suivie. */
+  var p=series[0],der=-1;
+  p.vals.forEach(function(x,i){if(x.v!=null)der=i});
+  if(der!==-1){
+    var lx=X(der),ly=Y(p.vals[der].v),droite=lx>W-PR-30;
+    var et=svgEl("text",{x:droite?lx-8:lx+8,y:ly-11,class:"evo-val","text-anchor":droite?"end":"start"});
+    et.textContent=fmtMetrique(m,p.vals[der].v);svg.appendChild(et);
+  }
+  /* Le survol : une colonne par étape, plus large que le point. */
+  var reticule=svgEl("line",{x1:0,x2:0,y1:PT,y2:PT+hh,class:"evo-reticule",visibility:"hidden"});
+  svg.appendChild(reticule);
+  var boite=h("div",{className:"evo-info",role:"status","aria-live":"polite"});
+  boite.style.display="none";
+  function montrer(i){
+    reticule.setAttribute("x1",X(i));reticule.setAttribute("x2",X(i));reticule.setAttribute("visibility","visible");
+    while(boite.firstChild)boite.removeChild(boite.firstChild);
+    boite.appendChild(h("div",{className:"evo-info-t"},etapes[i].court+" · "+etapes[i].label+(etapes[i].info?" · "+etapes[i].info:"")));
+    series.forEach(function(s){
+      var x=s.vals[i];
+      boite.appendChild(h("div",{className:"evo-info-l"},
+        h("i",{style:{background:s.couleur}}),
+        h("b",null,x.v==null?(x.absente?"n'a pas joué":"—"):fmtMetrique(m,x.v)),
+        " "+s.nom+(x.faible?" · "+plural(x.vol,"geste")+", trop peu":"")));
+    });
+    boite.style.display="";
+    var gauche=(X(i)/W)*100;
+    boite.style.left=Math.min(Math.max(gauche,22),78)+"%";
+  }
+  function cacher(){reticule.setAttribute("visibility","hidden");boite.style.display="none"}
+  etapes.forEach(function(it,i){
+    var larg=etapes.length===1?w:w/(etapes.length-1);
+    var r=svgEl("rect",{x:X(i)-larg/2,y:PT,width:larg,height:hh,fill:"transparent",class:"evo-hit",tabindex:"0",
+      "aria-label":it.court+" "+it.label+" : "+series.map(function(s){return s.nom+" "+fmtMetrique(m,s.vals[i].v)}).join(", ")});
+    r.addEventListener("pointerenter",function(){montrer(i)});
+    r.addEventListener("pointerdown",function(){montrer(i)});
+    r.addEventListener("focus",function(){montrer(i)});
+    r.addEventListener("blur",cacher);
+    svg.appendChild(r);
+  });
+  svg.addEventListener("pointerleave",cacher);
+  var legende=series.length>1?h("div",{className:"evo-leg"},series.map(function(s){
+    return h("span",null,h("i",{style:{background:s.couleur}}),s.nom);
+  })):null;
+  var faibles=series.some(function(s){return s.vals.some(function(x){return x.faible})});
+  return h("div",{className:"evo-courbe"},legende,h("div",{className:"evo-svg-c"},svg,boite),
+    faibles?h("div",{className:"muted evo-note"},"○ point creux : moins de "+EVO_MIN_VOL+" gestes — montré, hors tendance."):null);
+}
+
+/* Les réglages communs : l'indicateur, et le pas. */
+function reglagesEvolution(sq,scope,extra){
+  var m=metriqueLue(),p=pasLu(sq,scope);
+  var sel=h("select",{className:"evo-met","aria-label":"Indicateur suivi"},
+    METRIQUES.map(function(x){return h("option",{value:x.k},x.l)}));
+  sel.value=m.k;
+  sel.addEventListener("change",function(e){state.evoMetrique=e.target.value;render()});
+  var pd=pasDispo(sq,scope);
+  return h("div",{className:"evo-reg"},sel,extra||null,
+    pd.length>1?segmented({label:"Pas",value:p,options:pd,onpick:function(v){state.evoPas=v;render()}}):null);
+}
+/* Une teinte de cellule : divergente autour de zéro pour une
+   efficacité, d'une seule teinte pour un rythme. Le chiffre, signé,
+   dit le sens ; la teinte ne fait que le laisser voir d'un coup d'œil. */
+function teinteCellule(m,v,max){
+  if(v==null)return null;
+  if(m.eff){
+    var a=0.06+0.30*Math.min(1,Math.abs(v)/0.6);
+    return v>=0?"rgba(16,185,129,"+a.toFixed(2)+")":"rgba(239,68,68,"+a.toFixed(2)+")";
+  }
+  var b=max?0.06+0.30*Math.min(1,v/max):0.06;
+  return m.moinsMieux?"rgba(239,68,68,"+b.toFixed(2)+")":"rgba(59,130,246,"+b.toFixed(2)+")";
+}
+
+/* ── La vue « Évolution » d'un périmètre ──────────────────────────
+   La courbe de l'équipe, puis une matrice : une ligne par athlète,
+   une colonne par étape, et sa tendance au bout. Une ligne ouvre la
+   fiche de l'athlète sur son évolution, l'équipe en référence. */
+function blocEvolution(sq,scope,src,extra){
+  var p=pasLu(sq,scope),m=metriqueLue();
+  var wrap=h("div",{className:"evo"});
+  if(!p){
+    wrap.appendChild(emptyState({icon:"📈",title:"Une seule étape",small:true,
+      sub:"Il faut au moins deux sets, matchs ou rencontres pour suivre une évolution."}));
+    return wrap;
+  }
+  var etapes=sequenceEvolution(sq,scope,p);
+  wrap.appendChild(reglagesEvolution(sq,scope,extra));
+  var r=lignesPerimetre(sq,scope,src);
+  var poste=r.poste,choisies=r.lignes.filter(function(l){return !l.fixe}).map(function(l){return l.id});
+  var tete=r.lignes[0];
+  var serieEq=serieEvolution(sq,etapes,m,poste?choisies:null);
+  wrap.appendChild(courbeEvolution(etapes,[{nom:tete.label,couleur:EVO_COUL.sujet,vals:serieEq,principal:true}],m));
+  var tq=tendanceEvolution(serieEq,m);
+  wrap.appendChild(h("div",{className:"evo-resume"},
+    h("b",null,tete.label)," · ",m.l.toLowerCase()," : ",jetonTendance(tq,m),
+    tq?" — de "+fmtMetrique(m,serieEq[tq.premier.i].v)+" ("+etapes[tq.premier.i].court+") à "+
+      fmtMetrique(m,serieEq[tq.dernier.i].v)+" ("+etapes[tq.dernier.i].court+")":""));
+  /* La matrice. */
+  var lignes=[{l:tete,vals:serieEq}].concat(r.lignes.filter(function(l){return !l.fixe}).map(function(l){
+    return {l:l,vals:serieEvolution(sq,etapes,m,l.id)};
+  })).filter(function(x,i){return i===0||x.vals.some(function(v){return v.v!=null})});
+  var maxV=0;lignes.forEach(function(x){x.vals.forEach(function(v){if(v.v!=null&&v.v>maxV)maxV=v.v})});
+  var thead=h("tr",null,h("th",{className:"sticky st-who",scope:"col"},"Athlète"),
+    etapes.map(function(it){return h("th",{scope:"col",title:it.label+(it.info?" · "+it.info:"")},it.court)}),
+    h("th",{scope:"col",className:"evo-th-t"},"Tendance"));
+  var corps=lignes.map(function(x){
+    var t=tendanceEvolution(x.vals,m),l=x.l;
+    var nom=l.onclick
+      ?h("button",{className:"st-btn",type:"button","aria-label":"Évolution de "+(l.nom||l.label),
+          onclick:function(){state.ficheVue="evolution";l.onclick()}},
+          h("span",{className:"st-nom"},l.label),l.sub?h("span",{className:"st-sub"},l.sub.split(" · ")[0]):null)
+      :h("span",{className:"st-btn"},h("span",{className:"st-nom"},l.label));
+    return h("tr",{className:(l.fixe?"st-team":"")+(l.dim?" st-dim":"")},
+      h("th",{className:"sticky st-who",scope:"row"},nom),
+      x.vals.map(function(v){
+        var td=h("td",{className:"evo-c"+(v.faible?" faible":"")+(v.v==null?" nul":""),
+          title:v.faible?plural(v.vol,"geste")+" : trop peu pour la tendance":(v.absente?"n'a pas joué":null)},
+          fmtMetrique(m,v.v));
+        var bg=teinteCellule(m,v.faible?null:v.v,maxV);
+        if(bg)td.style.background=bg;
+        return td;
+      }),
+      h("td",{className:"evo-tc"},jetonTendance(t,m)));
+  });
+  var tab=h("div",{className:"st-cadre"},h("div",{className:"st-wrap","data-scroll-key":"evo-"+src},
+    h("table",{className:"st-table evo-table"},h("thead",null,thead),h("tbody",null,corps))));
+  wrap.appendChild(tab);
+  /* Ce que veut dire chaque colonne, sans survol. */
+  wrap.appendChild(h("div",{className:"evo-cles"},etapes.map(function(it){
+    return h("span",{className:"evo-cle"},h("b",null,it.court)," "+it.label+(it.info?" · "+it.info:""));
+  })));
+  var nv=p==="set"?nonVentiles(scope):0;
+  wrap.appendChild(h("div",{className:"muted st-leg"},
+    (m.eff?"Efficacité de −1 à +1, teinte verte au-dessus de zéro, rouge en dessous. ":
+      "Rapporté au set joué par chacune. ")+
+    "Valeur pâle : moins de "+EVO_MIN_VOL+" gestes, hors tendance. Tendance : la pente sur toutes les étapes, "+
+    "« stable » en deçà de "+(m.eff?"0,10":"15 %")+". Touchez une athlète pour sa courbe."+
+    (nv?" "+plural(nv,"match")+" non ventilé"+(nv>1?"s":"")+" n'"+(nv>1?"ont":"a")+" pas de sets à montrer.":"")));
+  return wrap;
+}
+
+/* ── L'évolution dans la fiche : la courbe du sujet, l'équipe en
+   référence, et chaque étape avec son écart à la précédente. */
+function ficheEvolution(sq,scope,pid){
+  var p=pasLu(sq,scope),m=metriqueLue(),equipe=pid==="__equipe";
+  var wrap=h("div",{className:"evo"});
+  if(!p){
+    wrap.appendChild(emptyState({icon:"📈",title:"Une seule étape",small:true,
+      sub:"Il faut au moins deux sets, matchs ou rencontres pour suivre une évolution."}));
+    return wrap;
+  }
+  var etapes=sequenceEvolution(sq,scope,p);
+  wrap.appendChild(reglagesEvolution(sq,scope));
+  var stSE=sousEquipeActive(sq),nomEq=stSE?stSE.name:"Équipe";
+  var serieEq=serieEvolution(sq,etapes,m,null);
+  var serieS=equipe?serieEq:serieEvolution(sq,etapes,m,pid);
+  var p0=equipe?null:playerById(pid);
+  var series=equipe?[{nom:nomEq,couleur:EVO_COUL.sujet,vals:serieEq,principal:true}]
+    :[{nom:shortName(p0),couleur:EVO_COUL.sujet,vals:serieS,principal:true},
+      {nom:nomEq,couleur:EVO_COUL.equipe,vals:serieEq}];
+  wrap.appendChild(courbeEvolution(etapes,series,m));
+  var t=tendanceEvolution(serieS,m),te=equipe?null:tendanceEvolution(serieEq,m);
+  wrap.appendChild(h("div",{className:"evo-resume"},
+    h("div",null,"Tendance : ",jetonTendance(t,m),
+      t?" sur "+plural(t.n,"étape")+" retenue"+(t.n>1?"s":""):" — il faut deux étapes d'au moins "+EVO_MIN_VOL+" gestes"),
+    t?h("div",null,"Meilleure : "+etapes[t.meilleur.i].court+" ("+fmtMetrique(m,t.meilleur.v)+") · plus faible : "+
+      etapes[t.moins.i].court+" ("+fmtMetrique(m,t.moins.v)+")"):null,
+    te?h("div",null,nomEq+" sur les mêmes étapes : ",jetonTendance(te,m)):null));
+  /* Chaque étape, et son écart à la précédente retenue. */
+  var prec=null;
+  var lignes=etapes.map(function(it,i){
+    var x=serieS[i],d=null;
+    if(x.v!=null&&!x.faible){if(prec!=null)d=x.v-prec;prec=x.v}
+    var ton=d==null||Math.abs(d)<(m.eff?0.05:0.1)?"":((d>0)!==!!m.moinsMieux?"bien":"mal");
+    return h("tr",{className:x.v==null?"st-dim":""},
+      h("th",{className:"sticky st-who",scope:"row"},h("span",{className:"st-btn"},
+        h("span",{className:"st-nom"},it.court+" · "+it.label),it.info?h("span",{className:"st-sub"},it.info):null)),
+      h("td",{className:"evo-c"+(x.faible?" faible":"")},x.v==null?(x.absente?"n'a pas joué":"—"):fmtMetrique(m,x.v)),
+      h("td",{className:"nul"},x.v==null?"":(m.eff?plural(x.vol,"geste"):plural(x.vol,"set"))),
+      h("td",{className:"evo-d "+ton},d==null?"":fmtEcartMetrique(m,d)),
+      equipe?null:h("td",{className:"nul"},fmtMetrique(m,serieEq[i].v)));
+  });
+  wrap.appendChild(h("div",{className:"st-cadre"},h("div",{className:"st-wrap","data-scroll-key":"evo-fiche"},
+    h("table",{className:"st-table evo-table"},
+      h("thead",null,h("tr",null,h("th",{className:"sticky st-who",scope:"col"},"Étape"),
+        h("th",{scope:"col"},m.court),h("th",{scope:"col"},m.eff?"Volume":"Jeu"),h("th",{scope:"col"},"Écart"),
+        equipe?null:h("th",{scope:"col"},nomEq))),
+      h("tbody",null,lignes)))));
+  return wrap;
+}
+
+/* L'export de la matrice, telle qu'elle est lue. */
+function exporterEvolution(sq,scope,src){
+  var p=pasLu(sq,scope),m=metriqueLue();if(!p)return;
+  var etapes=sequenceEvolution(sq,scope,p),r=lignesPerimetre(sq,scope,src);
+  var num=function(v){return v==null?"":(m.eff?v.toFixed(2):(Math.round(v*10)/10).toFixed(1)).replace(".",",")};
+  var lines=[["Athlète"].concat(etapes.map(function(it){return (it.court+" "+it.label).replace(/;/g,",")})).concat(["Tendance"]).join(";")];
+  var rangs=[{l:r.lignes[0],vals:serieEvolution(sq,etapes,m,r.poste?r.lignes.filter(function(l){return !l.fixe}).map(function(l){return l.id}):null)}]
+    .concat(r.lignes.filter(function(l){return !l.fixe}).map(function(l){return {l:l,vals:serieEvolution(sq,etapes,m,l.id)}}));
+  rangs.forEach(function(x){
+    var t=tendanceEvolution(x.vals,m);
+    lines.push([(x.l.nom||x.l.label).replace(/;/g,",")].concat(x.vals.map(function(v){return num(v.v)}))
+      .concat([t?(t.sens==="flat"?"stable":num(t.ecart)):""]).join(";"));
+  });
+  downloadCSV(lines,"evolution-"+safeName(scope.label.replace(/^\S+\s/,""))+"-"+m.k+"-"+p+".csv");
 }
 
 /* Les enfants d'un périmètre : les sets d'un match, les matchs d'une
@@ -10457,6 +10969,9 @@ function nomEnfants(scope){
    la feuille (son niveau à elle) ou une partie (son chemin). */
 function ouvrirFiche(pid,src){
   state.ficheSrc=src||"part";
+  /* La fiche s'ouvre sur la lecture qu'on faisait : le détail depuis le
+     tableau, la courbe depuis l'évolution. */
+  state.ficheVue=state.statVue==="evolution"?"evolution":"detail";
   openModal("evathlete",pid);
 }
 function perimetreFiche(sq){
@@ -10534,9 +11049,16 @@ function renderEvAthleteModal(){
      plural(total,"geste"),
      scope.niveau!=="set"?plural(jeu.matchs,"match")+(jeu.sets?" · "+plural(jeu.sets,"set"):""):null]
     .filter(Boolean).join(" · ")));
+  var pdF=total?pasDispo(sq,scope):[];
+  var vueF=(state.ficheVue==="evolution"&&pdF.length)?"evolution":"detail";
+  if(pdF.length)corps.appendChild(h("div",{className:"st-vue"},segmented({label:"Lecture",value:vueF,
+    options:[{k:"detail",l:"Détail"},{k:"evolution",l:"📈 Évolution"}],
+    onpick:function(v){state.ficheVue=v;render()}})));
   if(!total){
     corps.appendChild(emptyState({icon:"📊",title:"Aucun relevé",small:true,
       sub:(equipe?"L'équipe n'a":"Cette athlète n'a")+" aucun compteur sur ce périmètre."}));
+  } else if(vueF==="evolution"){
+    corps.appendChild(ficheEvolution(sq,scope,pid));
   } else {
     corps.appendChild(pastillesFamille());
     var enfants=enfantsDuPerimetre(sq,scope);

@@ -14,7 +14,7 @@ server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
 GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
-tests/          suite de non-régression Playwright — trente-deux suites
+tests/          suite de non-régression Playwright — trente-trois suites
 ```
 
 ---
@@ -383,6 +383,34 @@ un autre match, et une saisie d'avant la mise à jour n'y entre que si on coche
 
 La date de la rencontre est distincte de l'horodatage de saisie : un tournoi joué
 samedi et saisi dimanche reste daté de samedi, et ses matchs avec lui.
+
+### Suivre l'évolution
+
+`📈 Évolution`, à côté de `📊 Tableau`, lit le même périmètre **dans le temps** —
+dans chaque partie, à chaque niveau, et dans le `📊` de la feuille :
+
+| Réglage | Ce qu'il fait |
+|---|---|
+| Pas | `Par tournoi` (une partie entière), `Par match`, `Par set` — dans l'ordre où ils ont été joués. Un match d'avant la ventilation n'a pas de sets à montrer, et c'est dit |
+| Indicateur | Efficacité en attaque, réception, service, passe, bloc, défense ; ou points directs, fautes directes, gestes **par set joué** — sans quoi un match en trois sets « progresserait » sur un match en deux |
+| Postes | Ne garde qu'un poste ; la première ligne devient son total |
+
+En tête, la courbe de l'équipe : une seule valeur écrite, la dernière ; toucher une
+étape (ou la parcourir au clavier) donne sa valeur et ce qu'elle était — le match,
+l'adversaire, le résultat. Dessous, la **matrice** : une ligne par athlète, une
+colonne par étape, teintée en vert au-dessus de zéro, en rouge en dessous, et la
+**tendance** au bout : `↗ +0.60`, `↘ −0.18`, `→ stable`.
+
+La tendance est la pente des moindres carrés sur toutes les étapes, rapportée à
+l'écart entre la première et la dernière — pas deux points pris au hasard. En deçà de
+0,10 d'efficacité, ou de 15 % d'un rythme, elle se dit « stable ». Une efficacité
+calculée sur moins de trois gestes se montre, pâle, mais n'y entre pas : un 1 sur 1
+n'est pas un progrès. Pour les fautes, descendre est un progrès, et se lit en vert.
+
+Une ligne ouvre la **fiche** de l'athlète sur son évolution : sa courbe, l'équipe en
+référence grise, la tendance, l'étape la meilleure et la plus faible, puis chaque
+étape avec son volume, son écart à la précédente et la valeur de l'équipe. `📤 CSV`
+exporte la matrice.
 
 ### Lire les statistiques
 
@@ -1003,6 +1031,24 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 ---
 
 ## Notes de version
+
+### v7.17 — l'évolution, d'un set, d'un match, d'un tournoi à l'autre
+
+Nouvelle suite : `tests/evolution.js` (vingt contrôles, tous en échec sur la v7.16).
+
+- **`📈 Évolution`**, à côté du tableau, dans chaque partie et à chaque niveau, et dans
+  le `📊` de la feuille : la courbe de l'équipe, puis une matrice — une ligne par
+  athlète, une colonne par étape, sa tendance au bout.
+- **Le pas** : `Par tournoi`, `Par match`, `Par set` — dans l'ordre où ils ont été joués.
+- **L'indicateur** : l'efficacité en attaque, réception, service, passe, bloc ou
+  défense, ou un rythme rapporté au set joué — points directs, fautes directes,
+  gestes.
+- **La tendance** est la pente sur toutes les étapes, pas l'écart entre deux points
+  pris au hasard ; « stable » en deçà de 0,10 d'efficacité ou de 15 % d'un rythme. Une
+  efficacité sur moins de trois gestes se montre, pâle, mais n'y entre pas.
+- **La fiche** d'une athlète s'ouvre sur son évolution, l'équipe tracée en référence,
+  chaque étape avec son écart à la précédente ; la meilleure et la plus faible sont
+  nommées. Export CSV de la matrice.
 
 ### v7.16 — annuler, supprimer, et un match qui commence vide
 
