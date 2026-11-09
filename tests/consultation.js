@@ -165,10 +165,13 @@ function saison(){
       var sq=curSquad(),sc=evScope(sq,"tournaments"),st=scopeTeamStats(sc);
       var tr=document.querySelector(".st-table tbody tr.st-team"),td=tr.querySelectorAll("td");
       return {hab:td[6].firstChild.textContent,pts:td[7].textContent,f:td[8].textContent,g:td[9].textContent,
-        habA:String(familyVolume(st,"habiletes")),ptsA:String(st.srv_ace+st.atk_kill+st.blk_kill),
+        habA:String(familyVolume(st,"habiletes")),ptsA:String(st.srv_ace+st.atk_kill+st.blk_kill+st.blk_solo),solo:st.blk_solo,
         fA:String(st.srv_err+st.atk_err+st.rec_err+st.blk_err),gA:String(sumStats(st))};
     });
     if(r.hab!==r.habA||/^[+-]/.test(r.hab))throw new Error("habiletés : "+r.hab+" (attendu "+r.habA+")");
+    /* Un bloc solo est un point direct (v7.15.1) : le contrôle ne prouve
+       rien si la saison n'en compte aucun. */
+    if(!r.solo)throw new Error("aucun bloc solo dans la saison : le contrôle ne prouve rien");
     if(r.pts!==r.ptsA||r.f!==r.fA||r.g!==r.gA)throw new Error(JSON.stringify(r));
   });
   await step("les habiletés n'ont pas de colonne d'efficacité",async()=>{
