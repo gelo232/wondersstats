@@ -1149,8 +1149,15 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .fs-set.on{background:var(--accent-solid);border-color:var(--accent-ink);color:var(--on-light)}
 .fs-set.on .fs-lbl,.fs-set.on .fs-sc{color:var(--on-light)}
 .fs-set.reste{border-style:dashed}
-.fs-tot{flex:0 0 auto;align-self:center;margin-left:auto;padding:0 var(--s1) 0 var(--s2);font-size:var(--fs-2xs);
-  font-weight:700;color:var(--txt-faint);white-space:nowrap}
+.fs-tot{flex:0 0 auto;align-self:stretch;margin-left:auto;padding:0 var(--s2);font-size:var(--fs-2xs);
+  font-weight:700;color:var(--txt-faint);white-space:nowrap;display:inline-flex;align-items:center;gap:6px;
+  min-height:var(--tap);background:transparent;border:1.5px dashed var(--line-strong);border-radius:var(--r-md);cursor:pointer}
+.fs-tot .fs-menu{font-size:var(--fs-lg);line-height:1;color:var(--txt-dim)}
+.navRow.is-danger{border-color:var(--danger)}
+.navRow.is-danger .nr-ttl{color:var(--danger-ink)}
+.nm-reprise{display:flex;flex-direction:column;gap:var(--s2);align-items:flex-start}
+.nm-reprise-l{display:flex;align-items:center;gap:var(--s2);min-height:var(--tap);font-weight:700;cursor:pointer}
+.nm-reprise-l input{width:22px;height:22px;margin:0;min-height:0;flex-shrink:0}
 .fs-barre .sb-row .btn{flex:0 0 auto}
 .fs-barre .sb-row .btn.fs-fin{flex:1 1 auto;min-width:0}
 .fs-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--danger-ink);flex-shrink:0}
@@ -1284,7 +1291,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.15.1";
+var APP_VERSION = "7.16.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -10391,13 +10398,16 @@ function blocStatistiques(sq,scope,src){
         " · "+plural(total,"geste")),
       h("button",{className:"btn btn-ghost xs st-csv",type:"button","aria-label":"Exporter ce tableau en CSV",
         onclick:function(){exporterTableau(scope,r.lignes,fam,mode)}},"📤 CSV")),
-    pastillesFamille(),
-    (modes.length>1||choixPoste)?h("div",{className:"st-ctrl"},
+    total?pastillesFamille():null,
+    !total?emptyState({icon:"📊",title:"Aucun geste relevé",small:true,
+      sub:scope.niveau==="set"?"Ce set est vide pour l'instant : relevez, et le tableau se remplit."
+        :(scope.niveau==="match"?"Ce match est vide pour l'instant.":"Rien n'est relevé sur ce périmètre.")}):null,
+    (total&&(modes.length>1||choixPoste))?h("div",{className:"st-ctrl"},
       modes.length>1?segmented({label:"Valeurs",value:mode,options:modes,
         onpick:function(v){state.statMode=v;render()}}):null,
       choixPoste):null,
-    tableauStats(r.lignes,{cle:cle,mode:mode,fam:fam,masquerVides:true,ordreFiche:true}),
-    legendeStats(fam,mode));
+    total?tableauStats(r.lignes,{cle:cle,mode:mode,fam:fam,masquerVides:true,ordreFiche:true}):null,
+    total?legendeStats(fam,mode):null);
 }
 
 /* Les enfants d'un périmètre : les sets d'un match, les matchs d'une
@@ -10817,7 +10827,9 @@ function evChildren(sq,k){
     if(!seS)return null;
     wrap.appendChild(h("div",{className:"btn-row ev-actions"},
       h("button",{className:"btn btn-ghost sm",type:"button",
-        onclick:function(){state.modalDraft=null;openModal("editmatch",seS.id)}},"ⓘ Match et scores")));
+        onclick:function(){state.modalDraft=null;openModal("editmatch",seS.id)}},"ⓘ Match et scores"),
+      setSupprimable(seS,scope.setIdx)?h("button",{className:"btn btn-danger-o sm",type:"button",
+        onclick:function(){gesteSupprimerSet(sq,seS,scope.setIdx)}},"🗑️ Supprimer ce set"):null));
     return wrap;
   }
 
@@ -10828,7 +10840,9 @@ function evChildren(sq,k){
     var blocs=setsOfSession(se);
     wrap.appendChild(h("div",{className:"btn-row ev-actions"},
       h("button",{className:"btn btn-ghost sm",type:"button",
-        onclick:function(){state.modalDraft=null;openModal("editmatch",se.id)}},"ⓘ Match et scores")));
+        onclick:function(){state.modalDraft=null;openModal("editmatch",se.id)}},"ⓘ Match et scores"),
+      h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){gesteSupprimerMatch(sq,se)}},
+        se.live?"🗑️ Annuler ce match":"🗑️ Supprimer ce match")));
     if(sessionIsSplit(se)){
       wrap.appendChild(h("div",{className:"section-title"},plural(nbSetsReels(se),"set")));
       blocs.forEach(function(b,i){wrap.appendChild(rangeeSet(sq,se,b,i))});
@@ -10851,7 +10865,9 @@ function evChildren(sq,k){
     wrap.appendChild(h("div",{className:"btn-row ev-actions"},
       h("button",{className:"btn btn-ghost sm",type:"button",
         onclick:function(){state.modalDraft=null;openModal("editevent",ev.id)}},
-        "ⓘ "+(kindIsMulti(ev.kind)?"Infos du tournoi":"Infos de la rencontre"))));
+        "ⓘ "+(kindIsMulti(ev.kind)?"Infos du tournoi":"Infos de la rencontre")),
+      h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){gesteSupprimerRencontre(sq,ev)}},
+        "🗑️ "+(kindIsMulti(ev.kind)?"Supprimer le tournoi":"Supprimer la rencontre"))));
     var adv=advLabel({event:ev,sessions:ss});
     if(adv)wrap.appendChild(h("div",{className:"muted ev-info"},adv.charAt(0).toUpperCase()+adv.slice(1)));
     wrap.appendChild(h("div",{className:"section-title"},plural(ss.length,"match")));
@@ -16721,7 +16737,11 @@ function ouvrirFeuille(sq,se,idx){
   if(idx==null)idx=se.live?idxFeuille(se,null):(sessionIsSplit(se)?0:-1);
   /* ↶ défait les gestes de CETTE feuille : ouvrir un autre match ne doit
      pas laisser annuler, ici, un geste fait dans le précédent. */
-  if(!state.feuille||state.feuille.seId!==se.id)clearUndo();
+  /* Un autre match repart de zéro : ↶ ne défait rien du précédent, et
+     📊 s'ouvre sur le set qu'on relève — un nouveau match ouvrait le
+     niveau « Tournoi » retenu du précédent, et semblait commencer avec
+     les gestes de toute la journée. */
+  if(!state.feuille||state.feuille.seId!==se.id){clearUndo();state.feuilleNiveau=null}
   state.feuille={seId:se.id,idx:idxFeuille(se,idx)};
   state.feuilleStats=false;state.quickPlayer=null;
   var ev=eventOf(sq,se);
@@ -16836,7 +16856,10 @@ function bandeSets(sq,se){
         h("span",{className:"fs-sc",id:on?"fs-n-courant":null,"data-score":sc?"1":"0"},sc||plural(n,"geste")),
         on?h("span",{className:"fs-ed","aria-hidden":"true"},"✎"):null);
     }),
-    h("span",{className:"fs-tot",id:"fs-n-match"},(entr?"Séance":"Match")+" · "+plural(gestesMatch(se),"geste")));
+    h("button",{className:"fs-tot",type:"button","aria-label":(entr?"La séance":"Le match")+" : infos, annuler ou supprimer",
+      onclick:function(){openModal("matchfeuille")}},
+      h("span",{id:"fs-n-match"},(entr?"Séance":"Match")+" · "+plural(gestesMatch(se),"geste")),
+      h("span",{className:"fs-menu","aria-hidden":"true"},"⋯")));
 }
 
 /* La barre du bas, sur UNE rangée : le geste de fin de set, la
@@ -17340,6 +17363,138 @@ function celluleCompteur(g,s,lire,ecrire,apres){
   return h("div",{className:"qp-stat-cell"},btn,dec);
 }
 
+/* ── Annuler, supprimer : un match, un set, une rencontre ──────────
+   Pendant la saisie comme après : un match commencé par erreur, un set
+   ouvert de trop, un tournoi saisi en double. Chaque geste dit ce qu'il
+   emporte avant de le faire, et « Annuler » dans le bandeau rend tout,
+   compteurs et scores compris. « Annuler » quand rien n'est encore
+   joué — un match en cours, un set vide —, « Supprimer » sinon. */
+function supprimerRencontre(sq,evId){
+  sq.sessions=sq.sessions.filter(function(x){return x.eventId!==evId});
+  sq.events=sq.events.filter(function(ev){return ev.id!==evId});
+  if(state.feuille&&!sessionById(sq,state.feuille.seId))state.feuille=null;
+  recalcGoals(sq);
+}
+/* Après une suppression, l'écran ne montre plus ce qui n'existe plus :
+   le chemin remonte, et la feuille d'un match disparu rend la main à
+   sa partie. */
+function apresSuppression(sq,k){
+  var p=evPath();
+  if(p.sessionId&&!sessionById(sq,p.sessionId)){p.sessionId=null;p.setIdx=null}
+  if(p.eventId&&!eventById(sq,p.eventId)){p.eventId=null;p.sessionId=null;p.setIdx=null}
+  if(state.tab==="input"&&state.feuille&&!sessionById(sq,state.feuille.seId))state.feuille=null;
+  if(state.tab==="input"&&!state.feuille){state.feuilleStats=false;navToSection(k);return}
+  render();
+}
+function gesteSupprimerMatch(sq,se){
+  var ev=eventOf(sq,se),entr=!!ev&&ev.kind==="training";
+  var seul=!!ev&&sessionsOfEvent(sq,ev.id).length===1,g=gestesMatch(se);
+  var annuler=!!se.live,nom=entr?"la séance":"« "+libelleMatch(sq,se)+" »";
+  openConfirm({
+    title:(annuler?"Annuler ":"Supprimer ")+nom+" ?",
+    body:(g?"Ses "+plural(g,"geste")+", ses sets et son score quittent tous les cumuls."
+           :"Rien n'y est encore relevé.")+
+      ((seul&&ev)?" "+(kindIsMulti(ev.kind)?"Le tournoi":"La rencontre")+" « "+(ev.name||"")+" » part avec lui : c'était son seul match.":""),
+    detail:"« Annuler » dans le bandeau le rend aussitôt, compteurs compris.",
+    confirm:annuler?(entr?"Annuler la séance":"Annuler le match"):"Supprimer",tone:"danger",
+    cancel:entr?"Garder la séance":"Garder le match",
+    onconfirm:function(){
+      var k=sectionOfKind(ev?ev.kind:"league").key;
+      logAct("match",(annuler?"Match annulé":"Match supprimé")+" — « "+se.name+" »",{teamId:sq.teamId,seasonId:sq.seasonId});
+      pushUndoSquad((annuler?"Annulation":"Suppression")+" de « "+se.name+" »",sq);
+      supprimerMatch(sq,se);
+      if(state.modalType){state.modalDraft=null;closeModal()}
+      saveNow();
+      showToast("🗑️ "+(entr?(annuler?"Séance annulée":"Séance supprimée"):(annuler?"Match annulé":"Match supprimé")),
+        {tone:"danger",action:{label:"Annuler",onclick:doUndo}});
+      apresSuppression(sq,k);
+    }});
+}
+function setSupprimable(se,idx){
+  if(!sessionIsSplit(se)||!se.sets[idx])return false;
+  return !!se.sets[idx].reconciled||nbSetsReels(se)>1;
+}
+function gesteSupprimerSet(sq,se,idx){
+  var b=blocsFeuille(se).filter(function(x){return x.idx===idx})[0];
+  if(!b||b.idx===-1)return;
+  if(!setSupprimable(se,idx)){
+    showToast("⚠️ C'est le seul set : videz-le, ou supprimez le match",{tone:"warn"});return;
+  }
+  var n=gestesBloc(se,idx),sc=scoreSet(se,idx),vide=!n&&!(sc.us||sc.them)&&!b.reste;
+  var lib=b.reste?"le reste":b.label.toLowerCase();
+  openConfirm({
+    title:(vide?"Annuler ":"Supprimer ")+lib+" ?",
+    body:vide?"Il est vide : ni geste ni score."
+      :((n?"Ses "+plural(n,"geste"):"Aucun geste")+(b.reste?" ne seront plus comptés au match."
+        :((sc.us||sc.them)?" et son score "+sc.us+"–"+sc.them:"")+" quittent le match. Les sets suivants remontent d'un rang.")),
+    detail:"« Annuler » dans le bandeau le rend, compteurs et score compris.",
+    confirm:vide?"Annuler le set":"Supprimer",tone:"danger",cancel:"Garder le set",
+    onconfirm:function(){
+      pushUndoMatch((vide?"Annulation du ":"Suppression du ")+lib,sq,se);
+      supprimerSet(sq,se,idx);
+      /* On retombe sur le set d'avant : annuler un set ouvert de trop,
+         c'est revenir là où l'on relevait. */
+      if(state.feuille&&state.feuille.seId===se.id)state.feuille.idx=idxFeuille(se,idx>0?idx-1:0);
+      var p=evPath();if(p.sessionId===se.id)p.setIdx=null;
+      if(state.modalType){state.modalDraft=null;closeModal()}
+      saveNow();
+      showToast("↺ "+(b.reste?"Reste":b.label)+(vide?" annulé":" supprimé"),{tone:"warn",action:{label:"Annuler",onclick:doUndo}});
+      render();
+    }});
+}
+function gesteSupprimerRencontre(sq,ev){
+  var ss=sessionsOfEvent(sq,ev.id),multi=kindIsMulti(ev.kind),entr=ev.kind==="training";
+  var g=ss.reduce(function(n,x){return n+gestesMatch(x)},0),vifs=ss.filter(function(x){return x.live}).length;
+  var quoi=multi?"le tournoi":(entr?"la séance":"la rencontre");
+  openConfirm({
+    title:"Supprimer "+quoi+" « "+(ev.name||"")+" » ?",
+    body:plural(ss.length,entr?"séance":"match")+" et "+plural(g,"geste")+" quittent tous les cumuls"+
+      (vifs?", dont "+plural(vifs,"match")+" en cours":"")+".",
+    detail:"« Annuler » dans le bandeau rend tout, matchs et compteurs compris.",
+    confirm:"Supprimer",tone:"danger",cancel:"Garder",
+    onconfirm:function(){
+      logAct("match",(multi?"Tournoi":"Rencontre")+" « "+ev.name+" » supprimé"+(multi?"":"e")+" — "+plural(ss.length,"match"),
+        {teamId:sq.teamId,seasonId:sq.seasonId});
+      pushUndoSquad("Suppression de « "+ev.name+" »",sq);
+      supprimerRencontre(sq,ev.id);
+      if(state.modalType){state.modalDraft=null;closeModal()}
+      saveNow();
+      showToast("🗑️ "+(multi?"Tournoi supprimé":(entr?"Séance supprimée":"Rencontre supprimée")),
+        {tone:"danger",action:{label:"Annuler",onclick:doUndo}});
+      apresSuppression(sq,sectionOfKind(ev.kind).key);
+    }});
+}
+
+/* ── Le match, depuis sa feuille : ses infos, et l'annuler ─────────── */
+function renderMatchFeuilleModal(){
+  var sq=curSquad(),se=sq?feuilleCourante(sq):null;if(!se)return null;
+  var ev=eventOf(sq,se),entr=!!ev&&ev.kind==="training",idx=state.feuille.idx;
+  var b=blocsFeuille(se).filter(function(x){return x.idx===idx})[0];
+  function ligne(ico,ttl,sub,fn,danger){
+    return h("button",{className:"navRow"+(danger?" is-danger":""),type:"button",onclick:fn},
+      h("span",{className:"nr-ico","aria-hidden":"true"},ico),
+      h("span",{className:"nr-body"},h("span",{className:"nr-ttl"},ttl),sub?h("span",{className:"nr-sub"},sub):null),
+      h("span",{className:"nr-arw","aria-hidden":"true"},"›"));
+  }
+  var body=h("div",null,
+    h("div",{className:"muted",style:{marginBottom:"var(--s3)"}},
+      [ev?eventLabel(ev):null,ev&&kindIsMulti(ev.kind)?matchLabel(ev,se):null,se.opponent?"contre "+se.opponent:null,
+       se.live?"en cours":"terminé",plural(nbSetsReels(se),"set"),plural(gestesMatch(se),"geste")].filter(Boolean).join(" · ")),
+    ligne("ⓘ",entr?"Nom et date":"Nom, adversaire et scores",entr?"La date, la rencontre":"La date, la rencontre, le score de chaque set",
+      function(){state.modalDraft=null;openModal("editmatch",se.id)}));
+  if(b&&b.idx!==-1&&setSupprimable(se,b.idx)){
+    var vide=!gestesBloc(se,b.idx)&&!(b.us||b.them)&&!b.reste;
+    body.appendChild(ligne("↩",(vide?"Annuler ":"Supprimer ")+(b.reste?"le reste":"le "+b.label.toLowerCase()),
+      vide?"Il est vide : on revient au set d'avant":plural(gestesBloc(se,b.idx),"geste")+" retirés du match",
+      function(){gesteSupprimerSet(sq,se,b.idx)},true));
+  }
+  body.appendChild(ligne("🗑️",se.live?(entr?"Annuler la séance":"Annuler ce match"):(entr?"Supprimer la séance":"Supprimer ce match"),
+    "Tout est retiré : gestes, sets et score. « Annuler » le rend.",function(){gesteSupprimerMatch(sq,se)},true));
+  return sheetShell({title:entr?"La séance":"Le match",
+    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},body);
+}
+defModal("matchfeuille",renderMatchFeuilleModal,{autofocus:false});
+
 /* ── Les fenêtres de la feuille ──────────────────────────────────── */
 
 /* Un score « nous – eux » : deux champs, et « − » / « + » pour
@@ -17447,16 +17602,35 @@ function renderNouveauMatchModal(){
     var nEv=ev?sessionsOfEvent(sq,ev.id).length+1:1;
     body.appendChild(champ("name","Nom du match (facultatif)","Par défaut : Match "+nEv));
   }
+  /* Un match commence VIDE. Une saisie d'avant la mise à jour, jamais
+     enregistrée, était versée d'office dans le premier match ouvert :
+     il commençait avec des gestes qui n'étaient pas les siens. Elle
+     n'y entre plus que si on le demande — sinon elle attend, ou s'efface. */
   if(saisieAncienne(sq)){
     var nA=Object.keys(sq.stats).reduce(function(n,pid){return n+sumStats(sq.stats[pid])},0);
-    body.appendChild(h("div",{className:"hint warn"},
-      "Une saisie commencée avant la mise à jour ("+plural(nA,"geste")+") n'a jamais été enregistrée : "+
-      "elle sera reprise dans ce match, sets compris. Rien ne se perd."));
+    var caseA=h("input",{type:"checkbox",className:"nm-reprise-cb"});
+    caseA.checked=!!sel.reprendre;
+    caseA.addEventListener("change",function(e){sel.reprendre=e.target.checked;render()});
+    body.appendChild(h("div",{className:"hint warn nm-reprise"},
+      h("div",null,"Une saisie commencée avant la mise à jour ("+plural(nA,"geste")+
+        ") n'a jamais été enregistrée. Ce match commence vide, sauf si vous la reprenez."),
+      h("label",{className:"nm-reprise-l"},caseA," Reprendre ces "+plural(nA,"geste")+" dans ce match"),
+      h("button",{className:"btn btn-danger-o xs",type:"button",onclick:function(){
+        openConfirm({title:"Effacer la saisie d'avant ?",
+          body:"Ses "+plural(nA,"geste")+" ne seront repris dans aucun match.",
+          detail:"Les matchs enregistrés ne sont pas touchés. « Annuler » la rend.",
+          confirm:"Effacer",tone:"danger",onconfirm:function(){
+            pushUndoSquad("Saisie d'avant effacée",sq);
+            sq.stats={};sq.setMarks=[];sel.reprendre=false;saveNow();
+            showToast("Saisie d'avant effacée",{tone:"warn",action:{label:"Annuler",onclick:doUndo}});
+            render();
+          }});
+      }},"Effacer cette saisie d'avant")));
   }
   var go=h("button",{id:"modalOk",className:"btn btn-save full",type:"button",onclick:function(){
     var se=creerMatch(sq,{eventId:sel.eventId||"",kind:sel.kind,eventName:d.eventName,
       date:sel.day||todayISO(),location:d.location,opponent:d.opponent,name:d.name});
-    var repris=reprendreSaisieAncienne(sq,se);
+    var repris=sel.reprendre?reprendreSaisieAncienne(sq,se):false;
     state.modalDraft=null;
     saveNow();
     ouvrirFeuille(sq,se,null);
@@ -17519,12 +17693,9 @@ function renderSetFeuilleModal(){
           "Les autres sets ne bougent pas. « Annuler » les rend.","Vider",
           function(){viderSet(sq,se,b.idx)});
       }},"Vider"):null,
-      (b.idx!==-1&&(b.reste||nbSetsReels(se)>1))?h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){
-        confirmer("Supprimer "+(b.reste?"le reste":b.label.toLowerCase())+" ?",
-          (n?"Ses "+plural(n,"geste")+" quittent le match":"Il quitte le match")+(b.reste?".":", son score aussi. Les sets suivants remontent d'un rang."),
-          "« Annuler » le rend, compteurs et score compris.","Supprimer",
-          function(){supprimerSet(sq,se,b.idx)});
-      }},b.reste?"Supprimer le reste":"Supprimer ce set"):null);
+      (b.idx!==-1&&setSupprimable(se,b.idx))?h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){
+        gesteSupprimerSet(sq,se,b.idx);
+      }},b.reste?"Supprimer le reste":((!n&&!(b.us||b.them))?"Annuler ce set":"Supprimer ce set")):null);
     if(gestes.childNodes.length)body.appendChild(gestes);
   }
   var suivantN=nbSetsReels(se)+1;
@@ -17602,6 +17773,10 @@ function renderTerminerModal(){
   var partie=sectionOfKind(ev?ev.kind:"league");
   body.appendChild(h("div",{className:"muted",style:{marginTop:"var(--s3)"}},
     (entr?"La séance":"Le match")+" reste consultable et modifiable dans 🗓️ Saison → "+partie.icon+" "+partie.label+"."));
+  /* Commencé par erreur, pas joué : on l'annule au lieu de le terminer. */
+  body.appendChild(h("div",{className:"btn-row",style:{marginTop:"var(--s3)"}},
+    h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){gesteSupprimerMatch(sq,se)}},
+      entr?"🗑️ Annuler la séance":"🗑️ Annuler ce match")));
 
   function terminer(ensuite){
     if(!entr&&majBilan()){showToast("⚠️ Un score de set est incomplet",{tone:"warn"});return}
@@ -17700,20 +17875,8 @@ function renderEditMatchModal(){
     majBilan();
   }
   body.appendChild(h("div",{className:"btn-row",style:{marginTop:"var(--s4)"}},
-    h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){
-      openConfirm({title:"Supprimer « "+(se.name||"ce match")+" » ?",
-        body:"Ses "+plural(gestesMatch(se),"geste")+" quittent tous les cumuls, ses sets et son score aussi.",
-        detail:"« Annuler » le rend aussitôt après.",confirm:"Supprimer",tone:"danger",
-        onconfirm:function(){
-          logAct("match","Match « "+se.name+" » supprimé",{teamId:sq.teamId,seasonId:sq.seasonId});
-          pushUndoSquad("Suppression de « "+se.name+" »",sq);
-          supprimerMatch(sq,se);
-          var p=evPath();if(p.sessionId===se.id){p.sessionId=null;p.setIdx=null}
-          state.modalDraft=null;closeModal();saveNow();
-          showToast("🗑️ Match supprimé",{tone:"danger",action:{label:"Annuler",onclick:doUndo}});
-          render();
-        }});
-    }},"🗑️ Supprimer ce match")));
+    h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){gesteSupprimerMatch(sq,se)}},
+      se.live?"🗑️ Annuler ce match":"🗑️ Supprimer ce match")));
 
   var ok=h("button",{id:"modalOk",className:"btn btn-save full",type:"button",onclick:function(){
     if(!entr&&majBilan()){showToast("⚠️ Un score de set est incomplet",{tone:"warn"});return}

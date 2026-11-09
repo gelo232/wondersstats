@@ -14,7 +14,7 @@ server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
 GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
-tests/          suite de non-régression Playwright — trente et une suites
+tests/          suite de non-régression Playwright — trente-deux suites
 ```
 
 ---
@@ -350,6 +350,22 @@ numérotent dès le premier (`Match 1`, `Match 2`) et gardent chacun leur advers
 Un match **en cours** compte déjà dans tous les cumuls — on consulte en tout temps —
 mais **pas au bilan** : un set à 12–10 n'est pas une victoire. Il survit au
 rechargement ; sa partie, et la tuile du tableau de bord, proposent `▶️ Reprendre`.
+
+### Annuler, supprimer
+
+- **Pendant la saisie**, le bouton `Match · N gestes ⋯` au bout de la bande des sets
+  ouvre le match : ses infos et ses scores, `Annuler le set 3` (un set ouvert de trop
+  — on revient au set d'avant), `Annuler ce match` (commencé par erreur : il disparaît,
+  avec sa rencontre si c'était le seul). `🏁 Terminer` propose aussi `Annuler ce match`.
+- **Après la saisie**, chaque page porte son geste : `🗑️ Supprimer ce set` (sauf le seul
+  set d'un match), `🗑️ Supprimer ce match`, `🗑️ Supprimer le tournoi` — tous ses matchs.
+- Chaque geste dit ce qu'il emporte avant de le faire, et `Annuler` dans le bandeau
+  rend tout, compteurs et scores compris. « Annuler » quand rien n'est encore joué,
+  « Supprimer » sinon.
+
+Un match **commence vide** : `📊` s'ouvre sur son set 1, jamais sur le niveau lu dans
+un autre match, et une saisie d'avant la mise à jour n'y entre que si on coche
+« Reprendre ».
 
 ### Modifier un set, un match
 
@@ -987,6 +1003,27 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 ---
 
 ## Notes de version
+
+### v7.16 — annuler, supprimer, et un match qui commence vide
+
+Nouvelle suite : `tests/annuler.js`, dont douze contrôles sur treize échouent sur la
+v7.15.1.
+
+- **Un match commence vide.** Deux causes reproduites : `📊` s'ouvrait sur le niveau
+  « Tournoi » retenu du match précédent — un nouveau match semblait porter les gestes
+  de toute la journée —, et une saisie d'avant la mise à jour, jamais enregistrée, était
+  versée d'office dans le premier match ouvert. `📊` s'ouvre désormais sur le set qu'on
+  relève, et la saisie d'avant n'entre que si on coche « Reprendre » ; sinon elle
+  attend, ou s'efface (`Effacer cette saisie d'avant`).
+- **Annuler pendant la saisie.** Le bouton `Match · N gestes ⋯`, au bout de la bande des
+  sets, ouvre le match : ses infos, `Annuler le set 3` (un set ouvert de trop : on
+  revient au set d'avant), `Annuler ce match`. `🏁 Terminer` propose aussi d'annuler un
+  match commencé pour rien.
+- **Supprimer après la saisie**, d'un geste visible sur chaque page : `🗑️ Supprimer ce
+  set`, `🗑️ Supprimer ce match`, `🗑️ Supprimer le tournoi` (tous ses matchs). Chaque
+  geste dit ce qu'il emporte ; une rencontre vidée de son dernier match part avec lui.
+- **`Annuler` dans le bandeau rend tout**, compteurs et scores compris. La confirmation
+  ne met plus deux « Annuler » côte à côte : `Garder le match` · `Annuler le match`.
 
 ### v7.15.1 — le bloc solo est un point
 
