@@ -914,7 +914,9 @@ const ERRORS=[];let PASS=0;
     if(r.st||r.lu)throw new Error("l'athlète sortie reste : "+JSON.stringify(r));
   });
   await step("pendant la saisie, sous-équipes et line-ups se choisissent d'un geste",async()=>{
-    await page.evaluate(()=>{var sq=curSquad();sq.lineup=[];state.courtPanelOpen=false;saveNow();navTo(mkRoute("legacy","input"))});
+    /* La saisie s'écrit dans la feuille d'un match : on en ouvre un. */
+    await page.evaluate(()=>{var sq=curSquad();sq.lineup=[];state.courtPanelOpen=false;
+      var se=creerMatch(sq,{kind:"friendly",opponent:"Essai"});saveNow();ouvrirFeuille(sq,se,null)});
     await page.waitForTimeout(400);
     const rangee=page.locator(".groupes-saisie");
     if(!(await rangee.count()))throw new Error("aucune rangée de groupes dans l'écran de saisie");

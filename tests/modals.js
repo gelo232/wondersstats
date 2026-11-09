@@ -76,7 +76,13 @@ const ERRORS=[];let PASS=0;
     ["newplayer",   ()=>openModal("newplayer")],
     ["editplayer",  ()=>openModal("editplayer",DB.players[0].id)],
     ["bulkplayers", ()=>openModal("bulkplayers")],
-    ["savesession", ()=>{state.tab="input";openModal("savesession")}],
+    /* La feuille de match (v7.14) : un nouveau relevé, la fenêtre d'un
+       set, la fin du match, et la modification d'un match après coup. */
+    ["nouveaumatch",()=>{state.modalDraft=null;openModal("nouveaumatch",{kind:"tournament"})}],
+    ["setfeuille",  ()=>{const s=curSquad(),se=creerMatch(s,{kind:"friendly",opponent:"Essai"});
+      state.feuille={seId:se.id,idx:0};state.tab="input";state.modalDraft=null;openModal("setfeuille",{idx:0})}],
+    ["terminer",    ()=>{state.tab="input";state.modalDraft=null;openModal("terminer")}],
+    ["editmatch",   ()=>{state.modalDraft=null;openModal("editmatch",curSquad().sessions[0].id)}],
     ["subteam",     ()=>{state.tab="input";const t=curTeam();
       if(!t.subteams.length)t.subteams.push({id:uid(),name:"Vide",playerIds:[],lineups:[]});
       ouvrirAjoutAthletes(t.subteams[0])}],
@@ -103,7 +109,7 @@ const ERRORS=[];let PASS=0;
       const t=await page.textContent(".modal");
       if(!t||t.trim().length<8)throw new Error("modale vide");
       // certaines modales de consultation se ferment par « Fermer »
-      const closeBtn=page.locator(".modal button").filter({hasText:/Annuler|Fermer/}).first();
+      const closeBtn=page.locator(".modal button").filter({hasText:/Annuler|Fermer|Continuer/}).first();
       await closeBtn.click();
       await page.waitForTimeout(120);
       const after=await page.locator(".modal").count();

@@ -71,8 +71,10 @@ const ERRORS=[];let PASS=0;
     state.evSujet=o.sujet;state.evPath=null;state.basReplie=false;navToSection(o.k);
   },{k:k,sujet:sujet});
 
-  /* Relever, depuis l'en-tête ET depuis l'état vide : la saisie s'ouvre,
-     sur la bonne nature, et « ‹ » ramène à la partie. */
+  /* Relever, depuis l'en-tête ET depuis l'état vide : le nouveau relevé
+     s'ouvre, sur la bonne nature, et « Annuler » ne crée rien. (v7.14 :
+     la feuille du match s'ouvre ensuite par « Commencer » — voir
+     tests/feuille.js.) */
   const releverMarche=async(k,nature)=>{
     for(const ou of ["en-tête","état vide"]){
       await propre();await ouvrirPartie(k,"team")();await pause();
@@ -82,14 +84,18 @@ const ERRORS=[];let PASS=0;
         if(ou==="état vide")continue;          /* une partie qui a des relevés n'a pas d'état vide */
         throw new Error("pas de Relever en "+ou);
       }
+      const avant=await page.evaluate(()=>curSquad().sessions.length);
       await btn.first().click();await pause();
-      const r=await page.evaluate(()=>({tab:state.tab,kind:state.inputKind}));
-      if(r.tab!=="input"||r.kind!==nature)throw new Error("Relever ("+ou+") de "+k+" : "+JSON.stringify(r));
-      await page.locator("button[aria-label^='Retour']").first().click();await pause();
-      const s=await page.evaluate(()=>({tab:state.tab,sec:state.seasonSection}));
-      if(s.tab!=="season"||s.sec!==k)throw new Error("le retour de la saisie ne ramène pas à "+k+" : "+JSON.stringify(s));
+      const r=await page.evaluate(()=>({modal:state.modalType,kind:state.inputKind,
+        nature:(document.querySelector(".nm-nature .pill.active")||{}).textContent||""}));
+      if(r.modal!=="nouveaumatch"||r.kind!==nature)throw new Error("Relever ("+ou+") de "+k+" : "+JSON.stringify(r));
+      if(!r.nature.includes(EVENT_LBL[nature]))throw new Error("nature proposée : "+r.nature);
+      await page.locator(".modal button").filter({hasText:"Annuler"}).first().click();await pause();
+      const s=await page.evaluate(()=>({modal:state.modalType,sec:state.seasonSection,n:curSquad().sessions.length}));
+      if(s.modal||s.sec!==k||s.n!==avant)throw new Error("« Annuler » : "+JSON.stringify(s));
     }
   };
+  const EVENT_LBL={training:"Entraînement",friendly:"Amical",league:"Championnat",tournament:"Tournoi"};
 
   say("\n── Sans athlète");
   for(const [k,nom,nature] of PARTIES){
@@ -136,9 +142,13 @@ const ERRORS=[];let PASS=0;
     await propre();
     await page.evaluate(()=>{state.basReplie=false;navToSection("training")});await pause();
     await page.locator(".partHead button").filter({hasText:"Relever"}).click();await pause();
+    const m=await page.textContent(".modal");
+    if(/Adversaire/.test(m))throw new Error("on demande un adversaire à un entraînement");
+    if(!/Commencer la séance/.test(m))throw new Error("on commence encore « le match »");
+    await page.click("#modalOk");await pause(250);
     const t=await page.textContent(".app-header, header, #app");
     if(!/🎽 Entraînement/.test(t))throw new Error("titre sans la nature");
-    if(!/Enregistrer la séance/.test(t))throw new Error("on enregistre encore « le match »");
+    if(!await page.locator("button[aria-label='Terminer la séance']").count())throw new Error("on termine encore « le match »");
     const reset=await page.locator("button").filter({hasText:/^Reset$/}).count();
     if(reset)throw new Error("la remise à zéro est encore dans l'en-tête");
     const und=await page.locator("button[aria-label='Annuler le dernier geste']").count();
@@ -147,10 +157,8 @@ const ERRORS=[];let PASS=0;
   await step("une séance s'enregistre sans adversaire, sans résultat, sans nom imposé",async()=>{
     await page.locator(".player-chip").first().click();await pause();
     for(let i=0;i<3;i++){await page.locator(".qp-stat-btn").nth(i).click();await pause(60)}
-    await page.locator(".btn-save").filter({hasText:"Enregistrer la séance"}).click();await pause();
-    const m=await page.textContent(".modal");
-    if(/Adversaire/.test(m))throw new Error("on demande un adversaire à un entraînement");
-    if(/Résultat/.test(m))throw new Error("on demande un résultat à un entraînement");
+    await page.locator("button[aria-label='Terminer la séance']").click();await pause();
+    if(await page.locator(".modal .sc-in").count())throw new Error("on demande un score à un entraînement");
     await page.click("#modalOk");await pause(250);
     const r=await page.evaluate(()=>{var sq=curSquad();var se=sq.sessions[sq.sessions.length-1];
       return {n:sq.sessions.length,nom:se&&se.name,nature:se&&eventOf(sq,se).kind}});
@@ -172,16 +180,21 @@ const ERRORS=[];let PASS=0;
   }
 
   say("\n── Les barres du bas se replient");
-  await step("replier rend la place : poignée fine, barre de saisie sur une rangée",async()=>{
+  await step("replier rend la place : poignée fine, barre de la feuille sur une rangée",async()=>{
     await propre();
-    await page.evaluate(()=>{state.basReplie=false;state.inputKind="training";navTo(mkRoute("legacy","input"))});await pause();
+    /* La barre de la feuille tient déjà sur une rangée (v7.14) : replier
+       ne gagne plus que la barre d'onglets, devenue poignée. */
+    await page.evaluate(()=>{state.basReplie=false;var sq=curSquad();
+      ouvrirFeuille(sq,creerMatch(sq,{kind:"training"}),null)});await pause();
     await page.locator(".player-chip").first().click();await pause();
-    const avant=await page.evaluate(()=>document.querySelector(".quick-panel").getBoundingClientRect().height);
+    const avant=await page.evaluate(()=>({h:document.querySelector(".quick-panel").getBoundingClientRect().height,
+      rangees:Math.round(document.querySelector(".save-bar").getBoundingClientRect().height)}));
+    if(avant.rangees>70)throw new Error("barre de la feuille sur "+avant.rangees+" px");
     await page.locator(".tab-btn.tab-fold").click();await pause();
     const r=await page.evaluate(()=>({onglets:!!document.querySelector(".tab-bar"),poignee:!!document.querySelector(".tab-handle"),
       compacte:!!document.querySelector(".save-bar.compact"),h:document.querySelector(".quick-panel").getBoundingClientRect().height}));
     if(r.onglets||!r.poignee||!r.compacte)throw new Error(JSON.stringify(r));
-    if(r.h-avant<80)throw new Error("place gagnée : "+Math.round(r.h-avant)+" px");
+    if(r.h-avant.h<15)throw new Error("place gagnée : "+Math.round(r.h-avant.h)+" px");
   });
   await step("le choix survit au rechargement, et la poignée déplie",async()=>{
     await page.reload();await franchirGarde(page);await pause(300);
@@ -210,8 +223,8 @@ const ERRORS=[];let PASS=0;
     });
     await pause();
     await page.locator(".se-row .chip").filter({hasText:"Équipe A"}).click();await pause();
-    const noms=await page.evaluate(()=>Array.from(document.querySelectorAll(".listRow .rname")).map(e=>e.textContent).sort().join(","));
-    if(noms!=="Léa Tremblay,Maya Roy,Sofia Nguyen")throw new Error("athlètes : "+noms);
+    const noms=await page.evaluate(()=>Array.from(document.querySelectorAll(".st-table tbody tr:not(.st-team) .st-nom")).map(e=>e.textContent.replace(/^#\S+ /,"")).sort().join(","));
+    if(noms!=="Léa T.,Maya R.,Sofia N.")throw new Error("athlètes : "+noms);
     const r=await page.evaluate(()=>{
       var sq=curSquad(),sc=evScope(sq,"training"),per=perimetreSE(sq);
       var equipe=sumStats(scopeTeamStats(sc,per)),somme=0;
@@ -220,8 +233,9 @@ const ERRORS=[];let PASS=0;
     });
     if(r.equipe!==r.somme)throw new Error("la sous-équipe n'est pas la somme de ses athlètes : "+JSON.stringify(r));
     if(r.equipe>=r.tout)throw new Error("le total n'est pas borné : "+JSON.stringify(r));
-    await page.evaluate(()=>{state.evSujet="team";render()});await pause();
-    if(!/« Équipe A »/.test(await txt()))throw new Error("la carte d'équipe ne dit pas la sous-équipe");
+    const tete=await page.evaluate(()=>({ligne:(document.querySelector(".st-table tr.st-team .st-nom")||{}).textContent,
+      titre:/« Équipe A »/.test(document.getElementById("app").textContent)}));
+    if(tete.ligne!=="Équipe A"||!tete.titre)throw new Error("le tableau ne dit pas la sous-équipe : "+JSON.stringify(tete));
   });
   await step("le choix suit dans le récap, les objectifs, le physique et les maillots",async()=>{
     const r=await page.evaluate(()=>{
@@ -244,6 +258,7 @@ const ERRORS=[];let PASS=0;
   await step("Relever avec « Équipe A » met ses athlètes sur le terrain ; « Toutes » rend toute l'équipe",async()=>{
     await page.evaluate(()=>{state.evPath=null;navToSection("training")});await pause();
     await page.locator(".partHead button").filter({hasText:"Relever"}).click();await pause();
+    await page.click("#modalOk");await pause(250);
     const n=await page.locator(".player-chip").count();
     if(n!==3)throw new Error("sur le terrain : "+n);
     await page.locator(".subteam-chip").filter({hasText:"Toutes"}).click();await pause();

@@ -478,44 +478,51 @@ const NAMES=["Tremblay","Nguyen","Roy","Bouchard","Gagnon","Léa","Sofia","Maya"
     await page.evaluate(()=>{if(state.modalType)closeModal()});
     await page.waitForTimeout(150);
   });
-  await step("saisir des statistiques puis enregistrer le match",async()=>{
+  await step("saisir des statistiques sur la feuille du match, puis le terminer",async()=>{
     /* v7 : la saisie n'est plus un onglet, c'est l'acte d'une partie de
-       rencontres — on la lance par « Relever ». */
+       rencontres — on la lance par « Relever ». v7.14 : le match naît au
+       départ, rattaché à sa rencontre ; les gestes s'écrivent dans son
+       set 1, et « Terminer » le range au bilan. */
     await partie("Matchs");
     await page.locator(".ph-act button").filter({hasText:"Relever"}).first().click();
     await page.waitForTimeout(250);
+    /* La fenêtre décrit la rencontre : nature, nom, adversaire, date. */
+    await page.locator(".modal label").filter({hasText:"Nom de la rencontre"}).locator("input").fill("Journée 1");
+    await page.locator(".modal label").filter({hasText:"Adversaire"}).locator("input").fill("Les Lions");
+    await page.click("#modalOk");await page.waitForTimeout(300);
     await page.locator(".player-chip").first().click();await page.waitForTimeout(150);
     for(let i=0;i<3;i++){await page.locator(".qp-stat-btn").first().click();await page.waitForTimeout(40)}
-    await page.locator(".btn-save").filter({hasText:"Enregistrer le match"}).click();await page.waitForTimeout(200);
-    /* La modale décrit la rencontre : nature, nom, adversaire, date, résultat. */
-    await page.locator(".modal input").nth(0).fill("Journée 1");      // nom de la rencontre
-    await page.locator(".modal input").nth(1).fill("Les Lions");      // adversaire
-    await page.locator(".modal button").filter({hasText:"Enregistrer"}).last().click();
-    await page.waitForTimeout(300);
+    await page.locator("button[aria-label='Terminer le match']").click();await page.waitForTimeout(200);
+    await page.locator(".modal #modalOk").click();await page.waitForTimeout(300);
     const s=await page.evaluate(()=>{
       const sq=curSquad();
       const ev=sq.sessions.length?eventOf(sq,sq.sessions[0]):null;
-      return {sess:sq.sessions.length,events:sq.events.length,
-        live:sumStats(Object.values(sq.stats)[0]||emptyS()),
-        kind:ev?ev.kind:null,adv:ev?ev.opponent:null};
+      return {sess:sq.sessions.length,events:sq.events.length,live:!!(sq.sessions[0]&&sq.sessions[0].live),
+        total:sq.sessions.length?gestesMatch(sq.sessions[0]):0,
+        kind:ev?ev.kind:null,adv:ev?ev.opponent:null,nom:ev?ev.name:null};
     });
     if(s.sess!==1)throw new Error("matchs="+s.sess);
     if(s.events!==1)throw new Error("rencontres="+s.events);
-    if(s.live!==0)throw new Error("compteurs non remis à zéro");
+    if(s.live)throw new Error("le match est resté en cours");
+    if(s.total!==3)throw new Error("gestes="+s.total);
     /* v7 : relever depuis une partie propose la nature de cette partie.
        On a lancé la saisie depuis « Matchs », dont la nature par défaut
-       est l'amical — c'est cela qu'on vérifie, et c'est plus précis que
-       l'ancien « league » codé en dur dans la modale. */
+       est l'amical. */
     if(s.kind!=="friendly")throw new Error("nature="+s.kind);
     if(s.adv!=="Les Lions")throw new Error("adversaire="+s.adv);
+    if(s.nom!=="Journée 1")throw new Error("nom="+s.nom);
   });
-  await step("annuler (undo) restaure les compteurs",async()=>{
+  await step("annuler (undo) restaure les compteurs du match",async()=>{
+    /* Corriger le match terminé rouvre SA feuille : pas de doublon. */
+    await page.locator(".ph-act button").filter({hasText:"Corriger"}).first().click();await page.waitForTimeout(250);
     await page.locator(".player-chip").first().click();await page.waitForTimeout(120);
     await page.locator(".qp-stat-btn").first().click();await page.waitForTimeout(120);
-    const before=await page.evaluate(()=>sumStats(Object.values(curTeam().stats)[0]||emptyS()));
+    const before=await page.evaluate(()=>gestesMatch(curSquad().sessions[0]));
     await page.locator("#undoBtn").click();await page.waitForTimeout(200);
-    const after=await page.evaluate(()=>sumStats(Object.values(curTeam().stats)[0]||emptyS()));
-    if(before!==1||after!==0)throw new Error("before="+before+" after="+after);
+    const after=await page.evaluate(()=>({g:gestesMatch(curSquad().sessions[0]),n:curSquad().sessions.length}));
+    if(before!==4||after.g!==3)throw new Error("before="+before+" after="+after.g);
+    if(after.n!==1)throw new Error("corriger a créé un doublon : "+after.n+" matchs");
+    await page.locator(".fs-fin").click();await page.waitForTimeout(200);
   });
 
   say("\n── 8. Paquet sélectionneur : zéro donnée nominative");

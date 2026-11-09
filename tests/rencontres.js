@@ -282,27 +282,38 @@ const ERRORS=[];let PASS=0;
     if(r.n!==1)throw new Error("séances="+r.n);
     if(r.equipe!==70)throw new Error("cumul d'équipe="+r.equipe+" (5 × 14 attendu)");
   });
-  await step("la bascule Équipe / Athlètes montre les deux sujets",async()=>{
+  await step("un seul tableau montre l'équipe et ses athlètes, filtrable par élément",async()=>{
+    /* v7.14 : plus de bascule Équipe / Athlètes. L'équipe ouvre le
+       tableau, chaque athlète suit ; un élément de stat le filtre. */
     await partie("Matchs");
-    await page.locator(".seg button").filter({hasText:"athlètes"}).first().click();
-    await page.waitForTimeout(250);
-    const n=await page.locator(".listRow").count();
-    if(!n)throw new Error("aucune athlète listée");
-    const t=await txt();
-    if(!t.includes("Tremblay"))throw new Error("les noms n'apparaissent pas");
-    await page.locator(".seg button").filter({hasText:"équipe"}).first().click();
-    await page.waitForTimeout(250);
-    const t2=await txt();
-    if(!/Gestes relevés/.test(t2))throw new Error("le résumé d'équipe ne revient pas");
+    const r=await page.evaluate(()=>({
+      equipe:(document.querySelector(".st-table tbody tr.st-team .st-nom")||{}).textContent,
+      noms:Array.from(document.querySelectorAll(".st-table tbody .st-nom")).map(e=>e.textContent),
+      kpi:/Gestes relevés/.test(document.getElementById("app").textContent)}));
+    if(r.equipe!=="Équipe")throw new Error("pas de ligne d'équipe : "+r.equipe);
+    if(!r.noms.some(n=>/Léa/.test(n)))throw new Error("les athlètes n'apparaissent pas : "+r.noms.join(", "));
+    if(!r.kpi)throw new Error("le résumé d'équipe manque");
+    await page.locator(".fam-pills button").filter({hasText:"Attaque"}).first().click();
+    await page.waitForTimeout(200);
+    const tete=await page.evaluate(()=>Array.from(document.querySelectorAll(".st-table thead th")).map(t=>t.textContent).join("|"));
+    if(!/Kill\|Réussie\|Erreur\|Total\|Eff\./.test(tete))throw new Error("colonnes : "+tete);
+    /* L'équipe vaut la somme de ses athlètes, à l'écran aussi. */
+    const somme=await page.evaluate(()=>{
+      var rows=Array.from(document.querySelectorAll(".st-table tbody tr"));
+      var tot=function(tr){return +tr.querySelectorAll("td")[3].textContent};
+      return {eq:tot(rows[0]),ath:rows.slice(1).reduce(function(n,tr){return n+tot(tr)},0)};
+    });
+    if(!somme.eq||somme.eq!==somme.ath)throw new Error(JSON.stringify(somme));
+    await page.locator(".fam-pills button").filter({hasText:"Tout"}).first().click();
+    await page.waitForTimeout(200);
   });
-  await step("la fiche d'une athlète ne montre que le périmètre lu",async()=>{
-    await page.locator(".seg button").filter({hasText:"athlètes"}).first().click();
-    await page.waitForTimeout(250);
-    await page.locator(".listRow .body").first().click();
+  await step("la fiche d'une athlète ne montre que le périmètre lu, détaillé par rencontre",async()=>{
+    await page.locator(".st-table tbody tr:not(.st-team) .st-btn").first().click();
     await page.waitForTimeout(300);
     const t=await page.textContent(".modal");
-    if(!/Tout|Amical|Journée/.test(t))throw new Error("le périmètre n'est pas rappelé : "+t.slice(0,80));
-    await page.locator(".modal button").filter({hasText:"Fermer"}).first().click();
+    if(!/Toutes les rencontres/.test(t))throw new Error("le périmètre n'est pas rappelé : "+t.slice(0,80));
+    if(!/Par rencontre/.test(t))throw new Error("pas de détail par rencontre");
+    await page.locator(".modal button").filter({hasText:"Fermer"}).last().click();
     await page.waitForTimeout(200);
   });
 
