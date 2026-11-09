@@ -1178,10 +1178,76 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    La colonne des noms reste collée à gauche quand le tableau défile ;
    l'équipe (ou le total) ouvre le tableau, en gras. Une efficacité dit
    son signe par le chiffre, la teinte ne fait que le confirmer. */
-.st-bloc{margin-top:var(--s4)}
+.st-bloc{margin-top:0}
 .fam-pills{padding-left:0;padding-right:0;background:transparent;border-bottom:none}
-.st-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:var(--r-md);
-  background:var(--surface);margin-top:var(--s1);max-width:100%}
+/* Le tableau défile dans son cadre, en hauteur comme en largeur : c'est
+   ce qui garde l'en-tête et la colonne des noms en place. */
+.st-cadre{position:relative;margin-top:var(--s1)}
+.st-wrap{overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;border:1px solid var(--line);border-radius:var(--r-md);
+  background:var(--surface);max-width:100%;max-height:min(68vh,640px)}
+.st-ombre{position:absolute;top:1px;right:1px;bottom:1px;width:22px;border-radius:0 var(--r-md) var(--r-md) 0;pointer-events:none;
+  background:linear-gradient(90deg,rgba(11,18,32,0),rgba(11,18,32,.85));opacity:0;transition:opacity var(--dur) var(--ease)}
+.st-cadre.encore .st-ombre{opacity:1}
+.st-table thead th.sortable,.st-table thead th.st-who{padding:0}
+.st-th{display:flex;align-items:center;justify-content:center;gap:2px;width:100%;min-height:var(--tap);padding:0 6px;
+  background:transparent;border:none;color:inherit;font:inherit;font-weight:800;cursor:pointer;white-space:nowrap}
+.st-who .st-th{justify-content:flex-start;padding:0 var(--s2)}
+.st-th:focus-visible,.st-btn:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.st-table tr.st-dim th,.st-table tr.st-dim td{opacity:.5}
+.st-table tr.st-plus td{text-align:left;padding:6px var(--s2)}
+.st-tete{display:flex;align-items:center;gap:var(--s2);margin:var(--s5) 0 var(--s2)}
+.st-tete .section-title{flex:1;min-width:0;margin:0}
+.st-tete .st-csv{flex-shrink:0}
+.st-ctrl{display:flex;gap:var(--s2);align-items:center;margin:var(--s1) 0}
+.st-ctrl .seg{flex:1}
+.st-ctrl .seg button{padding:0 4px;font-size:var(--fs-xs)}
+.st-ctrl .st-poste{flex:0 0 auto;width:96px;min-height:var(--tap);background:var(--sunken);color:var(--txt-strong);
+  border:1.5px solid var(--line-strong);border-radius:var(--r-sm);padding:0 var(--s2);font-size:var(--fs-xs);font-weight:700}
+/* Les chiffres-clés : six tuiles compactes, trois par rangée. */
+.kpiStrip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:var(--s2)}
+.kpi.mini{padding:var(--s2);border-radius:var(--r-sm);min-width:0}
+.kpi.mini .k-lbl{font-size:10px;letter-spacing:.3px}
+.kpi.mini .k-val{font-size:var(--fs-lg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi.mini .k-hint{font-size:10px;color:var(--txt-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi.mini.t-pos .k-val{color:var(--ok-ink)}
+.kpi.mini.t-neg .k-val{color:var(--danger-ink)}
+/* Tablette en paysage : on parcourt à gauche, on lit à droite. */
+@media(min-width:900px){
+  .ev-cols{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:var(--s5);align-items:start}
+  .ev-stats .st-tete{margin-top:0}
+  .ev-stats .st-wrap{max-height:calc(100vh - 330px)}
+}
+/* La fiche : d'une athlète à l'autre, ses familles en jauges centrées,
+   la répartition d'une famille en barre. */
+.fiche-nav{display:flex;align-items:center;justify-content:space-between;gap:var(--s2);margin-bottom:var(--s2)}
+.fiche-nav .btn{max-width:42%;overflow:hidden;text-overflow:ellipsis}
+.fx{display:flex;flex-direction:column;gap:var(--s2)}
+.fx-row{display:grid;grid-template-columns:84px minmax(0,1fr) 46px 64px;align-items:center;gap:2px 8px;font-size:var(--fs-xs)}
+.fx-nom{font-weight:800}
+.fx-bar{position:relative;height:8px;border-radius:4px;background:var(--sunken);overflow:hidden}
+.fx-bar::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--line-strong)}
+.fx-bar.vide{background:transparent}
+.fx-bar.vide::after{display:none}
+.fx-fill{position:absolute;top:0;bottom:0;border-radius:4px}
+.fx-fill.pos{background:var(--ok-solid)}
+.fx-fill.neg{background:var(--danger-solid)}
+.fx-eff{font-weight:800;text-align:right;font-variant-numeric:tabular-nums;color:var(--txt-strong)}
+.fx-eff.pos,.fx-pf .pos,.rep-eff .pos{color:var(--ok-ink)}
+.fx-eff.neg,.fx-pf .neg,.rep-eff .neg{color:var(--danger-ink)}
+.fx-vol{color:var(--txt-faint);text-align:right;white-space:nowrap}
+.fx-cpt{grid-column:1/-1;color:var(--txt-dim);font-size:10px}
+.fx-pf{display:flex;gap:var(--s4);margin-top:var(--s3);padding-top:var(--s2);border-top:1px solid var(--line);font-size:var(--fs-xs);font-weight:700}
+.rep-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--sunken);gap:2px}
+.rep-seg.pos{background:var(--ok-solid)}
+.rep-seg.neg{background:var(--danger-solid)}
+.rep-seg.neu{background:var(--neutral-solid)}
+.rep-leg{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:var(--s2);font-size:var(--fs-xs);color:var(--txt-soft)}
+.rep-k{display:inline-flex;align-items:center;gap:5px}
+.rep-k i{display:inline-block;width:9px;height:9px;border-radius:2px}
+.rep-k.pos i{background:var(--ok-solid)}
+.rep-k.neg i{background:var(--danger-solid)}
+.rep-k.neu i{background:var(--neutral-solid)}
+.rep-eff{margin-top:var(--s2);font-size:var(--fs-xs);color:var(--txt-dim)}
 .st-table{border-collapse:separate;border-spacing:0;width:100%;font-size:var(--fs-xs);font-variant-numeric:tabular-nums}
 .st-table thead th{position:sticky;top:0;z-index:2;background:var(--surface-2);color:var(--txt-dim);
   font-size:var(--fs-2xs);font-weight:800;letter-spacing:.3px;padding:var(--s2) 6px;white-space:nowrap;
@@ -1190,7 +1256,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .st-table thead th .dir{margin-left:3px;color:var(--accent-ink)}
 .st-table .st-who{position:sticky;left:0;z-index:1;background:var(--surface);text-align:left;
   min-width:96px;max-width:132px;border-right:1px solid var(--line)}
-.st-table thead .st-who{z-index:3;background:var(--surface-2)}
+.st-table thead .st-who{z-index:4;background:var(--surface-2);left:0}
 .st-table tbody th,.st-table tbody td{padding:6px;border-bottom:1px solid var(--line);text-align:center;color:var(--txt);white-space:nowrap}
 .st-table tbody tr:last-child th,.st-table tbody tr:last-child td{border-bottom:none}
 .st-table td.nul{color:var(--txt-faint)}
@@ -1200,7 +1266,8 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .st-table .st-vol{display:block;font-size:10px;font-weight:600;color:var(--txt-faint)}
 .st-btn{display:flex;flex-direction:column;align-items:flex-start;width:100%;min-height:38px;justify-content:center;
   background:transparent;border:none;padding:0;color:inherit;text-align:left;cursor:pointer;font:inherit}
-.st-btn .st-nom{font-weight:700;color:var(--txt-strong);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-btn .st-nom{font-weight:700;color:var(--txt-strong);max-width:140px;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal;line-height:1.25}
 .st-btn .st-sub{font-size:10px;color:var(--txt-faint)}
 .st-table tr.st-team th,.st-table tr.st-team td{background:var(--raised)}
 .st-table tr.st-team .st-nom{color:var(--txt-strong)}
@@ -1217,7 +1284,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.14.0";
+var APP_VERSION = "7.15.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -9995,19 +10062,40 @@ function evScope(sq,k){
    UN tableau pour toutes les lectures : la feuille en cours de match,
    les trois parties de rencontres, la fiche d'une athlète ou de
    l'équipe. Les colonnes suivent l'élément de stat choisi :
-     · « Tout » compile chaque famille en efficacité (avec son volume
-       en petit dessous) et compte les gestes ;
+     · « Tout » compile chaque famille en efficacité (son volume en
+       petit dessous), puis les points et fautes directs, et les gestes ;
      · une famille — Service, Réception… — montre ses compteurs, leur
        total et l'efficacité.
-   Les lignes sont données par l'appelant : l'équipe et ses athlètes
-   sur un périmètre, ou les sets d'un match, les matchs d'un tournoi.
-   L'équipe n'est jamais une donnée à part : c'est la somme. */
+   Les valeurs se lisent en total, en moyenne par match ou par set
+   joué — une titulaire à quatre matchs et une remplaçante à un ne se
+   comparent qu'ainsi —, ou en part du total de la famille (%).
+   L'équipe n'est jamais une donnée à part : c'est la somme.
+
+   Ce que l'audit de la v7.14 a trouvé, et que ce bloc corrige :
+     · l'en-tête disparaissait dès qu'on faisait défiler les athlètes ;
+     · trier une colonne de droite ramenait le tableau à gauche, et
+       choisir « Habiletés » faisait sortir sa pastille de l'écran ;
+     · les habiletés affichaient une « efficacité » de +1.00 : elles
+       n'ont aucun compteur négatif, ce chiffre ne mesurait rien ;
+     · filtrer sur l'attaque laissait des lignes de zéros (passeuse,
+       libéro) entre les attaquantes ;
+     · aucune lecture par poste, par nom, par match joué ; aucun export ;
+     · des en-têtes de 33 px, inatteignables au clavier. */
 var FAM_COURT={services:"Srv",reception:"Réc",passes:"Pas",attaques:"Att",blocs:"Blc",defense:"Déf",habiletes:"Hab"};
 var FAM_UN={services:"Service",reception:"Réception",passes:"Passe",attaques:"Attaque",blocs:"Bloc",defense:"Défense",habiletes:"Habiletés"};
+/* Sans compteur négatif, l'efficacité vaut +1 dès le premier geste : on
+   montre le volume, jamais une efficacité qui ne mesure rien. */
+var FAM_SANS_EFF={habiletes:true};
+/* Le geste qui marque le point, et celui qui le donne. */
+var PTS_KEYS=["srv_ace","atk_kill","blk_kill"];
+var FAUTE_KEYS=["srv_err","atk_err","rec_err","blk_err"];
+function sommeCles(st,ks){var n=0;ks.forEach(function(k){n+=(st&&st[k])||0});return n}
+
 function familleLue(){return (state.statFam&&SG[state.statFam])?state.statFam:"tout"}
 function pastillesFamille(){
   var cur=familleLue();
-  return h("div",{className:"pill-row tight fam-pills",role:"group","aria-label":"Élément de stat"},
+  return h("div",{className:"pill-row tight fam-pills",role:"group","aria-label":"Élément de stat",
+    "data-scroll-key":"fam-pills"},
     [{k:"tout",l:"Tout",c:"#3B82F6"}].concat(SG_KEYS.map(function(k){return {k:k,l:FAM_UN[k],c:SG[k].color}}))
     .map(function(o){
       var on=cur===o.k;
@@ -10017,98 +10105,298 @@ function pastillesFamille(){
       return b;
     }));
 }
+
+/* Ce qu'on a joué sur un périmètre — l'équipe, ou une athlète : le
+   nombre de matchs, et de sets. Un match non ventilé compte ses sets
+   joués au score, ou un seul s'il n'en a pas. */
+function aJoue(se,pid){
+  return (se.entries||[]).some(function(en){return en.playerId===pid&&hasStats(en.stats)});
+}
+function setsJouesSe(se,pid){
+  if(sessionIsSplit(se)){
+    var n=0;
+    se.sets.forEach(function(b){
+      if(b.reconciled)return;
+      if(!pid){n++;return}
+      if((b.entries||[]).some(function(x){return x.playerId===pid&&hasStats(normStats(x.stats))}))n++;
+    });
+    return n;
+  }
+  if(pid&&!aJoue(se,pid))return 0;
+  return ((se.result&&se.result.sets)||[]).filter(setJoue).length||1;
+}
+function jeuDuPerimetre(scope,pid){
+  if(scope.niveau==="set")return {matchs:1,sets:1};
+  var m=0,s=0;
+  scope.sessions.forEach(function(se){
+    if(pid&&!aJoue(se,pid))return;
+    m++;s+=setsJouesSe(se,pid);
+  });
+  return {matchs:m,sets:s};
+}
+function modesDispo(scope,fam){
+  var out=[{k:"total",l:"Total"}];
+  if(scope&&scope.niveau!=="set"){
+    var j=jeuDuPerimetre(scope,null);
+    if(j.matchs>1)out.push({k:"match",l:"/ match"});
+    if(j.sets>1)out.push({k:"set",l:"/ set"});
+  }
+  if(fam!=="tout")out.push({k:"pct",l:"%"});
+  return out;
+}
+function modeLu(scope,fam){
+  var m=state.statMode||"total";
+  return modesDispo(scope,fam).some(function(o){return o.k===m})?m:"total";
+}
+
 function colonnesStats(fam){
   if(fam==="tout")
     return FAMILY_KEYS.map(function(f){
-      return {key:"eff:"+f,lbl:FAM_COURT[f],titre:SG[f].name+" — efficacité (volume dessous)",color:encreFam(SG[f]),
-        val:function(st){return familyEff(st,f)},vol:function(st){return familyVolume(st,f)},eff:true};
-    }).concat([{key:"total",lbl:"Gestes",titre:"Gestes relevés",val:function(st){return sumStats(st)}}]);
+      if(FAM_SANS_EFF[f])return {key:"vol:"+f,lbl:FAM_COURT[f],color:encreFam(SG[f]),
+        titre:SG[f].name+" — gestes (sans efficacité : aucun compteur négatif)",
+        val:function(st){return familyVolume(st,f)}};
+      return {key:"eff:"+f,lbl:FAM_COURT[f],color:encreFam(SG[f]),eff:true,
+        titre:SG[f].name+" — efficacité, volume dessous",
+        val:function(st){return familyEff(st,f)},vol:function(st){return familyVolume(st,f)}};
+    }).concat([
+      {key:"pts",lbl:"Pts",color:"var(--ok-ink)",titre:"Points directs : aces, attaques gagnantes, blocs gagnants",
+        val:function(st){return sommeCles(st,PTS_KEYS)}},
+      {key:"fautes",lbl:"Fautes",color:"var(--danger-ink)",titre:"Fautes directes : service, attaque, réception, bloc",
+        val:function(st){return sommeCles(st,FAUTE_KEYS)}},
+      {key:"total",lbl:"Gestes",titre:"Gestes relevés",val:function(st){return sumStats(st)}}]);
   var g=SG[fam];
-  return g.stats.map(function(s){
-    return {key:s.key,lbl:s.label,titre:g.name+" — "+s.label,color:encreFam(g),
+  var cols=g.stats.map(function(s){
+    return {key:s.key,lbl:s.label,titre:g.name+" — "+s.label,color:encreFam(g),part:true,
       val:function(st){return (st&&st[s.key])||0}};
-  }).concat([
-    {key:"tot",lbl:"Total",titre:g.name+" — total",val:function(st){return familyVolume(st,fam)}},
-    {key:"eff",lbl:"Eff.",titre:g.name+" — efficacité",val:function(st){return familyEff(st,fam)},eff:true}]);
+  });
+  cols.push({key:"tot",lbl:"Total",titre:g.name+" — total des gestes",val:function(st){return familyVolume(st,fam)}});
+  if(!FAM_SANS_EFF[fam])cols.push({key:"eff",lbl:"Eff.",titre:g.name+" — efficacité, de −1 à +1",eff:true,
+    val:function(st){return familyEff(st,fam)}});
+  return cols;
 }
-/* lignes : [{id, label, sub, stats, fixe, onclick}] — une ligne `fixe`
-   (l'équipe, le total) reste en tête quel que soit le tri.
-   opts : {cle, tete, triable} */
+/* La valeur affichée d'une cellule, selon le mode : une efficacité ne
+   se divise pas, un compteur oui ; « % » ne vaut que pour les compteurs
+   d'une famille, rapportés à son total. */
+function valeurCellule(c,st,jeu,mode,fam){
+  var v=c.val(st);
+  if(c.eff||v==null)return v;
+  if(mode==="match")return (jeu&&jeu.matchs)?v/jeu.matchs:null;
+  if(mode==="set")return (jeu&&jeu.sets)?v/jeu.sets:null;
+  if(mode==="pct"&&c.part){var vol=familyVolume(st,fam);return vol?100*v/vol:null}
+  return v;
+}
+function fmtCellule(c,v,mode){
+  if(v==null)return "—";
+  if(c.eff)return fmtEff(v);
+  if(mode==="pct"&&c.part)return Math.round(v)+" %";
+  if(mode==="match"||mode==="set")return (Math.round(v*10)/10).toFixed(1);
+  return String(v);
+}
+function volCellule(c,st,jeu,mode){
+  var v=c.vol(st);
+  if(!v)return null;
+  if(mode==="match"&&jeu&&jeu.matchs)return (Math.round(v/jeu.matchs*10)/10).toFixed(1);
+  if(mode==="set"&&jeu&&jeu.sets)return (Math.round(v/jeu.sets*10)/10).toFixed(1);
+  return String(v);
+}
+
+/* lignes : [{id, label, sub, stats, jeu, fixe, onclick, dim, num, nom}]
+   — une ligne `fixe` (l'équipe, le total) reste en tête quel que soit
+   le tri.
+   opts : {cle, tete, triable, mode, fam, masquerVides, ordreFiche} */
 function tableauStats(lignes,opts){
   opts=opts||{};
-  var fam=familleLue(),cols=colonnesStats(fam),cle=opts.cle||"t";
+  var fam=opts.fam||familleLue(),mode=opts.mode||"total",cols=colonnesStats(fam),cle=opts.cle||"t";
   if(!state.tabTri)state.tabTri={};
   var tri=opts.triable===false?null:state.tabTri[cle]||null;
   var col=tri?cols.filter(function(c){return c.key===tri.key})[0]:null;
   var fixes=lignes.filter(function(l){return l.fixe}),autres=lignes.filter(function(l){return !l.fixe});
+  /* Une athlète sans geste dans la famille lue n'a rien à y dire : la
+     passeuse ne s'aligne pas, en zéros, entre les attaquantes. */
+  var cachees=[];
+  if(opts.masquerVides&&fam!=="tout"&&!state.statZeros){
+    cachees=autres.filter(function(l){return !familyVolume(l.stats,fam)});
+    autres=autres.filter(function(l){return familyVolume(l.stats,fam)});
+  }
+  function valTri(l){
+    var v=valeurCellule(col,l.stats,l.jeu,mode,fam);
+    return v==null?-Infinity:v;
+  }
   if(col)autres=autres.slice().sort(function(a,b){
-    var va=col.val(a.stats),vb=col.val(b.stats);
-    if(va==null)va=-Infinity;if(vb==null)vb=-Infinity;
-    return tri.dir==="asc"?va-vb:vb-va;
+    return tri.dir==="asc"?valTri(a)-valTri(b):valTri(b)-valTri(a);
   });
-  var thead=h("tr",null,
-    h("th",{className:"sticky st-who",scope:"col"},opts.tete||"Athlète"),
+  else if(tri&&tri.key==="__num")autres=autres.slice().sort(function(a,b){
+    var x=a.num==null?999:a.num,y=b.num==null?999:b.num;return x-y||String(a.nom).localeCompare(String(b.nom),"fr");
+  });
+  else if(tri&&tri.key==="__nom")autres=autres.slice().sort(function(a,b){
+    return String(a.nom||a.label).localeCompare(String(b.nom||b.label),"fr");
+  });
+  if(opts.ordreFiche)state.ficheOrdre=autres.filter(function(l){return l.onclick&&l.id.charAt(0)!=="_"})
+    .map(function(l){return l.id});
+
+  function bascule(key,dirInit){
+    var t=state.tabTri[cle];
+    if(t&&t.key===key)state.tabTri[cle]={key:key,dir:t.dir==="desc"?"asc":"desc"};
+    else state.tabTri[cle]={key:key,dir:dirInit};
+    render();
+  }
+  /* Le nom se trie aussi : par numéro, puis par nom, puis l'ordre du
+     roster. Un bouton dans chaque en-tête : 44 px, et au clavier. */
+  var teteNom;
+  if(opts.triable===false)teteNom=h("th",{className:"sticky st-who",scope:"col"},opts.tete||"Athlète");
+  else {
+    var tn=tri&&(tri.key==="__num"||tri.key==="__nom")?tri.key:"";
+    teteNom=h("th",{className:"sticky st-who",scope:"col","aria-sort":tn?"ascending":null},
+      h("button",{className:"st-th",type:"button",
+        "aria-label":"Trier les athlètes : "+(tn==="__num"?"par nom":(tn==="__nom"?"ordre de l'équipe":"par numéro")),
+        onclick:function(){
+          var t=state.tabTri[cle];
+          if(!t||(t.key!=="__num"&&t.key!=="__nom"))state.tabTri[cle]={key:"__num",dir:"asc"};
+          else if(t.key==="__num")state.tabTri[cle]={key:"__nom",dir:"asc"};
+          else delete state.tabTri[cle];
+          render();
+        }},opts.tete||"Athlète",tn?h("span",{className:"dir"},tn==="__num"?"#↑":"A→Z"):null));
+  }
+  var thead=h("tr",null,teteNom,
     cols.map(function(c){
       var on=!!col&&col.key===c.key;
-      return h("th",{className:opts.triable===false?"":"sortable",scope:"col",title:c.titre||c.lbl,
-        "aria-sort":on?(tri.dir==="asc"?"ascending":"descending"):null,
-        style:c.color?{color:c.color}:null,
-        onclick:opts.triable===false?null:function(){
-          var t=state.tabTri[cle];
-          if(t&&t.key===c.key)state.tabTri[cle]={key:c.key,dir:t.dir==="desc"?"asc":"desc"};
-          else state.tabTri[cle]={key:c.key,dir:"desc"};
-          render();
-        }},c.lbl,on?h("span",{className:"dir"},tri.dir==="asc"?"▲":"▼"):null);
+      var lib=[c.lbl,on?h("span",{className:"dir"},tri.dir==="asc"?"▲":"▼"):null];
+      if(opts.triable===false)return h("th",{scope:"col",title:c.titre||c.lbl,style:c.color?{color:c.color}:null},lib);
+      return h("th",{className:"sortable",scope:"col",title:c.titre||c.lbl,
+        "aria-sort":on?(tri.dir==="asc"?"ascending":"descending"):null},
+        h("button",{className:"st-th",type:"button",style:c.color?{color:c.color}:null,
+          "aria-label":"Trier par "+(c.titre||c.lbl),
+          onclick:function(){bascule(c.key,"desc")}},lib));
     }));
   var corps=fixes.concat(autres).map(function(l){
     var nom=l.onclick
-      ?h("button",{className:"st-btn",type:"button","aria-label":"Ouvrir le détail — "+l.label,onclick:l.onclick},
+      ?h("button",{className:"st-btn",type:"button","aria-label":"Ouvrir le détail — "+(l.nom||l.label),onclick:l.onclick},
           h("span",{className:"st-nom"},l.label),l.sub?h("span",{className:"st-sub"},l.sub):null)
       :h("span",{className:"st-btn"},h("span",{className:"st-nom"},l.label),l.sub?h("span",{className:"st-sub"},l.sub):null);
-    return h("tr",{className:(l.fixe?"st-team":"")+(l.onclick?" st-tap":"")},
+    return h("tr",{className:(l.fixe?"st-team":"")+(l.onclick?" st-tap":"")+(l.dim?" st-dim":"")},
       h("th",{className:"sticky st-who",scope:"row"},nom),
       cols.map(function(c){
-        var v=c.val(l.stats);
+        var v=valeurCellule(c,l.stats,l.jeu,mode,fam);
         if(c.eff){
-          var vol=c.vol?c.vol(l.stats):null;
+          var vol=c.vol?volCellule(c,l.stats,l.jeu,mode):null;
           return h("td",{className:"st-eff"+(v==null?" nul":(v>0?" pos":(v<0?" neg":"")))},
-            v==null?"—":fmtEff(v),vol?h("span",{className:"st-vol"},String(vol)):null);
+            fmtCellule(c,v,mode),vol?h("span",{className:"st-vol"},vol):null);
         }
-        return h("td",{className:v?"":"nul"},String(v));
+        return h("td",{className:v?"":"nul"},fmtCellule(c,v,mode));
       }));
   });
-  if(!corps.length)corps=[h("tr",null,h("td",{colspan:String(cols.length+1),className:"nul"},"Aucun relevé")) ];
-  return h("div",{className:"st-wrap","data-scroll-key":"st-"+cle},
+  if(cachees.length||(opts.masquerVides&&fam!=="tout"&&state.statZeros)){
+    corps.push(h("tr",{className:"st-plus"},h("td",{colspan:String(cols.length+1)},
+      h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){state.statZeros=!state.statZeros;render()}},
+        state.statZeros?"Masquer les athlètes sans geste en "+FAM_UN[fam].toLowerCase()
+          :"+ "+plural(cachees.length,"athlète")+" sans geste en "+FAM_UN[fam].toLowerCase()))));
+  }
+  if(!corps.length)corps=[h("tr",null,h("td",{colspan:String(cols.length+1),className:"nul"},"Aucun relevé"))];
+  /* L'en-tête reste visible : le tableau défile dans son cadre, en
+     hauteur comme en largeur, et une ombre dit qu'il en reste à droite. */
+  var wrap=h("div",{className:"st-wrap","data-scroll-key":"st-"+cle},
     h("table",{className:"st-table"},h("thead",null,thead),h("tbody",null,corps)));
+  var cadre=h("div",{className:"st-cadre"},wrap,h("span",{className:"st-ombre","aria-hidden":"true"}));
+  function ombre(){
+    var reste=wrap.scrollWidth-wrap.clientWidth-wrap.scrollLeft;
+    cadre.classList.toggle("encore",reste>2);
+  }
+  wrap.addEventListener("scroll",ombre);
+  setTimeout(ombre,60);
+  return cadre;
 }
 
-/* Les lignes d'un périmètre : l'équipe (ou la sous-équipe choisie),
-   puis chaque athlète qui y a un relevé, dans l'ordre du roster. */
+/* Les lignes d'un périmètre : l'équipe (ou la sous-équipe, ou le poste
+   choisi), puis chaque athlète qui y a un relevé, dans l'ordre du
+   roster. Rend aussi les postes présents, pour le filtre. */
 function lignesPerimetre(sq,scope,src){
   var per=perimetreSE(sq),stSE=sousEquipeActive(sq);
   var pids=scopePlayers(sq,scope,per);
-  var out=[{id:"__equipe",label:stSE?stSE.name:"Équipe",sub:plural(pids.length,"athlète"),
-    stats:scopeTeamStats(scope,per),fixe:true,onclick:function(){ouvrirFiche("__equipe",src)}}];
-  pids.forEach(function(pid){
+  var postes={};
+  pids.forEach(function(pid){var e=rosterEntry(sq,pid);postes[(e&&e.position)||"NONE"]=1});
+  var poste=state.statPoste&&postes[state.statPoste]?state.statPoste:"";
+  var choisies=poste?pids.filter(function(pid){var e=rosterEntry(sq,pid);return ((e&&e.position)||"NONE")===poste}):pids;
+  var stTete;
+  if(poste){stTete=emptyS();choisies.forEach(function(pid){addStats(stTete,scopeStats(scope,pid))})}
+  else stTete=scopeTeamStats(scope,per);
+  var out=[{id:"__equipe",
+    label:poste?(poste==="NONE"?"Sans poste":(POS_LABELS[poste]||poste)):(stSE?stSE.name:"Équipe"),
+    sub:plural(choisies.length,"athlète"),stats:stTete,jeu:jeuDuPerimetre(scope,null),fixe:true,
+    onclick:poste?null:function(){ouvrirFiche("__equipe",src)}}];
+  choisies.forEach(function(pid){
     var p=playerById(pid);if(!p)return;
-    var e=rosterEntry(sq,pid),n=libNum(sq,pid);
-    out.push({id:pid,label:(n?"#"+n+" ":"")+shortName(p),
-      sub:(e&&e.position)?e.position:"",stats:scopeStats(scope,pid),
+    var e=rosterEntry(sq,pid),n=libNum(sq,pid),m=e&&MEMBERSHIPS[e.membership];
+    var jeu=jeuDuPerimetre(scope,pid);
+    out.push({id:pid,label:(n?"#"+n+" ":"")+shortName(p),nom:fullName(p),num:n?parseInt(n,10):null,
+      sub:[(e&&e.position)||"",(m&&e.membership!=="active")?m.icon:"",
+        scope.niveau!=="set"&&jeu.matchs>1?plural(jeu.matchs,"match"):""].filter(Boolean).join(" · "),
+      dim:!!e&&e.membership==="left",
+      stats:scopeStats(scope,pid),jeu:jeu,
       onclick:function(){ouvrirFiche(pid,src)}});
   });
-  return out;
+  return {lignes:out,postes:POS_KEYS.concat(["NONE"]).filter(function(k){return postes[k]}),poste:poste};
 }
-/* Le bloc complet : titre du périmètre, élément de stat, tableau. */
+
+/* Exporter ce qu'on lit : le tableau tel qu'il est à l'écran — élément,
+   mode — en CSV pour un tableur. */
+function exporterTableau(scope,lignes,fam,mode){
+  var cols=colonnesStats(fam);
+  var num=function(v,c){
+    if(v==null)return "";
+    if(c.eff)return v.toFixed(2).replace(".",",");
+    if(mode==="pct"&&c.part)return String(Math.round(v));
+    if(mode==="match"||mode==="set")return (Math.round(v*10)/10).toFixed(1).replace(".",",");
+    return String(v);
+  };
+  var ligneTete=["Athlète","Poste"].concat(cols.map(function(c){
+    return (c.lbl+(mode==="pct"&&c.part?" (%)":(mode==="match"&&!c.eff?" /match":(mode==="set"&&!c.eff?" /set":"")))).replace(/;/g,",")}));
+  var lines=[ligneTete.join(";")];
+  lignes.forEach(function(l){
+    lines.push([(l.nom||l.label).replace(/;/g,","),l.fixe?"":(l.sub||"").split(" · ")[0]]
+      .concat(cols.map(function(c){return num(valeurCellule(c,l.stats,l.jeu,mode,fam),c)})).join(";"));
+  });
+  downloadCSV(lines,"stats-"+safeName(scope.label.replace(/^\S+\s/,""))+"-"+(fam==="tout"?"compile":fam)+
+    (mode==="total"?"":"-"+mode)+".csv");
+}
+function legendeStats(fam,mode){
+  var t=fam==="tout"
+    ?"Efficacité de −1 à +1, volume dessous. Pts : aces, attaques et blocs gagnants · Fautes : service, attaque, réception, bloc."
+    :(FAM_SANS_EFF[fam]?"Les habiletés n'ont pas d'efficacité : aucun de leurs compteurs n'est négatif."
+      :"Eff. = (réussis − ratés) ÷ total, de −1 à +1.");
+  if(mode==="match")t+=" Moyennes par match joué par chacune.";
+  if(mode==="set")t+=" Moyennes par set joué par chacune.";
+  if(mode==="pct")t+=" Chaque compteur en part du total de la famille.";
+  return h("div",{className:"muted st-leg"},t+" Touchez une ligne pour son détail.");
+}
+/* Le bloc complet : titre et export, élément, mode et poste, tableau. */
 function blocStatistiques(sq,scope,src){
-  var stSE=sousEquipeActive(sq);
+  var stSE=sousEquipeActive(sq),fam=familleLue(),mode=modeLu(scope,fam);
+  var r=lignesPerimetre(sq,scope,src);
+  var total=sumStats(r.lignes[0].stats);
+  var cle=src+"-"+(seasonSection()||"");
+  var modes=modesDispo(scope,fam);
+  var choixPoste=null;
+  if(r.postes.length>1){
+    choixPoste=h("select",{className:"st-poste","aria-label":"Poste"},
+      h("option",{value:""},"Postes"),
+      r.postes.map(function(k){return h("option",{value:k},k==="NONE"?"Sans poste":k)}));
+    choixPoste.value=r.poste;
+    choixPoste.addEventListener("change",function(e){state.statPoste=e.target.value;render()});
+  }
   return h("div",{className:"st-bloc"},
-    h("div",{className:"section-title"},"Statistiques · "+
-      (scope.label==="Tout"?"toutes les rencontres":scope.label)+(stSE?" · « "+stSE.name+" »":"")),
+    h("div",{className:"st-tete"},
+      h("div",{className:"section-title"},"Statistiques · "+
+        (scope.label==="Tout"?"toutes les rencontres":scope.label)+(stSE?" · « "+stSE.name+" »":"")+
+        " · "+plural(total,"geste")),
+      h("button",{className:"btn btn-ghost xs st-csv",type:"button","aria-label":"Exporter ce tableau en CSV",
+        onclick:function(){exporterTableau(scope,r.lignes,fam,mode)}},"📤 CSV")),
     pastillesFamille(),
-    tableauStats(lignesPerimetre(sq,scope,src),{cle:src+"-"+(seasonSection()||"")}),
-    h("div",{className:"muted st-leg"},familleLue()==="tout"
-      ?"Efficacité de chaque élément, de −1 à +1, et son volume en petit. Touchez une ligne pour le détail par set ou par match."
-      :"Touchez une colonne pour trier, une ligne pour le détail par set ou par match."));
+    (modes.length>1||choixPoste)?h("div",{className:"st-ctrl"},
+      modes.length>1?segmented({label:"Valeurs",value:mode,options:modes,
+        onpick:function(v){state.statMode=v;render()}}):null,
+      choixPoste):null,
+    tableauStats(r.lignes,{cle:cle,mode:mode,fam:fam,masquerVides:true,ordreFiche:true}),
+    legendeStats(fam,mode));
 }
 
 /* Les enfants d'un périmètre : les sets d'un match, les matchs d'une
@@ -10126,8 +10414,9 @@ function enfantsDuPerimetre(sq,scope){
   if(scope.niveau==="rencontre"){
     var ss=scope.sessions.slice().sort(function(a,b){return String(a.date||"").localeCompare(String(b.date||""))});
     return ss.map(function(x){
-      var ev=eventOf(sq,x);
-      return mkScope((ev?matchLabel(ev,x):x.name)+(x.opponent?" · "+x.opponent:""),[x],null,null,"match");
+      var ev=eventOf(sq,x),o=issueDe(x);
+      return mkScope((ev?matchLabel(ev,x):x.name)+(x.opponent?" · "+x.opponent:"")+
+        (hasResult(x.result)?" · "+resultLabel(x.result)+(o?" "+OUTCOMES[o].short:""):""),[x],null,null,"match");
     });
   }
   var parEv={},ordre=[];
@@ -10166,61 +10455,164 @@ function perimetreFiche(sq){
   }
   return evScope(sq,seasonSection()||"matches");
 }
+/* Une efficacité se lit sur une jauge centrée : à droite du zéro ce qui
+   rapporte, à gauche ce qui coûte. Le chiffre est à côté — la couleur
+   ne fait que le confirmer. */
+function barreEff(eff){
+  var pct=Math.min(1,Math.abs(eff))*50;
+  return h("span",{className:"fx-bar","aria-hidden":"true"},
+    h("i",{className:"fx-fill "+(eff>=0?"pos":"neg"),
+      style:eff>=0?{left:"50%",width:pct+"%"}:{left:(50-pct)+"%",width:pct+"%"}}));
+}
+function blocFamillesFiche(st){
+  var fams=FAMILY_KEYS.filter(function(f){return familyVolume(st,f)});
+  if(!fams.length)return h("div",{className:"muted"},"Aucun compteur relevé.");
+  return h("div",{className:"fx"},fams.map(function(f){
+    var g=SG[f],vol=familyVolume(st,f),eff=FAM_SANS_EFF[f]?null:familyEff(st,f);
+    return h("div",{className:"fx-row"},
+      h("span",{className:"fx-nom",style:{color:encreFam(g)}},g.name),
+      eff==null?h("span",{className:"fx-bar vide","aria-hidden":"true"}):barreEff(eff),
+      h("span",{className:"fx-eff"+(eff==null?"":(eff>0?" pos":(eff<0?" neg":"")))},eff==null?"—":fmtEff(eff)),
+      h("span",{className:"fx-vol"},plural(vol,"geste")),
+      h("span",{className:"fx-cpt"},g.stats.filter(function(s){return st[s.key]}).map(function(s){
+        return s.label+" "+st[s.key]}).join(" · ")));
+  }));
+}
+/* La répartition d'une famille : chaque compteur en part du total. */
+function barreRepartition(st,fam){
+  var g=SG[fam],vol=familyVolume(st,fam),def=STAT_FAMILIES[fam]||{pos:[],neg:[]};
+  if(!vol)return h("div",{className:"muted"},"Aucun geste en "+FAM_UN[fam].toLowerCase()+".");
+  function ton(k){return def.pos.indexOf(k)!==-1?"pos":(def.neg.indexOf(k)!==-1?"neg":"neu")}
+  var parts=g.stats.map(function(s){var v=st[s.key]||0;return {s:s,v:v,p:Math.round(100*v/vol)}});
+  return h("div",{className:"rep"},
+    h("div",{className:"rep-bar",role:"img","aria-label":parts.map(function(x){return x.s.label+" "+x.p+" %"}).join(", ")},
+      parts.map(function(x){return x.v?h("i",{className:"rep-seg "+ton(x.s.key),style:{width:(100*x.v/vol)+"%"}}):null})),
+    h("div",{className:"rep-leg"},parts.map(function(x){
+      return h("span",{className:"rep-k "+ton(x.s.key)},h("i",{"aria-hidden":"true"}),x.s.label+" "+x.v+" · "+x.p+" %");
+    })),
+    FAM_SANS_EFF[fam]?null:h("div",{className:"rep-eff"},"Efficacité ",
+      h("b",{className:familyEff(st,fam)>0?"pos":(familyEff(st,fam)<0?"neg":"")},fmtEff(familyEff(st,fam))),
+      " sur "+plural(vol,"geste")));
+}
 function renderEvAthleteModal(){
   var sq=curSquad(),pid=state.modalCtx;
   if(!sq||!pid)return null;
   var equipe=pid==="__equipe",p=equipe?null:playerById(pid);
   if(!equipe&&!p)return null;
   var per=perimetreSE(sq),stSE=sousEquipeActive(sq);
-  var scope=perimetreFiche(sq);
+  var scope=perimetreFiche(sq),fam=familleLue();
   function statsDe(sc){return equipe?scopeTeamStats(sc,per):scopeStats(sc,pid)}
-  var st=statsDe(scope),total=sumStats(st);
+  var st=statsDe(scope),total=sumStats(st),jeu=jeuDuPerimetre(scope,equipe?null:pid);
   var titre=equipe?(stSE?"« "+stSE.name+" »":"L'équipe"):fullName(p);
-  var corps=h("div",null,
-    h("div",{className:"muted",style:{marginBottom:"8px"}},
-      (equipe?"":numLabel(libNum(sq,pid))+" · ")+(scope.label==="Tout"?"Toutes les rencontres":scope.label)+
-      " · "+plural(total,"geste")));
+  var corps=h("div",null);
+  /* D'une athlète à la suivante, dans l'ordre du tableau d'où l'on vient. */
+  var ordre=(state.ficheOrdre||[]).filter(function(id){return !!playerById(id)});
+  var i=ordre.indexOf(pid);
+  if(!equipe&&i!==-1&&ordre.length>1){
+    var aller=function(j){state.modalCtx=ordre[(j+ordre.length)%ordre.length];render()};
+    var voisine=function(j){var x=playerById(ordre[(j+ordre.length)%ordre.length]);return x?shortName(x):""};
+    corps.appendChild(h("div",{className:"fiche-nav"},
+      h("button",{className:"btn btn-ghost xs",type:"button","aria-label":"Athlète précédente : "+voisine(i-1),
+        onclick:function(){aller(i-1)}},"‹ "+voisine(i-1)),
+      h("span",{className:"muted"},(i+1)+" / "+ordre.length),
+      h("button",{className:"btn btn-ghost xs",type:"button","aria-label":"Athlète suivante : "+voisine(i+1),
+        onclick:function(){aller(i+1)}},voisine(i+1)+" ›")));
+  }
+  corps.appendChild(h("div",{className:"muted",style:{marginBottom:"8px"}},
+    [equipe?null:numLabel(libNum(sq,pid)),scope.label==="Tout"?"Toutes les rencontres":scope.label,
+     plural(total,"geste"),
+     scope.niveau!=="set"?plural(jeu.matchs,"match")+(jeu.sets?" · "+plural(jeu.sets,"set"):""):null]
+    .filter(Boolean).join(" · ")));
   if(!total){
     corps.appendChild(emptyState({icon:"📊",title:"Aucun relevé",small:true,
       sub:(equipe?"L'équipe n'a":"Cette athlète n'a")+" aucun compteur sur ce périmètre."}));
   } else {
     corps.appendChild(pastillesFamille());
     var enfants=enfantsDuPerimetre(sq,scope);
-    if(familleLue()==="tout")corps.appendChild(h("div",{className:"card tight",style:{marginTop:"var(--s2)"}},
-      renderStatFamilies(famProfile(st))));
-    var unite={match:"set",rencontre:"match",tout:"rencontre"}[scope.niveau]||"bloc";
-    var lignes=[{id:"__total",label:"Total",sub:enfants.length?plural(enfants.length,unite):"",stats:st,fixe:true}];
-    enfants.forEach(function(sc,i){
-      lignes.push({id:"e"+i,label:sc.label,stats:statsDe(sc)});
-    });
-    if(enfants.length)corps.appendChild(h("div",{className:"section-title"},nomEnfants(scope)));
-    corps.appendChild(tableauStats(lignes,{cle:"fiche",
-      tete:enfants.length?unite.charAt(0).toUpperCase()+unite.slice(1):"",triable:false}));
+    corps.appendChild(h("div",{className:"card tight",style:{marginTop:"var(--s2)"}},
+      fam==="tout"?blocFamillesFiche(st):barreRepartition(st,fam),
+      fam==="tout"?h("div",{className:"fx-pf"},
+        h("span",{className:"pos"},"Points directs "+sommeCles(st,PTS_KEYS)),
+        h("span",{className:"neg"},"Fautes directes "+sommeCles(st,FAUTE_KEYS))):null));
+    if(enfants.length){
+      var unite={match:"set",rencontre:"match",tout:"rencontre"}[scope.niveau]||"bloc";
+      var lignes=[{id:"__total",label:"Total",sub:plural(enfants.length,unite),stats:st,jeu:jeu,fixe:true}];
+      enfants.forEach(function(sc,k){
+        var s2=statsDe(sc);
+        lignes.push({id:"e"+k,label:sc.label,stats:s2,dim:!sumStats(s2),
+          sub:sumStats(s2)?"":(equipe?"aucun geste":"n'a pas joué")});
+      });
+      corps.appendChild(h("div",{className:"section-title"},nomEnfants(scope)));
+      corps.appendChild(tableauStats(lignes,{cle:"fiche",fam:fam,
+        mode:state.statMode==="pct"&&fam!=="tout"?"pct":"total",
+        tete:unite.charAt(0).toUpperCase()+unite.slice(1),triable:false}));
+    }
   }
   return sheetShell({title:titre,
     buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},corps);
 }
 defModal("evathlete",renderEvAthleteModal,{autofocus:false});
 
-/* Les chiffres-clés d'un périmètre. */
+/* ── Les chiffres-clés d'un périmètre ─────────────────────────────
+   Six tuiles compactes, trois par rangée : ce que le niveau a donné
+   (bilan, sets et points, ou le score), puis les trois efficacités
+   qu'un entraîneur regarde d'abord. Le bilan dit son ordre — « V–D–N »
+   — au lieu d'un « 2–1–1 » à déchiffrer. */
+function bilanPerimetre(scope){
+  var r={win:0,loss:0,draw:0,setsW:0,setsL:0,ptsP:0,ptsC:0,scores:0};
+  scope.sessions.forEach(function(se){
+    if(se.live)return;
+    var o=resultOutcome(se.result);if(o)r[o]++;
+    ((se.result&&se.result.sets)||[]).forEach(function(x){
+      if(!setJoue(x))return;
+      r.scores++;
+      if(x.us>x.them)r.setsW++;else if(x.them>x.us)r.setsL++;
+      r.ptsP+=x.us;r.ptsC+=x.them;
+    });
+  });
+  return r;
+}
+function kpiMini(label,valeur,hint,ton){
+  return h("div",{className:"kpi mini"+(ton?" t-"+ton:"")},
+    h("div",{className:"k-lbl"},label),
+    h("div",{className:"k-val"},valeur),
+    hint?h("div",{className:"k-hint"},hint):null);
+}
 function evKpis(sq,scope){
-  var per=perimetreSE(sq);
-  var st=scopeTeamStats(scope,per),rec=scopeRecord(scope),total=sumStats(st);
-  var tuiles=[];
+  var per=perimetreSE(sq),st=scopeTeamStats(scope,per),tuiles=[];
+  var training=scope.sessions.length&&scope.sessions.every(function(se){var ev=eventOf(sq,se);return ev&&ev.kind==="training"});
+  function ton(e){return e==null?"":(e>0?"pos":(e<0?"neg":""))}
   if(scope.niveau==="set"&&scope.session){
     var sc=scoreSet(scope.session,scope.setIdx);
-    if(sc.us||sc.them)tuiles.push(kpi({label:"Score du set",value:sc.us+"–"+sc.them,
-      hint:sc.us>sc.them?"gagné":(sc.them>sc.us?"perdu":"à égalité")}));
-  } else if(rec.win+rec.loss+rec.draw)
-    tuiles.push(kpi({label:"Bilan",value:rec.win+"–"+rec.loss+(rec.draw?"–"+rec.draw:""),
-      hint:plural(rec.win+rec.loss+rec.draw,"match")+" terminé"+(rec.win+rec.loss+rec.draw>1?"s":"")}));
-  tuiles.push(kpi({label:"Gestes relevés",value:String(total),
-    hint:plural(scopePlayers(sq,scope,per).length,"athlète")}));
-  var atk=familyEff(st,"attaques");
-  if(atk!=null)tuiles.push(kpi({label:"Efficacité attaque",value:fmtEff(atk),
-    hint:plural(familyVolume(st,"attaques"),"geste")}));
-  return h("div",{className:"kpiGrid"},tuiles);
+    if(!training)tuiles.push(kpiMini("Score du set",(sc.us||sc.them)?sc.us+"–"+sc.them:"—",
+      (sc.us||sc.them)?(sc.us>sc.them?"gagné":(sc.them>sc.us?"perdu":"à égalité")):"non saisi",
+      sc.us>sc.them?"pos":(sc.them>sc.us?"neg":"")));
+  } else if(scope.niveau==="match"&&scope.sessions[0]){
+    var se=scope.sessions[0],o=resultOutcome(se.result);
+    if(!training){
+      tuiles.push(kpiMini("Résultat",hasResult(se.result)?resultLabel(se.result):"—",
+        se.live?"en cours":(o?OUTCOMES[o].label:"score non saisi"),se.live?"":(o==="win"?"pos":(o==="loss"?"neg":""))));
+      var pp=0,pc=0;((se.result&&se.result.sets)||[]).forEach(function(x){if(setJoue(x)){pp+=x.us;pc+=x.them}});
+      tuiles.push(kpiMini("Points",(pp||pc)?pp+"–"+pc:"—",(pp||pc)?(pp-pc>0?"+":"")+(pp-pc)+" d'écart":"non saisis"));
+    }
+  } else if(!training){
+    var b=bilanPerimetre(scope),n=b.win+b.loss+b.draw;
+    tuiles.push(kpiMini(b.draw?"Bilan V–D–N":"Bilan V–D",n?b.win+"–"+b.loss+(b.draw?"–"+b.draw:""):"—",
+      plural(n,"match")+" terminé"+(n>1?"s":""),b.win>b.loss?"pos":(b.loss>b.win?"neg":"")));
+    tuiles.push(kpiMini("Sets",b.scores?b.setsW+"–"+b.setsL:"—","gagnés–perdus"));
+    tuiles.push(kpiMini("Points",b.scores?b.ptsP+"–"+b.ptsC:"—",
+      b.scores?(b.ptsP-b.ptsC>0?"+":"")+(b.ptsP-b.ptsC)+" d'écart":"non saisis"));
+  } else tuiles.push(kpiMini("Séances",String(scope.sessions.length),"relevées"));
+  var total=sumStats(st);
+  if(tuiles.length<3)tuiles.push(kpiMini("Gestes",String(total),plural(scopePlayers(sq,scope,per).length,"athlète")));
+  if(tuiles.length<3)tuiles.push(kpiMini("Pts / fautes",sommeCles(st,PTS_KEYS)+" / "+sommeCles(st,FAUTE_KEYS),"directs"));
+  [["Attaque","attaques"],["Réception","reception"],["Service","services"]].forEach(function(x){
+    var e=familyEff(st,x[1]);
+    tuiles.push(kpiMini(x[0],e==null?"—":fmtEff(e),plural(familyVolume(st,x[1]),"geste"),ton(e)));
+  });
+  return h("div",{className:"kpiStrip"},tuiles);
 }
+
 /* La liste du niveau courant : les rencontres, les matchs d'un
    tournoi, ou les sets d'un match. */
 /* ── Ventiler un match après coup ───────────────────────────────────
@@ -10408,7 +10800,7 @@ function rangeeMatch(sq,ev,se){
       h("span",{className:"nr-sub"},
         [se.opponent?"contre "+se.opponent:null,
          se.live?"en cours":null,
-         hasResult(se.result)?resultLabel(se.result):(ev.kind==="training"?null:"score non saisi"),
+         hasResult(se.result)?resultLabel(se.result)+(o?" "+OUTCOMES[o].short:""):(ev.kind==="training"?null:"score non saisi"),
          sessionIsSplit(se)?plural(nbSetsReels(se),"set"):"non ventilé",
          plural(gestesMatch(se),"geste")]
         .filter(Boolean).join(" · "))),
@@ -10432,15 +10824,10 @@ function evChildren(sq,k){
   if(p.sessionId){
     var se=scope.sessions[0];
     if(!se)return null;
-    var evM=eventOf(sq,se);
     var blocs=setsOfSession(se);
     wrap.appendChild(h("div",{className:"btn-row ev-actions"},
       h("button",{className:"btn btn-ghost sm",type:"button",
         onclick:function(){state.modalDraft=null;openModal("editmatch",se.id)}},"ⓘ Match et scores")));
-    wrap.appendChild(h("div",{className:"muted ev-info"},
-      [evM?eventLabel(evM):null,se.opponent?"contre "+se.opponent:null,fmtShortDay(se.day||dayOf(se.date)),
-       se.live?"en cours":(hasResult(se.result)?resultLabel(se.result)+" · "+OUTCOMES[resultOutcome(se.result)].label:null)]
-      .filter(Boolean).join(" · ")));
     if(sessionIsSplit(se)){
       wrap.appendChild(h("div",{className:"section-title"},plural(nbSetsReels(se),"set")));
       blocs.forEach(function(b,i){wrap.appendChild(rangeeSet(sq,se,b,i))});
@@ -10464,8 +10851,8 @@ function evChildren(sq,k){
       h("button",{className:"btn btn-ghost sm",type:"button",
         onclick:function(){state.modalDraft=null;openModal("editevent",ev.id)}},
         "ⓘ "+(kindIsMulti(ev.kind)?"Infos du tournoi":"Infos de la rencontre"))));
-    wrap.appendChild(h("div",{className:"muted ev-info"},
-      [fmtShortDay(ev.date),ev.location||null,advLabel({event:ev,sessions:ss})].filter(Boolean).join(" · ")));
+    var adv=advLabel({event:ev,sessions:ss});
+    if(adv)wrap.appendChild(h("div",{className:"muted ev-info"},adv.charAt(0).toUpperCase()+adv.slice(1)));
     wrap.appendChild(h("div",{className:"section-title"},plural(ss.length,"match")));
     ss.forEach(function(se){wrap.appendChild(rangeeMatch(sq,ev,se))});
     return wrap;
@@ -10515,12 +10902,17 @@ function evChildren(sq,k){
     rows:function(res){
       return res.map(function(g){
         var ev=g.event,kk=EVENT_KINDS[ev.kind]||EVENT_KINDS.league;
-        var v=0,d=0,live=0;
+        var v=0,d=0,nn=0,live=0;
         g.sessions.forEach(function(se){
-          var o=issueDe(se);if(o==="win")v++;else if(o==="loss")d++;
+          var o=issueDe(se);if(o==="win")v++;else if(o==="loss")d++;else if(o==="draw")nn++;
           if(se.live)live++;
         });
         var multi=kindIsMulti(ev.kind)||g.sessions.length>1;
+        /* Le bilan dit ses nuls — « 2V–1D » pour quatre matchs en
+           taisait un — et un match seul dit son score. */
+        var seul=!multi?g.sessions[0]:null,os=seul?issueDe(seul):null;
+        var bilanTxt=multi?((v||d||nn)?v+"V–"+d+"D"+(nn?"–"+nn+"N":""):null)
+          :((seul&&hasResult(seul.result))?resultLabel(seul.result)+(os?" "+OUTCOMES[os].short:""):null);
         return h("button",{className:"navRow"+(live?" is-live":""),type:"button",
           onclick:function(){
             /* Un match seul n'a pas de niveau intermédiaire : on descend
@@ -10535,7 +10927,7 @@ function evChildren(sq,k){
             h("span",{className:"nr-sub"},
               [fmtShortDay(ev.date),
                multi?plural(g.sessions.length,"match"):(g.sessions[0].opponent||ev.opponent||null),
-               (v||d)?v+"V–"+d+"D":null,
+               bilanTxt,
                live?"en cours":null].filter(Boolean).join(" · "))),
           h("span",{className:"nr-arw","aria-hidden":"true"},"›"));
       });
@@ -10623,16 +11015,28 @@ function renderEventPart(sq,k){
   } else acte=relever();
 
   var profond=!!(p.eventId||p.sessionId||p.setIdx!=null);
+  /* Le fil : d'où vient ce qu'on lit. Un « Set 1 » seul ne disait ni
+     quel match ni quel tournoi. */
+  var filTxt;
+  if(!profond)filTxt=plural(scope.sessions.length,k==="training"?"séance":"match")+
+    (k==="training"?" relevée":" relevé")+(scope.sessions.length>1?"s":"");
+  else {
+    var evF=p.eventId?eventById(sq,p.eventId):null,seF=p.sessionId?sessionById(sq,p.sessionId):null;
+    var multiF=!!evF&&kindIsMulti(evF.kind);
+    if(p.setIdx!=null&&seF)filTxt=[multiF?evF.name:null,evF?matchLabel(evF,seF):seF.name,
+      seF.opponent?"contre "+seF.opponent:null].filter(Boolean).join(" › ");
+    else if(seF)filTxt=[multiF?evF.name:(s.label||null),seF.opponent?"contre "+seF.opponent:null,
+      fmtShortDay(seF.day||dayOf(seF.date))].filter(Boolean).join(" · ");
+    else filTxt=[evF?fmtShortDay(evF.date):null,evF&&evF.location?evF.location:null,
+      plural(scope.sessions.length,k==="training"?"séance":"match")].filter(Boolean).join(" · ");
+  }
   var tete=h("div",{className:"partHead"},
     h("button",{className:"ph-back",type:"button",
       "aria-label":profond?"Remonter d'un niveau":"Retour à la saison",
       onclick:evUp},profond?"← Remonter":"← Saison"),
     h("div",{className:"ph-body"},
       h("div",{className:"ph-ttl"},profond?scope.label:(s.label||"Rencontres")),
-      h("div",{className:"ph-sub"},
-        profond?(s.label||"")+" · "+plural(scope.sessions.length,k==="training"?"séance":"match")
-               :plural(scope.sessions.length,k==="training"?"séance":"match")+
-                (k==="training"?" relevée":" relevé")+(scope.sessions.length>1?"s":""))),
+      h("div",{className:"ph-sub"},filTxt)),
     h("div",{className:"ph-act"},acte));
 
   /* Le sélecteur de nature ne paraît que si la saison porte vraiment
@@ -10660,10 +11064,13 @@ function renderEventPart(sq,k){
     /* Chaque niveau se lit pareil : ses chiffres-clés, ce qu'il
        contient (et les gestes pour le corriger), puis le tableau des
        statistiques, équipe et athlètes, filtrable par élément. */
-    corps.appendChild(evKpis(sq,scope));
+    /* Sur tablette en paysage, deux colonnes : ce qu'on parcourt à
+       gauche, le tableau à droite — on descend d'un match à l'autre
+       sans perdre les chiffres de vue. */
     var enfants=evChildren(sq,k);
-    if(enfants)corps.appendChild(enfants);
-    corps.appendChild(blocStatistiques(sq,scope,"part"));
+    corps.appendChild(h("div",{className:"ev-cols"},
+      h("div",{className:"ev-nav"},evKpis(sq,scope),enfants),
+      h("div",{className:"ev-stats"},blocStatistiques(sq,scope,"part"))));
   }
 
   return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
@@ -16500,6 +16907,7 @@ function renderStatsFeuille(sq,se){
   var wrap=h("div",{className:"content pad","data-scroll-key":"feuille-stats"});
   wrap.appendChild(h("div",{className:"pill-row tight fs-niv"},segmented({label:"Niveau",value:niv,
     options:nv,onpick:function(v){state.feuilleNiveau=v;render()}})));
+  wrap.appendChild(evKpis(sq,scope));
   wrap.appendChild(blocStatistiques(sq,scope,"feuille"));
   return wrap;
 }
@@ -21014,9 +21422,12 @@ function renderModal(){
    ══════════════════════════════════════════════════════════════ */
 var scrollPositions={};
 function scrollKeyOf(el){return el.getAttribute("data-scroll-key")||el.className.split(" ")[0]}
+/* Le défilement horizontal se garde aussi : trier une colonne à droite
+   du tableau des statistiques le ramenait à gauche, et choisir une
+   famille au bout de sa rangée la faisait sortir de l'écran. */
 function saveScrollPos(){
   var els=document.querySelectorAll(".content,.quick-panel,[data-scroll-key]");
-  for(var i=0;i<els.length;i++){var k=scrollKeyOf(els[i]);if(k)scrollPositions[k]=els[i].scrollTop}
+  for(var i=0;i<els.length;i++){var k=scrollKeyOf(els[i]);if(k)scrollPositions[k]={t:els[i].scrollTop,l:els[i].scrollLeft}}
 }
 /* Replie les explications trop longues, une fois la mise en page faite.
    On mesure ici, hors du chemin de construction : un `scrollHeight` lu
@@ -21082,9 +21493,28 @@ function restoreScrollPos(){
     var els=document.querySelectorAll(".content,.quick-panel,[data-scroll-key]");
     for(var i=0;i<els.length;i++){
       var k=scrollKeyOf(els[i]);
-      if(k&&scrollPositions[k]!=null)els[i].scrollTop=scrollPositions[k];
+      var pos=k?scrollPositions[k]:null;
+      if(pos!=null){
+        if(typeof pos==="number")els[i].scrollTop=pos;
+        else {els[i].scrollTop=pos.t||0;if(pos.l)els[i].scrollLeft=pos.l}
+      }
     }
+    garderVisible();
   });
+}
+/* Ce qui est choisi reste à l'écran : la famille lue au bout de sa
+   rangée, le set qu'on relève au bout de la bande. Le défilement rendu
+   ne doit jamais la cacher à moitié. */
+function garderVisible(){
+  var sel=document.querySelectorAll(".fam-pills .pill.active,.feuille-sets .fs-set.on");
+  for(var i=0;i<sel.length;i++){
+    var el=sel[i],row=el.parentNode;
+    if(!row||row.scrollWidth<=row.clientWidth)continue;
+    var re=el.getBoundingClientRect(),rr=row.getBoundingClientRect();
+    var g=re.left-rr.left+row.scrollLeft,d=g+re.width;
+    if(g<row.scrollLeft)row.scrollLeft=Math.max(0,g-8);
+    else if(d>row.scrollLeft+row.clientWidth)row.scrollLeft=d-row.clientWidth+8;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════

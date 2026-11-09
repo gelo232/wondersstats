@@ -289,17 +289,17 @@ const ERRORS=[];let PASS=0;
     const r=await page.evaluate(()=>({
       equipe:(document.querySelector(".st-table tbody tr.st-team .st-nom")||{}).textContent,
       noms:Array.from(document.querySelectorAll(".st-table tbody .st-nom")).map(e=>e.textContent),
-      kpi:/Gestes relevés/.test(document.getElementById("app").textContent)}));
+      kpi:Array.from(document.querySelectorAll(".kpiStrip .k-lbl")).map(e=>e.textContent).join("|")}));
     if(r.equipe!=="Équipe")throw new Error("pas de ligne d'équipe : "+r.equipe);
     if(!r.noms.some(n=>/Léa/.test(n)))throw new Error("les athlètes n'apparaissent pas : "+r.noms.join(", "));
-    if(!r.kpi)throw new Error("le résumé d'équipe manque");
+    if(!/Bilan/.test(r.kpi)||!/Attaque/.test(r.kpi))throw new Error("le résumé d'équipe manque : "+r.kpi);
     await page.locator(".fam-pills button").filter({hasText:"Attaque"}).first().click();
     await page.waitForTimeout(200);
     const tete=await page.evaluate(()=>Array.from(document.querySelectorAll(".st-table thead th")).map(t=>t.textContent).join("|"));
     if(!/Kill\|Réussie\|Erreur\|Total\|Eff\./.test(tete))throw new Error("colonnes : "+tete);
     /* L'équipe vaut la somme de ses athlètes, à l'écran aussi. */
     const somme=await page.evaluate(()=>{
-      var rows=Array.from(document.querySelectorAll(".st-table tbody tr"));
+      var rows=Array.from(document.querySelectorAll(".st-table tbody tr:not(.st-plus)"));
       var tot=function(tr){return +tr.querySelectorAll("td")[3].textContent};
       return {eq:tot(rows[0]),ath:rows.slice(1).reduce(function(n,tr){return n+tot(tr)},0)};
     });

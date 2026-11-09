@@ -177,7 +177,7 @@ const ERRORS=[];let PASS=0;
     }
     await page.locator(".fam-pills button").filter({hasText:"Tout"}).click();await pause();
     const tete=await page.evaluate(()=>Array.from(document.querySelectorAll(".st-table thead th")).map(function(t){return t.textContent}).slice(1).join("|"));
-    if(tete!=="Srv|Réc|Pas|Att|Blc|Déf|Hab|Gestes")throw new Error(tete);
+    if(tete!=="Srv|Réc|Pas|Att|Blc|Déf|Hab|Pts|Fautes|Gestes")throw new Error(tete);
   });
   await step("une colonne se trie, l'équipe reste en tête",async()=>{
     await page.locator(".st-table thead th").filter({hasText:"Réc"}).click();await pause();
