@@ -857,6 +857,27 @@ mais pas au bilan : un set à 12–10 n'est pas une victoire.
 
 Un match terminé sans un geste ni un score est retiré : il ne dirait rien.
 
+### Suivre l'évolution d'un set, d'un match, d'un tournoi à l'autre
+
+Dans `🎪 Tournois`, au-dessus du tableau, touchez `📈 Évolution`.
+
+- **Le pas** : `Par tournoi` pour comparer vos tournois, `Par match` pour suivre la
+  saison match après match, `Par set` pour voir un match ou un tournoi se jouer. Dans
+  un match, on suit ses sets.
+- **L'indicateur** : `Efficacité en attaque` par défaut ; la liste propose aussi la
+  réception, le service, la passe, le bloc, la défense, et les points directs, fautes
+  directes et gestes **par set joué**.
+
+En haut, la courbe de l'équipe ; touchez une étape pour sa valeur. Dessous, chaque
+athlète sur une ligne, une case par étape, et sa **tendance** au bout : `↗ +0.60`
+(en progrès), `↘ −0.18` (en recul), `→ stable`. Une case pâle compte moins de trois
+gestes : elle ne pèse pas dans la tendance. Touchez une athlète : sa courbe s'ouvre,
+l'équipe en gris derrière elle, avec son meilleur match, son plus faible, et l'écart
+d'un match au suivant.
+
+Le même `📈 Évolution` est dans la fiche de chaque athlète (onglet à côté de
+`Détail`) et dans le `📊` de la feuille de match, au niveau du tournoi.
+
 ### Annuler un match, un set — ou les supprimer
 
 **Pendant la saisie.** Au bout de la bande des sets, `Match · N gestes ⋯` ouvre le
