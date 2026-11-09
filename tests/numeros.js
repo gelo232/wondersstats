@@ -185,15 +185,17 @@ const ERRORS=[];let PASS=0;
     if(r!=="3,7,8,9,12,14")throw new Error("paquet : "+r);
   });
   await step("la saisie montre le numéro de maillot, et l'enregistre",async()=>{
-    await page.evaluate(()=>{choisirSousEquipe(curSquad(),null);curSquad().lineup=[];state.inputKind="training";navTo(mkRoute("legacy","input"))});
+    /* La saisie s'écrit dans la feuille d'un match (v7.14) : on en ouvre une. */
+    await page.evaluate(()=>{choisirSousEquipe(curSquad(),null);var sq=curSquad();sq.lineup=[];
+      ouvrirFeuille(sq,creerMatch(sq,{kind:"training",eventName:"Mardi"}),null)});
     await pause();
     const chips=await page.evaluate(()=>Array.from(document.querySelectorAll(".player-chip .chip-num")).map(e=>e.textContent).sort().join(","));
     if(chips!=="#12,#14,#3,#7,#7,#8")throw new Error("puces : "+chips);
     const r=await page.evaluate(()=>{
       var sq=curSquad(),jade=DB.players.filter(p=>p.firstName==="Jade")[0].id;
-      statsOf(sq,jade).atk_kill=2;
-      saveSession(sq,{kind:"training",name:"Mardi",eventName:"Mardi"});
-      var se=sq.sessions[sq.sessions.length-1];
+      var se=feuilleCourante(sq);
+      ecrireBloc(sq,se,state.feuille.idx,jade,"atk_kill",2);
+      terminerMatch(sq,se);state.feuille=null;saveNow();
       return se.entries.filter(e=>e.playerId===jade)[0].number;
     });
     if(r!=="7")throw new Error("numéro enregistré : "+r);

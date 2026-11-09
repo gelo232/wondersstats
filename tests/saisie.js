@@ -21,7 +21,13 @@
        qui n'existe plus ;
      · Relever depuis les Matchs filtrés sur « Championnat » relevait un
        amical ; le premier match d'un tournoi s'appelait comme le tournoi,
-       le second « Match 2 ». */
+       le second « Match 2 ».
+
+   v7.14 : la saisie s'écrit dans la feuille du match (tests/feuille.js).
+   Les exigences de place, de terrain et d'accords restent ; celles des
+   bornes de set — un set vide qui décalait les suivants, un écart entre
+   scores et bornes — deviennent : chaque set garde SON score, à son
+   rang, puisqu'il porte ses compteurs. */
 const {chromium}=require("playwright");
 const {nouveauContexte,sansRacine,franchirGarde}=require("./gate-helper");
 const fs=require("fs");
@@ -68,9 +74,12 @@ const ERRORS=[];let PASS=0;
     sq.lineup=[];state.posFilter="ALL";state.basReplie=false;state.inputMode="quick";
     saveNow();render();
   });
-  const ouvrirSaisie=async(k)=>{
+  /* Relever ouvre « Nouveau relevé » ; « Commencer » ouvre la feuille. */
+  const ouvrirSaisie=async(k,remplir)=>{
     await page.evaluate(k=>{state.evPath=null;state.courtPanelOpen=false;navToSection(k)},k||"matches");await pause();
     await page.locator(".partHead button").filter({hasText:"Relever"}).first().click();await pause();
+    if(remplir)await remplir();
+    await page.click("#modalOk");await pause(250);
   };
 
   say("\n── La place des compteurs, à 375 × 667");
@@ -82,7 +91,7 @@ const ERRORS=[];let PASS=0;
     if(!/Équipe A/.test(r.sous)||!/·/.test(r.sous))throw new Error("sous-titre : "+r.sous);
     await page.evaluate(()=>navToSection("matches"));await pause();
     if(!await page.locator(".ctx-bar").count())throw new Error("la barre de contexte a disparu ailleurs");
-    await page.locator(".partHead button").filter({hasText:"Relever"}).first().click();await pause();
+    await page.evaluate(()=>navTo(mkRoute("legacy","input")));await pause();
   });
   await step("le terrain est une puce de la rangée des groupes, plus une bande à part",async()=>{
     const r=await page.evaluate(()=>({bande:!!document.querySelector(".court-bar"),
@@ -111,14 +120,15 @@ const ERRORS=[];let PASS=0;
     });
     if(r.coupees)throw new Error(r.coupees+" puce(s) coupée(s) sur "+r.n);
   });
-  await step("aucun débordement horizontal, ni de la page ni de la barre d'enregistrement",async()=>{
+  await step("aucun débordement horizontal, ni de la page, ni de la barre, ni de la bande des sets",async()=>{
     const r=await page.evaluate(()=>{
       var app=document.getElementById("app"),sb=document.querySelector(".save-bar");
       var trop=Array.from(sb.querySelectorAll("*")).filter(function(e){return e.getBoundingClientRect().right>app.getBoundingClientRect().right+1});
       return {page:document.documentElement.scrollWidth>window.innerWidth+1,barre:trop.length,
-        note:(function(){var n=document.querySelector(".mk-note");return n.scrollHeight>n.clientHeight+2})()};
+        rangee:Math.round(sb.getBoundingClientRect().height)};
     });
     if(r.page||r.barre)throw new Error(JSON.stringify(r));
+    if(r.rangee>70)throw new Error("la barre de la feuille tient sur plus d'une rangée : "+r.rangee+" px");
   });
 
   say("\n── Les compteurs");
@@ -189,7 +199,8 @@ const ERRORS=[];let PASS=0;
   await step("il prend la largeur qu'il lui faut, au-dessus de la barre d'enregistrement",async()=>{
     await page.locator(".player-chip").first().click();await pause();
     await page.locator(".qp-stat-btn").nth(3).click();await pause(60);
-    await page.locator("button[aria-label^='Clore le set']").click();await pause(250);
+    await page.locator("button[aria-label^='Clore le set']").click();await pause(200);
+    await page.click("#modalOk");await pause(250);
     const r=await page.evaluate(()=>{
       var t=document.querySelector(".toast").getBoundingClientRect(),s=document.querySelector(".save-bar").getBoundingClientRect(),
           a=document.getElementById("app").getBoundingClientRect(),g=document.querySelector(".toast .grow");
@@ -202,56 +213,55 @@ const ERRORS=[];let PASS=0;
     if(r.bas>r.barre)throw new Error("il recouvre la barre : "+r.bas+" > "+r.barre);
   });
 
-  say("\n── Enregistrer");
-  const ouvrirEnregistrement=async()=>{
-    await page.locator(".save-bar .btn-save").click();await pause(250);
+  say("\n── Terminer");
+  const ouvrirFin=async()=>{
+    await page.locator("button[aria-label='Terminer le match']").click();await pause(250);
   };
-  await step("un amical : pas de second nom, les scores se lisent « nous – eux »",async()=>{
-    await ouvrirEnregistrement();
+  await step("un amical : pas de nom de match, les scores se lisent « nous – eux »",async()=>{
+    /* Le nom de match ne se demande que dans un tournoi. */
+    /* On est au set 2, ouvert par le bandeau : un geste, puis le set 3. */
+    await page.locator(".player-chip").first().click();await pause(100);
+    await page.locator(".qp-stat-btn").nth(0).click();await pause(60);
+    await page.locator("button[aria-label^='Clore le set 2']").click();await pause(200);
+    await page.click("#modalOk");await pause(250);
+    await ouvrirFin();
     const m=await page.textContent(".modal");
-    if(/Ce match/.test(m))throw new Error("le nom du match est encore demandé pour un amical");
-    const ph=await page.locator(".modal .set-in").first().getAttribute("placeholder");
-    if(ph!=="nous")throw new Error("placeholder : "+ph);
-    const w=await page.locator(".modal .set-in").first().evaluate(e=>e.getBoundingClientRect().width);
-    if(w>70)throw new Error("champ de score de "+w+" px");
+    if(/Nom du match/.test(m))throw new Error("le nom du match est demandé pour un amical");
+    const r=await page.evaluate(()=>{var c=document.querySelector(".modal .fin-set .sc-cote");
+      return {nom:c.querySelector(".sc-nom").textContent,aria:c.querySelector(".sc-in").getAttribute("aria-label"),
+        autre:document.querySelectorAll(".modal .fin-set .sc-cote")[1].querySelector(".sc-nom").textContent,
+        w:c.querySelector(".sc-in").getBoundingClientRect().width}});
+    if(r.nom!=="Nous"||r.autre!=="Eux"||!/Set 1 — nos points/.test(r.aria))throw new Error(JSON.stringify(r));
+    if(r.w>70)throw new Error("champ de score de "+r.w+" px");
     if(/Récap → 🏐 Rencontres/.test(m))throw new Error("chemin périmé");
-    if(/ventilée en/.test(m))throw new Error("« ce match sera ventilée »");
+    if(/ventilée/.test(m))throw new Error("« ventilée »");
   });
-  await step("le bouton Enregistrer est à l'écran sans faire défiler",async()=>{
+  await step("le bouton Terminer est à l'écran sans faire défiler",async()=>{
     const r=await page.evaluate(()=>{var b=document.getElementById("modalOk").getBoundingClientRect(),
       m=document.querySelector(".modal").getBoundingClientRect();return {b:b.bottom,m:m.bottom,top:b.top,mt:m.top}});
     if(r.b>r.m+1||r.top<r.mt)throw new Error(JSON.stringify(r));
   });
-  await step("un set vide entre deux sets joués bloque, et rien n'est enregistré",async()=>{
-    const s=page.locator(".modal .set-in");
-    await s.nth(0).fill("25");await s.nth(1).fill("20");await s.nth(4).fill("15");await s.nth(5).fill("13");
-    const avant=await page.evaluate(()=>curSquad().sessions.length);
+  await step("un set à moitié rempli bloque, et rien n'est terminé",async()=>{
+    const s=page.locator(".modal .sc-in");
+    await s.nth(0).fill("25");await s.nth(1).fill("20");await s.nth(4).fill("15");
     await page.click("#modalOk");await pause(200);
-    const r=await page.evaluate(()=>({n:curSquad().sessions.length,bilan:document.getElementById("setBilan").textContent,
+    const r=await page.evaluate(()=>({live:curSquad().sessions[0].live,bilan:document.querySelector(".modal .fin-bilan").textContent,
       modal:!!document.querySelector(".modal")}));
-    if(r.n!==avant||!r.modal)throw new Error("enregistré malgré le trou");
-    if(!/Set 2 sans score/.test(r.bilan))throw new Error("bilan : "+r.bilan);
+    if(!r.live||!r.modal)throw new Error("terminé malgré le score bancal");
+    if(!/Set 3 : il manque/.test(r.bilan))throw new Error("bilan : "+r.bilan);
   });
-  await step("un set à moitié rempli bloque aussi",async()=>{
-    const s=page.locator(".modal .set-in");
-    await s.nth(2).fill("20");
-    await page.click("#modalOk");await pause(200);
-    const r=await page.evaluate(()=>document.getElementById("setBilan").textContent);
-    if(!/Set 2 : il manque/.test(r))throw new Error(r);
-  });
-  await step("plus de scores que de sets bornés : on le dit avant d'enregistrer",async()=>{
-    await page.locator(".modal .set-in").nth(3).fill("25");await pause(100);
-    const e=await page.evaluate(()=>{var x=document.getElementById("setEcart");return x.style.display==="none"?"":x.textContent});
-    if(!/3 scores de set pour 2 sets bornés/.test(e))throw new Error("écart : « "+e+" »");
-  });
-  await step("les sets gardent leur rang, et « Voir » mène au match enregistré",async()=>{
+  await step("un set sans score entre deux sets joués garde son rang : le set 3 reste le set 3",async()=>{
+    await page.locator(".modal .sc-in").nth(5).fill("13");await pause(100);
+    const b=await page.evaluate(()=>document.querySelector(".modal .fin-bilan").textContent);
+    if(!/2–0/.test(b))throw new Error("bilan : "+b);
     await page.click("#modalOk");await pause(300);
     const r=await page.evaluate(()=>{var se=curSquad().sessions[0];
-      return {res:se.result.sets.map(x=>x.us+"-"+x.them).join(","),sets:se.sets.map(x=>x.us+"-"+x.them).join(","),toast:(document.querySelector(".toast")||{}).textContent||""}});
-    if(r.res!=="25-20,20-25,15-13")throw new Error("scores : "+r.res);
-    if(r.sets!=="25-20,20-25")throw new Error("ventilation : "+r.sets);
-    if(!/Voir/.test(r.toast))throw new Error("bandeau : "+r.toast);
-    await page.locator(".toast .t-act").click();await pause(250);
+      return {res:se.result.sets.map(x=>x.us+"-"+x.them).join(","),sets:se.sets.map(x=>x.us+"-"+x.them).join(","),live:se.live}});
+    if(r.live)throw new Error("toujours en cours");
+    if(r.res!=="25-20,0-0,15-13")throw new Error("scores : "+r.res);
+    if(r.sets!=="25-20,0-0,15-13")throw new Error("ventilation : "+r.sets);
+  });
+  await step("« Terminer » mène au match terminé",async()=>{
     const v=await page.evaluate(()=>({tab:state.tab,sec:state.seasonSection,se:(state.evPath||{}).sessionId,id:curSquad().sessions[0].id}));
     if(v.tab!=="season"||v.sec!=="matches"||v.se!==v.id)throw new Error(JSON.stringify(v));
   });
@@ -267,17 +277,18 @@ const ERRORS=[];let PASS=0;
     });await pause();
     if(!await page.locator(".pill").filter({hasText:"Championnat"}).count())throw new Error("pas de sélecteur de nature");
     await page.locator(".partHead button").filter({hasText:"Relever"}).first().click();await pause();
-    const k=await page.evaluate(()=>state.inputKind);
-    await page.evaluate(()=>{state.cumulKind="all"});
-    if(k!=="league")throw new Error("nature : "+k);
+    const r=await page.evaluate(()=>({k:state.inputKind,pill:(document.querySelector(".nm-nature .pill.active")||{}).textContent}));
+    await page.evaluate(()=>{state.cumulKind="all";closeModal()});
+    if(r.k!=="league"||!/Championnat/.test(r.pill))throw new Error(JSON.stringify(r));
   });
   await step("le premier match d'un tournoi est « match 1 », et se lit « Match 1 »",async()=>{
-    await ouvrirSaisie("tournaments");
+    await ouvrirSaisie("tournaments",async()=>{
+      if(!/Nom du match \(facultatif\)/.test(await page.textContent(".modal")))throw new Error("pas de nom de match dans un tournoi");
+      await page.locator(".modal input[placeholder^='Ex. Tournoi']").fill("Tournoi de Laval");
+    });
     await page.locator(".player-chip").first().click();await pause();
     await page.locator(".qp-stat-btn").first().click();await pause(60);
-    await ouvrirEnregistrement();
-    if(!/Ce match \(facultatif\)/.test(await page.textContent(".modal")))throw new Error("pas de nom de match dans un tournoi");
-    await page.locator(".modal input[placeholder^='Ex. Tournoi']").fill("Tournoi de Laval");
+    await ouvrirFin();
     await page.click("#modalOk");await pause(300);
     const r=await page.evaluate(()=>{var sq=curSquad(),se=sq.sessions[0],ev=eventOf(sq,se);return {nom:se.name,lu:matchLabel(ev,se)}});
     if(r.nom!=="Tournoi de Laval · match 1"||r.lu!=="Match 1")throw new Error(JSON.stringify(r));
@@ -288,13 +299,13 @@ const ERRORS=[];let PASS=0;
     if(r!=="Match 1")throw new Error(r);
   });
   await step("« relevé » s'accorde, « 1 geste » aussi, et le nom du tournoi garde ses majuscules",async()=>{
-    await page.evaluate(()=>{state.evPath=null;state.evSujet="team";navToSection("tournaments")});await pause();
+    await page.evaluate(()=>{state.evPath=null;navToSection("tournaments")});await pause();
     const sous=await page.textContent(".partHead .ph-sub");
     if(sous!=="1 match relevé")throw new Error("« "+sous+" »");
     await page.locator(".navRow").first().click();await pause();
     const t=await txt();
     if(/\b1 gestes\b/.test(t))throw new Error("« 1 gestes »");
-    if(!/L'équipe · 🎪 Tournoi de Laval/.test(t))throw new Error("nom du tournoi en minuscules");
+    if(!/Statistiques · 🎪 Tournoi de Laval/.test(t))throw new Error("nom du tournoi en minuscules");
     await page.evaluate(()=>{state.evPath=null;navToSection("training")});await pause();
     if(await page.textContent(".partHead .ph-sub")!=="0 séance relevée")throw new Error(await page.textContent(".partHead .ph-sub"));
   });
@@ -302,7 +313,8 @@ const ERRORS=[];let PASS=0;
   say("\n── Tablette en paysage");
   await step("la grille montre la première famille, au lieu d'un panneau vide",async()=>{
     await page.setViewportSize({width:1024,height:768});
-    await page.evaluate(()=>{state.inputMode="grid";state.viewIdx=1;state.expandedGroup=null;state.inputKind="friendly";navTo(mkRoute("legacy","input"))});await pause(250);
+    await page.evaluate(()=>{state.inputMode="grid";state.viewIdx=1;state.expandedGroup=null;
+      var sq=curSquad();ouvrirFeuille(sq,creerMatch(sq,{kind:"friendly"}),null)});await pause(250);
     const r=await page.evaluate(()=>({side:!!document.querySelector(".side-layout"),btns:document.querySelectorAll(".side-layout .stat-btn").length,
       vide:/← Sélectionnez/.test(document.getElementById("app").textContent)}));
     if(!r.side||!r.btns||r.vide)throw new Error(JSON.stringify(r));

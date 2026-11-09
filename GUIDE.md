@@ -48,7 +48,9 @@ l'on retombe. Retaper l'onglet Saison revient au tableau de bord.
 Deux choses à savoir tout de suite, parce qu'elles changent des gestes anciens :
 
 - **la saisie n'est pas un onglet.** On relève depuis la partie de la rencontre —
-  `🤝 Matchs → ✏️ Relever` — et la nature du match est déjà choisie ;
+  `🎪 Tournois → ✏️ Relever` — et la nature du match est déjà choisie. Le relevé
+  s'écrit dans **la feuille du match**, set par set, et se consulte à tout moment
+  par `📊 Stats` (voir § 8) ;
 - **retenir une athlète ne l'ajoute pas à l'équipe.** Elle reçoit une **offre en
   attente**. L'équipe se constitue par `👕 Constituer l'équipe`, en bas de la partie
   Sélection, où chaque offre se **confirme** ou s'**archive**.
@@ -806,34 +808,74 @@ passent en ⛔.
 
 ## 8 · La saison — rencontres et cumul
 
-### Enregistrer un match
+### Relever un match : la feuille de match
 
-`🤝 Matchs → ✏️ Relever`. En haut, `🏐 12/12` dit qui est sur le terrain : touchez-le
-pour en retirer ou en ajouter, ou pour ne montrer qu'un poste. Une blessée ou une
-partie n'y entre pas d'office. Puis une athlète — son numéro et son prénom dans la
-bande —, et ses gestes : `+` compte, `−` dessous corrige. La pastille verte de la
-puce dit combien de gestes sont déjà relevés sur elle. `⏭ Set suivant` à la fin de
-chaque set, puis `💾 Enregistrer le match`.
+Le relevé s'écrit **dans le match**, et le match naît avant le premier geste.
 
-La fenêtre demande la **nature** (🏆 Championnat · 🎪 Tournoi · 🤝 Amical ·
-🎽 Entraînement), le nom de la rencontre, l'adversaire **de ce match**, la date
-réelle et le lieu. Les sets sont facultatifs ; l'issue (V/D/N) s'en déduit. Chaque
-set se saisit « nous – eux » ; un set à moitié rempli, ou un set vide entre deux
-sets joués, est refusé avec le numéro du set en cause. Si vous avez saisi trois
-scores mais n'avez posé qu'une borne, la fenêtre vous le dit avant d'enregistrer.
-Une fois enregistré, `Voir` dans le bandeau ouvre le match.
+1. `🎪 Tournois → ✏️ Relever` (ou `🤝 Matchs`, `🎽 Entraînements`). La fenêtre
+   **Nouveau relevé** demande la **nature**, le **tournoi** — un nouveau, ou l'un de
+   ceux de la saison —, l'**adversaire de ce match**, la date et le lieu. Le tournoi
+   du jour, ou celui dont un match est en cours, est proposé d'emblée.
+2. `▶️ Commencer le match` ouvre la **feuille**. En tête : « 🎪 Match 1 —
+   Tournoi de Laval · contre Lions ». Dessous, la **bande des sets** : `Set 1` est
+   choisi, un point rouge dit qu'il se joue.
+3. `🏐 12/12` dit qui est sur le terrain : touchez-le pour en retirer ou en ajouter,
+   ou pour ne montrer qu'un poste. Une blessée ou une partie n'y entre pas d'office.
+   Puis une athlète, et ses gestes : `+` compte, `−` dessous corrige. La pastille de
+   la puce compte ses gestes **dans ce set**.
+4. À la fin du set, `⏭ Set 2` : la fenêtre **Fin du set 1** prend le score — deux
+   champs, ou `−` / `+` pour le suivre point par point — et `▶️ Commencer le set 2`.
+5. À la fin du match, `🏁 Terminer` : les scores de chaque set se relisent et se
+   corrigent, l'issue (V/D/N) s'en déduit. Dans un tournoi, `➕ Match suivant`
+   termine et ouvre aussitôt le match 2 du même tournoi.
 
-**Un tournoi se saisit une fois puis se complète.** Au match suivant, le champ
-« Rattacher à » propose les tournois de la saison avec leur date. Le match rattaché
-est daté du jour de la rencontre, pas du jour où vous le saisissez — un tournoi joué
-samedi et saisi dimanche reste daté de samedi.
+**Corriger pendant le match.** Touchez `Set 1` dans la bande pendant le set 3 : vous
+y êtes, ses compteurs sous les doigts. Un `−` corrige le set 1, le total du match
+suit — rien ne glisse d'un set à l'autre. `↶` en haut annule le dernier geste. Toucher
+le set **déjà choisi** ouvre sa fenêtre : son score, `Vider`, `Supprimer ce set` (ses
+gestes et son score quittent le match ; le bandeau propose `Annuler`).
 
-Le jour même, le tournoi en cours est proposé d'emblée. Les jours suivants, il reste
-dans la liste mais « ➕ Nouvelle rencontre » redevient le choix par défaut : on
-rattache parce qu'on le veut, jamais par inadvertance.
+**Consulter en tout temps.** `📊 Stats`, en bas de la feuille, remplace les
+compteurs par le tableau des statistiques, sans rien quitter :
 
-Chaque match d'un tournoi garde **son propre adversaire** : la question se repose à
-chaque tour. Les matchs s'y numérotent dès le premier : « Match 1 », « Match 2 ».
+- le **niveau** — `Set 2` (celui qu'on relève), `Match`, `Tournoi` ;
+- l'**élément de stat** — `Tout` (chaque famille compilée en efficacité, de −1 à +1,
+  avec son volume en petit, et le nombre de gestes), ou `Service`, `Réception`,
+  `Passe`, `Attaque`, `Bloc`, `Défense`, `Habiletés` (leurs compteurs, leur total et
+  leur efficacité) ;
+- l'**équipe** en tête, chaque athlète dessous ; touchez une colonne pour trier.
+
+Touchez une ligne : la **fiche** de l'athlète — ou de l'équipe — se lit un niveau
+plus bas, **par set** pour un match, **par match** pour un tournoi, avec son total.
+`✏️ Saisie` ramène aux compteurs.
+
+**Quitter et reprendre.** `‹` ramène à la page du match ; il reste **en cours**.
+La tuile `🎪 Tournois` du tableau de bord le dit (`▶️ 1 match en cours`), la partie
+le montre en tête, et `▶️ Reprendre` rouvre sa feuille où vous l'aviez laissée — même
+après avoir fermé l'application. Un match en cours compte déjà dans tous les cumuls,
+mais pas au bilan : un set à 12–10 n'est pas une victoire.
+
+Un match terminé sans un geste ni un score est retiré : il ne dirait rien.
+
+### Modifier un match ou un set après coup
+
+Descendez jusqu'au match (`🎪 Tournois → le tournoi → le match`) :
+
+- `✏️ Corriger`, en haut, rouvre **sa** feuille — la même qu'au bord du terrain — sur
+  le set 1. Touchez un autre set, corrigez, ajoutez un set oublié avec `⏭`, puis
+  `✅ Fini`. On corrige le match lui-même : il n'y a jamais de doublon ;
+- `ⓘ Match et scores` change le nom, l'adversaire, la date, les scores de chaque set,
+  et la **rencontre** — un match rangé dans le mauvais tournoi s'y déplace avec ses
+  compteurs. `🗑️ Supprimer ce match` est au bas de la même fenêtre ;
+- un set (`→ Set 2`) se corrige aussi depuis sa page : `✏️ Corriger` ouvre la
+  feuille sur lui.
+
+Au niveau du tournoi, `➕ Match` en ajoute un, et `ⓘ Infos du tournoi` change son
+nom, sa date, son lieu ou sa nature.
+
+**Une saisie d'avant la mise à jour** — des compteurs relevés mais jamais
+enregistrés — n'est pas perdue : la fenêtre **Nouveau relevé** l'annonce, et le match
+qu'on ouvre la reprend, sets compris.
 
 ### Lire le cumul
 
@@ -844,8 +886,11 @@ clair ce qui est cumulé.
 `÷ Par match` divise par le nombre de matchs joués par chacune : une titulaire à 8
 matchs et une arrivante à 1 deviennent comparables.
 
-`🤝 Matchs` et `🎪 Tournois` regroupe les matchs sous leur rencontre et affiche le
-bilan décliné par nature.
+`🤝 Matchs` et `🎪 Tournois` se lisent à chaque niveau de la même façon : les
+chiffres-clés, ce que le niveau contient (les tournois, leurs matchs, leurs sets), puis
+le **tableau des statistiques** — l'équipe en tête, chaque athlète dessous, filtrable
+par élément de stat ou compilé, chaque ligne ouvrant sa fiche détaillée un niveau plus
+bas. Le bilan ne compte que les matchs terminés.
 
 ---
 
@@ -977,7 +1022,7 @@ A · Équipe B` paraît dans chaque partie dès que l'équipe en a. Le choix sui
 
 Pendant une saisie de statistiques, deux familles de gestes entières tiennent déjà
 sur un téléphone de 375 × 667. `▾ Replier` (au bout de la barre d'onglets ou de la
-barre d'enregistrement) replie les barres du bas : la grille de compteurs reprend
+barre de la feuille) replie les barres du bas : la grille de compteurs reprend
 encore la place. `▴ Onglets` les rend.
 
 La progression se lit dans `👥 Les athlètes` (rangées par le test qu'on veut), et

@@ -14,7 +14,7 @@ server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
 GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
-tests/          suite de non-régression Playwright — vingt-neuf suites
+tests/          suite de non-régression Playwright — trente suites
 ```
 
 ---
@@ -226,20 +226,21 @@ Chaque chose est rangée selon ce à quoi elle appartient :
 
 La **saisie** n'est pas un onglet : c'est l'acte d'une partie de rencontres —
 « ✏️ Relever », qui propose d'emblée la nature de la partie d'où l'on vient (les
-Matchs filtrés sur « Championnat » relèvent du championnat). Son en-tête dit cette
-nature (« 🎽 Entraînement »), et dessous l'équipe et la saison : la barre de
-contexte n'y paraît pas, la place va aux compteurs. `‹` ramène à la partie ; à
-côté, `↶` annule le dernier geste. La remise à zéro des compteurs (`🔄`) est
-descendue dans la barre du bas, loin du retour.
+Matchs filtrés sur « Championnat » relèvent du championnat). Elle ouvre la
+**feuille d'un match** (voir [Rencontres](#rencontres)) : son en-tête dit le match,
+son tournoi et l'adversaire (« 🎪 Match 2 — Tournoi de Laval · contre Lions ») ; la
+barre de contexte n'y paraît pas, la place va aux compteurs. `‹` ramène à la page du
+match ; à côté, `↶` annule le dernier geste.
 
 L'écran, de haut en bas, sur un téléphone de 375 × 667 :
 
 | Rangée | Ce qu'elle porte |
 |---|---|
+| Sets | `Set 1 · 25–20` · `● Set 2 · 8 gestes` — où l'on relève ; toucher un autre set y emmène, toucher le set choisi ouvre son score, `Vider`, `Supprimer ce set`. Au bout, le total du match |
 | Groupes | `🏐 12/12` — qui est sur le terrain, et son panneau : les athlètes à ajouter ou retirer, les **blessées et les parties** à part (hors du terrain d'office), le **filtre de poste** ; puis `Toutes`, les sous-équipes, les line-ups. Un filtre de poste posé se lit en puce (`Poste L ✕`) et s'ôte d'un geste |
-| Athlètes | Le numéro de maillot et le prénom, en rangées entières ; la pastille verte dit combien de gestes sont déjà relevés sur elle |
-| Compteurs | Une rangée par famille : `+` qui compte, `−` dessous qui corrige — grisé à zéro. Deux familles entières tiennent à l'écran |
-| Enregistrer | `⏭ Set suivant`, le set en cours, `↺` `🔄` ; puis `💾 Enregistrer` |
+| Athlètes | Le numéro de maillot et le prénom, en rangées entières ; la pastille verte dit combien de gestes sont relevés sur elle **dans ce set** |
+| Compteurs | Une rangée par famille : `+` qui compte, `−` dessous qui corrige — grisé à zéro — dans le set choisi. Deux familles entières tiennent à l'écran |
+| Barre | `⏭ Set 3` (score de fin de set, puis le set suivant) · `📊 Stats` · `🏁 Terminer` — une seule rangée |
 
 Une blessée ou une partie n'entre jamais d'office sur le terrain — ni par
 `Toutes`, ni par une sous-équipe, ni quand on retire quelqu'un d'autre ; on l'y met
@@ -304,8 +305,8 @@ Il ne voit que les équipes où il est affecté, et **jamais** l'avis d'un coll�
 
 ## Rencontres
 
-Un match s'enregistre dans une **rencontre**, qui porte sa nature, son adversaire,
-sa date réelle et son lieu.
+Un match s'enregistre dans une **rencontre**, qui porte sa nature, son nom, sa date
+réelle et son lieu.
 
 | Nature | Usage |
 |---|---|
@@ -314,57 +315,83 @@ sa date réelle et son lieu.
 | 🤝 **Amical** | Hors concours, préparation |
 | 🎽 **Entraînement** | Séance chiffrée |
 
-Un tournoi se saisit une fois puis se complète : le second match propose
-« Rattacher à » la rencontre du jour. Chaque match garde **son propre adversaire**
-— il change à chaque tour — et son score par set, dont l'issue (V/D/N) est déduite.
-Les matchs d'un tournoi se numérotent dès le premier (`· match 1`, `· match 2`) ; un
-amical ou un match de championnat, qui n'en porte qu'un, ne demande pas de second
-nom.
-
-Les scores se saisissent « nous – eux », deux champs par set. Un set à moitié rempli,
-ou un set vide entre deux sets joués, empêche d'enregistrer et le dit : les sets
-suivants glissaient d'un rang, et la ventilation prêtait au set 2 le score du set 3.
-Après l'enregistrement, `Voir` dans le bandeau mène au match.
-
 Les trois parties de rencontres — **Entraînements**, **Matchs**, **Tournois** —
-lisent les **mêmes** rencontres, filtrées par nature. Rien n'est dupliqué : une
-rencontre mal classée se corrige en changeant sa nature, jamais en la déplaçant.
+lisent les **mêmes** rencontres, filtrées par nature. Rien n'est dupliqué : un match
+rangé dans la mauvaise rencontre s'y déplace (`ⓘ Match et scores → Rencontre`), une
+rencontre mal classée change de nature.
 
 Le **championnat n'a pas de partie à lui** : il se compte et s'affiche exactement
 comme un amical, et lui donner son propre écran en aurait fait le jumeau de celui
 des amicaux. La partie **Matchs** couvre les deux, derrière un sélecteur
 `Amicaux · Championnat · Tous` qui n'apparaît que si la saison en contient.
 
-### Par set, par match, par tournoi, globalement
+### La feuille de match
 
-Deux axes se croisent dans un seul écran, plutôt que dans huit écrans jumeaux :
+Le relevé s'écrit **dans le match, et dans le set**. `✏️ Relever` ouvre
+**Nouveau relevé** : la nature, le tournoi (un nouveau, ou l'un de la saison — celui
+du jour, ou celui dont un match est en cours, est proposé d'emblée), l'adversaire
+**de ce match**, la date et le lieu. `▶️ Commencer le match` crée la rencontre si elle
+est neuve et son match, **en cours**, avec un set 1. Les matchs d'un tournoi se
+numérotent dès le premier (`Match 1`, `Match 2`) et gardent chacun leur adversaire.
 
-- le **niveau** — global → tournoi → match → set. On descend d'un appui, on
-  remonte par `← Remonter`, qui dit toujours où l'on retombe ;
-- le **sujet** — `📊 L'équipe` ou `👥 Les athlètes`. L'équipe n'est jamais une
-  donnée à part : c'est la somme de ses athlètes, et l'application le vérifie.
+- **Chaque set porte ses compteurs**, et le total du match est leur somme — par
+  construction, toujours. On revient corriger le set 1 pendant le set 3 d'un
+  toucher dans la bande des sets : rien ne glisse d'un set à l'autre.
+- **`⏭ Set suivant`** demande le score du set qui se clôt (deux champs « nous – eux »,
+  ou `−` / `+` pour le suivre point par point), puis ouvre le suivant.
+- **`📊 Stats`** consulte sans quitter la feuille : le set, le match ou tout le
+  tournoi ; l'équipe en tête et chaque athlète dessous ; un élément de stat ou tous
+  compilés (voir [Lire les statistiques](#lire-les-statistiques)).
+- **`🏁 Terminer`** relit et corrige les scores de chaque set, puis range le match au
+  bilan. Dans un tournoi, `➕ Match suivant` termine et ouvre le match suivant du même
+  tournoi. Un set vide en fin de match (un `⏭` de trop) tombe ; un match sans un
+  geste ni un score est retiré.
 
-Un tournoi a un niveau de plus qu'un match, parce qu'il porte plusieurs matchs.
-Un match seul n'a pas de niveau intermédiaire : on y descend droit.
+Un match **en cours** compte déjà dans tous les cumuls — on consulte en tout temps —
+mais **pas au bilan** : un set à 12–10 n'est pas une victoire. Il survit au
+rechargement ; sa partie, et la tuile du tableau de bord, proposent `▶️ Reprendre`.
 
-### Relever set par set
+### Modifier un set, un match
 
-Pendant la saisie, **⏭ Set suivant** pose une borne. Les sets sont les
-différences successives de ces bornes, la dernière étant le total : **leur somme
-vaut donc le total exactement, par construction**, et non par vérification. Rien
-n'est remis à zéro en cours de match, ce qui permet de corriger un compteur
-*après* avoir clos un set.
-
-Si le nombre de scores saisis ne correspond pas au nombre de sets bornés — un
-« Set suivant » oublié —, la fenêtre d'enregistrement le dit avant d'enregistrer :
-la ventilation suit les bornes, pas les scores.
-
-Les matchs saisis avant cette possibilité ne sont **pas ventilés**. Ils
-s'affichent « Match (non ventilé) » et jamais « Set 1 » — on n'affirme pas une
-donnée qu'on n'a pas — et comptent à l'identique dans tous les cumuls.
+- **Un set** : le toucher dans la bande (ou `✏️ Corriger` sur sa page) ; ses
+  compteurs se corrigent par `−` et `+`, sa fenêtre change son score, le vide, ou le
+  supprime — ses gestes et son score quittent le match, les sets suivants remontent
+  d'un rang. `Annuler` rend tout.
+- **Un match terminé** : `✏️ Corriger` sur sa page rouvre **sa** feuille, la même
+  qu'au bord du terrain, puis `✅ Fini`. On corrige le match lui-même : l'ancien
+  « Charger », qui recopiait un match dans la saisie et faisait un doublon à
+  l'enregistrement, n'existe plus.
+- **`ⓘ Match et scores`** : nom, adversaire, date, rencontre, score de chaque set ;
+  et `🗑️ Supprimer ce match`. Une rencontre vidée de son dernier match disparaît avec
+  lui.
 
 La date de la rencontre est distincte de l'horodatage de saisie : un tournoi joué
-samedi et saisi dimanche reste daté de samedi.
+samedi et saisi dimanche reste daté de samedi, et ses matchs avec lui.
+
+### Lire les statistiques
+
+Chaque niveau — partie → tournoi → match → set — se lit de la même façon : ses
+chiffres-clés (bilan des matchs terminés, gestes, efficacité d'attaque), ce qu'il
+contient (avec ses gestes de correction), puis **un seul tableau** :
+
+- l'**équipe** en tête — la somme de ses athlètes, jamais une donnée à part — et
+  **chaque athlète** dessous, ou la sous-équipe choisie ;
+- l'**élément de stat** : `Tout` compile les sept familles en efficacité (−1 à +1,
+  volume en petit) et compte les gestes ; `Service`, `Réception`, `Passe`, `Attaque`,
+  `Bloc`, `Défense`, `Habiletés` montrent leurs compteurs, leur total et leur
+  efficacité ;
+- une colonne se trie d'un toucher, l'équipe restant en tête.
+
+Une ligne ouvre la **fiche** de l'athlète, ou de l'équipe, sur ce périmètre, détaillée
+**un niveau plus bas** : par set pour un match, par match pour un tournoi, par
+rencontre pour la partie entière — avec le total, et le même filtre d'élément. Le même
+tableau sert dans la feuille (`📊 Stats`), au set, au match et au tournoi.
+
+Les matchs relevés avant la ventilation par set ne sont **pas ventilés**. Ils
+s'affichent « Match (non ventilé) » et jamais « Set 1 » — on n'affirme pas une
+donnée qu'on n'a pas — et comptent à l'identique dans tous les cumuls. Leur page
+offre la **Ventilation** : reporter les sets d'une feuille papier, sans que le total
+bouge d'un compteur.
 
 ### Lire le cumul
 
@@ -938,6 +965,41 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 ---
 
 ## Notes de version
+
+### v7.14 — la feuille de match : saisir, consulter et corriger un tournoi
+
+La saisie des statistiques de tournoi, refaite de bout en bout. Nouvelle suite :
+`tests/feuille.js`.
+
+- **Le relevé s'écrit dans le match.** `✏️ Relever` ouvre **Nouveau relevé** —
+  nature, tournoi (le tournoi du jour, ou celui dont un match est en cours, proposé
+  d'emblée), adversaire de ce match — puis la **feuille** : en tête le match, son
+  tournoi et l'adversaire. Avant, on relevait « en l'air » et ce n'est qu'à
+  l'enregistrement qu'on disait à quel tournoi, quel adversaire et quel score tout
+  cela appartenait.
+- **Chaque set porte ses compteurs.** La bande des sets dit où l'on relève ; on
+  revient corriger le set 1 pendant le set 3 d'un toucher, et le total du match
+  reste la somme des sets, par construction. `⏭` demande le score du set qui se clôt
+  (champs ou `−` / `+`, point par point). Fini les bornes cumulatives.
+- **📊 Stats, en tout temps.** Sans quitter la feuille : le set, le match ou tout le
+  tournoi ; l'équipe et chaque athlète ; un élément de stat (service, réception,
+  passe, attaque, bloc, défense, habiletés) ou tous compilés. Une ligne ouvre la
+  fiche de l'athlète — ou de l'équipe — détaillée par set ou par match.
+- **Les parties de rencontres se lisent au même tableau.** Plus de bascule Équipe /
+  Athlètes : à chaque niveau, l'équipe en tête, ses athlètes dessous, filtrables par
+  élément et triables par colonne ; chaque ligne détaillée un niveau plus bas.
+- **Tout se modifie après coup.** `✏️ Corriger` rouvre la feuille du match lui-même
+  — l'ancien `Charger` recopiait le match dans la saisie et faisait un **doublon** à
+  l'enregistrement. Un set se vide, se supprime, change de score ; `ⓘ Match et scores`
+  change nom, adversaire, date, scores, et déplace un match rangé dans la mauvaise
+  rencontre ; `🗑️ Supprimer ce match` y est aussi. Chaque geste s'annule.
+- **Un tournoi s'enchaîne** : `🏁 Terminer → ➕ Match suivant` ouvre le match suivant
+  du même tournoi. Un match **en cours** compte dans les cumuls mais pas au bilan,
+  survit au rechargement, et la tuile du tableau de bord propose de le reprendre.
+- **Rien ne se perd** : une saisie commencée avant la mise à jour est reprise, sets
+  compris, dans le premier match qu'on ouvre.
+- **Corrigé en passant** : supprimer la fiche d'une athlète retirait ses lignes du
+  total d'un match mais pas de ses sets — la somme des sets ne valait plus le total.
 
 ### v7.13 — le chrono se replie, se regroupe, et se manie au pouce
 
