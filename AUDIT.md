@@ -1168,7 +1168,7 @@ justes qu'on ne pouvait pas lire, ou pas tous.
   d'un geste (C5, C7).
 - **Les valeurs se lisent en total, `/ match`, `/ set`** — divisées par ce que
   chacune a réellement joué — **ou en %** de leur famille (C8, C9).
-- **« Tout » ajoute les points directs** (aces, attaques et blocs gagnants) **et les
+- **« Tout » ajoute les points directs** (aces, attaques gagnantes, blocs gagnants — et, depuis la v7.15.1, blocs solo) **et les
   fautes directes** (service, attaque, réception, bloc). **Les habiletés se lisent
   en volume**, jamais en efficacité (C4, C9).
 - **`📤 CSV`** exporte le tableau tel qu'il est lu — élément, mode, poste (C9).

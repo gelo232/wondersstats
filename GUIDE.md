@@ -894,7 +894,7 @@ d'attaque, de réception et de service. Dessous, les matchs (`contre Ours · 2�
 puis le **tableau** : l'équipe en tête, chaque athlète dessous.
 
 - **Ce qu'on lit** : `Tout` pour toutes les familles d'un coup — leur efficacité de −1
-  à +1, les **points directs** (aces, attaques et blocs gagnants) et les **fautes
+  à +1, les **points directs** (aces, attaques gagnantes, blocs gagnants et blocs solo) et les **fautes
   directes** —, ou un élément : `Attaque` montre Kill, Réussie, Erreur, le total et
   l'efficacité. La passeuse et les libéros, sans attaque, sont repliées : `+ 4
   athlètes sans geste en attaque` les rappelle.

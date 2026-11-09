@@ -1284,7 +1284,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.15.0";
+var APP_VERSION = "7.15.1";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -10086,8 +10086,9 @@ var FAM_UN={services:"Service",reception:"Réception",passes:"Passe",attaques:"A
 /* Sans compteur négatif, l'efficacité vaut +1 dès le premier geste : on
    montre le volume, jamais une efficacité qui ne mesure rien. */
 var FAM_SANS_EFF={habiletes:true};
-/* Le geste qui marque le point, et celui qui le donne. */
-var PTS_KEYS=["srv_ace","atk_kill","blk_kill"];
+/* Le geste qui marque le point, et celui qui le donne. Un bloc solo
+   marque comme un bloc gagnant (v7.15.1). */
+var PTS_KEYS=["srv_ace","atk_kill","blk_kill","blk_solo"];
 var FAUTE_KEYS=["srv_err","atk_err","rec_err","blk_err"];
 function sommeCles(st,ks){var n=0;ks.forEach(function(k){n+=(st&&st[k])||0});return n}
 
@@ -10159,7 +10160,7 @@ function colonnesStats(fam){
         titre:SG[f].name+" — efficacité, volume dessous",
         val:function(st){return familyEff(st,f)},vol:function(st){return familyVolume(st,f)}};
     }).concat([
-      {key:"pts",lbl:"Pts",color:"var(--ok-ink)",titre:"Points directs : aces, attaques gagnantes, blocs gagnants",
+      {key:"pts",lbl:"Pts",color:"var(--ok-ink)",titre:"Points directs : aces, attaques gagnantes, blocs gagnants et blocs solo",
         val:function(st){return sommeCles(st,PTS_KEYS)}},
       {key:"fautes",lbl:"Fautes",color:"var(--danger-ink)",titre:"Fautes directes : service, attaque, réception, bloc",
         val:function(st){return sommeCles(st,FAUTE_KEYS)}},
@@ -10360,7 +10361,7 @@ function exporterTableau(scope,lignes,fam,mode){
 }
 function legendeStats(fam,mode){
   var t=fam==="tout"
-    ?"Efficacité de −1 à +1, volume dessous. Pts : aces, attaques et blocs gagnants · Fautes : service, attaque, réception, bloc."
+    ?"Efficacité de −1 à +1, volume dessous. Pts : aces, attaques gagnantes, blocs gagnants et solo · Fautes : service, attaque, réception, bloc."
     :(FAM_SANS_EFF[fam]?"Les habiletés n'ont pas d'efficacité : aucun de leurs compteurs n'est négatif."
       :"Eff. = (réussis − ratés) ÷ total, de −1 à +1.");
   if(mode==="match")t+=" Moyennes par match joué par chacune.";

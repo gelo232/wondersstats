@@ -388,7 +388,7 @@ Le tableau se règle sans quitter l'écran :
 
 | Réglage | Ce qu'il fait |
 |---|---|
-| Élément de stat | `Tout` compile les familles en efficacité (−1 à +1, volume en petit), puis **Pts** (aces, attaques et blocs gagnants), **Fautes** (service, attaque, réception, bloc) et gestes. `Service`, `Réception`, `Passe`, `Attaque`, `Bloc`, `Défense`, `Habiletés` montrent leurs compteurs, leur total et leur efficacité — sauf les habiletés, qui n'ont aucun compteur négatif et se lisent en volume |
+| Élément de stat | `Tout` compile les familles en efficacité (−1 à +1, volume en petit), puis **Pts** (aces, attaques gagnantes, blocs gagnants et blocs solo), **Fautes** (service, attaque, réception, bloc) et gestes. `Service`, `Réception`, `Passe`, `Attaque`, `Bloc`, `Défense`, `Habiletés` montrent leurs compteurs, leur total et leur efficacité — sauf les habiletés, qui n'ont aucun compteur négatif et se lisent en volume |
 | Valeurs | `Total`, `/ match`, `/ set` — divisés par ce que **chacune** a joué : une titulaire à quatre matchs et une remplaçante à un se comparent —, ou `%` de la famille (« 41 % de kills ») |
 | Poste | N'affiche qu'un poste ; la première ligne devient le total de ce poste |
 | Colonnes | Un toucher trie, un second inverse. `Athlète` trie par numéro, puis par nom, puis rend l'ordre de l'équipe |
@@ -987,6 +987,12 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 ---
 
 ## Notes de version
+
+### v7.15.1 — le bloc solo est un point
+
+Les **points directs** (`Pts` dans « Tout », la fiche, les chiffres-clés d'un set)
+comptent désormais les blocs **Solo** avec les aces, les attaques gagnantes et les
+blocs gagnants. Les blocs **Aide** n'y entrent pas.
 
 ### v7.15 — la consultation des stats, auditée et complétée
 
