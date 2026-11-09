@@ -373,7 +373,7 @@ const ERRORS=[];let PASS=0;
   });
 
   say("\n── Une saisie d'avant la mise à jour");
-  await step("des compteurs « en l'air » et leurs bornes entrent dans le match qu'on ouvre",async()=>{
+  await step("des compteurs « en l'air » et leurs bornes entrent dans le match, si on le demande",async()=>{
     await page.evaluate(()=>{
       var sq=curSquad(),a=sq.playerIds[0],b2=sq.playerIds[1];
       sq.stats={};sq.stats[a]=normStats({atk_kill:2});sq.stats[b2]=normStats({rec_in:1});
@@ -382,6 +382,8 @@ const ERRORS=[];let PASS=0;
     });await pause();
     await page.locator(".partHead button").filter({hasText:"Relever"}).first().click();await pause();
     if(!/3 gestes/.test(await page.textContent(".modal")))throw new Error("la saisie d'avant n'est pas annoncée");
+    /* v7.16 : elle n'entre plus d'office — on la reprend en le cochant. */
+    await page.locator(".modal .nm-reprise-cb").check();await pause();
     await page.click("#modalOk");await pause(300);
     const e=await etat();
     const reste=await page.evaluate(()=>({st:saisieAncienne(curSquad()),m:curSquad().setMarks.length}));

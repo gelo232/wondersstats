@@ -857,6 +857,29 @@ mais pas au bilan : un set à 12–10 n'est pas une victoire.
 
 Un match terminé sans un geste ni un score est retiré : il ne dirait rien.
 
+### Annuler un match, un set — ou les supprimer
+
+**Pendant la saisie.** Au bout de la bande des sets, `Match · N gestes ⋯` ouvre le
+match :
+
+- `Annuler le set 3` — un `⏭` de trop : le set vide disparaît, vous revenez au set 2 ;
+- `Annuler ce match` — commencé par erreur : il disparaît, et son tournoi avec lui si
+  c'était le seul match ;
+- `Nom, adversaire et scores`.
+
+`🏁 Terminer` propose aussi `🗑️ Annuler ce match`. Toucher le set choisi dans la bande
+offre `Vider` et `Annuler ce set` (ou `Supprimer ce set` s'il porte des gestes).
+
+**Après la saisie.** Chaque page a son bouton : `🗑️ Supprimer ce set` sur la page d'un
+set, `🗑️ Supprimer ce match` sur celle d'un match, `🗑️ Supprimer le tournoi` sur celle
+du tournoi — tous ses matchs partent avec lui. La confirmation dit ce qui part
+(« 4 matchs et 837 gestes ») ; `Annuler` dans le bandeau rend tout.
+
+**Un match commence vide.** Ses compteurs, sa pastille et `📊` partent de zéro —
+`📊` s'ouvre sur son set 1, même si vous lisiez le tournoi entier dans le match
+d'avant. Une saisie commencée avant la mise à jour n'y entre que si vous cochez
+`Reprendre ces N gestes dans ce match` ; `Effacer cette saisie d'avant` la retire.
+
 ### Modifier un match ou un set après coup
 
 Descendez jusqu'au match (`🎪 Tournois → le tournoi → le match`) :
@@ -874,8 +897,9 @@ Au niveau du tournoi, `➕ Match` en ajoute un, et `ⓘ Infos du tournoi` change
 nom, sa date, son lieu ou sa nature.
 
 **Une saisie d'avant la mise à jour** — des compteurs relevés mais jamais
-enregistrés — n'est pas perdue : la fenêtre **Nouveau relevé** l'annonce, et le match
-qu'on ouvre la reprend, sets compris.
+enregistrés — n'est pas perdue : la fenêtre **Nouveau relevé** l'annonce. Cochez
+`Reprendre` pour la verser, sets compris, dans le match qu'on ouvre ; sinon il
+commence vide.
 
 ### Lire le cumul
 

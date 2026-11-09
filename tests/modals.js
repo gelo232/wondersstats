@@ -109,7 +109,9 @@ const ERRORS=[];let PASS=0;
       const t=await page.textContent(".modal");
       if(!t||t.trim().length<8)throw new Error("modale vide");
       // certaines modales de consultation se ferment par « Fermer »
-      const closeBtn=page.locator(".modal button").filter({hasText:/Annuler|Fermer|Continuer/}).first();
+      /* Le bouton qui FERME, à son nom exact : « 🗑️ Annuler ce match »
+         n'en est pas un (v7.16). */
+      const closeBtn=page.locator(".modal button").filter({hasText:/^\s*(Annuler|Fermer|Continuer)\s*$/}).first();
       await closeBtn.click();
       await page.waitForTimeout(120);
       const after=await page.locator(".modal").count();
