@@ -169,6 +169,24 @@ button,input,select,textarea{font-family:inherit}
 .backBtn .arw{font-size:var(--fs-lg);font-weight:800}
 
 /* ── CONTEXT BARS ─────────────────────────────────── */
+/* ── Les barres du haut se replient (v7.19) ── */
+.header h1 .haut-titre{display:block;width:100%;min-height:var(--tap);padding:0;margin:0;background:none;border:none;
+  color:inherit;font:inherit;letter-spacing:inherit;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.header h1 .haut-chev::before{content:"▴";display:inline-block;margin-left:6px;font-size:var(--fs-xs);color:var(--txt-faint);vertical-align:middle}
+.haut-replie .header h1 .haut-chev::before{content:"▾";color:var(--accent-ink)}
+.haut-replie .ctx-bar,.haut-replie .haut-pliable{display:none!important}
+/* ── Tout groupe d'en-tête se replie (v7.19) ── */
+.pli-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;width:22px;height:20px;
+  margin:0 0 0 6px;padding:0;border:none;background:transparent;color:var(--txt-dim);cursor:pointer;
+  vertical-align:middle;border-radius:var(--r-xs);flex-shrink:0;font-size:11px;line-height:1;letter-spacing:0}
+.pli-btn::before{content:"▾"}
+.pli-btn[aria-expanded="false"]::before{content:"▸"}
+.pli-btn::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:var(--tap);height:var(--tap)}
+.section-title>.pli-btn{float:right;margin-top:-3px}
+.card>.card-head>.pli-btn{margin-left:auto}
+.pli-clic{cursor:pointer;user-select:none;-webkit-user-select:none}
+.pli-cache{display:none!important}
+.section-title.pli-ferme{color:var(--txt-dim)}
 .ctx-bar{background:var(--surface-2);border-bottom:1px solid var(--surface);padding:0 var(--gutter);display:flex;align-items:center;gap:var(--s1);flex-shrink:0;font-size:var(--fs-xs);color:var(--txt-dim)}
 .ctx-bar button{display:flex;align-items:center;gap:5px;min-height:var(--tap);min-width:0;background:none;border:none;color:inherit;font-size:inherit;font-family:inherit;cursor:pointer;padding:0 4px;border-radius:var(--r-sm)}
 .ctx-bar .cb-ctx{flex:1 1 auto}
@@ -996,8 +1014,51 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .bt-act .bt-etat.ok{color:var(--ok-ink)}
 
 /* ── §18 · objectifs ────────────────────────────────────────── */
-.goalCard .rmeta{flex-wrap:wrap}
-.goalCard .bar{margin-top:var(--s1)}
+/* ── Objectifs (v7.19) : trois chiffres, une piste, une courbe ── */
+.goalCard{display:flex;flex-direction:column;gap:var(--s2)}
+.goalCard .gc-head{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s2)}
+.goalCard .gc-id{min-width:0}
+.goalCard .gc-qui{font-size:var(--fs-xs);color:var(--txt-dim);font-weight:700}
+.goalCard .gc-fam{font-weight:800;font-size:var(--fs-md)}
+.goalCard .gc-sub{font-size:var(--fs-xs);color:var(--txt-dim);margin-top:2px}
+.goalCard .gc-etat{flex-shrink:0;border:1px solid;border-radius:999px;padding:3px 10px;font-size:var(--fs-xs);font-weight:800;white-space:nowrap}
+.gc-chiffres{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s2)}
+.gc-ch{display:flex;flex-direction:column;min-width:0;background:var(--sunken);border-radius:8px;padding:6px 8px}
+.gc-ch-l{font-size:var(--fs-xs);color:var(--txt-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gc-ch b{font-size:var(--fs-md);font-variant-numeric:tabular-nums;color:var(--txt-strong)}
+.gc-ch.fort b{font-size:var(--fs-lg)}
+.gc-ch.pale b{color:var(--txt-dim)}
+.gc-ch.cible b{color:var(--accent-ink)}
+.gc-piste{display:flex;align-items:center;gap:var(--s2)}
+.gp-track{position:relative;flex:1;min-width:60px;height:8px;border-radius:4px;background:var(--sunken)}
+.gp-fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+.gp-mark{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:var(--surface);border:3px solid}
+.gp-lbl{font-size:var(--fs-xs);color:var(--txt-dim);white-space:nowrap;flex-shrink:0}
+.gc-piste.provisoire .gp-fill{opacity:.45}
+.gc-courbe{max-width:520px}
+.gc-svg{display:block;width:100%;height:auto;overflow:visible}
+.gc-svg-cible{stroke:var(--txt-dim);stroke-dasharray:4 3;stroke-width:1;vector-effect:non-scaling-stroke}
+.gc-courbe-l{display:flex;justify-content:space-between;gap:var(--s2);font-size:var(--fs-xs);color:var(--txt-faint)}
+.gc-expl{font-size:var(--fs-sm);color:var(--txt-soft);line-height:1.45}
+.gc-note{font-size:var(--fs-sm);color:var(--txt-dim);font-style:italic}
+.gc-act{flex-wrap:wrap;margin-top:var(--s1)}
+.gc-clos .btn{flex-shrink:0}
+.kpiStrip.goal-kpis{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:var(--s3)}
+@media(min-width:600px){.kpiStrip.goal-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.ng-aide{margin:6px 0 var(--s3)}
+.ng-perim{font-size:var(--fs-xs);margin-top:4px}
+.goal-nouveau{margin-bottom:var(--s3)}
+.goal-plus{min-width:var(--tap);min-height:var(--tap);font-size:var(--fs-lg);font-weight:800}
+.ng-fams{display:flex;flex-direction:column;gap:6px}
+.ng-fam.on{border-color:var(--accent);background:var(--tint-accent)}
+.ng-cible{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
+.ng-dep{display:flex;flex-direction:column;min-width:0}
+.ng-dep b{font-size:var(--fs-lg);font-variant-numeric:tabular-nums;color:var(--txt-strong)}
+.ng-fl{color:var(--txt-dim);font-size:var(--fs-lg)}
+.cible-ed{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cible-ed .ce-pas{min-width:var(--tap);min-height:var(--tap);font-size:var(--fs-lg);font-weight:800;padding:0}
+.cible-ed .ce-in{width:88px;text-align:center;font-size:16px;font-weight:800;font-variant-numeric:tabular-nums}
+.cible-ed .ce-plaf{font-size:var(--fs-xs)}
 
 /* ── §14 · la campagne, toujours sous les yeux ────────────────
    Tout ce que montre la partie appartient à UNE campagne. La barre le
@@ -1700,7 +1761,9 @@ var GOAL_EVENTS={
   progress:{label:"Mesure",icon:"·",color:"#94A3B8"},
   achieved:{label:"Atteint",icon:"🏅",color:"#10B981"},
   regressed:{label:"Régression",icon:"⚠️",color:"#F59E0B"},
-  readjusted:{label:"Réajusté",icon:"🔁",color:"#A78BFA"},
+  readjusted:{label:"Cible réajustée",icon:"🔁",color:"#A78BFA"},
+  raised:{label:"Cible relevée",icon:"⬆️",color:"#10B981"},
+  edited:{label:"Modifié",icon:"✏️",color:"#94A3B8"},
   reopened:{label:"Rouvert",icon:"🔓",color:"#60A5FA"},
   closed:{label:"Clos",icon:"🔒",color:"#94A3B8"}
 };
@@ -1994,6 +2057,11 @@ function mkGoal(o){
        elle, et elle seule, qui dit s'il y a recul. */
     reference:null,referenceAt:"",
     achievedAt:null,regressedAt:null,active:true,auto:true,
+    /* v7.19 : l'échéance, la consigne, la date de clôture, et l'état
+       du recul (noté, ou vu au relevé n et à confirmer). `modele` 2 :
+       la cible ne bouge plus d'elle-même. */
+    deadline:"",note:"",closedAt:null,baselineSource:"",
+    enRecul:false,reculAuReleve:null,modele:2,
     history:[]},o||{});
 }
 
@@ -3488,7 +3556,8 @@ var autoSaveTimer=null, saveFailed=false;
 function uiSnapshot(){
   return {meId:state.meId,ctx:state.ctx,tab:state.tab,viewIdx:state.viewIdx,
     posFilter:state.posFilter,inputMode:state.inputMode,svViewId:state.svViewId,
-    basReplie:!!state.basReplie,sousEquipe:state.sousEquipe||{},
+    basReplie:!!state.basReplie,hautReplie:!!state.hautReplie,plis:state.plis||{},
+    sousEquipe:state.sousEquipe||{},
     inputKind:state.inputKind||null,inputFrom:state.inputFrom||null,
     feuille:state.feuille?{seId:state.feuille.seId,idx:state.feuille.idx}:null};
 }
@@ -4272,7 +4341,15 @@ function normalizeSquad(sq,knownPlayers){
    pas conditionnée à un numéro de version — elle tourne à chaque
    chargement et ne produit aucune différence sur une base déjà montée. */
 function normalizeGoal(g){
+  var ancien=!!g&&!g.modele;
   g=Object.assign(mkGoal(),g||{});
+  /* Un objectif d'avant la v7.19 a vu sa cible relevée à chaque
+     atteinte et rabaissée à chaque recul : son `achievedAt` désigne une
+     cible qui n'est plus la sienne. Les paliers restent dans
+     l'historique ; l'état se relit sur la cible d'aujourd'hui. */
+  if(ancien){g.achievedAt=null;g.enRecul=false;g.reculAuReleve=null;g.modele=2}
+  if(typeof g.deadline!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(g.deadline))g.deadline="";
+  if(typeof g.note!=="string")g.note="";
   g.scope=(g.scope==="team")?"team":"player";
   if(g.scope==="team")g.playerId="";
   g.metric=Object.assign({kind:"familyEff",family:"attaques",statKey:"",perMatch:false},g.metric||{});
@@ -4728,6 +4805,8 @@ function loadAll(fromVault){
       if(o.posFilter)state.posFilter=o.posFilter;
       if(o.inputMode)state.inputMode=o.inputMode;
       state.basReplie=!!o.basReplie;
+      state.hautReplie=!!o.hautReplie;
+      if(o.plis&&typeof o.plis==="object")state.plis=o.plis;
       if(o.sousEquipe&&typeof o.sousEquipe==="object")state.sousEquipe=o.sousEquipe;
       if(o.inputKind&&EVENT_KINDS[o.inputKind])state.inputKind=o.inputKind;
       if(o.inputFrom)state.inputFrom=o.inputFrom;
@@ -7222,10 +7301,24 @@ function promptAct(question,siValide,opts){
 }
 
 /* ══ COMPOSANTS PARTAGÉS ═══════════════════════════════════════ */
+/* Le titre de l'écran replie les barres du haut — barre de contexte,
+   en-tête de la partie, ses rangées de choix, la bande des sets et le
+   terrain de la feuille. Le geste ne prend aucune place : le titre est
+   déjà là, sur chaque écran. Le chevron est dessiné en CSS, pour que
+   le texte du titre reste le titre. */
 function renderHeader(title,leftEl,rightEl){
+  var replie=!!state.hautReplie;
   return h("div",{className:"header"},
     h("div",{className:"header-side"},leftEl),
-    h("h1",null,title),
+    h("h1",null,h("button",{className:"haut-titre",type:"button",
+      "aria-expanded":replie?"false":"true",
+      title:replie?"Déplier les barres du haut":"Replier les barres du haut",
+      onclick:basculerHaut},
+      /* Le chevron suit le titre, sur SA ligne — après le sous-titre,
+         il ouvrait une troisième ligne à l'en-tête de la feuille. */
+      Array.isArray(title)
+        ? [title[0],h("span",{className:"haut-chev","aria-hidden":"true"})].concat(title.slice(1))
+        : [title,h("span",{className:"haut-chev","aria-hidden":"true"})])),
     h("div",{className:"header-side right"},rightEl));
 }
 function renderAutoSave(){
@@ -7291,6 +7384,101 @@ function switchCtx(c){
    ouverture à l'autre — qui saisit des stats veut la place à chaque fois. */
 function basculerBas(){
   state.basReplie=!state.basReplie;saveUI();render();
+}
+function basculerHaut(){
+  state.hautReplie=!state.hautReplie;saveUI();render();
+}
+/* Ce qui, d'un écran, appartient au groupe d'en-tête : tout ce qui
+   précède sa zone qui défile. On s'arrête à ce qui sert à SAISIR — la
+   rangée des athlètes de la saisie rapide, les familles de la grille —
+   et à ce qui défile ou agit en bas. */
+var HAUT_STOP=".content,.quick-panel,.quick-prompt,.player-strip,.filter-bar,.side-layout,.save-bar,.actionBar,.pick-bar,.tab-bar";
+function marquerHaut(racine){
+  if(!racine||!racine.children||racine.classList.contains("content"))return;
+  for(var i=0;i<racine.children.length;i++){
+    var k=racine.children[i];
+    if(k.matches(HAUT_STOP))break;
+    if(k.getAttribute("data-scroll-key")&&!k.classList.contains("feuille-sets"))break;
+    k.classList.add("haut-pliable");
+  }
+}
+
+/* ── Tout groupe d'en-tête se replie ──────────────────────────────
+   Un titre de section, une famille de compteurs de la saisie rapide,
+   l'en-tête d'une carte : chacun porte son chevron, et replie ce qui le
+   suit jusqu'au titre suivant. Le choix est retenu par écran et par
+   titre — qui a replié « Habiletés » le retrouve replié au match
+   suivant. Rien n'est restructuré : on masque, on ne déplace pas, et
+   aucune mise en page ne dépend d'un emballage de plus. */
+var PLI_TETES=".section-title,.qp-group-title,.card>.card-head";
+function clePli(el){
+  var t=(el.getAttribute("data-pli")||el.textContent||"").replace(/\d+([,.]\d+)?/g,"#")
+    .replace(/\s+/g," ").trim().slice(0,60);
+  var lieu=state.modalType?"m:"+state.modalType:"t:"+state.tab+"/"+(seasonSection()||"");
+  return lieu+"|"+t;
+}
+/* Un titre posé dans une rangée (titre + bascule de vue) : c'est la
+   rangée qui ouvre le groupe. */
+function rangeePli(el){
+  var p=el.parentNode;
+  if(p&&p.children&&p.children.length>1&&!p.matches(".card,.qp-group,.modal,.m-body,#app")){
+    var cs=getComputedStyle(p);
+    if(cs.display.indexOf("flex")!==-1&&cs.flexDirection.indexOf("row")===0)return p;
+  }
+  return el;
+}
+function estTetePli(n){
+  if(!n||!n.matches)return false;
+  if(n.matches(PLI_TETES)||n.classList.contains("pli-fin"))return true;
+  var f=n.firstElementChild;
+  return !!(f&&f.matches&&f.matches(PLI_TETES)&&rangeePli(f)===n);
+}
+function corpsPli(tete){
+  var out=[],n=tete.nextElementSibling;
+  while(n&&!estTetePli(n)){out.push(n);n=n.nextElementSibling}
+  return out;
+}
+var pliSeq=0;
+function plierGroupes(racine){
+  if(!racine||!racine.querySelectorAll)return;
+  if(!state.plis)state.plis={};
+  var tetes=racine.querySelectorAll(PLI_TETES);
+  for(var i=0;i<tetes.length;i++)(function(el){
+    if(el.getAttribute("data-pli-ok"))return;
+    /* Pas dans un bouton (le titre d'une porte), pas dans un instantané
+       en lecture seule. */
+    if(el.closest("button,.subRO,.sans-pli"))return;
+    var tete=rangeePli(el),corps=corpsPli(tete);
+    if(!corps.length)return;
+    el.setAttribute("data-pli-ok","1");
+    var cle=clePli(el);
+    if(!el.id)el.id="pli-"+(++pliSeq);
+    var b=document.createElement("button");
+    b.type="button";b.className="pli-btn";
+    b.setAttribute("aria-describedby",el.id);
+    function poser(ferme){
+      tete.classList.toggle("pli-ferme",ferme);
+      b.setAttribute("aria-expanded",ferme?"false":"true");
+      b.setAttribute("aria-label",ferme?"Déplier":"Replier");
+      corps.forEach(function(n){n.classList.toggle("pli-cache",ferme)});
+    }
+    function basculer(e){
+      if(e)e.stopPropagation();
+      var ferme=!tete.classList.contains("pli-ferme");
+      if(ferme)state.plis[cle]=1;else delete state.plis[cle];
+      var cles=Object.keys(state.plis);
+      if(cles.length>300)delete state.plis[cles[0]];
+      poser(ferme);saveUI();
+    }
+    b.addEventListener("click",basculer);
+    el.appendChild(b);
+    /* Le titre lui-même replie aussi — sauf s'il porte d'autres boutons. */
+    if(!el.querySelector("button:not(.pli-btn),a,input,select")){
+      el.classList.add("pli-clic");
+      el.addEventListener("click",function(e){if(e.target===b)return;basculer(e)});
+    }
+    poser(!!state.plis[cle]);
+  })(tetes[i]);
 }
 function boutonReplier(){
   return h("button",{className:"btn btn-ghost xs bas-fold",type:"button",
@@ -7870,7 +8058,12 @@ function listApply(cfg){
   (cfg.filters||[]).forEach(function(f){
     var v=st.filters[f.key];
     if(!v)return;
-    out=out.filter(function(it){return String(f.get(it))===String(v)});
+    /* Une fiche peut porter plusieurs valeurs — les familles de ses
+       objectifs : elle passe si l'une d'elles est la bonne. */
+    out=out.filter(function(it){
+      var x=f.get(it);
+      return Array.isArray(x)?x.map(String).indexOf(String(v))!==-1:String(x)===String(v);
+    });
   });
   var sorts=cfg.sorts||[];
   var actif=null;
@@ -7988,6 +8181,7 @@ function listToolbar(cfg){
     }
     var r=cfg.rows(res);
     (Array.isArray(r)?r:[r]).forEach(function(n){if(n)liste.appendChild(n)});
+    if(liste.isConnected)plierGroupes(liste);
   }
   /* Le seul chemin de mise à jour : on refait la barre et la liste sur
      place. Un render() complet détruirait le champ de recherche, donc
@@ -8779,16 +8973,11 @@ function sectionSummary(sq,k){
     return {val:String(n),sub:plural(n,"campagne"),tone:""};
   }
   if(k==="goals"){
-    var actifs=0,atteints=0,recul=0;
-    (sq.goals||[]).forEach(function(g){
-      if(!g.active)return;
-      actifs++;
-      if(g.achievedAt)atteints++;
-      if(g.regressedAt)recul++;
-    });
-    if(!actifs)return {val:"—",sub:"aucun objectif fixé",tone:""};
-    return {val:atteints+"/"+actifs,sub:recul?plural(recul,"régression"):"objectifs atteints",
-            tone:recul?"warn":"ok"};
+    /* Ce qui est vrai AUJOURD'HUI, comme dans la partie. */
+    var bo=bilanObjectifs(sq);
+    if(!bo.actifs)return {val:"—",sub:"aucun objectif fixé",tone:""};
+    return {val:bo.atteints+"/"+bo.actifs,sub:bo.recul?bo.recul+" en recul":"objectifs atteints",
+            tone:bo.recul?"warn":(bo.atteints?"ok":"")};
   }
   if(k==="physique"){
     var ss=physSessionsTriees(sq);
@@ -11749,9 +11938,10 @@ function renderEventPart(sq,k){
 }
 
 /* ══ §18 PARTIE OBJECTIFS ══════════════════════════════════════
-   Objectifs par athlète et pour l'équipe, recalculés à chaque
-   modification de données de performance, réajustés quand ils sont
-   atteints ou quand la performance recule au-delà du bruit.      */
+   Objectifs par athlète et pour l'équipe, mesurés à chaque
+   modification de données de performance. L'application constate —
+   atteint, recul, à mesurer — et propose ; la cible ne change que sur
+   décision de l'entraîneur.                                       */
 
 /* ══════════════════════════════════════════════════════════════
    §18  OBJECTIFS — le calcul
@@ -11788,20 +11978,26 @@ function renderEventPart(sq,k){
        cible positive serait inatteignable par construction.
    ══════════════════════════════════════════════════════════════ */
 
+/* `fenetreMax` : jusqu'où la fenêtre remonte pour réunir son volume.
+   À huit relevés, une athlète de quinze ans qui sert six fois par match
+   n'était JAMAIS jugeable au service — l'objectif restait « à
+   mesurer » toute la saison. Vingt relevés couvrent une demi-saison ;
+   la fenêtre s'arrête dès que le volume est réuni, donc une athlète
+   très sollicitée reste lue sur ses tout derniers matchs. */
 var GOAL_THRESHOLDS={
-  services :{volumeMin:30, volumeObjectif:60,  pas:0.04, regression:0.08, fenetreMax:8,
+  services :{volumeMin:30, volumeObjectif:60,  pas:0.04, regression:0.08, fenetreMax:20,
              plafond:0.00, depart:{U13:-0.15,U15:-0.15,U18:-0.10,U21:-0.07,SENIOR:-0.05}},
-  reception:{volumeMin:60, volumeObjectif:120, pas:0.05, regression:0.10, fenetreMax:8,
+  reception:{volumeMin:60, volumeObjectif:120, pas:0.05, regression:0.10, fenetreMax:20,
              depart:{U13:0.35,U15:0.35,U18:0.45,U21:0.52,SENIOR:0.55}},
-  passes   :{volumeMin:100,volumeObjectif:200, pas:0.06, regression:0.12, fenetreMax:8,
+  passes   :{volumeMin:100,volumeObjectif:200, pas:0.06, regression:0.12, fenetreMax:20,
              depart:{U13:0.20,U15:0.20,U18:0.35,U21:0.50,SENIOR:0.60}},
-  attaques :{volumeMin:65, volumeObjectif:130, pas:0.05, regression:0.10, fenetreMax:8,
+  attaques :{volumeMin:65, volumeObjectif:130, pas:0.05, regression:0.10, fenetreMax:20,
              depart:{U13:0.02,U15:0.02,U18:0.08,U21:0.15,SENIOR:0.23}},
-  blocs    :{volumeMin:70, volumeObjectif:140, pas:0.05, regression:0.11, fenetreMax:8,
+  blocs    :{volumeMin:70, volumeObjectif:140, pas:0.05, regression:0.11, fenetreMax:20,
              depart:null},
-  defense  :{volumeMin:50, volumeObjectif:100, pas:0.05, regression:0.10, fenetreMax:8,
+  defense  :{volumeMin:50, volumeObjectif:100, pas:0.05, regression:0.10, fenetreMax:20,
              depart:null},
-  habiletes:{volumeMin:30, volumeObjectif:null,pas:null, regression:null, fenetreMax:8,
+  habiletes:{volumeMin:30, volumeObjectif:null,pas:null, regression:null, fenetreMax:20,
              depart:null}
 };
 /* Les familles sur lesquelles un objectif a un sens. */
@@ -12004,7 +12200,112 @@ function reculMedianEquipe(sq,g){
   return (reculs.length%2)?reculs[m]:(reculs[m-1]+reculs[m])/2;
 }
 
-/* L'état d'un objectif, sans rien écrire. */
+/* ── Le périmètre d'un objectif ─────────────────────────────────
+   Ce qu'il compte : tout, la compétition seule, ou l'entraînement
+   seul. Le choix était figé à « tout » — un objectif de match se
+   mesurait donc aussi sur les ateliers du mardi. */
+var GOAL_PERIMETRES={
+  tout:{l:"Tout",long:"Entraînements, matchs et tournois",sections:["training","matches","tournaments"]},
+  compet:{l:"Compétition",long:"Matchs et tournois",sections:["matches","tournaments"]},
+  entr:{l:"Entraînement",long:"Entraînements seulement",sections:["training"]}
+};
+var GOAL_PERIM_KEYS=["tout","compet","entr"];
+function perimetreGoal(g){
+  var s=((g&&g.context&&g.context.sections)||[]).slice().sort().join(",");
+  for(var i=0;i<GOAL_PERIM_KEYS.length;i++){
+    var k=GOAL_PERIM_KEYS[i];
+    if(GOAL_PERIMETRES[k].sections.slice().sort().join(",")===s)return k;
+  }
+  return "tout";
+}
+function ctxDePerimetre(k){
+  return {sections:(GOAL_PERIMETRES[k]||GOAL_PERIMETRES.tout).sections.slice(),eventKinds:[],window:"last5"};
+}
+/* Une efficacité vit entre −1 et +1 ; on l'arrondit au centième, qui
+   est la précision affichée — une cible de +0,2537 ne se lit pas. */
+function borneEff(v){
+  v=Math.max(-1,Math.min(1,+v||0));
+  return Math.round(v*100)/100;
+}
+
+/* La mesure d'une athlète — ou de l'équipe — sur un périmètre : la
+   fenêtre fiable quand elle existe, et sinon une valeur PROVISOIRE sur
+   tout ce qui a été relevé, dite comme telle. Se taire tout à fait
+   laissait l'entraîneur devant « Pas de mesure » alors que trente
+   gestes étaient là. */
+function mesureGoal(sq,scope,pid,fam,ctx){
+  var faux={scope:scope,playerId:scope==="team"?"":pid,context:ctx||ctxDePerimetre("tout"),
+    metric:{kind:"familyEff",family:fam}};
+  var rel=goalReleves(sq,faux),cumul=emptyS(),avec=0;
+  rel.forEach(function(r){addStats(cumul,r.stats);if(familyVolume(r.stats,fam))avec++});
+  var fen=fenetreEff(rel,fam),vol=familyVolume(cumul,fam),t=GOAL_THRESHOLDS[fam]||{};
+  var parReleve=avec?vol/avec:0;
+  /* Combien de relevés il faut, à son rythme, pour juger. La fenêtre
+     n'en remonte que `fenetreMax` : une athlète trop peu sollicitée ne
+     sera JAMAIS jugeable, et le dire vaut mieux qu'un sablier éternel. */
+  var besoin=(parReleve&&t.volumeObjectif)?Math.max(2,Math.ceil(t.volumeObjectif/parReleve)):null;
+  return {fen:fen,fiable:!!(fen&&fen.fiable),
+    valeur:fen?fen.eff:(vol?familyEff(cumul,fam):null),
+    volume:fen?fen.volume:vol,volumeTotal:vol,releves:avec,parReleve:parReleve,
+    relevesManquants:(fen&&fen.fiable)?0:(besoin==null?null:Math.max(1,besoin-Math.min(avec,t.fenetreMax||8))),
+    horsDePortee:besoin!=null&&besoin>(t.fenetreMax||8),
+    incomplete:saisieIncomplete(cumul,fam)};
+}
+
+/* Le départ d'un objectif neuf. D'abord SON niveau — celui de
+   l'athlète, ou celui de l'équipe pour un objectif d'équipe : c'est
+   ce que l'objectif mesurera. La médiane de l'équipe ne sert de repère
+   qu'à une athlète pas encore mesurable, et le barème qu'à froid.
+   Fixer l'objectif d'ÉQUIPE sur la médiane des athlètes le faisait
+   naître atteint : la somme des gestes ne vaut pas la médiane des
+   efficacités. */
+var GOAL_SOURCES={mesure:"niveau mesuré",provisoire:"niveau provisoire",
+  equipe:"repère de l'équipe",bareme:"barème de la catégorie"};
+function departGoal(sq,scope,pid,fam,ctx){
+  var m=mesureGoal(sq,scope,pid,fam,ctx);
+  if(m.fiable)return {valeur:m.valeur,source:"mesure",mesure:m};
+  /* Pas encore jugeable, mais assez de gestes pour compter dans la
+     médiane : sa propre valeur dit mieux son niveau que celle des
+     autres. Partir de la médiane quand elle était à +0,29 contre +0,07
+     lui faisait une cible déjà dépassée. */
+  var t0=GOAL_THRESHOLDS[fam]||{};
+  if(m.valeur!=null&&t0.volumeMin&&m.volumeTotal>=t0.volumeMin)
+    return {valeur:m.valeur,source:"provisoire",mesure:m};
+  if(scope!=="team"){
+    var med=medianeEquipe(sq,fam,ctx);
+    if(med!=null)return {valeur:med,source:"equipe",mesure:m};
+  }
+  var t=GOAL_THRESHOLDS[fam],c=goalCategorie(sq);
+  if(t&&t.depart&&c&&t.depart[c]!=null)return {valeur:t.depart[c],source:"bareme",mesure:m};
+  return {valeur:null,source:null,mesure:m};
+}
+/* La cible proposée : le départ plus un pas. Nulle quand le plafond
+   l'empêche de dépasser le départ. */
+function cibleProposee(sq,fam,ctx,depart){
+  if(depart==null)return null;
+  var pas=pasObjectif(sq,fam,ctx)||0.05;
+  var c=plafonner(fam,borneEff(depart+pas));
+  return c>depart?c:null;
+}
+
+/* L'état d'un objectif, sans rien écrire.
+
+   La cible ne bouge plus d'elle-même. Elle montait d'un pas à chaque
+   atteinte et redescendait à chaque recul : l'entraîneur voyait
+   « Cible +0,45 » sans l'avoir fixée, un objectif d'équipe se
+   déclarait « Atteint » et « En cours » sur la même carte, et le
+   compte « 1 atteint » désignait un objectif qui ne l'était plus.
+   L'application CONSTATE — atteint, recul, à mesurer — et PROPOSE la
+   suite ; c'est l'entraîneur qui la décide.
+
+   Ordre des constats :
+     1. ce qui empêche de juger (saisie incomplète, trop peu de gestes) ;
+     2. la cible franchie ;
+     3. un recul net depuis la référence — confirmé au relevé suivant,
+        et jamais imputé à l'athlète quand toute l'équipe a reculé ;
+     4. la cible déjà atteinte, dont une variation dans le bruit ne
+        défait pas l'atteinte ;
+     5. le chemin qui reste. */
 function evaluerObjectif(sq,g){
   var fam=g.metric&&g.metric.family;
   var t=GOAL_THRESHOLDS[fam];
@@ -12016,37 +12317,58 @@ function evaluerObjectif(sq,g){
     return {etat:"saisie-incomplete",
             msg:"Les attaques « Réussie » ne sont pas relevées : l'efficacité serait gonflée."};
   var fen=fenetreEff(rel,fam);
-  if(!fen)return {etat:"volume-insuffisant",manque:t.volumeObjectif,volume:0};
-  if(!fen.fiable)return {etat:"volume-insuffisant",manque:t.volumeObjectif-fen.volume,
-                         volume:fen.volume,valeur:fen.eff};
-  var pas=pasObjectif(sq,fam,g.context);
+  var pas=pasObjectif(sq,fam,g.context)||0.05;
+  var echeance=echeanceGoal(g);
+  if(!fen||!fen.fiable){
+    var m=mesureGoal(sq,g.scope,g.playerId,fam,g.context);
+    return {etat:"volume-insuffisant",
+            manque:Math.max(0,t.volumeObjectif-(m.volume||0)),volume:m.volume||0,
+            valeur:m.valeur,provisoire:m.valeur!=null,
+            relevesManquants:m.relevesManquants,horsDePortee:m.horsDePortee,
+            parReleve:m.parReleve,echeance:echeance};
+  }
+  var base={valeur:fen.eff,volume:fen.volume,releves:fen.releves,echeance:echeance,
+    nReleves:rel.length,
+    distance:g.target-fen.eff,
+    progression:(g.target>g.baseline)?(fen.eff-g.baseline)/(g.target-g.baseline):null};
+  /* Une cible franchie. La proposition dit le palier suivant. */
   if(fen.eff>=g.target)
-    return {etat:"atteint",valeur:fen.eff,volume:fen.volume,
-            nouvelleBase:fen.eff,nouvelleCible:plafonner(fam,fen.eff+pas)};
-  /* La référence de recul : la PREMIÈRE mesure fiable de l'athlète.
-     Tant qu'elle n'existe pas, il n'y a rien à comparer — on ne peut pas
-     reculer par rapport à une médiane d'équipe qu'on n'a jamais eue. */
+    return Object.assign(base,{etat:"atteint",nouveau:!g.achievedAt,
+      proposition:cibleProposee(sq,fam,g.context,Math.max(fen.eff,g.target)),
+      poserReference:g.reference==null?fen.eff:null});
+  /* La référence de recul : la première mesure fiable, ou le niveau
+     au palier franchi. Sans elle, il n'y a rien à comparer. */
   if(g.reference==null)
-    return {etat:"en-cours",valeur:fen.eff,volume:fen.volume,
-            distance:g.target-fen.eff,poserReference:fen.eff};
+    return Object.assign(base,{etat:g.achievedAt?"atteint":"en-cours",poserReference:fen.eff,
+      proposition:g.achievedAt?cibleProposee(sq,fam,g.context,g.target):null});
   var recul=g.reference-fen.eff;
-  /* Le seuil suit le pas : la table le fixe à deux fois le pas NOMINAL,
-     mais `pasObjectif` s'adapte à la dispersion de l'équipe et pouvait
-     le dépasser — un recul plus petit qu'un pas était alors déclaré. */
+  /* Le seuil suit le pas : un recul plus petit qu'un pas est du bruit. */
   var seuilRecul=Math.max(t.regression,2*pas);
   if(recul>=seuilRecul){
     var reculEquipe=reculMedianEquipe(sq,g);
     if(recul-reculEquipe<seuilRecul)
-      return {etat:"en-cours",valeur:fen.eff,volume:fen.volume,
-              contexte:"equipe",distance:g.target-fen.eff};
-    if((g.regressStreak||0)>=1)
-      return {etat:"regression",valeur:fen.eff,volume:fen.volume,
-              nouvelleBase:fen.eff,nouvelleCible:plafonner(fam,fen.eff+pas)};
-    return {etat:"regression-a-confirmer",valeur:fen.eff,volume:fen.volume,
-            distance:g.target-fen.eff};
+      return Object.assign(base,{etat:g.achievedAt?"atteint":"en-cours",contexte:"equipe",recul:recul});
+    /* Confirmé : déjà noté, ou toujours là après un relevé de PLUS que
+       celui qui l'a montré. Le compteur seul suffisait autrefois — et la
+       carte disait « Régression » dès le premier recul, l'instant d'après
+       le recalcul qui le déclarait « à confirmer ». */
+    if(g.enRecul||(g.reculAuReleve!=null&&rel.length>g.reculAuReleve))
+      return Object.assign(base,{etat:"regression",recul:recul,
+        proposition:cibleProposee(sq,fam,g.context,fen.eff)});
+    return Object.assign(base,{etat:"regression-a-confirmer",recul:recul});
   }
-  return {etat:"en-cours",valeur:fen.eff,volume:fen.volume,
-          distance:g.target-fen.eff,tendance:fen.eff-g.baseline};
+  if(g.achievedAt)
+    return Object.assign(base,{etat:"atteint",
+      proposition:cibleProposee(sq,fam,g.context,Math.max(fen.eff,g.target))});
+  return Object.assign(base,{etat:"en-cours",tendance:fen.eff-g.baseline});
+}
+/* L'échéance, si l'entraîneur en a donné une : combien de jours
+   restent, ou depuis combien elle est passée. */
+function echeanceGoal(g){
+  if(!g||!g.deadline)return null;
+  var auj=todayISO(),j=joursEntre(auj,g.deadline);
+  if(!isFinite(j))return null;
+  return {date:g.deadline,jours:j,passee:g.deadline<auj};
 }
 /* Le service ne peut pas viser au-dessus de l'équilibre : aces moins
    fautes, même l'élite mondiale n'y passe pas durablement. */
@@ -12075,37 +12397,33 @@ function goalSignature(sq,g){
 
 /* Le recalcul. Appelé après chaque modification de données de
    performance, et à l'ouverture de la partie. N'écrit que si quelque
-   chose a bougé. */
+   chose a bougé, et ne touche JAMAIS à la cible : il note des faits —
+   une atteinte, un recul confirmé — que l'historique garde. */
 function recalcGoal(sq,g){
   var sig=goalSignature(sq,g);
   if(g.lastSig===sig)return null;
   var r=evaluerObjectif(sq,g);
   g.lastSig=sig;
   g.updatedAt=nowISO();
-  /* La référence de recul se pose au premier relevé fiable, et ne bouge
-     plus qu'avec un palier franchi ou un recul confirmé. */
   if(r.poserReference!=null&&g.reference==null){
     g.reference=r.poserReference;g.referenceAt=nowISO();
   }
-  var ev=null;
-  if(r.etat==="atteint"){
+  var ev="progress";
+  if(r.etat==="atteint"&&r.nouveau){
     g.achievedAt=nowISO();
-    g.regressedAt=null;g.regressStreak=0;
-    g.baseline=r.nouvelleBase;g.target=r.nouvelleCible;g.targetAt=nowISO();
-    g.reference=r.nouvelleBase;g.referenceAt=nowISO();
+    /* Le niveau du palier devient la référence : c'est de LUI qu'un
+       recul ultérieur se mesure. */
+    g.reference=r.valeur;g.referenceAt=nowISO();
+    g.regressStreak=0;g.enRecul=false;g.reculAuReleve=null;
     ev="achieved";
   } else if(r.etat==="regression"){
-    g.regressedAt=nowISO();
+    if(!g.enRecul){g.enRecul=true;g.regressedAt=nowISO();ev="regressed"}
     g.regressStreak=0;
-    g.baseline=r.nouvelleBase;g.target=r.nouvelleCible;g.targetAt=nowISO();
-    g.reference=r.nouvelleBase;g.referenceAt=nowISO();
-    ev="regressed";
   } else if(r.etat==="regression-a-confirmer"){
-    g.regressStreak=(g.regressStreak||0)+1;
-    ev="progress";
+    if(g.reculAuReleve==null)g.reculAuReleve=r.nReleves;
+    g.regressStreak=1;
   } else {
-    g.regressStreak=0;
-    ev="progress";
+    g.regressStreak=0;g.enRecul=false;g.reculAuReleve=null;
   }
   g.history.push({at:nowISO(),value:(r.valeur==null?null:r.valeur),
     target:g.target,volume:r.volume||0,event:ev,etat:r.etat});
@@ -12132,161 +12450,335 @@ function recalcGoals(sq){
   if(n)scheduleAutoSave();
   return n;
 }
-/* Les marqueurs comptés, pour l'écran et pour la tuile du tableau de
-   bord : combien d'objectifs atteints, combien de reculs notés. */
-function goalMarkers(sq){
-  var m={actifs:0,atteints:0,regressions:0};
+/* Le bilan des objectifs, tel qu'il est AUJOURD'HUI. Il comptait les
+   marqueurs posés un jour — un objectif atteint en octobre puis relevé
+   restait « atteint » au compteur, à côté d'une carte « En cours ». */
+function bilanObjectifs(sq,filtre){
+  var b={actifs:0,atteints:0,encours:0,recul:0,amesurer:0,paliers:0,clos:0};
   (sq&&sq.goals||[]).forEach(function(g){
-    if(!g.active)return;
-    m.actifs++;
-    if(g.achievedAt)m.atteints++;
-    if(g.regressedAt)m.regressions++;
+    if(filtre&&!filtre(g))return;
+    if(!g.active){b.clos++;return}
+    b.actifs++;
+    var e=evaluerObjectif(sq,g).etat;
+    if(e==="atteint")b.atteints++;
+    else if(e==="regression")b.recul++;
+    else if(e==="volume-insuffisant"||e==="saisie-incomplete"||e==="sans-objet")b.amesurer++;
+    else b.encours++;
+    b.paliers+=(g.history||[]).filter(function(x){return x.event==="achieved"}).length;
   });
-  return m;
+  return b;
 }
-/* Créer un objectif : la cible naît du départ de l'équipe plus un pas.
-   On ne demande pas à l'entraîneur de deviner un chiffre. */
-function creerObjectif(sq,scope,playerId,fam){
+/* Gardée pour qui la lit encore : les mêmes chiffres, sous les noms
+   d'avant. */
+function goalMarkers(sq){
+  var b=bilanObjectifs(sq);
+  return {actifs:b.actifs,atteints:b.atteints,regressions:b.recul};
+}
+/* Créer un objectif. Sans options, la cible naît du départ plus un pas :
+   on ne demande pas à l'entraîneur de deviner un chiffre. Avec
+   `opts.cible`, c'est lui qui la fixe ; `perimetre`, `echeance` et
+   `note` complètent. */
+function creerObjectif(sq,scope,playerId,fam,opts){
+  opts=opts||{};
   if(!goalFamilyOk(fam))return null;
-  /* Le contexte par défaut d'un objectif neuf — celui de mkGoal : c'est
-     sur LUI que la base d'équipe doit être prise. */
-  var ctx=mkGoal().context;
-  var depart=objectifDepart(sq,fam,ctx);
-  /* Sans amorce — catégorie inconnue et équipe trop petite pour une
+  var ctx=ctxDePerimetre(opts.perimetre||"tout");
+  var dep=departGoal(sq,scope,playerId,fam,ctx);
+  /* Sans départ — catégorie inconnue et équipe trop petite pour une
      médiane — on ne fabrique pas un objectif à partir de zéro : zéro
      n'est le niveau de personne. */
-  if(depart==null)return null;
-  var pas=pasObjectif(sq,fam,ctx)||0.05;
-  var cible=plafonner(fam,depart+pas);
-  /* Une cible qui n'excède pas la base ne demande rien. C'est le cas du
-     service quand l'équipe est déjà à l'équilibre : le plafond ramenait
-     la cible SOUS le départ, l'objectif naissait « atteint », et chaque
-     relevé redatait le palier sans que la cible ne monte jamais. */
-  if(cible<=depart)return null;
+  if(dep.valeur==null)return null;
+  var cible=(opts.cible!=null&&isFinite(+opts.cible))
+    ? plafonner(fam,borneEff(+opts.cible))
+    : cibleProposee(sq,fam,ctx,dep.valeur);
+  /* Une cible qui n'excède pas le départ ne demande rien. */
+  if(cible==null||!(cible>dep.valeur))return null;
+  var mesure=dep.source==="mesure";
   var g=mkGoal({scope:scope,playerId:scope==="team"?"":playerId,
     metric:{kind:"familyEff",family:fam,statKey:"",perMatch:false},
-    /* `depart` vient de la médiane de l'équipe : c'est une AMORCE pour
-       fixer la cible, pas une mesure de l'athlète. L'employer comme
-       référence de recul revenait à déclarer en régression une athlète
-       parfaitement stable, au seul motif qu'elle est sous la médiane.
-       La référence de recul se pose au premier relevé fiable. */
-    baseline:depart,baselineAt:nowISO(),
-    reference:null,referenceAt:"",
+    context:ctx,
+    /* Le départ n'est la référence de recul que s'il a été MESURÉ : un
+       repère d'équipe n'est le niveau de personne, et s'en servir
+       déclarait en recul une athlète stable sous la médiane. */
+    baseline:dep.valeur,baselineAt:nowISO(),baselineSource:dep.source,
+    reference:mesure?dep.valeur:null,referenceAt:mesure?nowISO():"",
     target:cible,targetAt:nowISO(),
+    deadline:opts.echeance||"",note:String(opts.note||"").trim(),
     minVolume:(GOAL_THRESHOLDS[fam]||{}).volumeObjectif||0});
   g.regressStreak=0;g.lastSig="";
-  g.history.push({at:nowISO(),value:null,target:g.target,volume:0,event:"set",etat:"en-cours"});
+  g.history.push({at:nowISO(),value:mesure?dep.valeur:null,target:g.target,volume:0,event:"set",etat:"en-cours"});
   Store.tx(function(){
     Store.put("goals",g,sq);
     recalcGoal(sq,g);
   },"Nouvel objectif");
   return g;
 }
+/* L'historique plus une ligne, borné — à passer DANS le patch, pour
+   que le journal d'opérations le porte aussi. */
+function histoPlus(g,ligne){
+  return (g.history||[]).concat([Object.assign({at:nowISO()},ligne)]).slice(-GOAL_HISTORY_MAX);
+}
+/* Repartir d'aujourd'hui : la décision de l'entraîneur après une
+   atteinte (viser plus haut) ou un recul (réajuster). Le niveau mesuré
+   devient le départ ET la référence. */
+function repartirObjectif(sq,g,cible,motif){
+  var r=evaluerObjectif(sq,g);
+  if(r.valeur==null||cible==null)return false;
+  cible=plafonner(g.metric.family,borneEff(cible));
+  Store.tx(function(){
+    Store.patch("goals",g.id,{baseline:r.valeur,baselineAt:nowISO(),baselineSource:"mesure",
+      target:cible,targetAt:nowISO(),reference:r.valeur,referenceAt:nowISO(),
+      achievedAt:null,regressStreak:0,enRecul:false,reculAuReleve:null,lastSig:"",
+      history:histoPlus(g,{value:r.valeur,target:cible,volume:r.volume||0,
+        event:motif==="hausse"?"raised":"readjusted",etat:"en-cours"})},sq);
+    recalcGoal(sq,g);
+  },motif==="hausse"?"Cible relevée":"Cible réajustée");
+  return true;
+}
+/* Modifier un objectif : cible, périmètre, échéance, note. Changer le
+   périmètre change ce qui est mesuré — la référence repart à zéro. */
+function modifierObjectif(sq,g,ch){
+  var patch={},histo=null;
+  var fam=g.metric.family;
+  if(ch.cible!=null&&isFinite(+ch.cible)){
+    var c=plafonner(fam,borneEff(+ch.cible));
+    if(Math.abs(c-g.target)>1e-9){patch.target=c;patch.targetAt=nowISO();patch.achievedAt=null;histo="readjusted"}
+  }
+  if(ch.perimetre&&ch.perimetre!==perimetreGoal(g)){
+    patch.context=ctxDePerimetre(ch.perimetre);
+    patch.reference=null;patch.referenceAt="";patch.achievedAt=null;
+    patch.regressStreak=0;patch.enRecul=false;patch.reculAuReleve=null;histo=histo||"edited";
+  }
+  if(ch.echeance!=null&&ch.echeance!==(g.deadline||"")){patch.deadline=ch.echeance;histo=histo||"edited"}
+  if(ch.note!=null&&String(ch.note).trim()!==(g.note||"")){patch.note=String(ch.note).trim();histo=histo||"edited"}
+  if(!Object.keys(patch).length)return false;
+  patch.lastSig="";
+  patch.history=histoPlus(g,{value:null,target:patch.target!=null?patch.target:g.target,volume:0,event:histo,etat:""});
+  Store.tx(function(){
+    Store.patch("goals",g.id,patch,sq);
+    recalcGoal(sq,g);
+  },"Objectif modifié");
+  return true;
+}
+function cloreObjectif(sq,g){
+  Store.tx(function(){
+    Store.patch("goals",g.id,{active:false,closedAt:nowISO(),
+      history:histoPlus(g,{value:null,target:g.target,volume:0,event:"closed",etat:""})},sq);
+  },"Objectif clos");
+}
+function rouvrirObjectif(sq,g){
+  Store.tx(function(){
+    Store.patch("goals",g.id,{active:true,closedAt:null,lastSig:"",
+      history:histoPlus(g,{value:null,target:g.target,volume:0,event:"reopened",etat:""})},sq);
+    recalcGoal(sq,g);
+  },"Objectif rouvert");
+}
+function supprimerObjectif(sq,g){
+  Store.tx(function(){Store.del("goals",g.id,sq)},"Objectif supprimé");
+}
 
 /* ── §18 · l'écran ─────────────────────────────────────────────── */
 
+/* Un état, un nom — le même sur la carte, la liste, l'en-tête, la
+   tuile et le récap. */
 var GOAL_ETATS={
   "atteint":{label:"Atteint",icon:"🏅",color:"var(--ok)"},
-  "regression":{label:"Régression",icon:"⚠️",color:"var(--warn)"},
-  "regression-a-confirmer":{label:"Recul à confirmer",icon:"·",color:"var(--txt-dim)"},
+  "regression":{label:"En recul",icon:"↘",color:"var(--warn)"},
+  "regression-a-confirmer":{label:"Recul à confirmer",icon:"↘",color:"var(--txt-dim)"},
   "en-cours":{label:"En cours",icon:"→",color:"var(--accent-ink)"},
-  "volume-insuffisant":{label:"Trop peu de gestes",icon:"⏳",color:"var(--txt-faint)"},
+  "volume-insuffisant":{label:"À mesurer",icon:"⏳",color:"var(--txt-dim)"},
   "saisie-incomplete":{label:"Saisie incomplète",icon:"⚑",color:"var(--warn)"},
   "sans-objet":{label:"Sans objet",icon:"—",color:"var(--txt-faint)"}
 };
-
-/* La carte d'un objectif : où l'on en est, ce qui est visé, et les
-   marqueurs — un objectif atteint et une régression notée ne
-   s'effacent pas, ils comptent. */
-function goalCard(sq,g,r){
-  var fam=g.metric.family,gfam=SG[fam]||{name:fam,color:"var(--accent)"};
-  var et=GOAL_ETATS[r.etat]||GOAL_ETATS["en-cours"];
-  var val=(r.valeur==null)?null:r.valeur;
-  /* La jauge se lit de la base à la cible, jamais de zéro : une
-     efficacité part de −1, et une barre partant de zéro mentirait. */
-  var bas=Math.min(g.baseline,val==null?g.baseline:val);
-  var haut=Math.max(g.target,val==null?g.target:val);
-  var etendue=(haut-bas)||1;
-
-  var marqueurs=[];
-  if(g.achievedAt)marqueurs.push(tok("box",{label:"Atteint le "+fmtShortDay(dayOf(g.achievedAt)),
-    icon:"🏅",color:"var(--ok)"}));
-  if(g.regressedAt)marqueurs.push(tok("box",{label:"Recul le "+fmtShortDay(dayOf(g.regressedAt)),
-    icon:"⚠️",color:"var(--warn)"}));
-  var atteints=(g.history||[]).filter(function(h){return h.event==="achieved"}).length;
-  var reculs=(g.history||[]).filter(function(h){return h.event==="regressed"}).length;
-  if(atteints>1)marqueurs.push(tok("dot",{label:atteints+" paliers franchis",color:"var(--ok)"}));
-  if(reculs>1)marqueurs.push(tok("dot",{label:reculs+" reculs notés",color:"var(--warn)"}));
-
-  return h("div",{className:"card goalCard"},
-    h("div",{className:"row-between"},
-      h("div",{style:{minWidth:"0"}},
-        h("div",{style:{fontWeight:"800",color:encreFam(gfam)}},gfam.name),
-        h("div",{className:"muted",style:{marginTop:"2px"}},
-          "Cible "+fmtEff(g.target)+" · départ "+fmtEff(g.baseline))),
-      h("span",{className:"badge",style:{background:"transparent",color:et.color,
-        borderColor:et.color}},et.icon+" "+et.label)),
-    h("div",{style:{marginTop:"8px"}},
-      bar({value:(val==null)?0:(val-bas),max:etendue,goal:(g.target-bas),
-           state:(r.etat==="atteint")?"reached":((r.etat==="regression"||r.etat==="regression-a-confirmer")?"down":"running"),
-           /* « Pas encore mesurable » demandait 121 px pour une boîte de
-              104, et se lisait « Pas encore mes… ». Élargir la boîte
-              n'était pas possible : à 320 px, la piste tombait sous son
-              minimum. C'est donc le libellé qui raccourcit — le pourquoi
-              est dit juste en dessous, en toutes lettres. */
-           label:val==null?"Pas de mesure":("Aujourd'hui "+fmtEff(val)),
-           text:val==null?"—":(fmtEff(val)+" / "+fmtEff(g.target))})),
-    (r.etat==="volume-insuffisant")
-      ? h("div",{className:"muted",style:{marginTop:"6px"}},
-          "Encore "+Math.max(0,Math.round(r.manque||0))+" gestes avant de pouvoir juger — "+
-          "une efficacité sur trop peu de gestes ne dit rien.")
-      : null,
-    (r.etat==="saisie-incomplete")
-      ? h("div",{className:"hint warn",style:{marginTop:"6px"}},r.msg)
-      : null,
-    (r.etat==="regression-a-confirmer")
-      ? h("div",{className:"muted",style:{marginTop:"6px"}},
-          "Un recul est apparu. Il sera confirmé — ou démenti — au prochain relevé : "+
-          "on ne dit pas à une athlète qu'elle recule sur une seule mesure.")
-      : null,
-    (r.contexte==="equipe")
-      ? h("div",{className:"muted",style:{marginTop:"6px"}},
-          "Toute l'équipe a reculé autant : c'est le calendrier, pas l'athlète.")
-      : null,
-    marqueurs.length?h("div",{className:"rmeta",style:{marginTop:"8px"}},marqueurs):null,
-    h("div",{className:"btn-row",style:{marginTop:"8px"}},
-      h("button",{className:"btn btn-ghost sm",type:"button",
-        onclick:function(){openModal("goalhist",g.id)}},"📜 Historique"),
-      h("button",{className:"btn btn-danger-o sm",type:"button",
-        onclick:function(){
-          confirmAct("Clore l'objectif « "+gfam.name+" » ?\n"+
-            "Il cesse d'être recalculé. Son historique est conservé.",
-            function(){
-              Store.tx(function(){Store.patch("goals",g.id,{active:false},sq)},"Objectif clos");
-              showToast("🔒 Objectif clos");render();
-            },{confirm:"Clore"});
-        }},"Clore")));
+function etatGoal(r){return GOAL_ETATS[r&&r.etat]||GOAL_ETATS["en-cours"]}
+function nomCourtFam(fam){
+  var c={services:"Service",reception:"Réception",passes:"Passe",attaques:"Attaque",blocs:"Bloc",defense:"Défense"};
+  return c[fam]||((SG[fam]||{}).name)||fam;
+}
+function dateEcheance(e){
+  if(!e)return "";
+  if(e.passee)return "échéance dépassée de "+plural(e.jours,"jour");
+  if(!e.jours)return "échéance aujourd'hui";
+  return "échéance le "+fmtShortDay(e.date)+" ("+(e.jours<=60?"dans "+plural(e.jours,"jour"):fmtShortDay(e.date))+")";
 }
 
-/* L'historique : la trace de chaque recalcul, marqueurs compris. */
+/* La série de la mesure, relevé après relevé : la fenêtre telle
+   qu'elle était à chaque fois. C'est elle que la petite courbe trace. */
+function serieObjectif(sq,g){
+  var fam=g.metric.family,rel=goalReleves(sq,g),pts=[];
+  for(var i=0;i<rel.length;i++){
+    if(!familyVolume(rel[i].stats,fam))continue;
+    var f=fenetreEff(rel.slice(0,i+1),fam);
+    if(f)pts.push({v:f.eff,fiable:f.fiable,at:rel[i].at});
+  }
+  return pts.slice(-24);
+}
+function courbeObjectif(sq,g,gfam){
+  var pts=serieObjectif(sq,g);
+  if(pts.length<2)return null;
+  var W=240,H=46,P=5;
+  var vals=pts.map(function(p){return p.v}).concat([g.target,g.baseline]);
+  var lo=Math.min.apply(null,vals),hi=Math.max.apply(null,vals);
+  if(hi-lo<0.1){var mid=(hi+lo)/2;lo=mid-0.05;hi=mid+0.05}
+  function X(i){return P+i*(W-2*P)/(pts.length-1)}
+  function Y(v){return P+(H-2*P)-(v-lo)/(hi-lo)*(H-2*P)}
+  var svg=svgEl("svg",{viewBox:"0 0 "+W+" "+H,class:"gc-svg",role:"img",
+    "aria-label":"Mesure relevé après relevé : de "+fmtEff(pts[0].v)+" à "+fmtEff(pts[pts.length-1].v)+
+      " sur "+plural(pts.length,"relevé")+", cible "+fmtEff(g.target)});
+  svg.appendChild(svgEl("line",{x1:P,x2:W-P,y1:Y(g.target),y2:Y(g.target),class:"gc-svg-cible"}));
+  var d="";
+  pts.forEach(function(p,i){d+=(i?"L":"M")+X(i).toFixed(1)+" "+Y(p.v).toFixed(1)+" "});
+  svg.appendChild(svgEl("path",{d:d,fill:"none",stroke:encreFam(gfam),"stroke-width":2,
+    "stroke-linejoin":"round","stroke-linecap":"round","vector-effect":"non-scaling-stroke"}));
+  var der=pts[pts.length-1];
+  svg.appendChild(svgEl("circle",{cx:X(pts.length-1),cy:Y(der.v),r:3,fill:encreFam(gfam)}));
+  return h("div",{className:"gc-courbe"},svg,
+    h("div",{className:"gc-courbe-l"},
+      h("span",null,plural(pts.length,"relevé")),
+      h("span",null,"┄ cible "+fmtEff(g.target))));
+}
+
+/* La piste : du départ à la cible, et où l'on est. Au-delà de la
+   cible, le repère se pose au bout ; en deçà du départ, au début —
+   et le chiffre dit le reste. */
+function pisteObjectif(g,r){
+  var val=r.valeur,et=etatGoal(r);
+  var span=g.target-g.baseline;
+  var pct=(val==null||!(span>0))?null:Math.max(0,Math.min(1,(val-g.baseline)/span));
+  var txt=val==null?"Pas encore de mesure"
+    :(r.etat==="atteint"?"Cible atteinte"
+      :(pct==null?"":(val<g.baseline?"Sous le départ":Math.round(pct*100)+" % du chemin")));
+  return h("div",{className:"gc-piste"+(r.provisoire?" provisoire":""),role:"img",
+      "aria-label":"Départ "+fmtEff(g.baseline)+", aujourd'hui "+fmtEff(val)+
+        (r.provisoire?" (provisoire)":"")+", cible "+fmtEff(g.target)+(txt?" — "+txt:"")},
+    h("div",{className:"gp-track"},
+      h("i",{className:"gp-fill",style:{width:((pct||0)*100)+"%",background:et.color}}),
+      /* Le repère reste DANS la piste : centré sur 100 %, il en
+         débordait de sa demi-largeur. */
+      pct==null?null:h("span",{className:"gp-mark",style:{left:"calc(7px + (100% - 14px) * "+pct.toFixed(4)+")",borderColor:et.color}})),
+    h("div",{className:"gp-lbl"},txt));
+}
+
+/* Ce que dit la carte sous les chiffres : POURQUOI l'état est ce
+   qu'il est, et ce qui reste à faire. */
+function explicationObjectif(g,r){
+  var l=[];
+  if(r.etat==="volume-insuffisant"){
+    if(r.horsDePortee)
+      l.push("À ce rythme (≈ "+Math.round(r.parReleve)+" gestes par relevé), "+
+        ((GOAL_THRESHOLDS[g.metric.family]||{}).fenetreMax||20)+" relevés ne suffisent "+
+        "pas à juger : élargissez le périmètre ou choisissez une famille plus sollicitée.");
+    else
+      l.push("Encore "+plural(Math.max(1,Math.round(r.manque||0)),"geste")+
+        (r.relevesManquants?" (≈ "+plural(r.relevesManquants,"relevé")+")":"")+
+        " avant de juger"+(r.valeur!=null?" — la valeur affichée est provisoire.":"."));
+  } else if(r.etat==="en-cours"){
+    l.push("Encore "+fmtEff(Math.max(0,r.distance))+" à gagner · mesuré sur "+plural(r.volume,"geste")+
+      " ("+plural(r.releves,"dernier relevé","derniers relevés")+").");
+    if(r.contexte==="equipe")l.push("Toute l'équipe a reculé autant : c'est le calendrier, pas l'athlète.");
+  } else if(r.etat==="atteint"){
+    l.push((g.achievedAt?"Atteint le "+fmtShortDay(dayOf(g.achievedAt)):"Cible franchie")+
+      " · mesuré sur "+plural(r.volume,"geste")+".");
+    if(r.contexte==="equipe")l.push("Toute l'équipe a reculé depuis : c'est le calendrier.");
+  } else if(r.etat==="regression-a-confirmer"){
+    l.push("Un recul de "+fmtEff(-r.recul)+" depuis "+fmtEff(g.reference)+" est apparu. Le prochain relevé "+
+      "le confirmera ou le démentira : on ne dit pas à une athlète qu'elle recule sur une seule mesure.");
+  } else if(r.etat==="regression"){
+    l.push("Recul confirmé"+(g.regressedAt?" le "+fmtShortDay(dayOf(g.regressedAt)):"")+" : "+
+      fmtEff(g.reference)+" → "+fmtEff(r.valeur)+".");
+  } else if(r.etat==="saisie-incomplete"){
+    l.push(r.msg);
+  }
+  return l;
+}
+
+/* La carte d'un objectif. Trois chiffres — départ, aujourd'hui, cible —,
+   la piste entre les deux bornes, la courbe relevé après relevé, ce
+   qui explique l'état, et la décision à prendre quand il y en a une. */
+function goalCard(sq,g,r,opts){
+  opts=opts||{};
+  r=r||evaluerObjectif(sq,g);
+  var fam=g.metric.family,gfam=SG[fam]||{name:fam,color:"var(--accent)"};
+  var et=etatGoal(r);
+  var perim=GOAL_PERIMETRES[perimetreGoal(g)];
+  var sous=[perim.long];
+  if(r.echeance&&r.etat!=="atteint")sous.push(dateEcheance(r.echeance));
+  else if(g.deadline&&r.etat!=="atteint")sous.push("échéance "+fmtShortDay(g.deadline));
+  var qui=opts.qui?(g.scope==="team"?"L'équipe":fullName(playerById(g.playerId)||{})):null;
+
+  function chiffre(lbl,val,cls){
+    return h("div",{className:"gc-ch"+(cls?" "+cls:"")},h("span",{className:"gc-ch-l"},lbl),h("b",null,val));
+  }
+  var provisoire=!!r.provisoire;
+  var chiffres=h("div",{className:"gc-chiffres"},
+    chiffre("Départ",fmtEff(g.baseline)),
+    chiffre(provisoire?"Provisoire":"Aujourd'hui",fmtEff(r.valeur),"fort"+(provisoire?" pale":"")),
+    chiffre("Cible",fmtEff(g.target),"cible"));
+
+  var actions=[];
+  if(opts.actions!==false){
+    if(r.etat==="atteint"&&r.proposition!=null)
+      actions.push(h("button",{className:"btn btn-primary sm",type:"button",
+        "aria-label":"Viser plus haut : nouvelle cible "+fmtEff(r.proposition),
+        onclick:function(){
+          if(repartirObjectif(sq,g,r.proposition,"hausse"))showToast("⬆️ Nouvelle cible "+fmtEff(r.proposition),{tone:"ok"});
+          render();
+        }},"⬆ Viser "+fmtEff(r.proposition)));
+    if(r.etat==="regression"&&r.proposition!=null)
+      actions.push(h("button",{className:"btn btn-ghost sm",type:"button",
+        "aria-label":"Réajuster la cible à "+fmtEff(r.proposition),
+        onclick:function(){
+          if(repartirObjectif(sq,g,r.proposition,"recul"))showToast("↘ Cible réajustée à "+fmtEff(r.proposition));
+          render();
+        }},"↘ Réajuster à "+fmtEff(r.proposition)));
+    actions.push(h("button",{className:"btn btn-ghost sm",type:"button",
+      "aria-label":"Modifier l'objectif "+gfam.name,
+      onclick:function(){openModal("editgoal",{goalId:g.id,retour:opts.retour||null})}},"✏️ Modifier"));
+    actions.push(h("button",{className:"btn btn-ghost sm",type:"button",
+      "aria-label":"Historique de l'objectif "+gfam.name,
+      onclick:function(){openModal("goalhist",{goalId:g.id,retour:opts.retour||null})}},"📜 Historique"));
+  }
+
+  var paliers=(g.history||[]).filter(function(x){return x.event==="achieved"}).length;
+  return h("div",{className:"card goalCard etat-"+r.etat,"data-goal":g.id},
+    h("div",{className:"gc-head"},
+      h("div",{className:"gc-id"},
+        qui?h("div",{className:"gc-qui"},qui):null,
+        h("div",{className:"gc-fam",style:{color:encreFam(gfam)}},gfam.name),
+        h("div",{className:"gc-sub"},sous.join(" · "))),
+      h("span",{className:"gc-etat",style:{color:et.color,borderColor:et.color}},
+        h("span",{"aria-hidden":"true"},et.icon)," "+et.label)),
+    chiffres,
+    pisteObjectif(g,r),
+    opts.compact?null:courbeObjectif(sq,g,gfam),
+    explicationObjectif(g,r).map(function(t){
+      return h("div",{className:r.etat==="saisie-incomplete"?"hint warn gc-expl":"gc-expl"},t)}),
+    g.note?h("div",{className:"gc-note"},"📝 "+g.note):null,
+    paliers>1?h("div",{className:"gc-expl"},plural(paliers,"palier")+" franchi"+(paliers>1?"s":"")+" depuis le début."):null,
+    actions.length?h("div",{className:"btn-row gc-act"},actions):null);
+}
+
+/* L'historique : la trace de chaque recalcul et de chaque décision. */
 function renderGoalHistModal(){
-  var sq=curSquad(),g=sq?Store.get("goals",state.modalCtx,sq):null;
+  var sq=curSquad(),c=state.modalCtx||{};
+  var g=sq?Store.get("goals",typeof c==="string"?c:c.goalId,sq):null;
   if(!g)return null;
   var gfam=SG[g.metric.family]||{name:g.metric.family};
   var lignes=(g.history||[]).slice().reverse();
-  return sheetShell({title:"Historique — "+gfam.name,
-    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},
+  function retour(){if(c.retour)openModal(c.retour.type,c.retour.ctx);else closeModal()}
+  return sheetShell({title:"Historique — "+gfam.name,onclose:retour,
+    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:retour},c.retour?"‹ Retour":"Fermer")]},
     h("div",null,
-      h("div",{className:"hint"},
-        "Chaque recalcul laisse une trace. Les paliers franchis et les reculs "+
-        "notés ne s'effacent pas : c'est ce qui rend une progression lisible "+
-        "sur une saison."),
+      h("div",{className:"muted",style:{marginBottom:"8px"}},
+        (g.scope==="team"?"L'équipe":fullName(playerById(g.playerId)||{}))+" · "+
+        GOAL_PERIMETRES[perimetreGoal(g)].long+" · fixé le "+fmtShortDay(dayOf(g.createdAt))),
+      courbeObjectif(sq,g,gfam),
       lignes.length?h("div",null,lignes.map(function(x){
         var e=GOAL_EVENTS[x.event]||GOAL_EVENTS.progress;
+        var et=x.etat&&GOAL_ETATS[x.etat]&&x.event==="progress"?GOAL_ETATS[x.etat].label:"";
         return h("div",{className:"navRow",style:{cursor:"default"}},
           h("span",{className:"nr-ico","aria-hidden":"true"},e.icon),
           h("span",{className:"nr-body"},
-            h("span",{className:"nr-ttl"},e.label+(x.value==null?"":" · "+fmtEff(x.value))),
+            h("span",{className:"nr-ttl"},e.label+(x.value==null?"":" · "+fmtEff(x.value))+(et?" · "+et.toLowerCase():"")),
             h("span",{className:"nr-sub"},
               fmtDay(x.at)+" · cible "+fmtEff(x.target)+
               (x.volume?" · "+plural(x.volume,"geste"):""))));
@@ -12295,94 +12787,263 @@ function renderGoalHistModal(){
 }
 defModal("goalhist",renderGoalHistModal,{autofocus:false});
 
-/* Choisir la famille d'un nouvel objectif. Les familles sans objectif
-   possible ne sont pas offertes, et on dit pourquoi. */
+/* ── Le formulaire d'un objectif : pour qui, sur quoi, où, jusqu'où ──
+   Un geste choisissait la famille ET créait l'objectif, avec une cible
+   que l'entraîneur n'avait jamais vue, sur un périmètre qu'il ne
+   pouvait pas choisir, et le renvoyait à la liste au lieu de lui
+   montrer ce qu'il venait de fixer. */
+function editeurCible(d,fam,onchange){
+  var t=GOAL_THRESHOLDS[fam]||{};
+  var inp=h("input",{className:"ce-in",inputmode:"decimal",value:d.cible==null?"":fmtEff(d.cible),
+    "aria-label":"Cible (efficacité, de −1 à +1)"});
+  function poser(v){
+    v=plafonner(fam,borneEff(v));d.cible=v;inp.value=fmtEff(v);if(onchange)onchange();
+  }
+  inp.addEventListener("change",function(e){
+    var v=parseFloat(String(e.target.value).replace(",",".").replace("−","-"));
+    if(isFinite(v))poser(v);else inp.value=d.cible==null?"":fmtEff(d.cible);
+  });
+  return h("div",{className:"cible-ed"},
+    h("button",{className:"btn btn-ghost ce-pas",type:"button","aria-label":"Baisser la cible d'un centième",
+      onclick:function(){poser((d.cible||0)-0.01)}},"−"),
+    inp,
+    h("button",{className:"btn btn-ghost ce-pas",type:"button","aria-label":"Monter la cible d'un centième",
+      onclick:function(){poser((d.cible||0)+0.01)}},"+"),
+    t.plafond!=null?h("span",{className:"muted ce-plaf"},"plafond "+fmtEff(t.plafond)):null);
+}
+function choixPerimetre(sq,valeur,onpick){
+  return h("div",null,segmented({label:"Ce que l'objectif compte",value:valeur,
+    options:GOAL_PERIM_KEYS.map(function(k){return {k:k,l:GOAL_PERIMETRES[k].l}}),
+    onpick:onpick}),
+    h("div",{className:"muted ng-perim"},GOAL_PERIMETRES[valeur].long+" — "+
+      plural(GOAL_PERIMETRES[valeur].sections.reduce(function(n,k){return n+sessionsOfSection(sq,k).length},0),"relevé")+" à ce jour"));
+}
+function champEcheance(d){
+  var inp=h("input",{type:"date",value:d.echeance||"",min:todayISO(),"aria-label":"Échéance"});
+  inp.addEventListener("change",function(e){d.echeance=e.target.value||""});
+  return h("label",{className:"field"},h("span",null,"Échéance (facultative)"),inp);
+}
+function champNote(d){
+  var inp=h("input",{value:d.note||"",maxlength:"120",placeholder:"Ex. regarder le bloc avant de frapper"});
+  inp.addEventListener("input",function(e){d.note=e.target.value});
+  return h("label",{className:"field"},h("span",null,"Consigne ou note (facultative)"),inp);
+}
+
 function renderNewGoalModal(){
   var sq=curSquad();if(!sq)return null;
-  var ctx=state.modalCtx||{},scope=ctx.scope||"player",pid=ctx.playerId||"";
-  var qui=scope==="team"?"l'équipe":fullName(playerById(pid)||{});
+  var ctx=state.modalCtx||{};
+  var d=state.modalDraft;
+  /* Un brouillon par OUVERTURE : openModal ne le vide pas, et le
+     brouillon d'une autre athlète resurgissait sinon. */
+  if(!d||d.type!=="newgoal"||d.ctx!==state.modalCtx){
+    d=state.modalDraft={type:"newgoal",ctx:state.modalCtx,scope:ctx.scope==="team"?"team":"player",
+      pid:ctx.playerId||"",fam:"",perim:"tout",cible:null,cibleTouchee:false,echeance:"",note:""};
+  }
+  var equipe=d.scope==="team";
+  var athletes=(sq.playerIds||[]).filter(function(pid){return dansPerimetreSE(sq,pid)&&playerById(pid)});
+  if(!equipe&&!d.pid&&athletes.length===1)d.pid=athletes[0];
+  var ctxP=ctxDePerimetre(d.perim);
+  var body=h("div",null);
 
-  /* Ce qui mène quelque part d'abord. Sur une équipe qui vient de
-     commencer sa saison, une seule famille sur six est ouverte, et elle
-     se retrouvait quatrième, entre quatre lignes mortes dessinées
-     exactement comme elle. */
-  function lireFamille(fam){
-    var ctxDef=mkGoal().context;
-    var g=SG[fam],dep=objectifDepart(sq,fam,ctxDef),pas=pasObjectif(sq,fam,ctxDef);
-    /* Une cible qui n'excède pas le départ — le service déjà à
-       l'équilibre — ne demande rien : l'écran le dit au lieu d'offrir un
-       objectif qui naîtrait « atteint ». */
-    var plafonne=dep!=null&&plafonner(fam,dep+(pas||0))<=dep;
+  /* Pour qui. */
+  if(equipe){
+    body.appendChild(h("div",{className:"muted",style:{marginBottom:"8px"}},
+      "Pour l'équipe — mesuré sur la somme des gestes de toutes les athlètes."));
+  } else {
+    var sel=h("select",{"aria-label":"Athlète"},
+      h("option",{value:""},"— Choisir une athlète —"),
+      athletes.map(function(pid){
+        var p=playerById(pid);
+        return h("option",{value:pid},(libNum(sq,pid)?"#"+libNum(sq,pid)+" ":"")+fullName(p));
+      }));
+    sel.value=d.pid||"";
+    sel.addEventListener("change",function(e){d.pid=e.target.value;d.fam="";d.cible=null;d.cibleTouchee=false;render()});
+    body.appendChild(h("label",{className:"field"},h("span",null,"Pour"),sel));
+  }
+  var pret=equipe||!!d.pid;
+
+  /* Où : le périmètre, avant la famille — il change les niveaux. */
+  body.appendChild(h("div",{className:"field"},h("span",null,"Ce que l'objectif compte"),
+    choixPerimetre(sq,d.perim,function(v){d.perim=v;d.cible=null;d.cibleTouchee=false;render()})));
+
+  /* Sur quoi : chaque famille dit le niveau d'aujourd'hui, ou pourquoi
+     elle n'est pas ouverte. */
+  var lues=pret?GOAL_FAMILIES.map(function(fam){
+    var dep=departGoal(sq,d.scope,d.pid,fam,ctxP);
+    var prop=cibleProposee(sq,fam,ctxP,dep.valeur);
     var deja=(sq.goals||[]).some(function(x){
-      return x.active&&x.scope===scope&&x.playerId===(scope==="team"?"":pid)&&
-             x.metric.family===fam;
+      return x.active&&x.scope===d.scope&&x.playerId===(equipe?"":d.pid)&&x.metric.family===fam;
     });
-    return {fam:fam,g:g,dep:dep,pas:pas,
-      hors:deja||dep==null||plafonne,
-      pourquoi:deja?"Un objectif est déjà en cours"
-        :(dep==null?"Aucun repère encore — l'équipe n'a pas assez joué, "+
-                    "ou sa catégorie n'est pas reconnue"
-         :(plafonne?"Déjà à l'équilibre — il n'y a rien à viser au-dessus"
-                   :("Départ "+fmtEff(dep)+" · pas "+fmtEff(pas))))};
-  }
-  function ligneFamille(f){
-    return h("button",{className:"navRow",type:"button",disabled:f.hors,
-      "aria-label":f.g.name+" — "+f.pourquoi,
-      onclick:function(){
-        var ng=creerObjectif(sq,scope,pid,f.fam);
-        closeModal();
-        showToast(ng?"🎯 Objectif fixé":"⚠️ Objectif impossible",{tone:ng?"ok":null});
-        render();
-      }},
-      h("span",{className:"nr-ico","aria-hidden":"true"},f.hors?"🔒":"🎯"),
-      h("span",{className:"nr-body"},
-        h("span",{className:"nr-ttl",style:{color:f.hors?"var(--txt-dim)":encreFam(f.g)}},f.g.name),
-        h("span",{className:"nr-sub"},f.pourquoi)),
-      h("span",{className:"nr-arw","aria-hidden":"true"},f.hors?"":"›"));
-  }
-  function dessinerFamilles(){
-    var lues=GOAL_FAMILIES.map(lireFamille);
-    var ouvertes=lues.filter(function(f){return !f.hors});
-    var fermees=lues.filter(function(f){return f.hors});
-    var bloc=h("div",null);
-    if(ouvertes.length){
-      bloc.appendChild(h("div",{className:"section-title"},"Sur quoi porter l'effort"));
-      ouvertes.forEach(function(f){bloc.appendChild(ligneFamille(f))});
-    } else {
-      bloc.appendChild(emptyState({icon:"🎯",title:"Aucune famille ouverte",small:true,
-        sub:"Il faut des relevés pour calculer un repère, et une marge au-dessus. "+
-            "Revenez après quelques matchs."}));
-    }
-    if(fermees.length){
-      bloc.appendChild(h("div",{className:"section-title"},
-        ouvertes.length?"Pas encore possible":"Pourquoi"));
-      fermees.forEach(function(f){bloc.appendChild(ligneFamille(f))});
-    }
-    return bloc;
+    var m=dep.mesure,pourquoi,hors=false;
+    if(deja){hors=true;pourquoi="Un objectif est déjà en cours sur cette famille"}
+    else if(dep.valeur==null){hors=true;pourquoi="Pas encore de repère : trop peu de relevés, ou catégorie non reconnue"}
+    else if(prop==null){hors=true;pourquoi="Déjà au plafond ("+fmtEff(dep.valeur)+") — rien à viser au-dessus"}
+    else if(!equipe&&m.horsDePortee){hors=true;pourquoi="Trop peu sollicitée (≈ "+Math.round(m.parReleve)+" gestes par relevé) pour être jugée"}
+    else if(dep.source==="mesure")pourquoi=(equipe?"Niveau de l'équipe ":"Son niveau ")+fmtEff(dep.valeur)+" · "+plural(m.volume,"geste");
+    else if(dep.source==="provisoire")pourquoi="Niveau provisoire "+fmtEff(dep.valeur)+" · "+plural(m.volumeTotal,"geste")+
+      " (≈ "+plural(m.relevesManquants||1,"relevé")+" avant de juger)";
+    else pourquoi=(m.valeur!=null?"Provisoire "+fmtEff(m.valeur)+" sur "+plural(m.volumeTotal,"geste")+" · ":"Pas encore mesurée · ")+
+      GOAL_SOURCES[dep.source]+" "+fmtEff(dep.valeur);
+    return {fam:fam,g:SG[fam],dep:dep,prop:prop,hors:hors,pourquoi:pourquoi};
+  }):[];
+  var choisie=lues.filter(function(f){return f.fam===d.fam&&!f.hors})[0]||null;
+  if(!choisie)d.fam="";
+  if(choisie&&(d.cible==null||!d.cibleTouchee))d.cible=choisie.prop;
+
+  if(pret){
+    body.appendChild(h("div",{className:"section-title"},"Sur quoi porter l'effort"));
+    var grp=h("div",{className:"ng-fams",role:"radiogroup","aria-label":"Famille de gestes"});
+    lues.slice().sort(function(a,b){return (a.hors?1:0)-(b.hors?1:0)}).forEach(function(f){
+      var on=f.fam===d.fam;
+      grp.appendChild(h("button",{className:"navRow ng-fam"+(on?" on":""),type:"button",role:"radio",
+        "aria-checked":on?"true":"false",disabled:f.hors,
+        "aria-label":f.g.name+" — "+f.pourquoi,
+        onclick:function(){d.fam=f.fam;d.cible=f.prop;d.cibleTouchee=false;render()}},
+        h("span",{className:"nr-ico","aria-hidden":"true"},f.hors?"🔒":(on?"◉":"○")),
+        h("span",{className:"nr-body"},
+          h("span",{className:"nr-ttl",style:{color:f.hors?"var(--txt-dim)":encreFam(f.g)}},f.g.name),
+          h("span",{className:"nr-sub"},f.pourquoi))));
+    });
+    body.appendChild(grp);
+  } else {
+    body.appendChild(h("div",{className:"hint"},"Choisissez d'abord l'athlète : chaque famille dira son niveau."));
   }
 
-  return sheetShell({title:"Nouvel objectif — "+qui,
-    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Annuler")]},
-    h("div",null,
-      h("div",{className:"hint"},
-        "La cible est calculée sur votre propre équipe : sa médiane comme point "+
-        "de départ, sa dispersion pour la hauteur du pas. Un barème venu "+
-        "d'ailleurs ne dirait rien de vos athlètes."),
-      dessinerFamilles(),
-      h("div",{className:"hint",style:{marginTop:"10px"}},
-        "Les habiletés n'ont pas d'objectif chiffré : elles n'ont aucun compteur "+
-        "d'erreur, donc leur valeur décrit le type de ballon reçu, pas la qualité "+
-        "du geste. Au service, la cible est plafonnée à l'équilibre — l'efficacité "+
-        "y est la différence entre les aces et les fautes, et même au plus haut "+
-        "niveau elle ne passe pas durablement au-dessus de zéro.")));
+  /* Jusqu'où. */
+  var invalide=null;
+  if(choisie){
+    var ref=choisie.dep.valeur;
+    if(!(d.cible>ref))invalide="La cible doit dépasser le départ ("+fmtEff(ref)+").";
+    body.appendChild(h("div",{className:"section-title"},"La cible"));
+    body.appendChild(h("div",{className:"ng-cible"},
+      h("div",{className:"ng-dep"},
+        h("span",{className:"muted"},"Départ"),h("b",null,fmtEff(ref)),
+        h("span",{className:"muted"},GOAL_SOURCES[choisie.dep.source])),
+      h("span",{className:"ng-fl","aria-hidden":"true"},"→"),
+      editeurCible(d,d.fam,function(){d.cibleTouchee=true;render()})));
+    body.appendChild(h("div",{className:(invalide?"hint warn":"muted")+" ng-aide"},
+      invalide||("Proposée : départ + un pas de "+fmtEff(pasObjectif(sq,d.fam,ctxP)||0.05)+
+        ", calculé sur la dispersion de l'équipe. Ajustable au centième.")));
+    body.appendChild(champEcheance(d));
+    body.appendChild(champNote(d));
+  }
+  body.appendChild(h("div",{className:"hint",style:{marginTop:"10px"}},
+    "Les habiletés n'ont pas d'objectif chiffré : sans compteur d'erreur, leur valeur décrit le "+
+    "ballon reçu, pas la qualité du geste. Au service, la cible est plafonnée à l'équilibre — "+
+    "aces moins fautes, même l'élite ne passe pas durablement au-dessus de zéro."));
+
+  function retour(){
+    if(ctx.retour)openModal(ctx.retour.type,ctx.retour.ctx);else closeModal();
+  }
+  var qui=equipe?"l'équipe":(d.pid?shortName(playerById(d.pid)||{}):"");
+  return sheetShell({title:"Nouvel objectif"+(qui?" — "+qui:""),onclose:retour,
+    buttons:[
+      h("button",{className:"btn btn-ghost full",type:"button",onclick:retour},"Annuler"),
+      h("button",{className:"btn btn-save full",type:"button",id:"modalOk",
+        disabled:!choisie||!!invalide,
+        onclick:function(){
+          var pid=d.pid,scope=d.scope;
+          var ng=creerObjectif(sq,scope,pid,d.fam,{perimetre:d.perim,cible:d.cible,echeance:d.echeance,note:d.note});
+          if(!ng){showToast("⚠️ Objectif impossible");return}
+          showToast("🎯 Objectif fixé",{tone:"ok"});
+          /* On revient là où l'objectif se voit. */
+          if(scope==="player")openModal("goalsathlete",pid);
+          else closeModal();
+          render();
+        }},"🎯 Fixer l'objectif")]},body);
 }
 defModal("newgoal",renderNewGoalModal,{autofocus:false});
+
+/* Modifier un objectif : la cible, le périmètre, l'échéance, la note —
+   et le clore ou l'effacer. */
+function renderEditGoalModal(){
+  var sq=curSquad(),c=state.modalCtx||{};
+  var g=sq?Store.get("goals",c.goalId,sq):null;
+  if(!g)return null;
+  var fam=g.metric.family,gfam=SG[fam]||{name:fam};
+  var d=state.modalDraft;
+  if(!d||d.type!=="editgoal"||d.id!==g.id||d.ctx!==state.modalCtx)
+    d=state.modalDraft={type:"editgoal",id:g.id,ctx:state.modalCtx,cible:g.target,perim:perimetreGoal(g),
+      echeance:g.deadline||"",note:g.note||""};
+  function retour(){if(c.retour)openModal(c.retour.type,c.retour.ctx);else closeModal()}
+  var r=evaluerObjectif(sq,g);
+  var invalide=!(d.cible>g.baseline)?"La cible doit dépasser le départ ("+fmtEff(g.baseline)+").":null;
+  var body=h("div",null,
+    h("div",{className:"muted",style:{marginBottom:"8px"}},
+      (g.scope==="team"?"L'équipe":fullName(playerById(g.playerId)||{}))+" · "+gfam.name+
+      " · aujourd'hui "+fmtEff(r.valeur)+(r.provisoire?" (provisoire)":"")),
+    h("div",{className:"field"},h("span",null,"Ce que l'objectif compte"),
+      choixPerimetre(sq,d.perim,function(v){d.perim=v;render()})),
+    d.perim!==perimetreGoal(g)?h("div",{className:"hint"},
+      "Changer le périmètre change ce qui est mesuré : la référence de recul repartira de la prochaine mesure."):null,
+    h("div",{className:"section-title"},"La cible"),
+    h("div",{className:"ng-cible"},
+      h("div",{className:"ng-dep"},h("span",{className:"muted"},"Départ"),h("b",null,fmtEff(g.baseline)),
+        h("span",{className:"muted"},GOAL_SOURCES[g.baselineSource]||"au jour où il a été fixé")),
+      h("span",{className:"ng-fl","aria-hidden":"true"},"→"),
+      editeurCible(d,fam,function(){render()})),
+    invalide?h("div",{className:"hint warn",style:{marginTop:"6px"}},invalide):null,
+    champEcheance(d),
+    champNote(d),
+    h("div",{className:"section-title"},"Et ensuite"),
+    h("div",{className:"btn-row"},
+      h("button",{className:"btn btn-ghost sm",type:"button",onclick:function(){
+        confirmAct("Clore l'objectif « "+gfam.name+" » ?\nIl cesse d'être recalculé ; son historique est gardé et il pourra être rouvert.",
+          function(){cloreObjectif(sq,g);showToast("🔒 Objectif clos");retour();render()},{confirm:"Clore",cancel:"Le garder"});
+      }},"🔒 Clore"),
+      h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){
+        confirmAct("Supprimer l'objectif « "+gfam.name+" » ?\nSon historique disparaît avec lui. Pour garder la trace, mieux vaut le clore.",
+          function(){supprimerObjectif(sq,g);showToast("🗑️ Objectif supprimé");retour();render()},{confirm:"Supprimer",cancel:"Le garder"});
+      }},"🗑️ Supprimer")));
+  return sheetShell({title:"Modifier — "+gfam.name,onclose:retour,
+    buttons:[
+      h("button",{className:"btn btn-ghost full",type:"button",onclick:retour},"Annuler"),
+      h("button",{className:"btn btn-save full",type:"button",id:"modalOk",disabled:!!invalide,onclick:function(){
+        var ok=modifierObjectif(sq,g,{cible:d.cible,perimetre:d.perim,echeance:d.echeance,note:d.note});
+        showToast(ok?"✅ Objectif modifié":"Rien n'a changé");
+        retour();render();
+      }},"Enregistrer")]},body);
+}
+defModal("editgoal",renderEditGoalModal,{autofocus:false});
+
+/* Les objectifs clos : ce qu'ils ont donné, et la porte pour les
+   rouvrir. */
+function listeClos(sq,clos,retour){
+  if(!clos.length)return null;
+  return h("div",null,
+    h("div",{className:"section-title"},plural(clos.length,"objectif")+" clos"),
+    clos.map(function(g){
+      var gf=SG[g.metric.family]||{name:g.metric.family};
+      var at=(g.history||[]).filter(function(x){return x.event==="achieved"}).length;
+      return h("div",{className:"navRow gc-clos",style:{cursor:"default"}},
+        h("span",{className:"nr-ico","aria-hidden":"true"},at?"🏅":"🔒"),
+        h("span",{className:"nr-body"},
+          h("span",{className:"nr-ttl"},gf.name+(g.scope==="team"?"":"")),
+          h("span",{className:"nr-sub"},
+            (g.closedAt?"clos le "+fmtShortDay(dayOf(g.closedAt))+" · ":"")+"cible "+fmtEff(g.target)+" · "+
+            (at?plural(at,"palier")+" franchi"+(at>1?"s":""):"non atteint"))),
+        h("button",{className:"btn btn-ghost xs",type:"button","aria-label":"Rouvrir l'objectif "+gf.name,
+          onclick:function(){rouvrirObjectif(sq,g);showToast("🔓 Objectif rouvert");render()}},"Rouvrir"));
+    }));
+}
+
+/* Les jetons d'une athlète dans la liste : un par objectif, l'état
+   devant la famille. */
+function jetonsObjectifs(sq,objs){
+  return objs.map(function(o){
+    var et=etatGoal(o.r);
+    var lbl=et.icon+" "+nomCourtFam(o.g.metric.family)+
+      (o.r.etat==="en-cours"&&o.r.progression!=null?" "+Math.max(0,Math.min(99,Math.round(o.r.progression*100)))+" %":"");
+    return h("span",{className:"tok tok-box",style:{color:et.color,borderColor:et.color},
+      title:nomCourtFam(o.g.metric.family)+" — "+et.label},lbl);
+  });
+}
 
 function renderPartGoals(sq){
   /* Recalcul à l'ouverture : les relevés ont pu changer ailleurs. */
   recalcGoals(sq);
   var sujet=state.goalSujet==="team"?"team":"players";
-  var m=goalMarkers(sq);
+  var b=bilanObjectifs(sq);
 
   var tete=h("div",{className:"partHead"},
     h("button",{className:"ph-back",type:"button","aria-label":"Retour à la saison",
@@ -12390,9 +13051,8 @@ function renderPartGoals(sq){
     h("div",{className:"ph-body"},
       h("div",{className:"ph-ttl"},"Objectifs"),
       h("div",{className:"ph-sub"},
-        m.actifs?(m.atteints+" atteint"+(m.atteints>1?"s":"")+" sur "+
-                  plural(m.actifs,"objectif")+
-                  (m.regressions?" · "+plural(m.regressions,"recul"):""))
+        b.actifs?[plural(b.actifs,"suivi"),b.atteints?plural(b.atteints,"atteint"):null,
+                  b.recul?b.recul+" en recul":null].filter(Boolean).join(" · ")
                 :"aucun objectif fixé")),
     null);
 
@@ -12403,43 +13063,57 @@ function renderPartGoals(sq){
     sujet==="players"?barreSousEquipe(sq):null);
 
   var corps=h("div",null);
+  function bandeau(bb){
+    return h("div",{className:"kpiStrip goal-kpis"},
+      kpiMini("Suivis",String(bb.actifs),bb.clos?plural(bb.clos,"clos","clos"):"en cours"),
+      kpiMini("Atteints",String(bb.atteints),bb.paliers?plural(bb.paliers,"palier")+" franchi"+(bb.paliers>1?"s":""):"à la cible",bb.atteints?"pos":""),
+      kpiMini("En recul",String(bb.recul),bb.recul?"confirmé":"aucun",bb.recul?"neg":""),
+      kpiMini("À mesurer",String(bb.amesurer),bb.amesurer?"trop peu de gestes":"tout se mesure"));
+  }
 
   if(sujet==="team"){
+    var bt=bilanObjectifs(sq,function(g){return g.scope==="team"});
     var teamGoals=(sq.goals||[]).filter(function(g){return g.scope==="team"&&g.active});
-    corps.appendChild(h("div",{className:"hint"},
-      "Un objectif d'équipe se mesure sur la somme des athlètes — c'est la "+
-      "même mesure, à une autre échelle."));
+    var closT=(sq.goals||[]).filter(function(g){return g.scope==="team"&&!g.active});
+    if(bt.actifs)corps.appendChild(bandeau(bt));
     if(!teamGoals.length)
       corps.appendChild(emptyState({icon:"📊",title:"Aucun objectif d'équipe",
-        sub:"Fixez-en un pour suivre la progression collective sur une famille de gestes.",
+        sub:"Un objectif d'équipe se mesure sur la somme des gestes de toutes les athlètes.",
         action:h("button",{className:"btn btn-primary",type:"button",
-          onclick:function(){openModal("newgoal",{scope:"team"})}},"+ Fixer un objectif")}));
+          onclick:function(){openModal("newgoal",{scope:"team"})}},"+ Fixer un objectif d'équipe")}));
     else {
       teamGoals.forEach(function(g){corps.appendChild(goalCard(sq,g,evaluerObjectif(sq,g)))});
       corps.appendChild(h("button",{className:"btn btn-ghost full",type:"button",
         style:{marginTop:"8px"},
         onclick:function(){openModal("newgoal",{scope:"team"})}},"+ Un autre objectif d'équipe"));
     }
+    var lc=listeClos(sq,closT);
+    if(lc)corps.appendChild(lc);
     return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
       tete,barres,h("div",{className:"content pad","data-scroll-key":"part-goals-team"},corps));
   }
 
-  /* Par athlète : la liste, avec son avancement en un coup d'œil. */
+  /* Par athlète : la liste, avec l'état de chaque objectif en un coup
+     d'œil. */
   var items=(sq.playerIds||[]).filter(function(pid){return dansPerimetreSE(sq,pid)}).map(function(pid){
     var objs=(sq.goals||[]).filter(function(g){
       return g.active&&g.scope==="player"&&g.playerId===pid;
-    });
-    var etats=objs.map(function(g){return evaluerObjectif(sq,g)});
-    var atteints=objs.filter(function(g){return !!g.achievedAt}).length;
-    var reculs=objs.filter(function(g){return !!g.regressedAt}).length;
+    }).map(function(g){return {g:g,r:evaluerObjectif(sq,g)}});
+    var n=function(e){return objs.filter(function(o){return o.r.etat===e}).length};
     return {pid:pid,player:playerById(pid),entry:rosterEntry(sq,pid),
-            objs:objs,etats:etats,atteints:atteints,reculs:reculs};
+            objs:objs,atteints:n("atteint"),reculs:n("regression"),
+            amesurer:n("volume-insuffisant")+n("saisie-incomplete")};
   }).filter(function(x){return !!x.player});
+  var bp=bilanObjectifs(sq,function(g){
+    return g.scope==="player"&&items.some(function(x){return x.pid===g.playerId})});
 
   if(!items.length){
     corps.appendChild(emptyState({icon:"📈",title:"Aucune athlète dans l'équipe",
       sub:"Constituez l'équipe depuis la partie Sélection : les objectifs suivent l'effectif."}));
   } else {
+    if(bp.actifs)corps.appendChild(bandeau(bp));
+    corps.appendChild(h("button",{className:"btn btn-primary full goal-nouveau",type:"button",
+      onclick:function(){openModal("newgoal",{scope:"player"})}},"+ Nouvel objectif"));
     var tb=listToolbar({
       key:"goals-players",items:items,
       search:{of:function(x){return fullName(x.player)+" "+(numMaillot(sq,x.pid)||"")},
@@ -12449,32 +13123,39 @@ function renderPartGoals(sq){
           var n=parseInt(numMaillot(sq,x.pid)||"",10);return isFinite(n)?n:null}},
         {key:"name",label:"Nom",get:function(x){return fullName(x.player)}},
         {key:"age",label:"Âge",get:function(x){return ageOf(x.player)}},
-        {key:"result",label:"Résultat",get:function(x){return x.atteints}}
+        {key:"result",label:"Atteints",get:function(x){return x.atteints}}
       ],
       filters:[
         {key:"etat",label:"État",get:function(x){
-          if(x.reculs)return "regression";
           if(!x.objs.length)return "aucun";
+          if(x.reculs)return "regression";
           if(x.atteints===x.objs.length)return "atteint";
+          if(x.amesurer===x.objs.length)return "amesurer";
           return "encours";},
          options:[{k:"aucun",l:"Sans objectif"},{k:"encours",l:"En cours"},
-                  {k:"atteint",l:"Tous atteints"},{k:"regression",l:"En recul"}]}
+                  {k:"atteint",l:"Tous atteints"},{k:"regression",l:"En recul"},{k:"amesurer",l:"À mesurer"}]},
+        {key:"famille",label:"Famille",get:function(x){
+          return x.objs.map(function(o){return o.g.metric.family})},
+         options:GOAL_FAMILIES.map(function(f){return {k:f,l:(SG[f]||{name:f}).name}})}
       ],
       empty:function(){
         return emptyState({icon:"🔍",title:"Aucune athlète",small:true,
           sub:"Aucune ne correspond à ce que vous cherchez."});
       },
       rows:function(res){
+        state.ficheOrdreGoals=res.map(function(x){return x.pid});
         return res.map(function(x){
-          var meta=[];
-          if(!x.objs.length)meta.push(tok("dot",{label:"Sans objectif",color:"var(--txt-faint)"}));
-          else meta.push(tok("dot",{label:x.atteints+"/"+x.objs.length+" atteints",
-            color:x.atteints===x.objs.length?"var(--ok)":"var(--txt-dim)"}));
-          if(x.reculs)meta.push(tok("box",{label:plural(x.reculs,"recul"),icon:"⚠️",
-            color:"var(--warn)"}));
+          var meta=x.objs.length?jetonsObjectifs(sq,x.objs)
+            :[tok("dot",{label:"Aucun objectif",color:"var(--txt-faint)"})];
           return listRow({lead:libNum(sq,x.pid)||"—",
             name:fullName(x.player),meta:meta,
-            trail:kpiInline(String(x.objs.length),"objectifs"),
+            trail:x.objs.length
+              ? kpiInline(x.atteints+"/"+x.objs.length,"atteints")
+              : h("button",{className:"btn btn-ghost sm goal-plus",type:"button",
+                  "aria-label":"Fixer un objectif à "+fullName(x.player),
+                  onclick:function(e){e.stopPropagation();
+                    openModal("newgoal",{scope:"player",playerId:x.pid,
+                      retour:{type:"goalsathlete",ctx:x.pid}})}},"+"),
             onclick:function(){openModal("goalsathlete",x.pid)}});
         });
       }
@@ -12486,7 +13167,9 @@ function renderPartGoals(sq){
     tete,barres,h("div",{className:"content pad","data-scroll-key":"part-goals"},corps));
 }
 
-/* Les objectifs d'une athlète, en feuille. */
+/* Les objectifs d'une athlète, en feuille : d'une athlète à la suivante
+   dans l'ordre de la liste, ses objectifs en cours, la porte d'un
+   nouveau, et ceux qu'on a clos. */
 function renderGoalsAthleteModal(){
   var sq=curSquad(),pid=state.modalCtx;
   if(!sq||!pid)return null;
@@ -12498,30 +13181,37 @@ function renderGoalsAthleteModal(){
   var clos=(sq.goals||[]).filter(function(g){
     return !g.active&&g.scope==="player"&&g.playerId===pid;
   });
+  var retour={type:"goalsathlete",ctx:pid};
+  var corps=h("div",null);
+  var ordre=(state.ficheOrdreGoals||[]).filter(function(id){return !!playerById(id)});
+  var i=ordre.indexOf(pid);
+  if(i!==-1&&ordre.length>1){
+    var aller=function(j){state.modalCtx=ordre[(j+ordre.length)%ordre.length];render()};
+    var voisine=function(j){var x=playerById(ordre[(j+ordre.length)%ordre.length]);return x?shortName(x):""};
+    corps.appendChild(h("div",{className:"fiche-nav"},
+      h("button",{className:"btn btn-ghost xs",type:"button","aria-label":"Athlète précédente : "+voisine(i-1),
+        onclick:function(){aller(i-1)}},"‹ "+voisine(i-1)),
+      h("span",{className:"muted"},(i+1)+" / "+ordre.length),
+      h("button",{className:"btn btn-ghost xs",type:"button","aria-label":"Athlète suivante : "+voisine(i+1),
+        onclick:function(){aller(i+1)}},voisine(i+1)+" ›")));
+  }
+  var etats=objs.map(function(g){return evaluerObjectif(sq,g)});
+  var nAtt=etats.filter(function(r){return r.etat==="atteint"}).length;
+  corps.appendChild(h("div",{className:"muted",style:{marginBottom:"8px"}},
+    [numLabel(libNum(sq,pid)),
+     (e&&e.position&&POS_LABELS[e.position])?POS_LABELS[e.position]:null,
+     objs.length?plural(objs.length,"objectif")+" en cours"+(nAtt?" · "+nAtt+" atteint"+(nAtt>1?"s":""):""):"aucun objectif en cours"]
+      .filter(Boolean).join(" · ")));
+  if(objs.length)objs.forEach(function(g,k){corps.appendChild(goalCard(sq,g,etats[k],{retour:retour}))});
+  else corps.appendChild(emptyState({icon:"🎯",title:"Aucun objectif",small:true,
+    sub:"Choisissez une famille : sa cible part de son niveau, ou du repère de l'équipe tant qu'elle n'est pas mesurée."}));
+  corps.appendChild(h("button",{className:"btn btn-primary full",type:"button",style:{marginTop:"8px"},
+    onclick:function(){openModal("newgoal",{scope:"player",playerId:pid,retour:retour})}},
+    "+ Nouvel objectif"));
+  var lc=listeClos(sq,clos);
+  if(lc)corps.appendChild(lc);
   return sheetShell({title:fullName(p),
-    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},
-    h("div",null,
-      h("div",{className:"muted",style:{marginBottom:"8px"}},
-        numLabel(libNum(sq,pid))+" · "+plural(objs.length,"objectif")+" en cours"),
-      objs.length
-        ? h("div",null,objs.map(function(g){return goalCard(sq,g,evaluerObjectif(sq,g))}))
-        : emptyState({icon:"🎯",title:"Aucun objectif",small:true,
-            sub:"Fixez-en un : la cible se calcule sur votre équipe, pas sur un barème."}),
-      h("button",{className:"btn btn-primary full",type:"button",style:{marginTop:"8px"},
-        onclick:function(){openModal("newgoal",{scope:"player",playerId:pid})}},
-        "+ Fixer un objectif"),
-      clos.length?h("div",null,
-        h("div",{className:"section-title"},plural(clos.length,"objectif")+" clos"),
-        clos.map(function(g){
-          var gf=SG[g.metric.family]||{name:g.metric.family};
-          var at=(g.history||[]).filter(function(x){return x.event==="achieved"}).length;
-          return h("div",{className:"navRow",style:{cursor:"default"}},
-            h("span",{className:"nr-ico","aria-hidden":"true"},"🔒"),
-            h("span",{className:"nr-body"},
-              h("span",{className:"nr-ttl"},gf.name),
-              h("span",{className:"nr-sub"},
-                at?plural(at,"palier")+" franchi(s)":"aucun palier franchi")));
-        })):null));
+    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},corps);
 }
 defModal("goalsathlete",renderGoalsAthleteModal,{autofocus:false});
 /* ══ fin §18 ══════════════════════════════════════════════════ */
@@ -12679,17 +13369,21 @@ function renderPartRecap(sq){
     }
 
     /* Objectifs d'équipe et marqueurs. */
-    var m=goalMarkers(sq);
-    bas.appendChild(h("div",{className:"section-title"},"📈 Objectifs"));
+    var m=bilanObjectifs(sq);
+    bas.appendChild(h("button",{className:"rc-part",type:"button","aria-label":"Ouvrir Objectifs",
+      onclick:function(){navToSection("goals")}},
+      h("span",{className:"section-title"},"📈 Objectifs"),
+      h("span",{className:"rc-part-n"},(m.actifs?plural(m.actifs,"suivi"):"aucun")+" ›")));
     if(!m.actifs){
       bas.appendChild(h("div",{className:"muted"},
-        "Aucun objectif fixé. La partie Objectifs en propose, calculés sur cette équipe."));
+        "Aucun objectif fixé. La partie Objectifs en propose, à partir du niveau de chacune."));
     } else {
       bas.appendChild(h("div",{className:"kpiStrip"},
         kpiMini("Objectifs suivis",String(m.actifs),plural(m.atteints,"atteint")),
-        kpiMini("Reculs notés",String(m.regressions),m.regressions?"réajustés à la baisse":"aucun",m.regressions?"neg":"")));
+        kpiMini("En recul",String(m.recul),m.recul?"confirmé":"aucun",m.recul?"neg":""),
+        kpiMini("À mesurer",String(m.amesurer),m.amesurer?"trop peu de gestes":"tout se mesure")));
       (sq.goals||[]).filter(function(g){return g.active&&g.scope==="team"})
-        .forEach(function(g){bas.appendChild(goalCard(sq,g,evaluerObjectif(sq,g)))});
+        .forEach(function(g){bas.appendChild(goalCard(sq,g,evaluerObjectif(sq,g),{compact:true}))});
     }
     corps.appendChild(h("div",{className:"recap-cols"},gauche,droite,bas));
 
@@ -12838,10 +13532,14 @@ function renderRecapAthleteModal(){
 
   /* Objectifs. */
   corps.appendChild(h("div",{className:"section-title"},"📈 Objectifs"));
+  /* Les actions d'une carte ramènent ici, pas à l'écran d'en dessous. */
+  var retourFiche={type:"recapathlete",ctx:pid};
   if(objs.length)objs.forEach(function(g){
-    corps.appendChild(goalCard(sq,g,evaluerObjectif(sq,g)));
+    corps.appendChild(goalCard(sq,g,evaluerObjectif(sq,g),{retour:retourFiche}));
   });
-  else corps.appendChild(h("div",{className:"muted"},"Aucun objectif fixé."));
+  else corps.appendChild(h("div",{className:"muted"},"Aucun objectif en cours."));
+  corps.appendChild(h("button",{className:"btn btn-ghost full",type:"button",style:{marginTop:"6px"},
+    onclick:function(){openModal("newgoal",{scope:"player",playerId:pid,retour:retourFiche})}},"+ Nouvel objectif"));
 
   return sheetShell({title:fullName(p),
     buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer")]},
@@ -22374,6 +23072,7 @@ function render(){
   var app=document.getElementById("app");if(!app)return;
   app.innerHTML="";
   app.classList.toggle("bas-replie",!!state.basReplie);
+  app.classList.toggle("haut-replie",!!state.hautReplie);
   normalizeCtx();
   if(!tabsForCtx().some(function(t){return t.key===state.tab})&&!(isCoachCtx()&&COACH_MODES[state.tab]))
     state.tab=(tabsForCtx()[0]||{}).key;
@@ -22486,6 +23185,7 @@ function render(){
     else if(state.tab==="sv_submit")content=renderSvSubmit();
     else content=renderSvViews();
   }
+  marquerHaut(content);
   app.appendChild(content);
   app.appendChild(renderTabBar());
 
@@ -22501,6 +23201,7 @@ function render(){
       if(p&&p.then)p.then(function(){location.reload()},function(){location.reload()});
       else location.reload();
     }},"Mettre à jour")));
+  plierGroupes(app);
   restoreScrollPos();
 }
 

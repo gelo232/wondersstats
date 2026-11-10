@@ -148,7 +148,7 @@ const ERRORS=[];let PASS=0;
     if(r.etat==="volume-insuffisant")throw new Error("volume encore insuffisant : "+r.volume);
     if(r.valeur==null)throw new Error("aucune valeur mesurée");
   });
-  await step("dépasser la cible marque l'objectif atteint et en fixe un plus haut",async()=>{
+  await step("dépasser la cible marque l'objectif atteint — la cible ne bouge pas d'elle-même",async()=>{
     const r=await page.evaluate(()=>{
       var sq=curSquad(),g=sq.goals[0];
       var cibleAvant=g.target;
@@ -159,13 +159,18 @@ const ERRORS=[];let PASS=0;
     await jouer([{kill:30,ok:14,err:2},{kill:30,ok:14,err:2},{kill:30,ok:14,err:2},
                  {kill:30,ok:14,err:2}]);
     const a=await page.evaluate(()=>{
-      var sq=curSquad(),g=sq.goals[0];
-      return {atteint:!!g.achievedAt,cible:g.target,base:g.baseline,
+      var sq=curSquad(),g=sq.goals[0],e=evaluerObjectif(sq,g);
+      return {atteint:!!g.achievedAt,cible:g.target,base:g.baseline,etat:e.etat,prop:e.proposition,
               paliers:g.history.filter(function(h){return h.event==="achieved"}).length,
               probs:checkV7(DB)};
     });
     if(!a.atteint)throw new Error("l'objectif n'est pas marqué atteint");
-    if(!(a.cible>r.cibleAvant))throw new Error("la cible n'a pas été relevée : "+a.cible+" vs "+r.cibleAvant);
+    if(a.etat!=="atteint")throw new Error("état="+a.etat);
+    /* v7.19 : la cible est une décision de l'entraîneur. Elle montait
+       d'elle-même, et la carte disait « Cible +0,45 » à qui ne l'avait
+       jamais fixée. */
+    if(a.cible!==r.cibleAvant)throw new Error("la cible a bougé toute seule : "+r.cibleAvant+" → "+a.cible);
+    if(!(a.prop>a.cible))throw new Error("aucune cible plus haute n'est proposée : "+a.prop);
     if(a.paliers<1)throw new Error("aucun palier compté");
     if(a.probs.length)throw new Error(a.probs.join(" / "));
   });
@@ -388,7 +393,7 @@ const ERRORS=[];let PASS=0;
     say("       "+r.valeur+" pour une cible de "+r.cible+" · "+r.volume+" gestes");
   });
 
-  await step("au-dessus de la cible : ATTEINT, marqué, et la cible remonte d'un pas",async()=>{
+  await step("au-dessus de la cible : ATTEINT et marqué ; la cible attend la décision",async()=>{
     const avant=await page.evaluate(()=>{
       var g=curSquad().goals[0];return Math.round(g.target*1000)/1000;
     });
@@ -396,14 +401,33 @@ const ERRORS=[];let PASS=0;
     if(r.etat!=="atteint")throw new Error("état="+r.etat+" (valeur "+r.valeur+")");
     if(r.dernier!=="achieved")throw new Error("dernier événement="+r.dernier);
     if(!r.atteint)throw new Error("le marqueur d'atteinte n'est pas posé");
-    if(r.base!==r.valeur)
-      throw new Error("la base ne vaut pas la valeur atteinte : "+r.base+" ≠ "+r.valeur);
-    if(r.cible<=avant)throw new Error("la cible n'a pas monté : "+avant+" → "+r.cible);
-    if(Math.abs(r.cible-(r.base+0.05))>0.001)
-      throw new Error("la cible n'est pas base + pas : "+r.cible);
+    if(r.cible!==avant)throw new Error("la cible a bougé sans décision : "+avant+" → "+r.cible);
+    const p=await page.evaluate(()=>{
+      var sq=curSquad(),g=sq.goals[0],e=evaluerObjectif(sq,g);
+      return {etat:e.etat,prop:Math.round(e.proposition*1000)/1000};
+    });
+    if(p.etat!=="atteint")throw new Error("relu aussitôt, l'objectif n'est plus atteint : "+p.etat);
+    if(Math.abs(p.prop-(r.valeur+0.05))>0.001)
+      throw new Error("la cible proposée n'est pas le niveau atteint + un pas : "+p.prop);
     if(r.evenements.indexOf("achieved")===-1)
       throw new Error("aucun événement « atteint » dans l'historique : "+r.evenements);
-    say("       atteint à "+r.valeur+" · base "+r.base+" → cible "+r.cible);
+    say("       atteint à "+r.valeur+" · cible "+r.cible+" gardée · "+p.prop+" proposée");
+  });
+
+  await step("viser plus haut : le niveau atteint devient départ et référence",async()=>{
+    const r=await page.evaluate(()=>{
+      var sq=curSquad(),g=sq.goals[0],e=evaluerObjectif(sq,g);
+      var ok=repartirObjectif(sq,g,e.proposition,"hausse");
+      var e2=evaluerObjectif(sq,g);
+      return {ok:ok,base:Math.round(g.baseline*1000)/1000,cible:Math.round(g.target*1000)/1000,
+              ref:Math.round(g.reference*1000)/1000,atteint:!!g.achievedAt,etat:e2.etat,
+              evenements:g.history.map(function(h){return h.event}).join(",")};
+    });
+    if(!r.ok)throw new Error("la décision n'a pas été prise");
+    if(r.base!==0.4||r.ref!==0.4)throw new Error("départ "+r.base+" / référence "+r.ref+" au lieu de 0.4");
+    if(r.cible!==0.45)throw new Error("cible="+r.cible);
+    if(r.atteint||r.etat==="atteint")throw new Error("la nouvelle cible naît atteinte");
+    if(r.evenements.indexOf("raised")===-1)throw new Error("la décision n'est pas dans l'historique : "+r.evenements);
   });
 
   await step("premier recul : À CONFIRMER, aucun marqueur, cible inchangée",async()=>{
@@ -417,6 +441,10 @@ const ERRORS=[];let PASS=0;
     const r=await relever(3,0.25,0.20);
     if(r.etat!=="regression-a-confirmer")
       throw new Error("état="+r.etat+" (valeur "+r.valeur+", base "+avant.base+")");
+    /* Relu aussitôt, sans relevé de plus : toujours À CONFIRMER. La
+       carte disait « Régression » l'instant d'après. */
+    const relu=await page.evaluate(()=>{var sq=curSquad();return evaluerObjectif(sq,sq.goals[0]).etat});
+    if(relu!=="regression-a-confirmer")throw new Error("relu sans nouveau relevé : "+relu);
     if(r.dernier!=="progress")
       throw new Error("un recul non confirmé ne doit pas s'inscrire comme tel : "+r.dernier);
     if(r.recul)throw new Error("le recul est marqué dès la première fenêtre");
@@ -426,7 +454,7 @@ const ERRORS=[];let PASS=0;
     say("       "+r.valeur+" contre une base de "+avant.base+" — on attend une seconde fenêtre");
   });
 
-  await step("seconde fenêtre : RECUL noté, et la cible redescend au niveau réel",async()=>{
+  await step("seconde fenêtre : RECUL noté ; la cible attend, un réajustement est proposé",async()=>{
     const avant=await page.evaluate(()=>{
       var g=curSquad().goals[0];
       return {cible:Math.round(g.target*1000)/1000,base:Math.round(g.baseline*1000)/1000};
@@ -435,20 +463,27 @@ const ERRORS=[];let PASS=0;
     if(r.etat!=="regression")throw new Error("état="+r.etat+" (valeur "+r.valeur+")");
     if(r.dernier!=="regressed")throw new Error("dernier événement="+r.dernier);
     if(!r.recul)throw new Error("le marqueur de régression n'est pas posé");
-    /* La base descend au niveau RÉELLEMENT mesuré — pas à une valeur
-       ronde : un nombre entier de kills ne donne pas un centième rond. */
-    if(r.base!==r.valeur)
-      throw new Error("la base ne vaut pas le niveau mesuré : "+r.base+" ≠ "+r.valeur);
-    if(!(r.cible<avant.cible))
-      throw new Error("la cible n'a pas redescendu : "+avant.cible+" → "+r.cible);
-    if(Math.abs(r.cible-(r.base+0.05))>0.001)
-      throw new Error("la cible n'est pas base + pas : "+r.cible);
+    if(r.cible!==avant.cible)throw new Error("la cible a bougé sans décision : "+avant.cible+" → "+r.cible);
     if(r.evenements.indexOf("regressed")===-1)
       throw new Error("aucun événement « régression » dans l'historique : "+r.evenements);
     /* L'atteinte précédente n'est pas effacée : elle a eu lieu. */
-    if(!r.atteint)throw new Error("le marqueur d'atteinte a été effacé par le recul");
+    if(r.evenements.indexOf("achieved")===-1)throw new Error("l'atteinte a disparu de l'historique");
     if(r.streak!==0)throw new Error("le compteur de confirmation n'est pas remis à zéro : "+r.streak);
-    say("       recul noté · base "+avant.base+" → "+r.base+" · cible "+avant.cible+" → "+r.cible);
+    const p=await page.evaluate(()=>{
+      var sq=curSquad(),g=sq.goals[0],e=evaluerObjectif(sq,g);
+      var prop=Math.round(e.proposition*1000)/1000;
+      /* L'entraîneur réajuste : la cible redescend au niveau RÉEL plus un
+         pas — un nombre entier de kills ne donne pas un centième rond. */
+      repartirObjectif(sq,g,e.proposition,"recul");
+      return {etat:e.etat,prop:prop,base:Math.round(g.baseline*1000)/1000,
+              cible:Math.round(g.target*1000)/1000,dernier:g.history.filter(function(h){return h.event!=="progress"}).pop().event};
+    });
+    if(p.etat!=="regression")throw new Error("relu, l'état n'est plus le recul : "+p.etat);
+    if(Math.abs(p.prop-(r.valeur+0.05))>0.001)throw new Error("réajustement proposé="+p.prop);
+    if(p.base!==r.valeur)throw new Error("la base ne vaut pas le niveau mesuré : "+p.base+" ≠ "+r.valeur);
+    if(p.cible!==p.prop)throw new Error("la cible n'est pas celle proposée : "+p.cible);
+    if(p.dernier!=="readjusted")throw new Error("la décision n'est pas inscrite : "+p.dernier);
+    say("       recul noté · cible "+avant.cible+" gardée, puis réajustée à "+p.cible+" sur décision");
   });
 
   await step("un recul partagé par TOUTE l'équipe n'est pas imputé à l'athlète",async()=>{
@@ -480,10 +515,11 @@ const ERRORS=[];let PASS=0;
     });
     const e=r.evenements;
     if(e[0]!=="set")throw new Error("l'historique ne commence pas par « fixé » : "+e[0]);
-    const iAtt=e.indexOf("achieved"),iReg=e.indexOf("regressed");
+    const iAtt=e.indexOf("achieved"),iHau=e.indexOf("raised"),iReg=e.indexOf("regressed"),iRea=e.indexOf("readjusted");
     if(iAtt<0)throw new Error("aucune atteinte dans l'historique");
     if(iReg<0)throw new Error("aucune régression dans l'historique");
-    if(!(iAtt<iReg))throw new Error("l'ordre est faux : atteinte en "+iAtt+", recul en "+iReg);
+    if(!(iAtt<iHau&&iHau<iReg&&iReg<iRea))
+      throw new Error("l'ordre est faux : atteinte "+iAtt+", hausse "+iHau+", recul "+iReg+", réajustement "+iRea);
     if(!r.borne)throw new Error("historique non borné");
     say("       "+e.join(" → "));
     say("       valeurs mesurées : "+r.valeurs.join(" · "));
