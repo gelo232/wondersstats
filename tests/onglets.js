@@ -318,7 +318,9 @@ const ERRORS=[];let PASS=0;
       saveNow();render();
     });
     await A.waitForTimeout(250);
-    const bouton=A.locator('button:has-text("📊 Tableau")').first();
+    /* v7.18 : « 📊 Tableau » est la lecture de la partie ; le tableau
+       détaillé d'avant s'ouvre par « 🗂 Détaillé ». */
+    const bouton=A.locator('.partHead button[aria-label^="Tableau détaillé"]').first();
     if(!(await bouton.count()))throw new Error("aucune entrée vers le tableau détaillé");
     await bouton.click();
     await A.waitForTimeout(350);

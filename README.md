@@ -14,7 +14,7 @@ server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
 GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
-tests/          suite de non-régression Playwright — trente-trois suites
+tests/          suite de non-régression Playwright — trente-quatre suites
 ```
 
 ---
@@ -387,11 +387,14 @@ samedi et saisi dimanche reste daté de samedi, et ses matchs avec lui.
 ### Suivre l'évolution
 
 `📈 Évolution`, à côté de `📊 Tableau`, lit le même périmètre **dans le temps** —
-dans chaque partie, à chaque niveau, et dans le `📊` de la feuille :
+dans chaque partie, à chaque niveau, dans le Récap global, et dans le `📊` de la
+feuille. Il se règle comme le tableau : l'indicateur en pastilles (le même que
+l'élément du tableau, et les deux restent d'accord), le pas et le poste sur une
+rangée, une matrice qui se trie par étape, par tendance ou par nom.
 
 | Réglage | Ce qu'il fait |
 |---|---|
-| Pas | `Par tournoi` (une partie entière), `Par match`, `Par set` — dans l'ordre où ils ont été joués. Un match d'avant la ventilation n'a pas de sets à montrer, et c'est dit |
+| Pas | `Par tournoi` (une partie entière), `Par match` (`Par séance` en Entraînements : E1, E2…), `Par set` — dans l'ordre où ils ont été joués. Un match d'avant la ventilation n'a pas de sets à montrer, et c'est dit |
 | Indicateur | Efficacité en attaque, réception, service, passe, bloc, défense ; ou points directs, fautes directes, gestes **par set joué** — sans quoi un match en trois sets « progresserait » sur un match en deux |
 | Postes | Ne garde qu'un poste ; la première ligne devient son total |
 
@@ -765,6 +768,23 @@ fonctions que les parties. C'est la seule façon qu'un total ne puisse pas
 contredire le détail dont il sort — un cache se serait désynchronisé au premier
 score corrigé, sans que personne le voie.
 
+`📊 L'équipe` montre :
+
+- la **sélection** — dans l'équipe, retenues, campagnes ;
+- chaque **partie** — Entraînements, Matchs, Tournois — avec les chiffres-clés qu'elle
+  porte en tête (`Bilan V–D–N` des matchs **terminés**, sets, points ; ou séances,
+  gestes, points et fautes), et sa porte (`5 matchs ›`) ;
+- la **saison** au même bloc que chaque partie — `📊 Tableau` et `📈 Évolution`,
+  élément de stat, valeurs, poste, tri, export, fiches —, sur toute la saison ou une
+  seule nature (`Saison · Entr. · Matchs · Tournois`) ;
+- les **objectifs** d'équipe.
+
+`👥 Les athlètes` liste l'effectif avec sa décision, son offre et ses objectifs. La
+fiche d'une athlète réunit sa sélection, ses chiffres-clés par partie, sa saison en
+jauges avec ses points et fautes directs, son **évolution** (l'équipe en référence) et
+ses objectifs ; `‹ ›` passe à la suivante dans l'ordre de la liste. Sur tablette, la
+saison se lit à droite. L'ancien tableau détaillé s'ouvre par `🗂 Détaillé`.
+
 ---
 
 ## Maillots
@@ -1031,6 +1051,27 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 ---
 
 ## Notes de version
+
+### v7.18 — l'évolution aussi maniable que le tableau, et le même soin partout
+
+Nouvelle suite : `tests/lecture.js` (dix-sept contrôles, tous en échec sur la v7.17).
+
+- **L'évolution se règle comme le tableau.** L'indicateur se choisit en pastilles —
+  les mêmes familles, dans le même ordre que l'élément du tableau, et les deux restent
+  d'accord quand on passe de l'un à l'autre ; le pas et le poste partagent une rangée.
+  La matrice se trie par étape, par tendance ou par nom (l'équipe reste en tête), porte
+  le volume sous chaque efficacité, replie les athlètes sans valeur (`+ 2 athlètes sans
+  valeur en attaque` les rappelle), et la fiche suit l'ordre lu. La courbe se replie.
+- **Matchs et Entraînements** ont tout ce qu'ont les Tournois ; un entraînement se dit
+  en séances (`Par séance`, `E1`, `ⓘ La séance`, `🗑️ Supprimer la séance`), et un amical
+  ne redit plus son adversaire (« Amical contre Magog · Magog »).
+- **Le Récap global, refait sur le modèle des parties.** Son bilan ne compte plus un
+  match en cours ; chaque partie y a ses chiffres-clés (`Bilan V–D–N`, sets, points) et
+  sa porte ; la saison — ou une seule nature — se lit au même tableau, avec l'évolution,
+  les éléments, les valeurs, le poste, le tri, l'export et les fiches. Sa fiche d'athlète
+  a des jauges au lieu de « trop peu », ses points et fautes, ses chiffres par partie, son
+  évolution, et `‹ ›`. Sur tablette, la saison se lit à droite. L'ancien tableau détaillé
+  s'ouvre par `🗂 Détaillé`.
 
 ### v7.17 — l'évolution, d'un set, d'un match, d'un tournoi à l'autre
 
