@@ -153,6 +153,7 @@ button,input,select,textarea{font-family:inherit}
 @media(min-width:600px){.header h1{font-size:var(--fs-xl)}}
 .header .h-sub{display:block;font-size:var(--fs-2xs);font-weight:600;color:var(--txt-dim);letter-spacing:.2px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .header-side{min-width:84px;display:flex;gap:var(--s1);flex-shrink:0;align-items:center}
+@media(max-width:359px){.header-side{min-width:64px}}
 .header-side.right{justify-content:flex-end}
 .role-badge{position:relative;padding:var(--s1) 9px;border-radius:var(--r-pill);font-size:var(--fs-2xs);font-weight:800;border:1.5px solid;cursor:pointer;white-space:nowrap;background:transparent;letter-spacing:.4px}
 /* La pastille de rôle ouvre le sélecteur de contexte : 80×23 px dessinés,
@@ -181,7 +182,7 @@ button,input,select,textarea{font-family:inherit}
   vertical-align:middle;border-radius:var(--r-xs);flex-shrink:0;font-size:11px;line-height:1;letter-spacing:0}
 .pli-btn::before{content:"▾"}
 .pli-btn[aria-expanded="false"]::before{content:"▸"}
-.pli-btn::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:var(--tap);height:var(--tap)}
+.pli-btn::after{content:"";position:absolute;right:0;top:50%;transform:translateY(-50%);width:var(--tap);height:var(--tap)}
 .section-title>.pli-btn{float:right;margin-top:-3px}
 .card>.card-head>.pli-btn{margin-left:auto}
 .pli-clic{cursor:pointer;user-select:none;-webkit-user-select:none}
@@ -208,6 +209,14 @@ button,input,select,textarea{font-family:inherit}
 .tab-btn.sel.active{color:var(--warn-ink);border-top-color:var(--warn-ink)}
 .tab-btn .ico{font-size:19px}
 .tab-btn .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+/* Six onglets et le repli : « Perso… », « Joueu… » à 375 px. Le repli
+   y perd son libellé, les autres gagnent sa place et un corps plus fin ;
+   sous 360 px, les icônes seules — le titre de l'écran nomme l'onglet. */
+.tab-bar.dense .tab-fold{flex:0 0 40px}
+.tab-bar.dense .tab-fold .lbl{display:none}
+.tab-bar.dense .tab-btn{padding-left:0;padding-right:0}
+.tab-bar.dense .tab-btn .lbl{font-size:10px;letter-spacing:-.2px}
+@media(max-width:359px){.tab-bar.dense .tab-btn .lbl{display:none}}
 @media(min-width:600px){.tab-btn{padding:var(--s3) var(--s1) var(--s3);font-size:var(--fs-sm)}.tab-btn .ico{font-size:22px}}
 
 /* ── BUTTONS ──────────────────────────────────────── */
@@ -454,7 +463,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
     radial-gradient(farthest-side at 50% 0,rgba(148,163,184,.45),rgba(148,163,184,0)) center top / 100% 10px no-repeat scroll,
     radial-gradient(farthest-side at 50% 100%,rgba(148,163,184,.45),rgba(148,163,184,0)) center bottom / 100% 10px no-repeat scroll,
     var(--surface-2)}
-@media(min-width:600px){.player-strip{grid-template-columns:repeat(auto-fill,minmax(84px,1fr))}}
+@media(min-width:600px){.player-strip{grid-template-columns:repeat(auto-fill,minmax(76px,1fr))}}
 .player-chip{position:relative;min-width:0;padding:2px 3px;border-radius:var(--r-md);border:1.5px solid var(--line-strong);text-align:center;background:var(--surface);color:var(--txt-dim);cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15;
   transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
 /* L'athlète choisie se voyait à peine — un liseré bleu sur ardoise. On
@@ -462,6 +471,8 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .player-chip.active{border-color:var(--accent-ink);background:var(--accent-solid);color:var(--on-light)}
 .chip-num{font-size:var(--fs-md);font-weight:800;color:var(--txt-strong)}
 .chip-name{font-size:var(--fs-xs);font-weight:700;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Six puces par rangée à 375 px : « Florence » y finissait en « Flore… ». */
+@media(max-width:430px){.chip-name{font-size:11.5px;letter-spacing:-.25px}}
 .player-chip.active .chip-num,.player-chip.active .chip-name{color:var(--on-light)}
 /* Combien de gestes déjà relevés sur elle : on voit d'un coup d'œil qui
    n'a encore rien. */
@@ -499,6 +510,13 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    cellules de 230 px sur tablette ; ils prennent la cellule, jusqu'à
    180 px, et la rangée se centre. */
 .qp-stats-row{display:flex;gap:6px;justify-content:center}
+/* Sur tablette, la famille entière se centre — son titre avec ses
+   compteurs. Le titre restait collé au bord gauche, 220 px avant la
+   rangée qu'il nomme. */
+@media(min-width:600px){
+  .qp-group{max-width:744px;margin-left:auto;margin-right:auto}
+  .qp-stats-row{justify-content:flex-start}
+}
 .qp-stat-cell{display:flex;flex-direction:column;align-items:stretch;flex:1 1 0;min-width:0;max-width:180px}
 .qp-stat-btn{width:100%;min-width:0;height:var(--tap-lg);min-height:var(--tap-lg);padding:0 2px;border-radius:var(--r-lg);font-size:var(--fs-sm);font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border:1.5px solid;touch-action:manipulation;-webkit-user-select:none;user-select:none;
   transition:background var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease),transform var(--dur-fast) var(--ease)}
@@ -577,7 +595,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .crit-block .ttl b{font-size:var(--fs-sm);color:var(--txt-strong);font-weight:700}
 .crit-block .ttl span{font-size:var(--fs-2xs);color:var(--txt-faint)}
 .reco-row{display:flex;gap:6px}
-.reco-btn{flex:1;min-height:var(--tap);padding:11px 6px;border-radius:var(--r-md);border:1.5px solid var(--line-strong);background:var(--sunken);color:var(--txt-dim);font-size:var(--fs-xs);font-weight:700;cursor:pointer;touch-action:manipulation;
+.reco-btn{flex:1 1 0;min-width:0;overflow-wrap:anywhere;min-height:var(--tap);padding:11px 6px;border-radius:var(--r-md);border:1.5px solid var(--line-strong);background:var(--sunken);color:var(--txt-dim);font-size:var(--fs-xs);font-weight:700;cursor:pointer;touch-action:manipulation;
   transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
 .reco-btn.on{color:var(--on-dark)}
 .pos-vote-row{display:flex;gap:5px}
@@ -609,9 +627,11 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .fam-name{font-weight:700;min-width:82px;flex-shrink:0}
 .fam-eff{font-weight:800;color:var(--txt-strong);min-width:46px;text-align:right}
 .fam-vol{color:var(--txt-faint);font-size:var(--fs-2xs);flex:1;min-width:0}
-.w-row{display:flex;align-items:center;gap:var(--s2);margin-bottom:7px}
-.w-lbl{font-size:var(--fs-xs);color:var(--txt-soft);flex:1;min-width:0}
-.w-btns{display:flex;gap:3px;flex-shrink:0}
+.w-row{display:flex;align-items:center;flex-wrap:wrap;gap:var(--s1) var(--s2);margin-bottom:7px}
+.w-lbl{font-size:var(--fs-xs);color:var(--txt-soft);flex:1 1 120px;min-width:0}
+/* « Gestes minimum » a onze choix : 11 × 44 px ne tiennent pas sur un
+   téléphone, la rangée débordait de 229 px. Elle passe à la ligne. */
+.w-btns{display:flex;flex-wrap:wrap;gap:3px;flex-shrink:1;min-width:0}
 .w-btn{min-width:var(--tap);height:var(--tap);border-radius:7px;border:1.5px solid var(--line-strong);background:var(--sunken);color:var(--txt-dim);font-size:var(--fs-xs);font-weight:700}
 .w-btn.on{background:var(--eval-solid);border-color:var(--eval-ink);color:var(--on-light)}
 .lien-doc{display:inline-block;color:var(--eval-ink);text-decoration:none;font-size:var(--fs-xs);font-weight:700;padding:7px 0;min-height:var(--tap)}
@@ -658,10 +678,14 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .modal.sheet .m-head{padding-top:var(--s5)}
 .modal.sheet .m-head::before{content:"";position:absolute;top:7px;left:50%;transform:translateX(-50%);width:38px;height:4px;border-radius:2px;background:var(--line-strong)}
 .modal .m-head h3{flex:1;min-width:0;font-size:var(--fs-lg);font-weight:700;color:var(--txt-strong);margin:0}
+/* Un titre de fenêtre va sur deux lignes avant d'être coupé. */
+.modal .m-head h3.ellip{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .modal .m-close{width:var(--tap);height:var(--tap);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--txt-dim);font-size:var(--fs-lg);background:none;border:none;cursor:pointer;margin:calc(var(--s2) * -1)}
 .modal .m-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:var(--s4);min-height:60px}
-.modal .m-foot{flex-shrink:0;display:flex;gap:var(--s2);padding:var(--s3) var(--s4);border-top:1px solid var(--line);background:var(--surface)}
-.modal .m-foot .btn{flex:1;min-height:var(--tap)}
+.modal .m-foot{flex-shrink:0;display:flex;flex-wrap:wrap;gap:var(--s2);padding:var(--s3) var(--s4);border-top:1px solid var(--line);background:var(--surface)}
+/* Des parts égales tant qu'elles tiennent ; sinon, la rangée passe à la
+   ligne plutôt que de couper « Supprimer » au bord d'un écran de 320. */
+.modal .m-foot .btn{flex:1 1 0;min-width:max-content;min-height:var(--tap)}
 .modal.confirm .m-body{padding-top:var(--s4)}
 .modal.confirm p{font-size:var(--fs-md);color:var(--txt);line-height:var(--lh);margin:0}
 .modal.confirm p+p{margin-top:var(--s2);color:var(--txt-dim);font-size:var(--fs-sm)}
@@ -746,7 +770,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .listRow[data-decision="recalled"]::before{background:var(--warn)}
 .listRow[data-decision="partner"]::before{background:#2DD4BF}
 .sv-tri{background:var(--sunken);color:var(--txt);border:1px solid var(--line);border-radius:999px;
-  padding:4px 10px;font-size:12px;min-height:32px}
+  padding:4px 12px;font-size:16px;min-height:var(--tap)}
 .listRow[data-decision="cut"]::before{background:var(--danger)}
 .listRow[data-decision="candidate"]::before{background:var(--line-strong)}
 .listRow .lead{width:var(--tap);min-height:var(--tap);flex-shrink:0;display:flex;align-items:center;justify-content:center;
@@ -857,8 +881,11 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .seg{display:flex;flex:1;min-width:0;background:var(--sunken);border:1.5px solid var(--line-strong);border-radius:var(--r-sm);padding:3px;gap:3px}
 .seg button{position:relative;flex:1;min-width:0;min-height:var(--tap);border-radius:calc(var(--r-sm) - 2px);
   font-size:var(--fs-xs);font-weight:700;color:var(--txt-dim);white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis;padding:0 var(--s2);background:none;border:none;cursor:pointer;
+  text-overflow:ellipsis;padding:0 var(--s2);background:none;border:none;cursor:pointer;line-height:1.15;
   transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+/* Un choix de plusieurs mots (« Plus haut = mieux ») passe sur deux
+   lignes plutôt que de finir en « Plus haut = … » sur un 320. */
+.seg button{white-space:normal}
 /* Pas de pseudo-élément pour élargir la zone ici : le bouton est en
    `overflow:hidden` (c'est lui qui pose l'ellipse), et il clipait donc
    l'agrandissement qu'on croyait lui donner. C'est `min-height` qui
@@ -936,7 +963,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .se-row{align-items:center}
 .taille-sel{width:auto!important;min-width:92px;min-height:var(--tap);margin:0!important;padding:0 var(--s2);
-  background:var(--sunken);color:var(--txt-strong);border:1.5px solid var(--line-strong);border-radius:var(--r-sm);font-weight:800;font-size:var(--fs-md)}
+  background:var(--sunken);color:var(--txt-strong);border:1.5px solid var(--line-strong);border-radius:var(--r-sm);font-weight:800;font-size:16px}
 .taille-sel.vide{border-color:var(--warn);color:var(--warn-ink)}
 .commande-tailles{display:flex;flex-wrap:wrap;gap:var(--s2)}
 .commande-tailles .ct{display:flex;flex-direction:column;align-items:center;min-width:52px;padding:6px 8px;
@@ -999,6 +1026,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
   border-bottom:1px solid var(--line);padding-bottom:var(--s2)}
 .bt-row:last-child{border-bottom:none}
 .bt-act{display:flex;gap:var(--s2);padding:0 var(--s1) 0 56px}
+@media(max-width:359px){.bt-act{padding-left:var(--s1)}}
 .bt-act .btn{flex:1;min-height:var(--tap-lg)}
 .bt-lot{width:100%;display:flex;flex-direction:column;gap:var(--s2)}
 .bt-lot .pick-head{display:flex;align-items:center;gap:var(--s2)}
@@ -1045,13 +1073,14 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .gc-clos .btn{flex-shrink:0}
 .kpiStrip.goal-kpis{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:var(--s3)}
 @media(min-width:600px){.kpiStrip.goal-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
-.ng-aide{margin:6px 0 var(--s3)}
+.ng-aide{margin:calc(-1 * var(--s2)) 0 var(--s3)}
 .ng-perim{font-size:var(--fs-xs);margin-top:4px}
+.seg-dense .seg button{padding:0 4px;font-size:var(--fs-xs)}
 .goal-nouveau{margin-bottom:var(--s3)}
 .goal-plus{min-width:var(--tap);min-height:var(--tap);font-size:var(--fs-lg);font-weight:800}
 .ng-fams{display:flex;flex-direction:column;gap:6px}
 .ng-fam.on{border-color:var(--accent);background:var(--tint-accent)}
-.ng-cible{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
+.ng-cible{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;margin-bottom:var(--s3)}
 .ng-dep{display:flex;flex-direction:column;min-width:0}
 .ng-dep b{font-size:var(--fs-lg);font-variant-numeric:tabular-nums;color:var(--txt-strong)}
 .ng-fl{color:var(--txt-dim);font-size:var(--fs-lg)}
@@ -1270,7 +1299,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .st-ctrl .seg{flex:1}
 .st-ctrl .seg button{padding:0 4px;font-size:var(--fs-xs)}
 .st-ctrl .st-poste{flex:0 0 auto;width:96px;min-height:var(--tap);background:var(--sunken);color:var(--txt-strong);
-  border:1.5px solid var(--line-strong);border-radius:var(--r-sm);padding:0 var(--s2);font-size:var(--fs-xs);font-weight:700}
+  border:1.5px solid var(--line-strong);border-radius:var(--r-sm);padding:0 var(--s2);font-size:16px;font-weight:700}
 /* Les chiffres-clés : six tuiles compactes, trois par rangée. */
 .kpiStrip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:var(--s2)}
 .kpi.mini{padding:var(--s2);border-radius:var(--r-sm);min-width:0}
@@ -1409,7 +1438,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.18.0";
+var APP_VERSION = "7.19.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -7491,8 +7520,8 @@ function renderTabBar(){
   if(state.basReplie)return h("button",{className:"tab-handle",type:"button",
     "aria-label":"Déplier les barres du bas","aria-expanded":"false",onclick:basculerBas},
     h("span",{"aria-hidden":"true"},"▴"),"Onglets");
-  return h("div",{className:"tab-bar"},tabs.map(function(t){
-    return h("button",{className:"tab-btn"+(sel?" sel":"")+(state.tab===t.key?" active":""),
+  return h("div",{className:"tab-bar"+(tabs.length>4?" dense":"")},tabs.map(function(t){
+    return h("button",{className:"tab-btn"+(sel?" sel":"")+(state.tab===t.key?" active":""),"aria-label":t.label,
       "aria-current":state.tab===t.key?"page":null,onclick:function(){
       /* Retaper l'onglet où l'on est déjà ramène à sa racine — c'est le
          geste universel des barres d'onglets, et sans lui on se retrouve
@@ -7505,7 +7534,7 @@ function renderTabBar(){
       if(t.key==="season")state.seasonSection=null;
       saveUI();render();
     }},h("span",{className:"ico"},t.icon),h("span",{className:"lbl"},t.label));
-  }),h("button",{className:"tab-btn tab-fold",type:"button",
+  }),h("button",{className:"tab-btn tab-fold",type:"button",title:"Replier les barres du bas",
     "aria-label":"Replier les barres du bas","aria-expanded":"true",onclick:basculerBas},
     h("span",{className:"ico","aria-hidden":"true"},"▾"),h("span",{className:"lbl"},"Replier")));
 }
@@ -12812,7 +12841,7 @@ function editeurCible(d,fam,onchange){
     t.plafond!=null?h("span",{className:"muted ce-plaf"},"plafond "+fmtEff(t.plafond)):null);
 }
 function choixPerimetre(sq,valeur,onpick){
-  return h("div",null,segmented({label:"Ce que l'objectif compte",value:valeur,
+  return h("div",{className:"seg-dense"},segmented({label:"Ce que l'objectif compte",value:valeur,
     options:GOAL_PERIM_KEYS.map(function(k){return {k:k,l:GOAL_PERIMETRES[k].l}}),
     onpick:onpick}),
     h("div",{className:"muted ng-perim"},GOAL_PERIMETRES[valeur].long+" — "+
@@ -15435,7 +15464,7 @@ function renderPlayerSheet(squad,entry,p){
   }
 
   /* Note de l'entraîneur */
-  var note=h("textarea",{className:"txt",placeholder:"Note de l'entraîneur…",rows:"2"});
+  var note=h("textarea",{className:"txt",placeholder:"Note de l'entraîneur…",rows:"2","aria-label":"Note de l'entraîneur"});
   note.value=entry.note||"";
   note.addEventListener("input",function(e){entry.note=e.target.value;scheduleAutoSave()});
   box.appendChild(h("div",{className:"field",style:{marginTop:"14px"}},h("label",null,"Note entraîneur"),note));
@@ -20872,7 +20901,8 @@ function renderSvPlayerPanel(src,pid,ordered){
 
   /* Commentaire */
   panel.appendChild(h("div",{className:"section-title"},"Commentaire"));
-  var ta=h("textarea",{className:"txt",placeholder:"Observations sur l'athlète "+svDisplay(src,pid)+"…",rows:"3"});
+  var ta=h("textarea",{className:"txt",placeholder:"Observations sur l'athlète "+svDisplay(src,pid)+"…",rows:"3",
+    "aria-label":"Observations sur "+svDisplay(src,pid)});
   ta.value=d.note||"";
   ta.addEventListener("input",function(e){d.note=e.target.value;scheduleAutoSave()});
   panel.appendChild(ta);
@@ -20887,7 +20917,7 @@ function renderSvSubmit(){
     h("button",{className:"btn btn-primary",onclick:function(){state.tab="sv_views";render()}},"Voir mes vues"));
   var v=src.view,ordered=svOrdered(src),pr=svProgress(src);
 
-  var nameInp=h("input",{className:"txt",placeholder:"Votre nom (ex. Marie T.)",value:v.selectorName||""});
+  var nameInp=h("input",{className:"txt",placeholder:"Votre nom (ex. Marie T.)",value:v.selectorName||"","aria-label":"Votre nom"});
   nameInp.addEventListener("input",function(e){v.selectorName=e.target.value;scheduleAutoSave()});
 
   var wrap=h("div",null);
@@ -21071,7 +21101,7 @@ function lienGuide(texte,ancre){
 }
 
 function textField(placeholder,value,onchange,label){
-  var inp=h("input",{placeholder:placeholder,value:value||""});
+  var inp=h("input",{placeholder:placeholder,value:value||"","aria-label":label?null:placeholder});
   inp.addEventListener("input",function(e){onchange(e.target.value)});
   inp.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();var b=document.getElementById("modalOk");if(b)b.click()}});
   return label?h("label",{className:"field"},h("span",null,label),inp):inp;
@@ -21816,7 +21846,7 @@ function renderModal(){
               render();
             }},"✕"));
       }):h("div",{className:"muted"},"Aucune catégorie."));
-    var inp=h("input",{placeholder:"Ex. U14",value:draft.nouvelle||""});
+    var inp=h("input",{placeholder:"Ex. U14",value:draft.nouvelle||"","aria-label":"Nouvelle catégorie"});
     inp.addEventListener("input",function(e){draft.nouvelle=e.target.value});
     function ajouter(){
       var v=(draft.nouvelle||"").trim();
@@ -21932,7 +21962,7 @@ function renderModal(){
     return modalShell("Nommer un administrateur",
       h("div",null,
         h("label",{className:"field"},h("span",null,"Club"),clubSel),
-        h("div",{style:{display:"flex",gap:"6px",marginBottom:"10px"}},
+        h("div",{style:{display:"flex",flexWrap:"wrap",gap:"6px",marginBottom:"10px"}},
           onglet("existing","Quelqu'un de connu"),onglet("new","Une nouvelle personne")),
         ad.mode==="existing"
           ? h("label",{className:"field"},h("span",null,"Personne"),persSel)
@@ -22313,7 +22343,8 @@ function renderModal(){
       btns);
   }
   if(T==="bulkplayers"){
-    var ta=h("textarea",{placeholder:"Une joueuse par ligne :\nLéa Tremblay 26/10/2011 7\nSofia Nguyen 2009 12\nMaya Roy",rows:"8"});
+    var ta=h("textarea",{placeholder:"Une joueuse par ligne :\nLéa Tremblay 26/10/2011 7\nSofia Nguyen 2009 12\nMaya Roy",rows:"8",
+      "aria-label":"Athlètes à ajouter, une par ligne"});
     ta.value=state.modalInput;
     ta.addEventListener("input",function(e){state.modalInput=e.target.value});
     return modalShell("Ajout en lot",
@@ -22845,7 +22876,7 @@ function renderModal(){
         var val=h("span",{style:{fontWeight:"800",color:"#A78BFA",minWidth:"46px",textAlign:"right"}},
           Math.round(d3.statShare*100)+" %");
         var rng=h("input",{type:"range",min:"0",max:"100",step:"5",value:String(Math.round(d3.statShare*100)),
-          style:{flex:"1"}});
+          "aria-label":"Part des statistiques, en pour cent",style:{flex:"1"}});
         rng.addEventListener("input",function(e){
           d3.statShare=(parseInt(e.target.value,10)||0)/100;
           val.textContent=Math.round(d3.statShare*100)+" %";
@@ -23202,7 +23233,21 @@ function render(){
       else location.reload();
     }},"Mettre à jour")));
   plierGroupes(app);
+  nommerChamps(app);
   restoreScrollPos();
+}
+/* Un champ que rien ne nomme — ni étiquette, ni aria-label — est lu
+   « zone de texte » et rien d'autre. Son indication le nomme, faute de
+   mieux : c'est ce que voit qui le regarde. */
+function nommerChamps(racine){
+  var l=racine.querySelectorAll("input:not([type=hidden]),select,textarea");
+  for(var i=0;i<l.length;i++){
+    var e=l[i];
+    if(e.getAttribute("aria-label")||e.getAttribute("aria-labelledby")||e.closest("label"))continue;
+    if(e.id&&document.querySelector("label[for='"+e.id+"']"))continue;
+    var ph=e.getAttribute("placeholder")||e.getAttribute("title");
+    if(ph)e.setAttribute("aria-label",ph.replace(/…$/,"").split("\n")[0]);
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════

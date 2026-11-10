@@ -14,7 +14,7 @@ server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
 GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
-tests/          suite de non-régression Playwright — trente-quatre suites
+tests/          suite de non-régression Playwright — trente-six suites
 ```
 
 ---
@@ -275,6 +275,21 @@ barre d'onglets ou de la barre d'enregistrement de la saisie, les replie toutes 
 les onglets deviennent une poignée fine (`▴ Onglets`), la barre d'enregistrement
 tient sur une rangée (`⏭ S2` · `💾 Enregistrer` · `▴`), le set en cours dans le
 bouton. Le choix est retenu d'une ouverture à l'autre.
+
+### Les barres du haut aussi — et tout groupe à en-tête
+
+**Le titre de l'écran** (`Saison 🗓️ ▴`, `🏆 Journée 1 ▴`) replie le groupe d'en-tête :
+la barre de contexte, l'en-tête de la partie et ses rangées de choix, et dans la
+feuille de match la bande des sets et la rangée du terrain. L'en-tête reste, avec
+`‹` et `↶` ; la rangée des athlètes de la saisie rapide et les familles de la grille
+restent aussi — ce sont elles qu'on touche pour saisir. Le chevron passe à `▾`, et
+le choix est retenu d'un écran à l'autre et d'une ouverture à l'autre.
+
+**Chaque groupe à en-tête porte son chevron** — un titre de section, une famille
+de compteurs de la saisie rapide (`Services ▾`, `Habiletés ▾`), l'en-tête d'une
+carte, dans les écrans comme dans les fenêtres. Toucher le titre ou son chevron
+replie ce qui le suit jusqu'au titre suivant ; le choix est retenu par écran et par
+titre : qui a replié `Habiletés` la retrouve repliée au match suivant.
 
 Il ne voit que **son** équipe : roster, statistiques, campagnes et soumissions.
 Il peut ajouter des athlètes à la base du club et inviter des sélectionneurs sur
@@ -721,14 +736,52 @@ seule différence de comportement entre la v6 et la v7 sur un geste existant.
 
 ## Objectifs
 
-Chaque athlète peut porter des **objectifs de progression**, recalculés à chaque
-relevé et réajustés d'eux-mêmes : relevés d'un pas quand ils sont atteints, ramenés
-au niveau réel quand la performance recule. Chaque palier franchi et chaque recul
-noté restent comptés.
+Chaque athlète — et l'équipe — peut porter des **objectifs de progression** sur
+l'efficacité d'une famille de gestes, mesurés à chaque relevé. **L'application
+constate et propose ; l'entraîneur décide** : la cible ne change jamais d'elle-même.
+
+**Fixer un objectif** (`+ Nouvel objectif`, ou le `+` au bout d'une athlète) se fait
+dans une seule fenêtre, qui montre tout avant de créer :
+
+| Champ | Ce qu'il fait |
+|---|---|
+| Pour | l'athlète (l'objectif d'équipe se fixe depuis `📊 L'équipe`) |
+| Ce que l'objectif compte | `Tout`, `Compétition` (matchs et tournois) ou `Entraînement` |
+| Sur quoi porter l'effort | chaque famille dit le niveau d'aujourd'hui, ou pourquoi elle est fermée |
+| La cible | le départ, sa source, et une cible proposée — ajustable au centième (`−` / `+`) |
+| Échéance, consigne | facultatives ; l'échéance se compte en jours sur la carte |
+
+**Le départ est le niveau de celle qu'on mesure** : son efficacité sur la fenêtre
+fiable ; à défaut, sa valeur provisoire dès qu'elle a assez de gestes ; à défaut, la
+médiane de l'équipe ; à froid, le barème de la catégorie. Un objectif d'équipe part
+du niveau de l'équipe — la somme des gestes, ce qu'il mesurera. **La cible proposée**
+est le départ plus un pas, que la dispersion de l'équipe règle.
+
+**La carte** dit trois chiffres — départ, aujourd'hui, cible —, la piste de l'un à
+l'autre, la courbe relevé après relevé, et pourquoi l'état est ce qu'il est :
+
+| État | Ce qu'il veut dire | La décision proposée |
+|---|---|---|
+| ⏳ À mesurer | trop peu de gestes ; la valeur affichée est provisoire, et la carte dit combien de relevés il manque | — |
+| → En cours | la distance qui reste, sur combien de gestes | — |
+| 🏅 Atteint | la cible est franchie ; une variation dans le bruit ne défait pas l'atteinte | `⬆ Viser +0,45` |
+| ↘ Recul à confirmer | un recul net est apparu ; le prochain relevé tranchera | — |
+| ↘ En recul | le recul est confirmé | `↘ Réajuster à +0,30` |
+
+`✏️ Modifier` change la cible, le périmètre, l'échéance ou la consigne, et ouvre
+`🔒 Clore` (l'objectif sort du suivi, son historique reste, `Rouvrir` le rend) et
+`🗑️ Supprimer`. `📜 Historique` garde chaque mesure et chaque décision.
+
+**Les compteurs disent l'état d'aujourd'hui** — l'en-tête de la partie, son bandeau
+(`Suivis`, `Atteints`, `En recul`, `À mesurer`), la tuile du tableau de bord, le récap.
+Un objectif atteint puis relevé ne compte plus parmi les atteints ; ses paliers
+restent dans l'historique. Dans la liste, chaque objectif a son jeton
+(`🏅 Attaque`, `→ Réception 57 %`, `⏳ Passe`), et le filtre `Famille` retrouve celles
+qui travaillent la même.
 
 **Les seuils se calculent sur votre équipe**, pas sur un barème venu d'ailleurs :
-la médiane de l'effectif donne le point de départ, sa dispersion donne la hauteur
-du pas. Un classement universitaire américain n'a rien à dire d'une U13
+sa dispersion donne la hauteur du pas, sa médiane le repère d'une athlète pas encore
+mesurée. Un classement universitaire américain n'a rien à dire d'une U13
 québécoise ; son équipe, si. Un barème par catégorie ne sert que d'amorce, au tout
 premier match, et une seule de ses cellules est réellement sourcée.
 
@@ -756,7 +809,11 @@ C'est le plus important. Un objectif faux coûte plus cher que pas d'objectif.
   incomplète » plutôt qu'un objectif faux.
 
 La fenêtre d'observation se définit par le **volume**, jamais par un nombre de
-matchs : une centrale fait six attaques un soir et trente le lendemain.
+matchs : une centrale fait six attaques un soir et trente le lendemain. Elle remonte
+jusqu'à vingt relevés pour réunir ses gestes — à huit, une athlète qui sert six fois
+par match n'était jamais jugeable au service. Une famille où l'athlète est trop peu
+sollicitée pour être jugée, même sur vingt relevés, n'est pas offerte, et la fenêtre
+le dit.
 
 ---
 
@@ -1051,6 +1108,38 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 ---
 
 ## Notes de version
+
+### v7.19 — les Objectifs refaits, tout se replie, et chaque fenêtre de saisie passée au crible
+
+Nouvelles suites : `tests/objectifs-ecran.js` (dix-huit contrôles) et `tests/replis.js`
+(onze contrôles), toutes deux entièrement en échec sur la v7.18. `tests/objectifs.js`
+décrit désormais une cible qui ne bouge que sur décision.
+
+- **Les Objectifs, refaits.** Une fenêtre de création qui montre tout avant de créer
+  (pour qui, `Tout` / `Compétition` / `Entraînement`, chaque famille avec le niveau
+  d'aujourd'hui, le départ et une cible ajustable au centième, l'échéance, la
+  consigne), et qui ramène à la fiche de l'athlète. Le départ est **son** niveau, pas
+  la médiane de l'équipe ; un objectif d'équipe part du niveau de l'équipe et ne naît
+  plus « Atteint ». La cible ne bouge plus d'elle-même : `⬆ Viser`, `↘ Réajuster` et
+  `✏️ Modifier` la changent sur décision. Un recul n'est plus dit « Régression »
+  avant d'être confirmé. Les compteurs (en-tête, bandeau, tuile, récap) disent l'état
+  d'aujourd'hui. La carte : départ, aujourd'hui, cible, piste, courbe, et pourquoi.
+  `Clore`, `Rouvrir`, `Supprimer`. Une valeur provisoire au lieu de « Pas de mesure »,
+  et le nombre de relevés qui manquent. Jetons par objectif dans la liste, filtre
+  par famille, `‹ ›` d'une athlète à l'autre.
+- **Tout groupe d'en-tête se replie.** Le titre de l'écran replie les barres du haut
+  (contexte, en-tête de partie, rangées de choix, bande des sets, terrain), comme
+  `▾ Replier` replie celles du bas. Chaque titre de section, chaque famille de la
+  saisie rapide, chaque en-tête de carte porte son chevron. Les choix sont retenus.
+- **Toutes les fenêtres de saisie passées au crible**, à 320, 375, 768 et 1024 px :
+  les menus de poste, de taille et d'ordre passent à 16 px (Safari iOS zoomait à
+  chaque toucher) ; les pieds de fenêtre passent à la ligne au lieu de couper
+  `Supprimer` ; la formule de score ne déborde plus de 229 px ; un titre de fenêtre
+  va sur deux lignes avant d'être coupé ; un choix segmenté aussi (`Plus haut = mieux`) ;
+  six onglets d'administration se lisent en entier ; la décision de sélection, la
+  composition de l'équipe et « Nommer un administrateur » tiennent à 320 px ; les
+  familles de la saisie rapide se centrent avec leur titre sur tablette ; chaque
+  champ porte un nom pour les lecteurs d'écran.
 
 ### v7.18 — l'évolution aussi maniable que le tableau, et le même soin partout
 
