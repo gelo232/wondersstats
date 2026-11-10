@@ -13097,7 +13097,7 @@ function renderPartGoals(sq){
       kpiMini("Suivis",String(bb.actifs),bb.clos?plural(bb.clos,"clos","clos"):"en cours"),
       kpiMini("Atteints",String(bb.atteints),bb.paliers?plural(bb.paliers,"palier")+" franchi"+(bb.paliers>1?"s":""):"à la cible",bb.atteints?"pos":""),
       kpiMini("En recul",String(bb.recul),bb.recul?"confirmé":"aucun",bb.recul?"neg":""),
-      kpiMini("À mesurer",String(bb.amesurer),bb.amesurer?"trop peu de gestes":"tout se mesure"));
+      kpiMini("À mesurer",String(bb.amesurer),bb.amesurer?"pas encore jugeables":"tout se mesure"));
   }
 
   if(sujet==="team"){
@@ -13410,7 +13410,7 @@ function renderPartRecap(sq){
       bas.appendChild(h("div",{className:"kpiStrip"},
         kpiMini("Objectifs suivis",String(m.actifs),plural(m.atteints,"atteint")),
         kpiMini("En recul",String(m.recul),m.recul?"confirmé":"aucun",m.recul?"neg":""),
-        kpiMini("À mesurer",String(m.amesurer),m.amesurer?"trop peu de gestes":"tout se mesure")));
+        kpiMini("À mesurer",String(m.amesurer),m.amesurer?"pas encore jugeables":"tout se mesure")));
       (sq.goals||[]).filter(function(g){return g.active&&g.scope==="team"})
         .forEach(function(g){bas.appendChild(goalCard(sq,g,evaluerObjectif(sq,g),{compact:true}))});
     }
