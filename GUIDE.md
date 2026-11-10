@@ -351,7 +351,11 @@ et vous n'avez devant vous **que la vague choisie**, avec son avancement.
 - le **titre de la grille** la replie et la déplie (`▾ Groupe B · 3/7 évaluées ·
   replier`) — repliée, le panneau de saisie a tout l'écran ;
 - `Masquer les faites` retire les numéros déjà évalués, pour ne garder que ce qui
-  reste à faire.
+  reste à faire ;
+- **le titre de l'écran** (`Évaluation ▴`) replie les barres du haut — le contexte et
+  la vue —, et `▾ Replier`, au bout des onglets, celles du bas ;
+- chaque **groupe à en-tête** du panneau (`Évaluation ▾`, une famille de compteurs)
+  se replie d'un toucher sur son titre. Ce qu'on a replié le reste à l'athlète suivante.
 
 Les flèches `←` `→` du panneau restent **dans le groupe** : « athlète 3/7 », pas
 3/28. Une tuile ouvre le panneau de l'athlète :
@@ -991,6 +995,43 @@ des soumissions. Choisissez « De » et « À » : l'écart s'affiche globalemen
 critère par critère. Une athlète n'apparaît avec un écart que si elle a été évaluée
 **dans les deux**.
 
+### Fixer des objectifs pour la seconde moitié
+
+`Saison → 📈 Objectifs → + Nouvel objectif`. Disons que Léa, réceptionneuse-
+attaquante, est à **+0,30** en attaque sur les matchs, et ses coéquipières autour de
++0,10.
+
+1. **Pour** : Léa. **Ce que l'objectif compte** : `Compétition` — ses ateliers du
+   mardi ne doivent pas tirer sa mesure.
+2. **Sur quoi porter l'effort** : la ligne `Attaques` dit `Son niveau +0,30 · 200
+   gestes`. Une famille fermée dit pourquoi : déjà suivie, trop peu sollicitée pour
+   être jugée, déjà au plafond (le service, à l'équilibre).
+3. **La cible** : départ `+0,30 · niveau mesuré`, cible proposée `+0,35` — un pas,
+   réglé sur la dispersion de l'équipe. `+` `+` : `+0,37`. Échéance le 15 mars,
+   consigne « Viser la ligne ».
+4. `🎯 Fixer l'objectif` : la fiche de Léa s'ouvre sur la carte — départ, aujourd'hui,
+   cible, la piste de l'un à l'autre, la courbe relevé après relevé.
+
+Ensuite, l'application **constate** et l'entraîneur **décide** :
+
+- Léa passe +0,37 : la carte dit `🏅 Atteint` et propose `⬆ Viser +0,50`. Tant qu'on
+  n'y touche pas, la cible reste celle qu'on a fixée.
+- Elle retombe à +0,25 : `↘ Recul à confirmer` — un seul relevé ne suffit pas à le
+  dire à une athlète de quinze ans. Au relevé suivant, toujours là : `↘ En recul`, et
+  `↘ Réajuster à +0,30`. Si toute l'équipe a reculé autant, la carte le dit : c'est le
+  calendrier, pas elle.
+- `✏️ Modifier` change la cible, ce que l'objectif compte, l'échéance, la consigne —
+  et ouvre `🔒 Clore` (fini, gardé dans l'historique, `Rouvrir` le rend) et
+  `🗑️ Supprimer` (une erreur de saisie).
+
+Pour toute l'équipe : `📊 L'équipe → + Fixer un objectif d'équipe`. Son départ est le
+niveau de l'équipe — la somme des gestes de toutes —, pas la médiane des athlètes.
+
+> **Les compteurs disent aujourd'hui.** L'en-tête, le bandeau `Suivis · Atteints ·
+> En recul · À mesurer`, la tuile du tableau de bord et le récap comptent l'état du
+> jour. Un objectif atteint puis relevé redevient « en cours » ; le palier franchi
+> reste dans son historique.
+
 ### Depuis la sélection
 
 Dépliez une athlète dans `🎯 Sélection → ⚖️ Récap`. Sous son cumul de matchs, le
@@ -1102,7 +1143,11 @@ A · Équipe B` paraît dans chaque partie dès que l'équipe en a. Le choix sui
 Pendant une saisie de statistiques, deux familles de gestes entières tiennent déjà
 sur un téléphone de 375 × 667. `▾ Replier` (au bout de la barre d'onglets ou de la
 barre de la feuille) replie les barres du bas : la grille de compteurs reprend
-encore la place. `▴ Onglets` les rend.
+encore la place. `▴ Onglets` les rend. **Le titre de la feuille** (`🏆 Journée 1 ▴`)
+replie celles du haut — la bande des sets et la rangée du terrain — en gardant `‹`,
+`↶` et la rangée des athlètes. Et chaque famille de compteurs se replie d'un toucher
+sur son nom : une équipe qui ne relève pas les habiletés replie `Habiletés ▾` une
+fois, et la retrouve repliée au match suivant.
 
 La progression se lit dans `👥 Les athlètes` (rangées par le test qu'on veut), et
 dans la feuille de chaque athlète, d'une saison à l'autre.

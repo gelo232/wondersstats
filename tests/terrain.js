@@ -47,10 +47,14 @@ const ERRORS=[];let PASS=0;
   });
   await pause(200);
 
-  /* Revenir à un écran propre : aucune couche ouverte. */
+  /* Revenir à un écran propre : aucune couche ouverte. Les barres du
+     haut dépliées : toucher chaque bouton touche aussi le titre, qui
+     les replie (v7.19), et le choix est retenu. */
   const propre=async()=>page.evaluate(()=>{
     if(state.modalType)closeModal();
-    state.confirm=null;state.prompt=null;state.listSheet=null;state.lectureSheet=false;render();
+    state.confirm=null;state.prompt=null;state.listSheet=null;state.lectureSheet=false;
+    if(state.hautReplie){state.hautReplie=false;saveUI()}
+    render();
   });
   /* Cliquer chaque bouton visible d'un écran, en le rouvrant à chaque fois. */
   const toutCliquer=async(ouvrir)=>{
@@ -68,7 +72,7 @@ const ERRORS=[];let PASS=0;
   };
   const PARTIES=[["training","Entraînements","training"],["matches","Matchs","friendly"],["tournaments","Tournois","tournament"]];
   const ouvrirPartie=(k,sujet)=>async()=>page.evaluate(o=>{
-    state.evSujet=o.sujet;state.evPath=null;state.basReplie=false;navToSection(o.k);
+    state.evSujet=o.sujet;state.evPath=null;state.basReplie=false;state.hautReplie=false;navToSection(o.k);
   },{k:k,sujet:sujet});
 
   /* Relever, depuis l'en-tête ET depuis l'état vide : le nouveau relevé

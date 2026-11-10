@@ -201,7 +201,9 @@ function saison(){
   });
   await step("chaque partie y a ses chiffres-clés, et sa porte",async()=>{
     await partie("recap");
-    const r=await page.evaluate(()=>({parts:Array.from(document.querySelectorAll(".rc-part .section-title")).map(e=>e.textContent),
+    /* Les parties de rencontres, dans la colonne de navigation ; la porte
+       des Objectifs (v7.19) vit avec eux, plus bas. */
+    const r=await page.evaluate(()=>({parts:Array.from(document.querySelectorAll(".rc-nav .rc-part .section-title")).map(e=>e.textContent),
       lbl:Array.from(document.querySelectorAll(".rc-nav .kpiStrip .k-lbl")).map(e=>e.textContent),
       trop:/trop peu/.test(document.getElementById("app").textContent)}));
     if(r.parts.join("|")!=="🎽 Entraînements|🤝 Matchs|🎪 Tournois")throw new Error(r.parts.join("|"));
