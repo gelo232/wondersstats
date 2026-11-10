@@ -52,7 +52,9 @@ const ERRORS=[];let PASS=0;
      les replie (v7.19), et le choix est retenu. */
   const propre=async()=>page.evaluate(()=>{
     if(state.modalType)closeModal();
-    state.confirm=null;state.prompt=null;state.listSheet=null;state.lectureSheet=false;state.hautReplie=false;render();
+    state.confirm=null;state.prompt=null;state.listSheet=null;state.lectureSheet=false;
+    if(state.hautReplie){state.hautReplie=false;saveUI()}
+    render();
   });
   /* Cliquer chaque bouton visible d'un écran, en le rouvrant à chaque fois. */
   const toutCliquer=async(ouvrir)=>{
