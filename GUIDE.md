@@ -859,14 +859,18 @@ Un match terminé sans un geste ni un score est retiré : il ne dirait rien.
 
 ### Suivre l'évolution d'un set, d'un match, d'un tournoi à l'autre
 
-Dans `🎪 Tournois`, au-dessus du tableau, touchez `📈 Évolution`.
+Dans `🎪 Tournois` — comme dans `🤝 Matchs`, `🎽 Entraînements` et le Récap global —,
+au-dessus du tableau, touchez `📈 Évolution`. Elle se règle comme le tableau.
 
 - **Le pas** : `Par tournoi` pour comparer vos tournois, `Par match` pour suivre la
   saison match après match, `Par set` pour voir un match ou un tournoi se jouer. Dans
   un match, on suit ses sets.
-- **L'indicateur** : `Efficacité en attaque` par défaut ; la liste propose aussi la
-  réception, le service, la passe, le bloc, la défense, et les points directs, fautes
-  directes et gestes **par set joué**.
+- **L'indicateur** : une rangée de pastilles — `Service`, `Réception`, `Passe`,
+  `Attaque`, `Bloc`, `Défense`, puis `Pts / set`, `Fautes / set`, `Gestes / set`. C'est
+  la famille choisie dans le tableau : passer de l'un à l'autre ne la change pas.
+- **Trier** : touchez une étape (`M3`), `Tendance` ou `Athlète` ; l'équipe reste en
+  tête. Les athlètes sans valeur se replient — `+ 2 athlètes sans valeur en attaque`
+  les rappelle. `▴ Replier la courbe` ne garde que la matrice.
 
 En haut, la courbe de l'équipe ; touchez une étape pour sa valeur. Dessous, chaque
 athlète sur une ligne, une case par étape, et sa **tendance** au bout : `↗ +0.60`
@@ -924,12 +928,18 @@ commence vide.
 
 ### Lire le cumul
 
-`📊 Récap global` compose trois axes : la **nature**, la **rencontre**, et la
-**fenêtre** (toute la saison, 3, 5 ou 10 derniers matchs). Le bandeau rappelle en
-clair ce qui est cumulé.
+`📊 Récap global` réunit la saison. En haut, la sélection ; puis chaque partie —
+Entraînements, Matchs, Tournois — avec les mêmes chiffres-clés qu'elle porte en tête
+(`Bilan V–D–N` des matchs terminés, sets, points), et sa porte. Dessous, la **saison
+au même tableau que chaque partie** : `Saison`, ou une seule nature (`Entr.`,
+`Matchs`, `Tournois`) ; `📊 Tableau` ou `📈 Évolution` ; les éléments, `/ match` et
+`/ set` pour comparer une titulaire à 8 matchs et une arrivante à 1, le poste, le tri,
+l'export. Touchez une athlète : sa fiche sur toute la saison.
 
-`÷ Par match` divise par le nombre de matchs joués par chacune : une titulaire à 8
-matchs et une arrivante à 1 deviennent comparables.
+`👥 Les athlètes` ouvre la fiche « récap » de chacune — sa sélection, ses chiffres par
+partie, sa saison en jauges, son évolution, ses objectifs — à montrer à l'athlète ou à
+ses parents ; `‹ ›` passe à la suivante. L'ancien tableau détaillé, avec sa fenêtre des
+3, 5 ou 10 derniers matchs, s'ouvre par `🗂 Détaillé`.
 
 ### Lire un tournoi, un match, un set
 

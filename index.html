@@ -1218,18 +1218,35 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .kpi.mini .k-hint{font-size:10px;color:var(--txt-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kpi.mini.t-pos .k-val{color:var(--ok-ink)}
 .kpi.mini.t-neg .k-val{color:var(--danger-ink)}
+/* Le récap : la sélection, les parties et les objectifs ; puis la
+   saison au même tableau que chaque partie. Sur tablette, à droite. */
+.rc-part{display:flex;align-items:center;gap:var(--s2);width:100%;background:transparent;border:none;padding:0;
+  margin:var(--s3) 0 var(--s1);cursor:pointer;color:inherit;text-align:left;min-height:var(--tap)}
+.rc-part .section-title{margin:0;flex:1}
+.rc-part-n{font-size:var(--fs-xs);font-weight:700;color:var(--accent-ink)}
+.rc-nature{margin:var(--s4) 0 var(--s1)}
+.rc-stats .st-tete{margin-top:var(--s3)}
 /* Tablette en paysage : on parcourt à gauche, on lit à droite. */
 @media(min-width:900px){
   .ev-cols{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:var(--s5);align-items:start}
   .ev-stats .st-tete{margin-top:0}
   .ev-stats .st-wrap{max-height:calc(100vh - 330px)}
+  .recap-cols{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:0 var(--s5);
+    grid-template-areas:"nav stats" "obj stats";grid-template-rows:auto 1fr;align-items:start}
+  .recap-cols .rc-nav{grid-area:nav}
+  .recap-cols .rc-stats{grid-area:stats}
+  .recap-cols .rc-obj{grid-area:obj}
+  .recap-cols .rc-nature{margin-top:0}
 }
 /* La fiche : d'une athlète à l'autre, ses familles en jauges centrées,
    la répartition d'une famille en barre. */
 .fiche-nav{display:flex;align-items:center;justify-content:space-between;gap:var(--s2);margin-bottom:var(--s2)}
 .fiche-nav .btn{max-width:42%;overflow:hidden;text-overflow:ellipsis}
 .fx{display:flex;flex-direction:column;gap:var(--s2)}
-.fx-row{display:grid;grid-template-columns:84px minmax(0,1fr) 46px 64px;align-items:center;gap:2px 8px;font-size:var(--fs-xs)}
+/* Les colonnes de chiffres prennent la place de leur texte — « 1 234
+   gestes » sur une saison chargée débordait d'une colonne fixe — et la
+   jauge prend ce qui reste. */
+.fx-row{display:grid;grid-template-columns:84px minmax(32px,1fr) auto auto;align-items:center;gap:2px 8px;font-size:var(--fs-xs)}
 .fx-nom{font-weight:800}
 .fx-bar{position:relative;height:8px;border-radius:4px;background:var(--sunken);overflow:hidden}
 .fx-bar::after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--line-strong)}
@@ -1257,12 +1274,13 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .rep-eff{margin-top:var(--s2);font-size:var(--fs-xs);color:var(--txt-dim)}
 /* ── Évolution : la courbe, la matrice ─────────────────────────── */
 .st-vue{margin:var(--s1) 0 var(--s2)}
-.evo-reg{display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap;margin-bottom:var(--s2)}
-.evo-reg .evo-met{flex:1 1 180px;min-height:var(--tap);background:var(--sunken);color:var(--txt-strong);
-  border:1.5px solid var(--line-strong);border-radius:var(--r-sm);padding:0 var(--s2);font-size:var(--fs-sm);font-weight:700}
-.evo-reg .seg{flex:1 1 100%}
-.evo-reg .st-poste{flex:0 0 96px;min-height:var(--tap);background:var(--sunken);color:var(--txt-strong);
-  border:1.5px solid var(--line-strong);border-radius:var(--r-sm);padding:0 var(--s2);font-size:var(--fs-xs);font-weight:700}
+.evo-reg{margin-bottom:var(--s2)}
+.evo-reg .st-ctrl{margin-top:var(--s1)}
+.evo-resume-l{display:flex;align-items:center;gap:var(--s2)}
+.evo-resume-l .grow{flex:1;min-width:0}
+.evo-plier{flex-shrink:0}
+.evo-table td.evo-c .st-vol{font-style:normal}
+
 .evo-courbe{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s2) var(--s2) var(--s1);margin-bottom:var(--s2)}
 .evo-svg-c{position:relative}
 .evo-svg{display:block;width:100%;height:auto;max-height:300px;overflow:visible}
@@ -1330,7 +1348,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.17.0";
+var APP_VERSION = "7.18.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -10147,7 +10165,9 @@ function pastillesFamille(){
     .map(function(o){
       var on=cur===o.k;
       var b=h("button",{className:"pill sm"+(on?" active":""),type:"button","aria-pressed":on?"true":"false",
-        onclick:function(){state.statFam=o.k;render()}},o.l);
+        onclick:function(){state.statFam=o.k;
+          if(SG[o.k]&&!FAM_SANS_EFF[o.k])state.evoMetrique=o.k;
+          render()}},o.l);
       if(on)paintOn(b,o.c);
       return b;
     }));
@@ -10341,16 +10361,8 @@ function tableauStats(lignes,opts){
   if(!corps.length)corps=[h("tr",null,h("td",{colspan:String(cols.length+1),className:"nul"},"Aucun relevé"))];
   /* L'en-tête reste visible : le tableau défile dans son cadre, en
      hauteur comme en largeur, et une ombre dit qu'il en reste à droite. */
-  var wrap=h("div",{className:"st-wrap","data-scroll-key":"st-"+cle},
+  return cadreDefilant("st-"+cle,
     h("table",{className:"st-table"},h("thead",null,thead),h("tbody",null,corps)));
-  var cadre=h("div",{className:"st-cadre"},wrap,h("span",{className:"st-ombre","aria-hidden":"true"}));
-  function ombre(){
-    var reste=wrap.scrollWidth-wrap.clientWidth-wrap.scrollLeft;
-    cadre.classList.toggle("encore",reste>2);
-  }
-  wrap.addEventListener("scroll",ombre);
-  setTimeout(ombre,60);
-  return cadre;
 }
 
 /* Les lignes d'un périmètre : l'équipe (ou la sous-équipe, ou le poste
@@ -10487,10 +10499,10 @@ function blocStatistiques(sq,scope,src){
    deçà d'un seuil (0,10 d'efficacité, 15 % d'un rythme), elle se dit
    « stable » plutôt que d'inventer un mouvement. */
 var METRIQUES=[
-  {k:"attaques",l:"Efficacité en attaque",court:"Attaque",eff:true},
-  {k:"reception",l:"Efficacité en réception",court:"Réception",eff:true},
   {k:"services",l:"Efficacité au service",court:"Service",eff:true},
+  {k:"reception",l:"Efficacité en réception",court:"Réception",eff:true},
   {k:"passes",l:"Efficacité en passe",court:"Passe",eff:true},
+  {k:"attaques",l:"Efficacité en attaque",court:"Attaque",eff:true},
   {k:"blocs",l:"Efficacité au bloc",court:"Bloc",eff:true},
   {k:"defense",l:"Efficacité en défense",court:"Défense",eff:true},
   {k:"pts",l:"Points directs par set",court:"Pts / set",keys:PTS_KEYS},
@@ -10498,9 +10510,18 @@ var METRIQUES=[
   {k:"gestes",l:"Gestes par set",court:"Gestes / set"}
 ];
 var EVO_MIN_VOL=3;
+/* L'indicateur lu : celui qu'on a choisi, sinon la famille lue dans le
+   tableau, sinon l'attaque. Le tableau et l'évolution parlent ainsi de
+   la même chose quand on passe de l'un à l'autre. */
 function metriqueLue(){
-  for(var i=0;i<METRIQUES.length;i++)if(METRIQUES[i].k===state.evoMetrique)return METRIQUES[i];
-  return METRIQUES[0];
+  var k=state.evoMetrique;
+  if(!k&&state.statFam&&SG[state.statFam]&&!FAM_SANS_EFF[state.statFam])k=state.statFam;
+  var def=null;
+  for(var i=0;i<METRIQUES.length;i++){
+    if(METRIQUES[i].k===k)return METRIQUES[i];
+    if(METRIQUES[i].k==="attaques")def=METRIQUES[i];
+  }
+  return def;
 }
 function fmtMetrique(m,v){
   if(v==null)return "—";
@@ -10526,10 +10547,15 @@ function chronoSe(a,b){
   return String(a.day||"").localeCompare(String(b.day||""))||String(a.date||"").localeCompare(String(b.date||""));
 }
 /* Les étapes d'un périmètre, dans l'ordre du jeu. */
+/* Une suite d'entraînements se dit en séances : « E3 », « Par séance ». */
+function perimetreEntrainement(sq,scope){
+  return !!scope.sessions.length&&scope.sessions.every(function(se){var ev=eventOf(sq,se);return ev&&ev.kind==="training"});
+}
 function sequenceEvolution(sq,scope,pas){
   var ss=scope.sessions.slice().sort(chronoSe);
   var evIds={};ss.forEach(function(se){evIds[se.eventId]=1});
   var unSeulEv=Object.keys(evIds).length===1;
+  var L=perimetreEntrainement(sq,scope)?"E":"M";
   function nomMatch(se){
     var ev=eventOf(sq,se);
     if(!ev)return se.name||"Match";
@@ -10561,8 +10587,9 @@ function sequenceEvolution(sq,scope,pas){
     });
   }
   if(pas==="match")return ss.map(function(se,i){
-    var nom=nomMatch(se)+(se.opponent?" · "+se.opponent:"");
-    return {cle:se.id,court:"M"+(i+1),label:nom,scope:mkScope(nom,[se],null,null,"match"),
+    /* « Amical contre Magog · Magog » : l'adversaire ne se redit pas. */
+    var base=nomMatch(se),nom=base+((se.opponent&&base.indexOf(se.opponent)===-1)?" · "+se.opponent:"");
+    return {cle:se.id,court:L+(i+1),label:nom,scope:mkScope(nom,[se],null,null,"match"),
       info:issue(se),live:!!se.live};
   });
   /* Par set : un match d'avant la ventilation n'a pas de sets à
@@ -10575,7 +10602,7 @@ function sequenceEvolution(sq,scope,pas){
       if(b.reconciled)return;
       n++;
       var sc=scoreSet(se,i);
-      out.push({cle:se.id+"#"+i,court:unMatch?"S"+n:"M"+(mi+1)+"·S"+n,
+      out.push({cle:se.id+"#"+i,court:unMatch?"S"+n:L+(mi+1)+"·S"+n,
         label:(unMatch?"":nomMatch(se)+" · ")+"Set "+n,
         scope:mkScope("Set "+n,[se],se,i,"set"),
         info:(sc.us||sc.them)?sc.us+"–"+sc.them:""});
@@ -10599,7 +10626,8 @@ function pasDispo(sq,scope){
       out.push({k:"rencontre",l:tous?"Par tournoi":"Par rencontre"});
     }
   }
-  if(scope.niveau!=="match"&&scope.sessions.length>1)out.push({k:"match",l:"Par match"});
+  if(scope.niveau!=="match"&&scope.sessions.length>1)
+    out.push({k:"match",l:perimetreEntrainement(sq,scope)?"Par séance":"Par match"});
   if(sequenceEvolution(sq,scope,"set").length>1)out.push({k:"set",l:"Par set"});
   return out;
 }
@@ -10764,16 +10792,42 @@ function courbeEvolution(etapes,series,m){
     faibles?h("div",{className:"muted evo-note"},"○ point creux : moins de "+EVO_MIN_VOL+" gestes — montré, hors tendance."):null);
 }
 
-/* Les réglages communs : l'indicateur, et le pas. */
+/* Les réglages de l'évolution, sur le modèle du tableau : une rangée
+   de pastilles pour l'indicateur — les mêmes familles, dans le même
+   ordre et les mêmes couleurs que l'élément de stat du tableau, et les
+   deux restent d'accord —, puis le pas et le poste sur une rangée. Le
+   menu déroulant d'avant cachait l'indicateur derrière un geste de
+   plus, et ne se lisait pas d'un coup d'œil. */
+function pastillesMetrique(){
+  var cur=metriqueLue();
+  return h("div",{className:"pill-row tight fam-pills evo-pills",role:"group","aria-label":"Indicateur suivi",
+    "data-scroll-key":"evo-pills"},
+    METRIQUES.map(function(x){
+      var on=cur.k===x.k,c=SG[x.k]?SG[x.k].color:(x.k==="pts"?"#10B981":(x.k==="fautes"?"#EF4444":"#64748B"));
+      var b=h("button",{className:"pill sm"+(on?" active":""),type:"button","aria-pressed":on?"true":"false",
+        title:x.l,"aria-label":x.l,
+        onclick:function(){state.evoMetrique=x.k;if(SG[x.k])state.statFam=x.k;render()}},x.court);
+      if(on)paintOn(b,c);
+      return b;
+    }));
+}
 function reglagesEvolution(sq,scope,extra){
-  var m=metriqueLue(),p=pasLu(sq,scope);
-  var sel=h("select",{className:"evo-met","aria-label":"Indicateur suivi"},
-    METRIQUES.map(function(x){return h("option",{value:x.k},x.l)}));
-  sel.value=m.k;
-  sel.addEventListener("change",function(e){state.evoMetrique=e.target.value;render()});
-  var pd=pasDispo(sq,scope);
-  return h("div",{className:"evo-reg"},sel,extra||null,
-    pd.length>1?segmented({label:"Pas",value:p,options:pd,onpick:function(v){state.evoPas=v;render()}}):null);
+  var p=pasLu(sq,scope),pd=pasDispo(sq,scope);
+  var rangee=(pd.length>1||extra)?h("div",{className:"st-ctrl"},
+    pd.length>1?segmented({label:"Pas",value:p,options:pd,onpick:function(v){state.evoPas=v;render()}}):null,
+    extra||null):null;
+  return h("div",{className:"evo-reg"},pastillesMetrique(),rangee);
+}
+/* Le cadre d'un tableau qui défile : l'en-tête et les noms restent en
+   place, une ombre dit qu'il reste des colonnes à droite. Écrit une
+   fois pour le tableau, la matrice d'évolution et la fiche. */
+function cadreDefilant(cleScroll,table){
+  var wrap=h("div",{className:"st-wrap","data-scroll-key":cleScroll},table);
+  var cadre=h("div",{className:"st-cadre"},wrap,h("span",{className:"st-ombre","aria-hidden":"true"}));
+  function ombre(){cadre.classList.toggle("encore",wrap.scrollWidth-wrap.clientWidth-wrap.scrollLeft>2)}
+  wrap.addEventListener("scroll",ombre);
+  setTimeout(ombre,60);
+  return cadre;
 }
 /* Une teinte de cellule : divergente autour de zéro pour une
    efficacité, d'une seule teinte pour un rythme. Le chiffre, signé,
@@ -10789,9 +10843,12 @@ function teinteCellule(m,v,max){
 }
 
 /* ── La vue « Évolution » d'un périmètre ──────────────────────────
-   La courbe de l'équipe, puis une matrice : une ligne par athlète,
-   une colonne par étape, et sa tendance au bout. Une ligne ouvre la
-   fiche de l'athlète sur son évolution, l'équipe en référence. */
+   La courbe de l'équipe (repliable), puis une matrice : une ligne par
+   athlète, une colonne par étape, et sa tendance au bout. Elle se règle
+   et se lit comme le tableau : en-têtes-boutons qui trient — une étape,
+   la tendance, le nom —, l'équipe toujours en tête, les athlètes sans
+   geste repliées et rappelables, le volume sous chaque efficacité, et
+   la fiche qui passe d'une athlète à la suivante dans l'ordre lu. */
 function blocEvolution(sq,scope,src,extra){
   var p=pasLu(sq,scope),m=metriqueLue();
   var wrap=h("div",{className:"evo"});
@@ -10803,55 +10860,110 @@ function blocEvolution(sq,scope,src,extra){
   var etapes=sequenceEvolution(sq,scope,p);
   wrap.appendChild(reglagesEvolution(sq,scope,extra));
   var r=lignesPerimetre(sq,scope,src);
-  var poste=r.poste,choisies=r.lignes.filter(function(l){return !l.fixe}).map(function(l){return l.id});
-  var tete=r.lignes[0];
+  var poste=r.poste,tete=r.lignes[0];
+  var choisies=r.lignes.filter(function(l){return !l.fixe}).map(function(l){return l.id});
   var serieEq=serieEvolution(sq,etapes,m,poste?choisies:null);
-  wrap.appendChild(courbeEvolution(etapes,[{nom:tete.label,couleur:EVO_COUL.sujet,vals:serieEq,principal:true}],m));
   var tq=tendanceEvolution(serieEq,m);
-  wrap.appendChild(h("div",{className:"evo-resume"},
-    h("b",null,tete.label)," · ",m.l.toLowerCase()," : ",jetonTendance(tq,m),
-    tq?" — de "+fmtMetrique(m,serieEq[tq.premier.i].v)+" ("+etapes[tq.premier.i].court+") à "+
-      fmtMetrique(m,serieEq[tq.dernier.i].v)+" ("+etapes[tq.dernier.i].court+")":""));
-  /* La matrice. */
-  var lignes=[{l:tete,vals:serieEq}].concat(r.lignes.filter(function(l){return !l.fixe}).map(function(l){
-    return {l:l,vals:serieEvolution(sq,etapes,m,l.id)};
-  })).filter(function(x,i){return i===0||x.vals.some(function(v){return v.v!=null})});
-  var maxV=0;lignes.forEach(function(x){x.vals.forEach(function(v){if(v.v!=null&&v.v>maxV)maxV=v.v})});
-  var thead=h("tr",null,h("th",{className:"sticky st-who",scope:"col"},"Athlète"),
-    etapes.map(function(it){return h("th",{scope:"col",title:it.label+(it.info?" · "+it.info:"")},it.court)}),
-    h("th",{scope:"col",className:"evo-th-t"},"Tendance"));
-  var corps=lignes.map(function(x){
-    var t=tendanceEvolution(x.vals,m),l=x.l;
+  var sansCourbe=!!state.evoSansCourbe;
+  if(!sansCourbe)wrap.appendChild(courbeEvolution(etapes,[{nom:tete.label,couleur:EVO_COUL.sujet,vals:serieEq,principal:true}],m));
+  wrap.appendChild(h("div",{className:"evo-resume evo-resume-l"},
+    h("div",{className:"grow"},h("b",null,tete.label)," · ",m.l.toLowerCase()," : ",jetonTendance(tq,m),
+      tq?" — de "+fmtMetrique(m,serieEq[tq.premier.i].v)+" ("+etapes[tq.premier.i].court+") à "+
+        fmtMetrique(m,serieEq[tq.dernier.i].v)+" ("+etapes[tq.dernier.i].court+")":""),
+    h("button",{className:"btn btn-ghost xs evo-plier",type:"button","aria-expanded":sansCourbe?"false":"true",
+      onclick:function(){state.evoSansCourbe=!sansCourbe;render()}},sansCourbe?"📈 Voir la courbe":"▴ Replier la courbe")));
+
+  /* La matrice : ses lignes, puis le tri et le repli. */
+  var cle=src+"-"+(seasonSection()||"");
+  if(!state.tabTri)state.tabTri={};
+  var cleTri="evo-"+cle,tri=state.tabTri[cleTri]||null;
+  var fixe={l:tete,vals:serieEq,t:tq};
+  var autres=r.lignes.filter(function(l){return !l.fixe}).map(function(l){
+    var v=serieEvolution(sq,etapes,m,l.id);
+    return {l:l,vals:v,t:tendanceEvolution(v,m)};
+  });
+  var cachees=autres.filter(function(x){return !x.vals.some(function(v){return v.v!=null})});
+  if(!state.statZeros)autres=autres.filter(function(x){return x.vals.some(function(v){return v.v!=null})});
+  if(tri){
+    var cleT=tri.key,dir=tri.dir==="asc"?1:-1;
+    autres=autres.slice().sort(function(a,b){
+      if(cleT==="__num"){var x=a.l.num==null?999:a.l.num,y=b.l.num==null?999:b.l.num;return x-y||String(a.l.nom).localeCompare(String(b.l.nom),"fr")}
+      if(cleT==="__nom")return String(a.l.nom||a.l.label).localeCompare(String(b.l.nom||b.l.label),"fr");
+      var va,vb;
+      if(cleT==="t"){va=a.t?a.t.ecart:null;vb=b.t?b.t.ecart:null}
+      else {var i=parseInt(cleT.slice(1),10);va=a.vals[i]&&a.vals[i].v;vb=b.vals[i]&&b.vals[i].v}
+      if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return -1;
+      return dir*(va-vb);
+    });
+  }
+  state.ficheOrdre=autres.filter(function(x){return x.l.onclick}).map(function(x){return x.l.id});
+
+  function bascule(key){
+    var t=state.tabTri[cleTri];
+    if(t&&t.key===key)state.tabTri[cleTri]={key:key,dir:t.dir==="desc"?"asc":"desc"};
+    else state.tabTri[cleTri]={key:key,dir:"desc"};
+    render();
+  }
+  function teteBouton(key,lib,titre){
+    var on=!!tri&&tri.key===key;
+    return h("th",{className:"sortable",scope:"col",title:titre||lib,
+      "aria-sort":on?(tri.dir==="asc"?"ascending":"descending"):null},
+      h("button",{className:"st-th",type:"button","aria-label":"Trier par "+(titre||lib),onclick:function(){bascule(key)}},
+        lib,on?h("span",{className:"dir"},tri.dir==="asc"?"▲":"▼"):null));
+  }
+  var tn=tri&&(tri.key==="__num"||tri.key==="__nom")?tri.key:"";
+  var thead=h("tr",null,
+    h("th",{className:"sticky st-who",scope:"col","aria-sort":tn?"ascending":null},
+      h("button",{className:"st-th",type:"button",
+        "aria-label":"Trier les athlètes : "+(tn==="__num"?"par nom":(tn==="__nom"?"ordre de l'équipe":"par numéro")),
+        onclick:function(){
+          var t=state.tabTri[cleTri];
+          if(!t||(t.key!=="__num"&&t.key!=="__nom"))state.tabTri[cleTri]={key:"__num",dir:"asc"};
+          else if(t.key==="__num")state.tabTri[cleTri]={key:"__nom",dir:"asc"};
+          else delete state.tabTri[cleTri];
+          render();
+        }},"Athlète",tn?h("span",{className:"dir"},tn==="__num"?"#↑":"A→Z"):null)),
+    etapes.map(function(it,i){return teteBouton("c"+i,it.court,it.label+(it.info?" · "+it.info:""))}),
+    teteBouton("t","Tendance","Tendance"));
+  var maxV=0;
+  [fixe].concat(autres).forEach(function(x){x.vals.forEach(function(v){if(v.v!=null&&v.v>maxV)maxV=v.v})});
+  function rangee(x){
+    var l=x.l;
     var nom=l.onclick
       ?h("button",{className:"st-btn",type:"button","aria-label":"Évolution de "+(l.nom||l.label),
           onclick:function(){state.ficheVue="evolution";l.onclick()}},
           h("span",{className:"st-nom"},l.label),l.sub?h("span",{className:"st-sub"},l.sub.split(" · ")[0]):null)
-      :h("span",{className:"st-btn"},h("span",{className:"st-nom"},l.label));
+      :h("span",{className:"st-btn"},h("span",{className:"st-nom"},l.label),l.sub?h("span",{className:"st-sub"},l.sub):null);
     return h("tr",{className:(l.fixe?"st-team":"")+(l.dim?" st-dim":"")},
       h("th",{className:"sticky st-who",scope:"row"},nom),
       x.vals.map(function(v){
         var td=h("td",{className:"evo-c"+(v.faible?" faible":"")+(v.v==null?" nul":""),
           title:v.faible?plural(v.vol,"geste")+" : trop peu pour la tendance":(v.absente?"n'a pas joué":null)},
-          fmtMetrique(m,v.v));
+          fmtMetrique(m,v.v),
+          (m.eff&&v.vol)?h("span",{className:"st-vol"},String(v.vol)):null);
         var bg=teinteCellule(m,v.faible?null:v.v,maxV);
         if(bg)td.style.background=bg;
         return td;
       }),
-      h("td",{className:"evo-tc"},jetonTendance(t,m)));
-  });
-  var tab=h("div",{className:"st-cadre"},h("div",{className:"st-wrap","data-scroll-key":"evo-"+src},
+      h("td",{className:"evo-tc"},jetonTendance(x.t,m)));
+  }
+  var corps=[rangee(fixe)].concat(autres.map(rangee));
+  if(cachees.length)corps.push(h("tr",{className:"st-plus"},h("td",{colspan:String(etapes.length+2)},
+    h("button",{className:"btn btn-ghost xs",type:"button",onclick:function(){state.statZeros=!state.statZeros;render()}},
+      state.statZeros?"Masquer les athlètes sans valeur en "+m.court.toLowerCase()
+        :"+ "+plural(cachees.length,"athlète")+" sans valeur en "+m.court.toLowerCase()))));
+  wrap.appendChild(cadreDefilant("evo-"+src,
     h("table",{className:"st-table evo-table"},h("thead",null,thead),h("tbody",null,corps))));
-  wrap.appendChild(tab);
   /* Ce que veut dire chaque colonne, sans survol. */
   wrap.appendChild(h("div",{className:"evo-cles"},etapes.map(function(it){
     return h("span",{className:"evo-cle"},h("b",null,it.court)," "+it.label+(it.info?" · "+it.info:""));
   })));
   var nv=p==="set"?nonVentiles(scope):0;
   wrap.appendChild(h("div",{className:"muted st-leg"},
-    (m.eff?"Efficacité de −1 à +1, teinte verte au-dessus de zéro, rouge en dessous. ":
+    (m.eff?"Efficacité de −1 à +1, volume dessous ; teinte verte au-dessus de zéro, rouge en dessous. ":
       "Rapporté au set joué par chacune. ")+
     "Valeur pâle : moins de "+EVO_MIN_VOL+" gestes, hors tendance. Tendance : la pente sur toutes les étapes, "+
-    "« stable » en deçà de "+(m.eff?"0,10":"15 %")+". Touchez une athlète pour sa courbe."+
+    "« stable » en deçà de "+(m.eff?"0,10":"15 %")+". Touchez une colonne pour trier, une athlète pour sa courbe."+
     (nv?" "+plural(nv,"match")+" non ventilé"+(nv>1?"s":"")+" n'"+(nv>1?"ont":"a")+" pas de sets à montrer.":"")));
   return wrap;
 }
@@ -10897,12 +11009,12 @@ function ficheEvolution(sq,scope,pid){
       h("td",{className:"evo-d "+ton},d==null?"":fmtEcartMetrique(m,d)),
       equipe?null:h("td",{className:"nul"},fmtMetrique(m,serieEq[i].v)));
   });
-  wrap.appendChild(h("div",{className:"st-cadre"},h("div",{className:"st-wrap","data-scroll-key":"evo-fiche"},
+  wrap.appendChild(cadreDefilant("evo-fiche",
     h("table",{className:"st-table evo-table"},
       h("thead",null,h("tr",null,h("th",{className:"sticky st-who",scope:"col"},"Étape"),
         h("th",{scope:"col"},m.court),h("th",{scope:"col"},m.eff?"Volume":"Jeu"),h("th",{scope:"col"},"Écart"),
         equipe?null:h("th",{scope:"col"},nomEq))),
-      h("tbody",null,lignes)))));
+      h("tbody",null,lignes))));
   return wrap;
 }
 
@@ -10975,6 +11087,7 @@ function ouvrirFiche(pid,src){
   openModal("evathlete",pid);
 }
 function perimetreFiche(sq){
+  if(state.ficheSrc==="recap")return scopeRecap(sq);
   if(state.ficheSrc==="feuille"){
     var se=feuilleCourante(sq);
     if(se)return feuilleScope(sq,se,niveauFeuille(sq,se));
@@ -11111,7 +11224,7 @@ function kpiMini(label,valeur,hint,ton){
     h("div",{className:"k-val"},valeur),
     hint?h("div",{className:"k-hint"},hint):null);
 }
-function evKpis(sq,scope){
+function evKpis(sq,scope,max){
   var per=perimetreSE(sq),st=scopeTeamStats(scope,per),tuiles=[];
   var training=scope.sessions.length&&scope.sessions.every(function(se){var ev=eventOf(sq,se);return ev&&ev.kind==="training"});
   function ton(e){return e==null?"":(e>0?"pos":(e<0?"neg":""))}
@@ -11139,6 +11252,21 @@ function evKpis(sq,scope){
   var total=sumStats(st);
   if(tuiles.length<3)tuiles.push(kpiMini("Gestes",String(total),plural(scopePlayers(sq,scope,per).length,"athlète")));
   if(tuiles.length<3)tuiles.push(kpiMini("Pts / fautes",sommeCles(st,PTS_KEYS)+" / "+sommeCles(st,FAUTE_KEYS),"directs"));
+  [["Attaque","attaques"],["Réception","reception"],["Service","services"]].forEach(function(x){
+    var e=familyEff(st,x[1]);
+    tuiles.push(kpiMini(x[0],e==null?"—":fmtEff(e),plural(familyVolume(st,x[1]),"geste"),ton(e)));
+  });
+  return h("div",{className:"kpiStrip"},max?tuiles.slice(0,max):tuiles);
+}
+/* Les chiffres-clés d'une athlète sur un périmètre : ce qu'elle a joué,
+   ses points et fautes directs, ses trois efficacités. */
+function kpisAthlete(sq,scope,pid){
+  var st=scopeStats(scope,pid),jeu=jeuDuPerimetre(scope,pid),entr=perimetreEntrainement(sq,scope);
+  function ton(e){return e==null?"":(e>0?"pos":(e<0?"neg":""))}
+  var tuiles=[
+    kpiMini("Gestes",String(sumStats(st)),plural(jeu.matchs,entr?"séance":"match")),
+    kpiMini("Sets",String(jeu.sets),"joués"),
+    kpiMini("Pts / fautes",sommeCles(st,PTS_KEYS)+" / "+sommeCles(st,FAUTE_KEYS),"directs")];
   [["Attaque","attaques"],["Réception","reception"],["Service","services"]].forEach(function(x){
     var e=familyEff(st,x[1]);
     tuiles.push(kpiMini(x[0],e==null?"—":fmtEff(e),plural(familyVolume(st,x[1]),"geste"),ton(e)));
@@ -11347,9 +11475,10 @@ function evChildren(sq,k){
   if(p.setIdx!=null){
     var seS=scope.session;
     if(!seS)return null;
+    var entrS=(eventOf(sq,seS)||{}).kind==="training";
     wrap.appendChild(h("div",{className:"btn-row ev-actions"},
       h("button",{className:"btn btn-ghost sm",type:"button",
-        onclick:function(){state.modalDraft=null;openModal("editmatch",seS.id)}},"ⓘ Match et scores"),
+        onclick:function(){state.modalDraft=null;openModal("editmatch",seS.id)}},entrS?"ⓘ La séance":"ⓘ Match et scores"),
       setSupprimable(seS,scope.setIdx)?h("button",{className:"btn btn-danger-o sm",type:"button",
         onclick:function(){gesteSupprimerSet(sq,seS,scope.setIdx)}},"🗑️ Supprimer ce set"):null));
     return wrap;
@@ -11360,11 +11489,13 @@ function evChildren(sq,k){
     var se=scope.sessions[0];
     if(!se)return null;
     var blocs=setsOfSession(se);
+    /* Une séance se dit séance : ni « match » ni « scores ». */
+    var entrM=(eventOf(sq,se)||{}).kind==="training";
     wrap.appendChild(h("div",{className:"btn-row ev-actions"},
       h("button",{className:"btn btn-ghost sm",type:"button",
-        onclick:function(){state.modalDraft=null;openModal("editmatch",se.id)}},"ⓘ Match et scores"),
+        onclick:function(){state.modalDraft=null;openModal("editmatch",se.id)}},entrM?"ⓘ La séance":"ⓘ Match et scores"),
       h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){gesteSupprimerMatch(sq,se)}},
-        se.live?"🗑️ Annuler ce match":"🗑️ Supprimer ce match")));
+        entrM?(se.live?"🗑️ Annuler la séance":"🗑️ Supprimer la séance"):(se.live?"🗑️ Annuler ce match":"🗑️ Supprimer ce match"))));
     if(sessionIsSplit(se)){
       wrap.appendChild(h("div",{className:"section-title"},plural(nbSetsReels(se),"set")));
       blocs.forEach(function(b,i){wrap.appendChild(rangeeSet(sq,se,b,i))});
@@ -12434,8 +12565,10 @@ function recapLignes(sq,pid,per){
     if(!ses.length)return;
     var st=recapSectionStats(sq,k,pid,per),total=sumStats(st);
     var rec={win:0,loss:0,draw:0};
+    /* Le bilan des matchs TERMINÉS, comme dans chaque partie : un set à
+       12–10 n'est pas une victoire. */
     ses.forEach(function(se){
-      var o=resultOutcome(se.result);
+      var o=issueDe(se);
       if(o==="win")rec.win++;else if(o==="loss")rec.loss++;else if(o==="draw")rec.draw++;
     });
     out.push({key:k,label:s.label,icon:s.icon,stats:st,total:total,
@@ -12454,12 +12587,26 @@ function recapSelection(sq,pid){
           membership:e.membership};
 }
 
+/* Ce que le récap lit : toute la saison, ou une seule nature. */
+function natureRecap(sq){
+  var k=state.recapNature||"all";
+  if(k!=="all"&&!sessionsOfSection(sq,k).length)k="all";
+  return k;
+}
+function scopeRecap(sq){
+  var k=natureRecap(sq);
+  var ses=k==="all"?(sq.sessions||[]).slice():sessionsOfSection(sq,k);
+  return mkScope(k==="all"?"Toute la saison":SECTION_BY_KEY[k].label,ses,null,null,"tout");
+}
 function renderPartRecap(sq){
   /* Les objectifs sont recalculés ici aussi : un récap qui montrerait
      un objectif périmé serait pire que muet. */
   recalcGoals(sq);
   var sujet=state.recapSujet==="players"?"players":"team";
 
+  /* Le tableau détaillé d'avant reste ouvert à qui le cherche ; il ne
+     s'appelle plus « 📊 Tableau », qui est désormais la lecture de la
+     partie elle-même. */
   var tete=h("div",{className:"partHead"},
     h("button",{className:"ph-back",type:"button","aria-label":"Retour à la saison",
       onclick:navBackToHub},"← Saison"),
@@ -12470,7 +12617,7 @@ function renderPartRecap(sq){
         plural((sq.playerIds||[]).length,"athlète"))),
     (sq.sessions||[]).length?h("button",{className:"btn btn-ghost xs",type:"button",
       "aria-label":"Tableau détaillé — athlètes et compteurs",
-      onclick:function(){navTo(mkRoute("legacy","summary"))}},"📊 Tableau"):null);
+      onclick:function(){navTo(mkRoute("legacy","summary"))}},"🗂 Détaillé"):null);
 
   var barres=h("div",null,h("div",{className:"pill-row tight"},
     segmented({label:"Sujet",value:sujet,
@@ -12486,6 +12633,7 @@ function renderPartRecap(sq){
       "Tout ce qui suit se recalcule à l'affichage, depuis les mêmes "+
       "chiffres que chaque partie — un total ne peut donc pas contredire "+
       "le détail dont il sort."));
+    var gauche=h("div",{className:"rc-nav"}),droite=h("div",{className:"rc-stats"}),bas=h("div",{className:"rc-obj"});
 
     /* Sélection : où en est l'effectif. */
     var camp=curCampaign(sq);
@@ -12493,68 +12641,57 @@ function renderPartRecap(sq){
       return o.status==="pending"&&offerIsLive(o)}).length;
     var retenues=(sq.roster||[]).filter(function(r){return r.status==="selected"}).length;
     var partenaires=(sq.roster||[]).filter(function(r){return r.status==="partner"}).length;
-    corps.appendChild(h("div",{className:"section-title"},"🎯 Sélection"));
-    corps.appendChild(h("div",{className:"kpiGrid"},
-      kpi({label:"Dans l'équipe",value:String((sq.playerIds||[]).length),
-        hint:plural((sq.roster||[]).length,"convoquée")}),
-      kpi({label:"Retenues",value:String(retenues),
-        hint:attente?plural(attente,"offre")+" en attente":"toutes tranchées"}),
-      partenaires?kpi({label:"Partenaires d'entr.",value:String(partenaires),
-        hint:"s'entraînent avec l'équipe"}):null,
-      kpi({label:"Campagnes",value:String((sq.campaigns||[]).length),
-        hint:camp?campaignLabel(camp):""})));
+    gauche.appendChild(h("div",{className:"section-title"},"🎯 Sélection"));
+    gauche.appendChild(h("div",{className:"kpiStrip"},
+      kpiMini("Dans l'équipe",String((sq.playerIds||[]).length),plural((sq.roster||[]).length,"convoquée")),
+      kpiMini("Retenues",String(retenues),attente?plural(attente,"offre")+" en attente":"toutes tranchées",attente?"neg":""),
+      partenaires?kpiMini("Partenaires",String(partenaires),"d'entraînement"):null,
+      kpiMini("Campagnes",String((sq.campaigns||[]).length),camp?campaignLabel(camp):"")));
 
-    /* Les trois parties de rencontres. */
-    if(stR)corps.appendChild(h("div",{className:"hint"},
+    /* Les trois parties de rencontres : leurs chiffres-clés, les mêmes
+       que la partie montre en tête, et la porte vers elle. */
+    if(stR)gauche.appendChild(h("div",{className:"hint"},
       "Sous-équipe « "+stR.name+" » : les compteurs ci-dessous sont ceux de ses "+
       plural(subteamMembers(sq,stR).length,"athlète")+". La sélection et les objectifs restent ceux de l'équipe."));
-    var lignes=recapLignes(sq,null,perR);
-    if(!lignes.length){
-      corps.appendChild(emptyState({icon:"📊",title:"Aucun relevé",
+    var parties=["training","matches","tournaments"].filter(function(k){return sessionsOfSection(sq,k).length});
+    if(!parties.length){
+      gauche.appendChild(emptyState({icon:"📊",title:"Aucun relevé",small:true,
         sub:"Les parties se rempliront dès le premier match ou la première séance relevée."}));
-    } else lignes.forEach(function(L){
-      var tuiles=[kpi({label:"Gestes",value:String(L.total),
-        hint:plural(L.sessions,"relevé")})];
-      if(L.record.win+L.record.loss+L.record.draw)
-        tuiles.push(kpi({label:"Bilan",
-          value:L.record.win+"–"+L.record.loss+(L.record.draw?"–"+L.record.draw:""),
-          hint:L.sets?plural(L.sets,"match")+" ventilé(s)":"non ventilés"}));
-      var atk=familyEff(L.stats,"attaques");
-      if(atk!=null)tuiles.push(kpi({label:"Efficacité attaque",value:fmtEff(atk),
-        hint:plural(familyVolume(L.stats,"attaques"),"geste")}));
-      corps.appendChild(h("div",{className:"section-title"},L.icon+" "+L.label));
-      corps.appendChild(h("div",{className:"kpiGrid"},tuiles));
-      corps.appendChild(h("div",{className:"card tight"},
-        L.total?renderStatFamilies(famProfile(L.stats))
-               :h("div",{className:"muted"},"Aucun compteur.")));
+    } else parties.forEach(function(k){
+      var sc=SECTION_BY_KEY[k],ses=sessionsOfSection(sq,k);
+      gauche.appendChild(h("button",{className:"rc-part",type:"button","aria-label":"Ouvrir "+sc.label,
+        onclick:function(){state.evPath=null;navToSection(k)}},
+        h("span",{className:"section-title"},sc.icon+" "+sc.label),
+        h("span",{className:"rc-part-n"},plural(ses.length,k==="training"?"séance":"match")+" ›")));
+      gauche.appendChild(evKpis(sq,mkScope(sc.label,ses,null,null,"tout"),3));
     });
 
-    /* Toutes natures confondues : le chiffre que l'on cite. */
-    var tout=emptyS();
-    (sq.sessions||[]).forEach(function(se){
-      (se.entries||[]).forEach(function(en){if(!perR||perR[en.playerId])addStats(tout,en.stats)});
-    });
-    if(sumStats(tout)){
-      corps.appendChild(h("div",{className:"section-title"},"🏐 Toute la saison"));
-      corps.appendChild(h("div",{className:"card tight"},
-        renderStatFamilies(famProfile(tout))));
+    /* La saison entière, ou une nature : le même bloc que dans chaque
+       partie — tableau et évolution, élément, valeurs, poste, tri,
+       export, fiches. */
+    if(parties.length){
+      var nat=natureRecap(sq);
+      var opts=[{k:"all",l:"Saison"}].concat(parties.map(function(k){
+        return {k:k,l:SECTION_BY_KEY[k].icon+" "+(k==="training"?"Entr.":SECTION_BY_KEY[k].label)}}));
+      droite.appendChild(h("div",{className:"rc-nature"},segmented({label:"Ce que le récap compte",value:nat,options:opts,
+        onpick:function(v){state.recapNature=v;saveUI();render()}})));
+      droite.appendChild(blocStatistiques(sq,scopeRecap(sq),"recap"));
     }
 
     /* Objectifs d'équipe et marqueurs. */
     var m=goalMarkers(sq);
-    corps.appendChild(h("div",{className:"section-title"},"📈 Objectifs"));
+    bas.appendChild(h("div",{className:"section-title"},"📈 Objectifs"));
     if(!m.actifs){
-      corps.appendChild(h("div",{className:"muted"},
+      bas.appendChild(h("div",{className:"muted"},
         "Aucun objectif fixé. La partie Objectifs en propose, calculés sur cette équipe."));
     } else {
-      corps.appendChild(h("div",{className:"kpiGrid"},
-        kpi({label:"Objectifs suivis",value:String(m.actifs),
-          hint:plural(m.atteints,"atteint")}),
-        kpi({label:"Reculs notés",value:String(m.regressions),
-          hint:m.regressions?"réajustés à la baisse":"aucun"})));
+      bas.appendChild(h("div",{className:"kpiStrip"},
+        kpiMini("Objectifs suivis",String(m.actifs),plural(m.atteints,"atteint")),
+        kpiMini("Reculs notés",String(m.regressions),m.regressions?"réajustés à la baisse":"aucun",m.regressions?"neg":"")));
       (sq.goals||[]).filter(function(g){return g.active&&g.scope==="team"})
-        .forEach(function(g){corps.appendChild(goalCard(sq,g,evaluerObjectif(sq,g)))});
+        .forEach(function(g){bas.appendChild(goalCard(sq,g,evaluerObjectif(sq,g)))});
     }
+    corps.appendChild(h("div",{className:"recap-cols"},gauche,droite,bas));
 
     return h("div",{style:{display:"flex",flexDirection:"column",flex:"1",overflow:"hidden"}},
       tete,barres,h("div",{className:"content pad","data-scroll-key":"part-recap-team"},corps));
@@ -12599,6 +12736,7 @@ function renderPartRecap(sq){
         sub:"Aucune ne correspond à ce que vous cherchez."});
     },
     rows:function(res){
+      state.ficheOrdreRecap=res.map(function(x){return x.pid});
       return res.map(function(x){
         var meta=[];
         if(STATUSES[x.entry.status])meta.push(tok("pill",STATUSES[x.entry.status]));
@@ -12629,16 +12767,26 @@ function renderRecapAthleteModal(){
   var p=playerById(pid);if(!p)return null;
   var e=rosterEntry(sq,pid);
   var sel=recapSelection(sq,pid);
-  var lignes=recapLignes(sq,pid);
   var objs=(sq.goals||[]).filter(function(g){
     return g.active&&g.scope==="player"&&g.playerId===pid});
-  var tout=emptyS();
-  (sq.sessions||[]).forEach(function(se){
-    (se.entries||[]).forEach(function(en){if(en.playerId===pid)addStats(tout,en.stats)});
-  });
+  var saison=mkScope("Toute la saison",(sq.sessions||[]).slice(),null,null,"tout");
+  var tout=scopeStats(saison,pid);
   var a=ageOf(p);
 
   var corps=h("div",null);
+  /* D'une athlète à la suivante, dans l'ordre de la liste. */
+  var ordre=(state.ficheOrdreRecap||[]).filter(function(id){return !!playerById(id)});
+  var i=ordre.indexOf(pid);
+  if(i!==-1&&ordre.length>1){
+    var aller=function(j){state.modalCtx=ordre[(j+ordre.length)%ordre.length];render()};
+    var voisine=function(j){var x=playerById(ordre[(j+ordre.length)%ordre.length]);return x?shortName(x):""};
+    corps.appendChild(h("div",{className:"fiche-nav"},
+      h("button",{className:"btn btn-ghost xs",type:"button","aria-label":"Athlète précédente : "+voisine(i-1),
+        onclick:function(){aller(i-1)}},"‹ "+voisine(i-1)),
+      h("span",{className:"muted"},(i+1)+" / "+ordre.length),
+      h("button",{className:"btn btn-ghost xs",type:"button","aria-label":"Athlète suivante : "+voisine(i+1),
+        onclick:function(){aller(i+1)}},voisine(i+1)+" ›")));
+  }
   corps.appendChild(h("div",{className:"muted",style:{marginBottom:"8px"}},
     [numLabel(numLigne(sq,pid)),
      (e&&e.position&&POS_LABELS[e.position])?POS_LABELS[e.position]:null,
@@ -12656,27 +12804,33 @@ function renderRecapAthleteModal(){
       plural(sel.campagnes,"campagne")+" l'a vue"));
   }
 
-  /* Les trois parties de rencontres. */
-  if(lignes.length){
-    lignes.forEach(function(L){
-      corps.appendChild(h("div",{className:"section-title"},L.icon+" "+L.label));
-      if(!L.total){
-        corps.appendChild(h("div",{className:"muted"},"Aucun relevé la concernant."));
-        return;
-      }
-      corps.appendChild(h("div",{className:"muted",style:{marginBottom:"4px"}},
-        plural(L.total,"geste")+" sur "+plural(L.sessions,"relevé")));
-      corps.appendChild(renderStatFamilies(famProfile(L.stats)));
-    });
-  }
+  /* Les trois parties de rencontres : les mêmes chiffres-clés que la
+     fiche de chaque partie. */
+  ["training","matches","tournaments"].forEach(function(k){
+    var ses=sessionsOfSection(sq,k);if(!ses.length)return;
+    var sc=SECTION_BY_KEY[k],per=mkScope(sc.label,ses,null,null,"tout");
+    corps.appendChild(h("div",{className:"section-title"},sc.icon+" "+sc.label));
+    if(!sumStats(scopeStats(per,pid))){
+      corps.appendChild(h("div",{className:"muted"},"Aucun relevé la concernant."));
+      return;
+    }
+    corps.appendChild(kpisAthlete(sq,per,pid));
+  });
 
-  /* Toute la saison. */
+  /* Toute la saison : ses familles en jauges, ses points et fautes. */
+  corps.appendChild(h("div",{className:"section-title"},"🏐 Toute la saison"));
   if(sumStats(tout)){
-    corps.appendChild(h("div",{className:"section-title"},"🏐 Toute la saison"));
-    corps.appendChild(renderStatFamilies(famProfile(tout)));
-    corps.appendChild(h("div",{className:"card tight",style:{marginTop:"8px"}},
-      h("div",{className:"muted",style:{marginBottom:"6px"}},"Le détail des compteurs"),
-      renderStatMini(tout)));
+    corps.appendChild(h("div",{className:"card tight"},blocFamillesFiche(tout),
+      h("div",{className:"fx-pf"},
+        h("span",{className:"pos"},"Points directs "+sommeCles(tout,PTS_KEYS)),
+        h("span",{className:"neg"},"Fautes directes "+sommeCles(tout,FAUTE_KEYS)))));
+    /* Et son évolution, l'équipe en référence — sur la nature lue dans
+       le récap. */
+    var scE=scopeRecap(sq);
+    if(pasDispo(sq,scE).length){
+      corps.appendChild(h("div",{className:"section-title"},"📈 Évolution · "+scE.label));
+      corps.appendChild(ficheEvolution(sq,scE,pid));
+    }
   } else {
     corps.appendChild(emptyState({icon:"📊",title:"Aucun relevé",small:true,
       sub:"Cette athlète n'a encore aucun compteur cette saison."}));
@@ -18398,7 +18552,7 @@ function renderEditMatchModal(){
   }
   body.appendChild(h("div",{className:"btn-row",style:{marginTop:"var(--s4)"}},
     h("button",{className:"btn btn-danger-o sm",type:"button",onclick:function(){gesteSupprimerMatch(sq,se)}},
-      se.live?"🗑️ Annuler ce match":"🗑️ Supprimer ce match")));
+      entr?(se.live?"🗑️ Annuler la séance":"🗑️ Supprimer la séance"):(se.live?"🗑️ Annuler ce match":"🗑️ Supprimer ce match"))));
 
   var ok=h("button",{id:"modalOk",className:"btn btn-save full",type:"button",onclick:function(){
     if(!entr&&majBilan()){showToast("⚠️ Un score de set est incomplet",{tone:"warn"});return}
@@ -18426,7 +18580,7 @@ function renderEditMatchModal(){
     showToast("✅ Match mis à jour",{tone:"ok",action:{label:"Annuler",onclick:doUndo}});
     if(deplace)voirSession(sq,se.id);else render();
   }},"Enregistrer");
-  return sheetShell({title:"Le match — "+libelleMatch(sq,se),
+  return sheetShell({title:(entr?"La séance — ":"Le match — ")+libelleMatch(sq,se),
     buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Annuler"),ok]},body);
 }
 defModal("editmatch",renderEditMatchModal);

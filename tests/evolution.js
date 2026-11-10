@@ -85,12 +85,14 @@ function saison(){
   const matrice=async(sel)=>await page.evaluate(s=>{
     var t=document.querySelector((s||"")+" .evo-table");if(!t)return null;
     return {tete:Array.from(t.querySelectorAll("thead th")).map(x=>x.textContent),
-      lignes:Array.from(t.querySelectorAll("tbody tr")).map(tr=>({nom:tr.querySelector(".st-nom").textContent,
-        c:Array.from(tr.querySelectorAll("td.evo-c")).map(td=>({v:td.textContent,faible:td.classList.contains("faible")})),
+      lignes:Array.from(t.querySelectorAll("tbody tr:not(.st-plus)")).map(tr=>({nom:tr.querySelector(".st-nom").textContent,
+        c:Array.from(tr.querySelectorAll("td.evo-c")).map(td=>({v:td.firstChild?td.firstChild.textContent:"",faible:td.classList.contains("faible")})),
         t:(tr.querySelector(".evo-t")||{}).textContent||"",bien:((tr.querySelector(".evo-t")||{}).className||"")}))};
   },sel||"");
   const pas=async(l)=>{await page.locator(".evo-reg .seg button").filter({hasText:l}).click();await pause()};
-  const indicateur=async(k)=>{await page.locator(".evo-met").first().selectOption(k);await pause()};
+  /* L'indicateur se choisit en pastilles, comme l'élément du tableau (v7.18). */
+  const LIB={attaques:"Attaque",reception:"Réception",services:"Service",pts:"Pts / set",fautes:"Fautes / set",gestes:"Gestes / set"};
+  const indicateur=async(k)=>{await page.locator(".evo-pills button").filter({hasText:new RegExp("^"+LIB[k].replace("/","\\/")+"$")}).first().click();await pause()};
 
   await page.goto(BASE+"/index.html");
   await franchirGarde(page,"Coach");
@@ -110,7 +112,7 @@ function saison(){
     await page.locator(".st-vue .seg button").filter({hasText:"Évolution"}).click();await pause();
     const r=await page.evaluate(()=>({pas:Array.from(document.querySelectorAll(".evo-reg .seg button")).map(b=>b.textContent).join("|"),
       on:(document.querySelector(".evo-reg .seg button.on")||{}).textContent,
-      met:document.querySelector(".evo-met").selectedOptions[0].textContent,svg:!!document.querySelector(".evo-svg")}));
+      met:(document.querySelector(".evo-pills .pill.active")||{}).title,svg:!!document.querySelector(".evo-svg")}));
     if(r.pas!=="Par tournoi|Par match|Par set"||r.on!=="Par tournoi"||r.met!=="Efficacité en attaque"||!r.svg)throw new Error(JSON.stringify(r));
   });
 
@@ -146,7 +148,7 @@ function saison(){
     const r=await page.evaluate(()=>({pts:document.querySelectorAll(".evo-svg .evo-pt").length,
       val:Array.from(document.querySelectorAll(".evo-svg .evo-val")).map(e=>e.textContent),
       lignes:document.querySelectorAll(".evo-svg path").length,
-      eq:Array.from(document.querySelectorAll(".evo-table tbody tr.st-team td.evo-c")).map(td=>td.textContent)}));
+      eq:Array.from(document.querySelectorAll(".evo-table tbody tr.st-team td.evo-c")).map(td=>td.firstChild.textContent)}));
     if(r.pts!==4||r.lignes!==1)throw new Error(JSON.stringify(r));
     if(r.val.length!==1||r.val[0]!==r.eq[3])throw new Error("valeur écrite "+r.val.join(",")+" ≠ "+r.eq[3]);
   });
@@ -155,7 +157,7 @@ function saison(){
     const r=await page.evaluate(()=>({vis:document.querySelector(".evo-info").style.display!=="none",
       t:document.querySelector(".evo-info").textContent,
       ret:document.querySelector(".evo-reticule").getAttribute("visibility"),
-      eq:document.querySelectorAll(".evo-table tbody tr.st-team td.evo-c")[1].textContent}));
+      eq:document.querySelectorAll(".evo-table tbody tr.st-team td.evo-c")[1].firstChild.textContent}));
     if(!r.vis||r.ret!=="visible"||!/M2/.test(r.t)||!/Titans/.test(r.t)||r.t.indexOf(r.eq)===-1)throw new Error(JSON.stringify(r));
   });
 
@@ -219,11 +221,11 @@ function saison(){
   });
   await step("le poste borne les lignes, et la première devient leur total",async()=>{
     await indicateur("attaques");
-    await page.locator(".evo-reg .st-poste").selectOption("OH");await pause();
+    await page.locator(".evo .st-poste").selectOption("OH");await pause();
     const m=await matrice();
     if(m.lignes.length!==2||!/Réceptionneuse/.test(m.lignes[0].nom)||!/Léa/.test(m.lignes[1].nom))throw new Error(m.lignes.map(l=>l.nom).join(","));
     if(m.lignes[0].c.map(x=>x.v).join()!==m.lignes[1].c.map(x=>x.v).join())throw new Error("le total d'un poste à une athlète n'est pas elle");
-    await page.locator(".evo-reg .st-poste").selectOption("");await pause();
+    await page.locator(".evo .st-poste").selectOption("");await pause();
   });
   await step("l'export CSV reprend la matrice telle qu'elle est lue",async()=>{
     const [dl]=await Promise.all([page.waitForEvent("download"),page.locator(".st-csv").click()]);
