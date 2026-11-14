@@ -1197,3 +1197,53 @@ l'écran. Les deux contrôles qui passaient déjà sont ceux qui doivent continu
 passer : aucun débordement à 375 px, et une saison chargée qui se lit en moins de
 150 ms par écran.
 
+
+## Audit v7.20 — les calculs recalculés à part, la saisie écran par écran, et l'export
+
+### La méthode
+
+- **Les calculs.** Une saison de quinze athlètes, deux sous-équipes, deux tournois
+  (dont un match en cours), deux amicaux, une journée de championnat, deux séances
+  et un match d'avant la ventilation. Pour sept périmètres × trois sous-équipes ×
+  trois postes, chaque cellule du tableau — huit éléments, quatre modes — a été
+  refaite hors de l'application, depuis les relevés bruts : **47 173 valeurs**.
+- **L'affichage.** Vingt-trois écrans et fenêtres de la saisie — la partie, Nouveau
+  relevé (quatre natures), la feuille en saisie rapide et en grille, le terrain, les
+  fenêtres du set, de la fin de set, du match, de fin de match, la consultation à
+  ses trois niveaux, l'évolution, les barres repliées, la page du match — capturés
+  et mesurés à 320, 375, 768 et 1024 px.
+
+### Ce qui tenait
+
+Totaux, efficacités, parts en %, points et fautes directs : 0 écart. Aucune page ne
+déborde, aucun champ sous 16 px, aucun champ sans nom.
+
+### Ce qui ne tenait pas
+
+| | Défaut | Mesure |
+|---|---|---|
+| D1 | Les moyennes d'une sous-équipe ou d'un poste se divisent par les matchs de toute l'équipe | 330 valeurs fausses ; équipe B : 5,0 aces / match affichés, 6,7 réels |
+| D2 | Un set tout juste ouvert, vide, compte dans « / set » | l'équipe passe de 2 à 3 sets au toucher de `⏭` |
+| D3 | Le set en cours est compté gagné | 25–22 puis 8–6 : « sets 2–0 », « Score du set 8–6 · gagné », « Set gagné » |
+| D4 | « Les 3 derniers matchs » suivent l'ordre de saisie | un match de septembre saisi en novembre passe devant octobre |
+| D5 | Le total « ÷ par match » additionne les moyennes des athlètes | 5,3 kills par match pour 3,8 réels |
+| D6 | « -0.00 » | toute efficacité entre −0,005 et 0 |
+| D7 | L'export CSV : « Poste » = premier mot du sous-titre, athlètes repliées présentes, tri absent | « 3 matchs » dans la colonne Poste |
+| V1 | `🏁 Terminer` rogné à 320 px | 83 px de bouton pour 88 de texte ; −2,6 px de marge en consultation |
+| V2 | « Couverture » coupé à 320 px | cellule de 71 px |
+| V3 | « 4 matchs terminés » coupé à 320 px | tuile de 90 px |
+| V4 | Sur tablette, cellules de compteurs inégales | 180 px (trois compteurs) contre 162 (quatre) à 768 px |
+
+### Ce qui a été fait
+
+D1–D2 : `jeuDuPerimetre` prend un ensemble d'athlètes — on a joué un match, un set,
+dès qu'une des siennes y a un geste. D3 : `resultatLu` écarte le set ouvert d'un
+match en cours ; les points se comptent toujours. D4 : `scopedSessions` range par
+jour de match. D5 : total ÷ matchs joués. D6 : arrondi avant le signe. D7 : la
+fenêtre **Exporter les statistiques** remplace `📤 CSV` (README, « Exporter les
+statistiques »). V1–V4 : feuille de style.
+
+### Vérification
+
+`tests/export.js` — vingt-huit contrôles ; `tests/score.js` — douze contrôles, pour
+le score d'un set saisi d'un seul chiffre, demandé pendant l'audit.

@@ -829,6 +829,11 @@ Le relevé s'écrit **dans le match**, et le match naît avant le premier geste.
    la puce compte ses gestes **dans ce set**.
 4. À la fin du set, `⏭ Set 2` : la fenêtre **Fin du set 1** prend le score — deux
    champs, ou `−` / `+` pour le suivre point par point — et `▶️ Commencer le set 2`.
+   **Un seul chiffre suffit** : tapez `22` pour vous, `25` se pose pour l'adversaire
+   (en pointillé, pour qu'on voie qu'il n'a pas été tapé) ; tapez `19` pour eux, `25`
+   se pose pour vous. À `25` ou plus, rien ne se pose : 25–23 ou 27–25 se saisissent
+   en entier. Un set décisif, 15–10, se tape dans l'ordre que vous voulez — ce que
+   vous avez saisi n'est jamais écrasé.
 5. À la fin du match, `🏁 Terminer` : les scores de chaque set se relisent et se
    corrigent, l'issue (V/D/N) s'en déduit. Dans un tournoi, `➕ Match suivant`
    termine et ouvre aussitôt le match 2 du même tournoi.
@@ -963,7 +968,13 @@ puis le **tableau** : l'équipe en tête, chaque athlète dessous.
 - **Qui** : `Postes` n'en garde qu'un, et la première ligne devient leur total.
 - **Dans quel ordre** : touchez une colonne, puis encore pour l'inverser ; `Athlète`
   trie par numéro, puis par nom.
-- `📤 CSV` emporte le tableau tel quel dans un tableur.
+- `📤 Exporter` ouvre **Exporter les statistiques**. Choisissez **quoi** — le
+  tableau affiché, *tous les compteurs* (une ligne par athlète, chaque geste, les
+  efficacités), *le détail par match* ou *par set* (une ligne par athlète et par
+  étape, pour un tableau croisé), ou l'évolution — puis **sous quelle forme** : un
+  fichier CSV pour le tableur, une copie à coller, une feuille à imprimer ou à
+  enregistrer en PDF, ou le partage du téléphone quand il sait envoyer un fichier.
+  La fenêtre redit ce qui part : le tournoi, la sous-équipe, le poste, le bilan.
 
 Touchez une athlète : sa **fiche** montre chaque famille sur une jauge — à droite du
 zéro ce qui rapporte, à gauche ce qui coûte —, puis son détail **match par match**

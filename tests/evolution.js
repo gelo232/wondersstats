@@ -228,7 +228,10 @@ function saison(){
     await page.locator(".evo .st-poste").selectOption("");await pause();
   });
   await step("l'export CSV reprend la matrice telle qu'elle est lue",async()=>{
-    const [dl]=await Promise.all([page.waitForEvent("download"),page.locator(".st-csv").click()]);
+    /* v7.20 : la fenêtre d'export propose d'emblée la matrice quand on
+       vient de la vue Évolution. */
+    await page.locator(".st-csv").click();await pause();
+    const [dl]=await Promise.all([page.waitForEvent("download"),page.click("#modalOk")]);
     const t=fs.readFileSync(await dl.path(),"utf8").replace(/^﻿/,"").split("\n");
     if(!/^evolution-.*-attaques-match\.csv$/.test(dl.suggestedFilename()))throw new Error(dl.suggestedFilename());
     if(!/^Athlète;M1 .*Lions;M2 .*;M4 .*Requins;Tendance$/.test(t[0]))throw new Error(t[0]);
