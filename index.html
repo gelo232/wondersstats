@@ -1359,6 +1359,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
   #impression th{background:#e8ecf2;font-weight:700;font-size:9.5px}
   #impression th.g,#impression td.g{text-align:left}
   #impression tr.eq td{background:#f1f4f8;font-weight:700}
+  #impression .imp-leg{margin-top:4px;font-size:9px;color:#333;columns:2}
   #impression .imp-pied{margin-top:8px;font-size:8.5px;color:#555}
   @page{margin:12mm}
 }
@@ -10932,7 +10933,13 @@ function xpEvolution(sq,scope,src){
       return [x.l.nom||x.l.label].concat(x.vals.map(function(v){return v.v}))
         .concat([td?(td.sens==="flat"?"stable":td.ecart):null]);
     })};
-  return {fichier:"evolution-"+xpNom(sq,scope)+"-"+m.k+"-"+p,large:t,tables:[t],notes:[]};
+  /* Sur le papier, vingt étapes aux noms entiers ne tiennent pas en
+     largeur : les colonnes portent leur code (M1, M2…), et une légende
+     dit ce qu'est chacune. */
+  var imp={titre:t.titre,fixes:t.fixes,rows:t.rows,
+    cols:[t.cols[0]].concat(etapes.map(function(it){return {t:it.court,d:d,s:!!m.eff}})).concat([t.cols[t.cols.length-1]]),
+    legende:etapes.map(function(it){return it.court+" — "+it.label+(it.info?" · "+it.info:"")})};
+  return {fichier:"evolution-"+xpNom(sq,scope)+"-"+m.k+"-"+p,large:t,tables:[imp],notes:[]};
 }
 function donneesExport(sq,scope,src,contenu){
   if(contenu==="complet")return xpComplet(sq,scope,src);
@@ -11023,7 +11030,8 @@ function feuilleImpression(sq,scope,src,data){
           return h("tr",{className:(t.fixes&&t.fixes[i])?"eq":""},r.map(function(v,j){
             return h("td",{className:t.cols[j].g?"g":""},xpTexte(v,t.cols[j],true));
           }));
-        })))));
+        }))),
+      t.legende?h("div",{className:"imp-leg"},t.legende.map(function(l){return h("div",null,l)})):null));
   });
   root.appendChild(h("div",{className:"imp-pied"},
     "Efficacité = (réussis − ratés) ÷ total, de −1 à +1 · Points directs : aces, attaques gagnantes, blocs gagnants et solo · "+

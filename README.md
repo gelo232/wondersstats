@@ -1163,7 +1163,7 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 
 ### v7.20 — exporter les statistiques, un score de set d'un seul chiffre, et un audit des calculs
 
-Nouvelles suites : `tests/export.js` (vingt-huit contrôles) et `tests/score.js` (douze
+Nouvelles suites : `tests/export.js` (vingt-neuf contrôles) et `tests/score.js` (douze
 contrôles). Trente-huit suites.
 
 - **Exporter les statistiques.** `📤 CSV` n'emportait que le tableau affiché : sortir

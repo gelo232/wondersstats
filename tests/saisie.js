@@ -242,8 +242,10 @@ const ERRORS=[];let PASS=0;
     if(r.b>r.m+1||r.top<r.mt)throw new Error(JSON.stringify(r));
   });
   await step("un set à moitié rempli bloque, et rien n'est terminé",async()=>{
+    /* v7.20 : un score sous 25 pose 25 en face (tests/score.js) — un set ne
+       reste donc à moitié rempli que si le seul score tapé atteint 25. */
     const s=page.locator(".modal .sc-in");
-    await s.nth(0).fill("25");await s.nth(1).fill("20");await s.nth(4).fill("15");
+    await s.nth(0).fill("25");await s.nth(1).fill("20");await s.nth(4).fill("25");
     await page.click("#modalOk");await pause(200);
     const r=await page.evaluate(()=>({live:curSquad().sessions[0].live,bilan:document.querySelector(".modal .fin-bilan").textContent,
       modal:!!document.querySelector(".modal")}));
@@ -258,8 +260,8 @@ const ERRORS=[];let PASS=0;
     const r=await page.evaluate(()=>{var se=curSquad().sessions[0];
       return {res:se.result.sets.map(x=>x.us+"-"+x.them).join(","),sets:se.sets.map(x=>x.us+"-"+x.them).join(","),live:se.live}});
     if(r.live)throw new Error("toujours en cours");
-    if(r.res!=="25-20,0-0,15-13")throw new Error("scores : "+r.res);
-    if(r.sets!=="25-20,0-0,15-13")throw new Error("ventilation : "+r.sets);
+    if(r.res!=="25-20,0-0,25-13")throw new Error("scores : "+r.res);
+    if(r.sets!=="25-20,0-0,25-13")throw new Error("ventilation : "+r.sets);
   });
   await step("« Terminer » mène au match terminé",async()=>{
     const v=await page.evaluate(()=>({tab:state.tab,sec:state.seasonSection,se:(state.evPath||{}).sessionId,id:curSquad().sessions[0].id}));

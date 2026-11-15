@@ -1245,5 +1245,5 @@ statistiques »). V1–V4 : feuille de style.
 
 ### Vérification
 
-`tests/export.js` — vingt-huit contrôles ; `tests/score.js` — douze contrôles, pour
+`tests/export.js` — vingt-neuf contrôles ; `tests/score.js` — douze contrôles, pour
 le score d'un set saisi d'un seul chiffre, demandé pendant l'audit.

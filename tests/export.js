@@ -291,6 +291,18 @@ function saison(){
     await page.evaluate(()=>window.dispatchEvent(new Event("afterprint")));await pause();
     if(await page.locator("#impression").count())throw new Error("la feuille reste dans la page après l'impression");
   });
+  await step("imprimer l'évolution : des colonnes courtes (M1, M2…), et une légende qui dit ce qu'est chacune",async()=>{
+    await page.evaluate(()=>{state.evoMetrique="attaques";state.evoPas="match"});
+    await ouvrir();await choisir("L'évolution");await choisir("Imprimer");
+    await page.click("#modalOk");await pause(400);
+    const r=await page.evaluate(()=>({th:Array.from(document.querySelectorAll("#impression thead th")).map(e=>e.textContent).join("|"),
+      leg:Array.from(document.querySelectorAll("#impression .imp-leg div")).map(e=>e.textContent),
+      lea:Array.from(document.querySelectorAll("#impression tbody tr")).filter(t=>/Léa/.test(t.textContent)).map(t=>t.textContent)[0]}));
+    await page.evaluate(()=>window.dispatchEvent(new Event("afterprint")));await pause();
+    if(r.th!=="Athlète|M1|M2|Tendance")throw new Error(r.th);
+    if(r.leg.length!==2||!/^M1 — .*Aigles · 2–0 V$/.test(r.leg[0])||!/^M2 — .*Ours/.test(r.leg[1]))throw new Error(r.leg.join(" / "));
+    if(r.lea!=="Léa Tremblay+0,63+1,00+0,38")throw new Error(r.lea);
+  });
   await step("partager n'est offert que si l'appareil sait envoyer un fichier — et envoie alors le CSV",async()=>{
     await ouvrir();
     if(await page.locator(".modal .xp-fmt").filter({hasText:"Partager"}).count())throw new Error("Partager offert sans partage de fichiers");
