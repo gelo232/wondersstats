@@ -507,8 +507,9 @@ pose deux questions.
 
 | Quoi exporter | Ce que le fichier porte |
 |---|---|
-| **Le tableau affiché** | L'élément, les valeurs (`Total`, `/ match`, `/ set`, `%`), le poste et le tri de l'écran ; les athlètes repliées n'y reviennent pas |
-| **Tous les compteurs** | Une ligne par athlète : matchs et sets joués, chaque geste de chaque famille, son total et son efficacité, points directs, fautes directes, gestes — 44 colonnes |
+| **Le tableau affiché** | L'élément, les valeurs (`Total`, `/ match`, `/ set`, `%`), le poste et le tri de l'écran ; les athlètes repliées n'y reviennent pas. En `Tout`, le **volume** de chaque famille suit son efficacité (`Att` puis `Att gestes`), comme à l'écran où il se lit dessous |
+| **Tous les compteurs** | Une ligne par athlète : matchs et sets joués, chaque geste de chaque famille, son total et son efficacité, points directs, fautes directes, gestes — 44 colonnes. Chaque colonne de geste dit son **barème** : `Attaque · Kill (+1)`, `Attaque · Réussie (0)`, `Attaque · Erreur (−1)` |
+| **Le barème et les volumes par geste** | Une ligne par geste : ce qu'il vaut dans l'efficacité (`+1`, `0`, `−1`), s'il compte comme point ou faute directe, son volume, sa part de la famille, son rythme par match et par set — puis une colonne par athlète. Chaque famille se clôt sur son total et son efficacité |
 | **Le détail par match** (par séance) | Une ligne par athlète **et par match**, l'équipe en tête de chacun, avec sa date, l'adversaire et le score — la forme qu'attend un tableau croisé |
 | **Le détail par set** | La même chose, set par set, avec le score du set |
 | **L'évolution** | La matrice de l'indicateur lu, étape par étape, et sa tendance |
@@ -517,8 +518,14 @@ pose deux questions.
 |---|---|
 | `📄 Fichier CSV` | Un fichier pour Excel, Numbers ou Sheets : point-virgule, décimales à virgule, accents lisibles |
 | `📋 Copier` | Le même tableau au presse-papiers, à coller dans un tableur, une note ou un courriel |
-| `🖨️ Imprimer · PDF` | Une feuille claire : l'équipe, la saison, le périmètre et son bilan en tête ; pour « Tous les compteurs », une table par famille. La fenêtre d'impression de l'appareil l'enregistre en PDF |
+| `🖨️ Imprimer · PDF` | Une feuille claire : l'équipe, la saison, le périmètre et son bilan en tête ; pour « Tous les compteurs », une table par famille. Chaque efficacité y porte son volume entre parenthèses (`+0,73 (11)`), et **toute feuille se termine par le barème et les volumes par geste** de l'équipe. La fenêtre d'impression de l'appareil l'enregistre en PDF |
 | `↗️ Partager` | N'apparaît que si l'appareil sait envoyer un fichier : le CSV part par la feuille de partage — message, courriel, nuage |
+
+**Le barème** est ce que vaut un geste dans l'efficacité de sa famille : `+1` s'il
+est réussi, `−1` s'il est raté, `0` s'il laisse la balle en jeu sans rien décider —
+une réception hors système, une attaque défendue. Les habiletés n'ont pas
+d'efficacité, donc pas de barème. Avec lui et les volumes, chaque efficacité d'un
+export se refait à la main : (réussis − ratés) ÷ total.
 
 L'export part des mêmes fonctions que l'écran : il ne peut pas dire un autre chiffre
 que le tableau dont il sort. La **sous-équipe** et le **poste** choisis le bornent,
@@ -1160,6 +1167,26 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 ---
 
 ## Notes de version
+
+### v7.20.1 — l'export porte son barème, et les volumes par geste
+
+Un fichier de chiffres sans son barème ne se relit pas : « 0,15 en attaque » ne dit
+rien à qui ignore qu'une attaque réussie mais défendue vaut zéro.
+
+- **Nouveau contenu : `Le barème et les volumes par geste`** — une ligne par geste
+  (les vingt-trois, même sans volume) : son barème (`+1`, `0`, `−1`), s'il compte
+  comme point ou faute directe, son volume, sa part de la famille, son rythme par
+  match et par set, puis une colonne par athlète ; le total et l'efficacité de
+  chaque famille, les points et fautes directs de l'ensemble.
+- **`Tous les compteurs` et les détails par match et par set** : chaque colonne de
+  geste dit son barème (`Attaque · Kill (+1)`).
+- **`Le tableau affiché`, en `Tout`** : le volume de chaque famille suit son
+  efficacité (`Att` puis `Att gestes`) — il se lisait à l'écran, pas dans le fichier.
+- **À l'impression** : chaque efficacité porte son volume entre parenthèses, et toute
+  feuille se termine par le barème et les volumes par geste de l'équipe. Une longue
+  table se coupe entre deux lignes au lieu de sauter, entière, à la page suivante.
+
+`tests/export.js` : trente contrôles.
 
 ### v7.20 — exporter les statistiques, un score de set d'un seul chiffre, et un audit des calculs
 

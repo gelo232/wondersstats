@@ -970,11 +970,15 @@ puis le **tableau** : l'équipe en tête, chaque athlète dessous.
   trie par numéro, puis par nom.
 - `📤 Exporter` ouvre **Exporter les statistiques**. Choisissez **quoi** — le
   tableau affiché, *tous les compteurs* (une ligne par athlète, chaque geste, les
-  efficacités), *le détail par match* ou *par set* (une ligne par athlète et par
-  étape, pour un tableau croisé), ou l'évolution — puis **sous quelle forme** : un
+  efficacités), *le barème et les volumes par geste* (ce que vaut chaque geste —
+  `+1` réussi, `0` en jeu, `−1` raté — et combien de fois il a été relevé), *le
+  détail par match* ou *par set* (une ligne par athlète et par étape, pour un
+  tableau croisé), ou l'évolution — puis **sous quelle forme** : un
   fichier CSV pour le tableur, une copie à coller, une feuille à imprimer ou à
   enregistrer en PDF, ou le partage du téléphone quand il sait envoyer un fichier.
   La fenêtre redit ce qui part : le tournoi, la sous-équipe, le poste, le bilan.
+  Toute feuille imprimée se termine par le barème et les volumes par geste : chaque
+  efficacité se refait à la main, feuille en main.
 
 Touchez une athlète : sa **fiche** montre chaque famille sur une jauge — à droite du
 zéro ce qui rapporte, à gauche ce qui coûte —, puis son détail **match par match**
