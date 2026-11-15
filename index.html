@@ -1351,6 +1351,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
   #impression .imp-per{font-size:12.5px;font-weight:700}
   #impression .imp-faits{color:#333;margin-bottom:10px}
   #impression .imp-bloc{margin:0 0 12px;break-inside:avoid-page}
+  #impression .imp-bloc.long{break-inside:auto}
   #impression h2{font-size:11.5px;margin:0 0 3px;color:#000;break-after:avoid}
   #impression table{width:auto;max-width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
   #impression thead{display:table-header-group}
@@ -1359,6 +1360,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
   #impression th{background:#e8ecf2;font-weight:700;font-size:9.5px}
   #impression th.g,#impression td.g{text-align:left}
   #impression tr.eq td{background:#f1f4f8;font-weight:700}
+  #impression .imp-vol{font-size:8.5px;font-weight:400;color:#555}
   #impression .imp-leg{margin-top:4px;font-size:9px;color:#333;columns:2}
   #impression .imp-pied{margin-top:8px;font-size:8.5px;color:#555}
   @page{margin:12mm}
@@ -1509,7 +1511,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.20.0";
+var APP_VERSION = "7.20.1";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -10770,10 +10772,15 @@ function perimetreDe(sq,src){
   }
   return evScope(sq,seasonSection()||"matches");
 }
-/* Une TABLE d'export : {titre, cols:[{t, d, s, u}], rows:[[…]]}.
-   `d` décimales, `s` signée à l'impression, `u` unité à l'impression.
-   Une cellule est un nombre, une chaîne, ou rien. */
+/* Une TABLE d'export : {titre, cols:[{t, d, s, z, u, csv}], rows:[[…]]}.
+   `d` décimales, `s` signée à l'impression (`z` : sauf le zéro), `u`
+   unité à l'impression, `csv` colonne du fichier seulement — sur le
+   papier, sa valeur se lit entre parenthèses dans la colonne d'avant.
+   Une cellule est un nombre, une chaîne, rien, ou {v, d, s} quand une
+   ligne ne suit pas le format de sa colonne (une efficacité sous des
+   volumes). */
 function xpTexte(v,c,imprime){
+  if(v&&typeof v==="object"){c=Object.assign({},c||{},v);v=v.v}
   if(v==null||v==="")return imprime?"—":"";
   if(typeof v!=="number")return String(v);
   if(!isFinite(v))return imprime?"—":"";
@@ -10781,7 +10788,7 @@ function xpTexte(v,c,imprime){
   if(!t)t=0;
   var s=t.toFixed(d).replace(".",",");
   if(!imprime)return s;
-  return ((c&&c.s&&t>=0)?"+":"")+s.replace("-","−")+((c&&c.u)||"");
+  return ((c&&c.s&&(t>0||(t===0&&!c.z)))?"+":"")+s.replace("-","−")+((c&&c.u)||"");
 }
 /* Un champ de fichier : entre guillemets s'il porte le séparateur, et
    jamais lu comme une formule par le tableur qui l'ouvre. */
@@ -10794,7 +10801,7 @@ function xpChamp(v,sep){
 function xpLignes(t,sep){
   return [t.cols.map(function(c){return xpChamp(c.t,sep)}).join(sep)].concat(t.rows.map(function(r){
     return r.map(function(v,i){
-      return xpChamp(typeof v==="number"?xpTexte(v,t.cols[i],false):(v==null?"":v),sep);
+      return xpChamp((typeof v==="number"||(v&&typeof v==="object"))?xpTexte(v,t.cols[i],false):(v==null?"":v),sep);
     }).join(sep);
   }));
 }
@@ -10815,20 +10822,45 @@ function xpNom(sq,scope){
   var st=sousEquipeActive(sq);
   return safeName(String(xpPartie(scope)||scope.label||"").replace(/^[^0-9A-Za-zÀ-ÿ]+/,""))+(st?"-"+safeName(st.name):"");
 }
+/* ── Le barème ───────────────────────────────────────────────────
+   Ce que vaut un geste dans l'efficacité de sa famille : +1 s'il est
+   réussi, −1 s'il est raté, 0 s'il laisse la balle en jeu sans rien
+   décider (une réception hors système, une attaque défendue). Les
+   habiletés n'ont pas d'efficacité : rien à peser. Un fichier de
+   chiffres sans son barème ne se relit pas — « 0,15 en attaque » ne dit
+   rien à qui ignore qu'une attaque réussie mais défendue vaut zéro. */
+function baremeGeste(fam,key){
+  var def=STAT_FAMILIES[fam];
+  if(!def||FAM_SANS_EFF[fam])return null;
+  return def.pos.indexOf(key)!==-1?1:(def.neg.indexOf(key)!==-1?-1:0);
+}
+function baremeTxt(n){return n==null?"":(n>0?"+1":(n<0?"−1":"0"))}
+function roleGeste(key){
+  return PTS_KEYS.indexOf(key)!==-1?"Point direct":(FAUTE_KEYS.indexOf(key)!==-1?"Faute directe":"");
+}
 /* Une famille — ou « tout » — en table : les colonnes du tableau, dans
-   le mode voulu. */
+   le mode voulu. En « tout », le volume de chaque famille suit son
+   efficacité, comme à l'écran où il se lit dessous. */
 function xpTableFam(sq,lignes,fam,mode,titre){
-  var cols=colonnesStats(fam);
+  var cols=colonnesStats(fam),moy=mode==="match"||mode==="set";
+  var suf=mode==="match"?" /match":(mode==="set"?" /set":"");
+  var xc=[];
+  cols.forEach(function(c){
+    var pct=mode==="pct"&&c.part;
+    xc.push({t:c.lbl+(pct?" (%)":(c.eff?"":suf)),d:c.eff?2:(pct?0:(moy?1:0)),s:!!c.eff,u:pct?" %":"",
+      val:function(l){return valeurCellule(c,l.stats,l.jeu,mode,fam)}});
+    if(c.vol)xc.push({t:c.lbl+" gestes"+suf,d:moy?1:0,csv:true,val:function(l){
+      var v=c.vol(l.stats);
+      if(!v)return null;
+      if(mode==="match")return (l.jeu&&l.jeu.matchs)?v/l.jeu.matchs:null;
+      if(mode==="set")return (l.jeu&&l.jeu.sets)?v/l.jeu.sets:null;
+      return v;
+    }});
+  });
   return {titre:titre||"",
-    cols:XP_IDENT.concat(cols.map(function(c){
-      var pct=mode==="pct"&&c.part;
-      return {t:c.lbl+(pct?" (%)":((mode==="match"&&!c.eff)?" /match":((mode==="set"&&!c.eff)?" /set":""))),
-        d:c.eff?2:(pct?0:((mode==="match"||mode==="set")?1:0)),s:!!c.eff,u:pct?" %":""};
-    })),
+    cols:XP_IDENT.concat(xc.map(function(c){return {t:c.t,d:c.d,s:c.s,u:c.u,csv:c.csv}})),
     fixes:lignes.map(function(l){return !!l.fixe}),
-    rows:lignes.map(function(l){
-      return xpIdent(sq,l).concat(cols.map(function(c){return valeurCellule(c,l.stats,l.jeu,mode,fam)}));
-    })};
+    rows:lignes.map(function(l){return xpIdent(sq,l).concat(xc.map(function(c){return c.val(l)}))})};
 }
 var XP_MODE={match:" — moyennes par match",set:" — moyennes par set",pct:" — parts en %",total:""};
 /* ① Le tableau affiché : mêmes lignes, même ordre, mêmes valeurs. */
@@ -10845,7 +10877,11 @@ function xpTableau(sq,scope,src){
 function xpColsCompteurs(){
   var cols=[];
   SG_KEYS.forEach(function(f){
-    SG[f].stats.forEach(function(s){cols.push({t:FAM_UN[f]+" · "+s.label})});
+    /* Chaque colonne de geste dit ce qu'il vaut : « Attaque · Kill (+1) ». */
+    SG[f].stats.forEach(function(s){
+      var b=baremeGeste(f,s.key);
+      cols.push({t:FAM_UN[f]+" · "+s.label+(b==null?"":" ("+baremeTxt(b)+")")});
+    });
     cols.push({t:FAM_UN[f]+" · Total"});
     if(!FAM_SANS_EFF[f])cols.push({t:FAM_UN[f]+" · Eff.",d:2,s:true});
   });
@@ -10876,6 +10912,46 @@ function xpComplet(sq,scope,src){
     if(avec.length>1||familyVolume(L[0].stats,f))tables.push(xpTableFam(sq,avec,f,"total",SG[f].name));
   });
   return {fichier:"stats-"+xpNom(sq,scope)+"-complet",large:large,tables:tables,notes:[]};
+}
+/* ②bis Le barème et les volumes par geste : une ligne par geste — ce
+   qu'il vaut, s'il marque ou donne le point, combien de fois il a été
+   relevé, sa part de la famille, son rythme par match et par set —,
+   puis une colonne par athlète. Chaque famille se clôt sur son total
+   et son efficacité, pour qu'on puisse refaire le calcul à la main. */
+function xpGestes(sq,scope,src){
+  var r=lignesPerimetre(sq,scope,src),tete=r.lignes[0],ath=r.lignes.filter(function(l){return !l.fixe});
+  var entr=perimetreEntrainement(sq,scope),parJeu=scope.niveau!=="set",jeu=tete.jeu||{matchs:0,sets:0};
+  var cols=[{t:"Famille",g:true},{t:"Geste",g:true},{t:"Barème",s:true,z:true},{t:"Compte comme",g:true},
+    {t:tete.label},{t:"Part de la famille (%)",u:" %"}];
+  if(parJeu)cols.push({t:entr?"Par séance":"Par match",d:1},{t:"Par set",d:1});
+  var nEq=cols.length;
+  ath.forEach(function(l){cols.push({t:l.nom||l.label})});
+  var rows=[],fixes=[];
+  function ligne(fam,geste,bar,role,val,part,fixe,fmt){
+    var v=val(tete.stats);
+    var row=[fam,geste,bar,role,fmt?{v:v,d:2,s:true}:v,part];
+    if(parJeu)row.push((fmt||!jeu.matchs)?null:v/jeu.matchs,(fmt||!jeu.sets)?null:v/jeu.sets);
+    ath.forEach(function(l){var x=val(l.stats);row.push(fmt?{v:x,d:2,s:true}:x)});
+    rows.push(row);fixes.push(!!fixe);
+  }
+  SG_KEYS.forEach(function(f){
+    var g=SG[f],vol=familyVolume(tete.stats,f);
+    g.stats.forEach(function(s){
+      ligne(g.name,s.label,baremeGeste(f,s.key),roleGeste(s.key),
+        function(st){return (st&&st[s.key])||0},vol?100*((tete.stats[s.key])||0)/vol:null);
+    });
+    ligne(g.name,"Total","","",function(st){return familyVolume(st,f)},null,true);
+    if(!FAM_SANS_EFF[f])ligne(g.name,"Efficacité","","(réussis − ratés) ÷ total",function(st){return familyEff(st,f)},null,true,true);
+  });
+  ligne("Ensemble","Points directs","","aces, kills, blocs gagnants et solo",function(st){return sommeCles(st,PTS_KEYS)},null,true);
+  ligne("Ensemble","Fautes directes","","service, attaque, réception, bloc",function(st){return sommeCles(st,FAUTE_KEYS)},null,true);
+  ligne("Ensemble","Gestes relevés","","",function(st){return sumStats(st)},null,true);
+  var large={titre:"Barème et volumes par geste",cols:cols,rows:rows,fixes:fixes};
+  /* Sur le papier, l'équipe seule : une colonne par athlète n'y tient
+     pas — leurs volumes sont dans les tables par famille. */
+  var imp={titre:"Barème et volumes par geste — "+tete.label,cols:cols.slice(0,nEq),fixes:fixes,
+    rows:rows.map(function(x){return x.slice(0,nEq)})};
+  return {fichier:"stats-"+xpNom(sq,scope)+"-gestes",large:large,tables:[imp],notes:[],sansBareme:true};
 }
 function xpScoreMatch(se){
   var sets=((se.result&&se.result.sets)||[]).filter(setJoue).map(function(x){return x.us+"–"+x.them}).join(" ");
@@ -10943,6 +11019,7 @@ function xpEvolution(sq,scope,src){
 }
 function donneesExport(sq,scope,src,contenu){
   if(contenu==="complet")return xpComplet(sq,scope,src);
+  if(contenu==="gestes")return xpGestes(sq,scope,src);
   if(contenu==="match"||contenu==="set")return xpDetail(sq,scope,src,contenu);
   if(contenu==="evolution")return xpEvolution(sq,scope,src)||xpTableau(sq,scope,src);
   return xpTableau(sq,scope,src);
@@ -10955,7 +11032,9 @@ function contenusExport(sq,scope,src){
     sub:[fam==="tout"?"Tout compilé":FAM_UN[fam],{total:"totaux",match:"par match",set:"par set",pct:"en %"}[mode],
       poste?"poste "+(poste==="NONE"?"sans poste":poste):null,"lignes et tri de l'écran"].filter(Boolean).join(" · ")},
     {k:"complet",ico:"🧮",l:"Tous les compteurs",
-     sub:"Chaque geste de chaque famille, les efficacités, points et fautes, "+(entr?"séances":"matchs")+" et sets joués"}];
+     sub:"Chaque geste de chaque famille avec son barème, les efficacités, points et fautes, "+(entr?"séances":"matchs")+" et sets joués"},
+    {k:"gestes",ico:"⚖️",l:"Le barème et les volumes par geste",
+     sub:"Ce que vaut chaque geste (+1, 0, −1, point ou faute directe) et combien de fois il a été relevé — l'équipe, puis chaque athlète"}];
   if(scope.niveau!=="match"&&scope.niveau!=="set"&&scope.sessions.length)
     out.push({k:"match",ico:"🗂️",l:"Le détail par "+(entr?"séance":"match"),
       sub:"Une ligne par athlète et par "+(entr?"séance":"match")+" — pour un tableau croisé"});
@@ -10979,7 +11058,7 @@ function xpPartageable(){
 function formatsExport(){
   var out=[{k:"csv",ico:"📄",l:"Fichier CSV",sub:"Un fichier pour Excel, Numbers ou Sheets — point-virgule, décimales à virgule.",verbe:"📤 Exporter"},
     {k:"copier",ico:"📋",l:"Copier",sub:"Dans le presse-papiers : à coller dans un tableur, une note ou un courriel.",verbe:"📋 Copier"},
-    {k:"imprimer",ico:"🖨️",l:"Imprimer · PDF",sub:"Une feuille claire, à imprimer ou à enregistrer en PDF depuis la fenêtre d'impression.",verbe:"🖨️ Imprimer"}];
+    {k:"imprimer",ico:"🖨️",l:"Imprimer · PDF",sub:"Une feuille claire, à imprimer ou à enregistrer en PDF depuis la fenêtre d'impression — le barème et les volumes par geste la terminent.",verbe:"🖨️ Imprimer"}];
   if(xpPartageable())out.push({k:"partager",ico:"↗️",l:"Partager",
     sub:"Envoie le fichier CSV par la feuille de partage de l'appareil — message, courriel, nuage.",verbe:"↗️ Partager"});
   return out;
@@ -11021,21 +11100,31 @@ function feuilleImpression(sq,scope,src,data){
       h("h1",null,e.titre),
       h("div",{className:"imp-per"},e.perimetre),
       h("div",{className:"imp-faits"},e.faits)));
-  data.tables.forEach(function(t){
-    root.appendChild(h("section",{className:"imp-bloc"},
+  /* Toute feuille se termine par le barème et les volumes par geste :
+     on doit pouvoir refaire chaque efficacité à la main, feuille en
+     main, sans l'application. */
+  var tables=data.sansBareme?data.tables:data.tables.concat(xpGestes(sq,scope,src).tables);
+  tables.forEach(function(t){
+    /* Une longue table se coupe entre deux lignes plutôt que de sauter,
+       entière, à la page suivante en laissant la première à moitié vide. */
+    root.appendChild(h("section",{className:"imp-bloc"+(t.rows.length>22?" long":"")},
       t.titre?h("h2",null,t.titre):null,
       h("table",{className:"imp-t"},
-        h("thead",null,h("tr",null,t.cols.map(function(c){return h("th",{className:c.g?"g":""},c.t)}))),
+        h("thead",null,h("tr",null,t.cols.map(function(c){return c.csv?null:h("th",{className:c.g?"g":""},c.t)}))),
         h("tbody",null,t.rows.map(function(r,i){
           return h("tr",{className:(t.fixes&&t.fixes[i])?"eq":""},r.map(function(v,j){
-            return h("td",{className:t.cols[j].g?"g":""},xpTexte(v,t.cols[j],true));
+            if(t.cols[j].csv)return null;
+            /* Le volume d'une efficacité, entre parenthèses à sa suite. */
+            var suite=t.cols[j+1]&&t.cols[j+1].csv&&r[j+1]!=null&&r[j+1]!=="";
+            return h("td",{className:t.cols[j].g?"g":""},xpTexte(v,t.cols[j],true),
+              suite?h("span",{className:"imp-vol"}," ("+xpTexte(r[j+1],t.cols[j+1],true)+")"):null);
           }));
         }))),
       t.legende?h("div",{className:"imp-leg"},t.legende.map(function(l){return h("div",null,l)})):null));
   });
   root.appendChild(h("div",{className:"imp-pied"},
-    "Efficacité = (réussis − ratés) ÷ total, de −1 à +1 · Points directs : aces, attaques gagnantes, blocs gagnants et solo · "+
-    "Fautes directes : service, attaque, réception, bloc. Édité le "+fmtDay(nowISO())+" — WonderStats v"+APP_VERSION+"."));
+    "Efficacité = (réussis − ratés) ÷ total, de −1 à +1 ; entre parenthèses, le nombre de gestes sur lequel elle porte. "+
+    "Barème : +1 réussi, 0 en jeu, −1 raté. Édité le "+fmtDay(nowISO())+" — WonderStats v"+APP_VERSION+"."));
   return root;
 }
 function imprimerStats(sq,scope,src,data){
@@ -11112,6 +11201,7 @@ function renderExportStatsModal(){
       petit?null:h("span",{className:"xp-coche","aria-hidden":"true"}));
   }
   var nL=data.large.rows.length,nC=data.large.cols.length;
+  var tabImp=data.sansBareme?data.tables:data.tables.concat(xpGestes(sq,scope,src).tables);
   var body=h("div",{className:"xp"},
     h("div",{className:"muted xp-per"},h("b",null,e.perimetre),h("br"),e.faits),
     h("div",{className:"section-title"},"Quoi exporter"),
@@ -11122,7 +11212,7 @@ function renderExportStatsModal(){
       formats.map(function(o){return choix(o,o.k===x.format,function(k){x.format=k},true)})),
     h("div",{className:"muted xp-apercu",role:"status","aria-live":"polite"},
       h("b",null,x.format==="imprimer"
-        ?plural(data.tables.length,"tableau","tableaux")+" · "+plural(data.tables.reduce(function(n,t){return n+t.rows.length},0),"ligne")
+        ?plural(tabImp.length,"tableau","tableaux")+" · "+plural(tabImp.reduce(function(n,t){return n+t.rows.length},0),"ligne")
         :plural(nL,"ligne")+" × "+plural(nC,"colonne")),
       " — "+fmt.sub,
       data.notes.map(function(n){return h("div",{className:"xp-note"},n)})));

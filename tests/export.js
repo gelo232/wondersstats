@@ -122,7 +122,7 @@ function saison(){
       chevrons:document.querySelectorAll(".modal .section-title .pli-btn").length}));
     if(r.titre!=="Exporter les statistiques")throw new Error(r.titre);
     if(!/Coupe d'automne/.test(r.per)||!/2 matchs/.test(r.per)||!/bilan 2V–0D/.test(r.per)||!/46 gestes/.test(r.per))throw new Error("périmètre : "+r.per);
-    const att=["Le tableau affiché*","Tous les compteurs","Le détail par match","Le détail par set","L'évolution","Fichier CSV*","Copier","Imprimer · PDF"];
+    const att=["Le tableau affiché*","Tous les compteurs","Le barème et les volumes par geste","Le détail par match","Le détail par set","L'évolution","Fichier CSV*","Copier","Imprimer · PDF"];
     if(r.opts.join("|")!==att.join("|"))throw new Error(r.opts.join("|"));
     if(r.groupes!==2||r.ok!=="📤 Exporter")throw new Error(JSON.stringify(r));
     if(r.chevrons!==2)throw new Error(r.chevrons+" chevron(s) — chaque groupe de la fenêtre se replie");
@@ -166,7 +166,11 @@ function saison(){
   });
   await step("la colonne « Poste » dit le poste — vide pour qui n'en a pas, jamais « 2 matchs »",async()=>{
     await allerCoupe();await ouvrir();const f=await fichier();
-    if(f.lignes[0]!=="N°;Athlète;Poste;Srv;Réc;Pas;Att;Blc;Déf;Hab;Pts;Fautes;Gestes")throw new Error(f.lignes[0]);
+    /* v7.20.1 : le volume de chaque famille suit son efficacité, comme à l'écran où il se lit dessous. */
+    if(f.lignes[0]!=="N°;Athlète;Poste;Srv;Srv gestes;Réc;Réc gestes;Pas;Pas gestes;Att;Att gestes;Blc;Blc gestes;Déf;Déf gestes;Hab;Pts;Fautes;Gestes")throw new Error(f.lignes[0]);
+    /* Léa : service 0,00 sur 4 gestes, attaque 0,73 sur 11. */
+    const lea=f.rang("7;Léa").split(";");
+    if(lea.slice(3,5).join(";")!=="0,00;4"||lea.slice(9,11).join(";")!=="0,73;11")throw new Error("volumes de Léa : "+f.rang("7;Léa"));
     const zoe=f.rang("2;Zoé").split(";");
     if(zoe[2]!=="")throw new Error("poste de Zoé : « "+zoe[2]+" »");
     if(f.rang("12;Sofia").split(";")[2]!=="S")throw new Error(f.rang("12;Sofia"));
@@ -190,17 +194,42 @@ function saison(){
     const lea=f.rang("7;Léa").split(";"),eq=f.rang(";Équipe").split(";");
     const v=(r,n)=>r[col(f,n)];
     /* Léa : 2 matchs, 4 sets ; 9 kills ; 2 aces, 2 fautes de service → 0,00 ; 11 points, 3 fautes, 15 gestes. */
-    const lu=["Matchs","Sets","Attaque · Kill","Attaque · Total","Attaque · Eff.","Service · Ace","Service · Erreur","Service · Eff.",
+    /* v7.20.1 : chaque colonne de geste dit son barème. */
+    const lu=["Matchs","Sets","Attaque · Kill (+1)","Attaque · Total","Attaque · Eff.","Service · Ace (+1)","Service · Erreur (−1)","Service · Eff.",
       "Points directs","Fautes directes","Gestes"].map(n=>v(lea,n)).join("|");
     if(lu!=="2|4|9|11|0,73|2|2|0,00|11|3|15")throw new Error("Léa : "+lu);
-    const luE=["Matchs","Sets","Réception · En jeu","Réception · Erreur","Réception · Eff.","Bloc · Kill","Bloc · Solo","Passe · Attaquable","Gestes"]
+    const luE=["Matchs","Sets","Réception · En jeu (+1)","Réception · Erreur (−1)","Réception · Eff.","Bloc · Kill (+1)","Bloc · Solo (+1)","Passe · Attaquable (+1)","Gestes"]
       .map(n=>v(eq,n)).join("|");
     if(luE!=="2|5|8|2|0,60|2|1|9|46")throw new Error("équipe : "+luE);
     if(f.tete.indexOf("Habiletés · Eff.")!==-1)throw new Error("les habiletés n'ont pas d'efficacité");
+    if(f.tete.indexOf("Habiletés · Contrôlée")===-1||f.tete.indexOf("Attaque · Réussie (0)")===-1)throw new Error("barème des colonnes : "+f.lignes[0].slice(0,300));
     /* La somme des athlètes est l'équipe, sur toutes les colonnes de compteurs. */
     const i=col(f,"Gestes");
     const somme=f.lignes.slice(2).reduce((n,l)=>n+parseInt(l.split(";").pop(),10),0);
     if(somme!==46||eq[i]!=="46")throw new Error("somme des athlètes "+somme+" ≠ équipe "+eq[i]);
+  });
+
+  say("\n── Le barème et les volumes par geste");
+  await step("une ligne par geste : ce qu'il vaut, s'il marque ou donne le point, son volume, sa part, son rythme",async()=>{
+    await ouvrir();await choisir("Le barème et les volumes par geste");const f=await fichier();
+    if(f.nom!=="stats-Coupe_d_automne-gestes.csv")throw new Error(f.nom);
+    if(f.tete.slice(0,9).join(";")!=="Famille;Geste;Barème;Compte comme;Équipe;Part de la famille (%);Par match;Par set;Léa Tremblay")throw new Error(f.lignes[0]);
+    const debut=(a)=>{const l=f.rang(a);if(!l)throw new Error("ligne « "+a+" » absente");return l.split(";").slice(0,9).join(";")};
+    /* Deux aces sur huit services, en deux matchs et cinq sets ; les deux sont de Léa. */
+    const att=["Services;Ace;1;Point direct;2;25;1,0;0,4;2","Services;En jeu;0;;4;50;2,0;0,8;0","Services;Erreur;-1;Faute directe;2;25;1,0;0,4;2",
+      "Attaques;Kill;1;Point direct;11;79;5,5;2,2;9","Attaques;Réussie;0;;1;7;0,5;0,2;1","Attaques;Erreur;-1;Faute directe;2;14;1,0;0,4;1",
+      "Blocs;Solo;1;Point direct;1;33;0,5;0,2;0","Réception;Erreur;-1;Faute directe;2;20;1,0;0,4;0","Habiletés;Contrôlée;;;0;;0,0;0,0;0"];
+    for(const a of att)if(debut(a.split(";").slice(0,2).join(";")+";")!==a)throw new Error(debut(a.split(";").slice(0,2).join(";")+";")+" ≠ "+a);
+    /* Chaque famille se clôt sur son total et son efficacité : le calcul se refait à la main. */
+    if(debut("Attaques;Total;")!=="Attaques;Total;;;14;;7,0;2,8;11")throw new Error(debut("Attaques;Total;"));
+    if(debut("Attaques;Efficacité;")!=="Attaques;Efficacité;;(réussis − ratés) ÷ total;0,64;;;;0,73")throw new Error(debut("Attaques;Efficacité;"));
+    if(f.rang("Habiletés;Efficacité"))throw new Error("les habiletés n'ont pas d'efficacité");
+    if(debut("Ensemble;Points directs;").split(";")[4]!=="16"||debut("Ensemble;Fautes directes;").split(";")[4]!=="6"||
+       debut("Ensemble;Gestes relevés;").split(";")[4]!=="46")throw new Error("ensemble : "+f.lignes.slice(-3).join(" | ").slice(0,200));
+    /* Les 23 gestes y sont tous, même sans volume : le barème est complet. */
+    const gestes=f.lignes.slice(1).filter(l=>!/;(Total|Efficacité);|^Ensemble;/.test(l)).length;
+    if(gestes!==23)throw new Error(gestes+" gestes");
+    if(new Set(f.lignes.map(l=>l.replace(/"[^"]*(""[^"]*)*"/g,"x").split(";").length)).size!==1)throw new Error("largeurs inégales");
   });
 
   say("\n── ③ Le détail par match, par set");
@@ -230,7 +259,7 @@ function saison(){
     await page.locator(".navRow").filter({hasText:"Set 1"}).first().click();await pause();
     await ouvrir();
     const opts=await page.evaluate(()=>Array.from(document.querySelectorAll(".modal .xp-opt:not(.xp-fmt) .xp-ttl")).map(e=>e.textContent));
-    if(opts.join("|")!=="Le tableau affiché|Tous les compteurs")throw new Error(opts.join("|"));
+    if(opts.join("|")!=="Le tableau affiché|Tous les compteurs|Le barème et les volumes par geste")throw new Error(opts.join("|"));
     const f=await fichier();
     if(!/^stats-Set_1-compile\.csv$/.test(f.nom)||f.rang(";Équipe").split(";").pop()!=="30")throw new Error(f.nom+" · "+f.rang(";Équipe"));
   });
@@ -267,21 +296,30 @@ function saison(){
     await page.evaluate(()=>{window.__imp=0;window.print=function(){window.__imp++}});
     await ouvrir();await choisir("Tous les compteurs");await choisir("Imprimer");
     const ap=await page.textContent(".modal .xp-apercu");
-    if(!/7 tableaux/.test(ap))throw new Error(ap);
+    if(!/8 tableaux/.test(ap))throw new Error(ap);
     await page.click("#modalOk");await pause(400);
     const r=await page.evaluate(()=>({n:window.__imp,visible:getComputedStyle(document.getElementById("impression")).display,
       h1:document.querySelector("#impression h1").textContent,per:document.querySelector("#impression .imp-per").textContent,
       faits:document.querySelector("#impression .imp-faits").textContent,
       h2:Array.from(document.querySelectorAll("#impression h2")).map(e=>e.textContent.split(" — ")[0]),
       eq:document.querySelector("#impression tr.eq").textContent,
+      bareme:Array.from(Array.from(document.querySelectorAll("#impression table")).pop().querySelectorAll("tbody tr")).filter(t=>/^AttaquesKill/.test(t.textContent))
+        .map(t=>Array.from(t.querySelectorAll("td")).map(e=>e.textContent).join("|"))[0],
+      neutre:Array.from(Array.from(document.querySelectorAll("#impression table")).pop().querySelectorAll("tbody tr")).filter(t=>/^AttaquesRéussie/.test(t.textContent))
+        .map(t=>Array.from(t.querySelectorAll("td")).map(e=>e.textContent).join("|"))[0],
+      rate:Array.from(Array.from(document.querySelectorAll("#impression table")).pop().querySelectorAll("tbody tr")).filter(t=>/^AttaquesErreur/.test(t.textContent))
+        .map(t=>Array.from(t.querySelectorAll("td")).map(e=>e.textContent).join("|"))[0],
       eff:Array.from(document.querySelectorAll("#impression table")[0].querySelectorAll("tbody tr")[1].querySelectorAll("td")).map(e=>e.textContent)}));
     if(r.n!==1)throw new Error("window.print appelé "+r.n+" fois");
     if(r.visible!=="none")throw new Error("la feuille se voit à l'écran");
     if(!/Équipe A/.test(r.h1)||r.per!=="🎪 Coupe d'automne"||!/bilan 2V–0D/.test(r.faits))throw new Error(JSON.stringify(r).slice(0,300));
     /* Aucune habileté relevée : sa table n'est pas imprimée vide. */
-    if(r.h2.join("|")!=="Tout compilé|Services|Réception|Passes|Attaques|Blocs|Défense")throw new Error(r.h2.join("|"));
-    /* À l'impression, une efficacité porte son signe, et un vrai moins. */
-    if(r.eff[1]!=="Léa Tremblay"||r.eff[3]!=="+0,00"||r.eff[6]!=="+0,73")throw new Error(r.eff.join("|"));
+    /* Toute feuille se termine par le barème et les volumes par geste (v7.20.1). */
+    if(r.h2.join("|")!=="Tout compilé|Services|Réception|Passes|Attaques|Blocs|Défense|Barème et volumes par geste")throw new Error(r.h2.join("|"));
+    /* À l'impression, une efficacité porte son signe, un vrai moins, et son volume entre parenthèses. */
+    if(r.eff[1]!=="Léa Tremblay"||r.eff[3]!=="+0,00 (4)"||r.eff[6]!=="+0,73 (11)")throw new Error(r.eff.join("|"));
+    if(r.bareme!=="Attaques|Kill|+1|Point direct|11|79 %|5,5|2,2"||r.neutre!=="Attaques|Réussie|0|—|1|7 %|0,5|0,2"||
+       r.rate!=="Attaques|Erreur|−1|Faute directe|2|14 %|1,0|0,4")throw new Error("barème imprimé : "+r.bareme+" / "+r.neutre+" / "+r.rate);
     await page.emulateMedia({media:"print"});
     const p=await page.evaluate(()=>({app:getComputedStyle(document.getElementById("app")).display,
       imp:getComputedStyle(document.getElementById("impression")).display,
@@ -295,7 +333,7 @@ function saison(){
     await page.evaluate(()=>{state.evoMetrique="attaques";state.evoPas="match"});
     await ouvrir();await choisir("L'évolution");await choisir("Imprimer");
     await page.click("#modalOk");await pause(400);
-    const r=await page.evaluate(()=>({th:Array.from(document.querySelectorAll("#impression thead th")).map(e=>e.textContent).join("|"),
+    const r=await page.evaluate(()=>({th:Array.from(document.querySelector("#impression table").querySelectorAll("thead th")).map(e=>e.textContent).join("|"),
       leg:Array.from(document.querySelectorAll("#impression .imp-leg div")).map(e=>e.textContent),
       lea:Array.from(document.querySelectorAll("#impression tbody tr")).filter(t=>/Léa/.test(t.textContent)).map(t=>t.textContent)[0]}));
     await page.evaluate(()=>window.dispatchEvent(new Event("afterprint")));await pause();
