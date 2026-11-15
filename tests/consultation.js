@@ -258,13 +258,19 @@ function saison(){
   });
   await step("l'export CSV reprend le tableau tel qu'il est lu",async()=>{
     await page.locator(".st-ctrl .seg button").filter({hasText:"/ set"}).click();await pause();
-    const [dl]=await Promise.all([page.waitForEvent("download"),page.locator(".st-csv").click()]);
+    /* v7.20 : « 📤 Exporter » ouvre une fenêtre — le tableau affiché, en
+       CSV, y est le choix d'emblée (tests/export.js éprouve les autres). */
+    await page.locator(".st-csv").click();await pause();
+    const [dl]=await Promise.all([page.waitForEvent("download"),page.click("#modalOk")]);
     const nom=dl.suggestedFilename(),txt=fs.readFileSync(await dl.path(),"utf8").replace(/^﻿/,"").split("\n");
     if(!/Sherbrooke-attaques-set\.csv$/.test(nom))throw new Error(nom);
-    if(txt[0]!=="Athlète;Poste;Kill /set;Réussie /set;Erreur /set;Total /set;Eff.")throw new Error(txt[0]);
+    if(txt[0]!=="N°;Athlète;Poste;Kill /set;Réussie /set;Erreur /set;Total /set;Eff.")throw new Error(txt[0]);
     const eq=(await lignes())[0].c[3].replace(".",",");
-    if(txt[1].split(";")[0]!=="Équipe"||txt[1].split(";")[5]!==eq)throw new Error(txt[1]+" / "+eq);
-    if(txt.length<13)throw new Error(txt.length+" lignes");
+    if(txt[1].split(";")[1]!=="Équipe"||txt[1].split(";")[6]!==eq)throw new Error(txt[1]+" / "+eq);
+    /* Les lignes de l'écran, ni plus ni moins : les athlètes sans attaque,
+       repliées dans le tableau, ne reviennent plus dans le fichier. */
+    const ecran=(await lignes()).length;
+    if(txt.length-1!==ecran||ecran<5)throw new Error(txt.length+" lignes pour "+ecran+" à l'écran");
     await page.locator(".st-ctrl .seg button").filter({hasText:"Total"}).click();await pause();
     await famille("Tout");
   });

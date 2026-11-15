@@ -518,6 +518,14 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
   .qp-stats-row{justify-content:flex-start}
 }
 .qp-stat-cell{display:flex;flex-direction:column;align-items:stretch;flex:1 1 0;min-width:0;max-width:180px}
+/* Sur tablette, toutes les familles suivent la même grille de quatre
+   colonnes : à 768 px une famille de trois compteurs prenait des
+   cellules de 180 px, celle de quatre des cellules de 162 — les
+   colonnes ne tombaient plus l'une sous l'autre d'une famille à la
+   suivante. */
+@media(min-width:600px){.qp-stat-cell{flex:0 0 calc((100% - 18px) / 4)}}
+/* À 320 px, « Couverture » ne tenait pas dans une cellule de 71 px. */
+@media(max-width:359px){.qp-stat-btn .lbl{font-size:11px;letter-spacing:-.2px}}
 .qp-stat-btn{width:100%;min-width:0;height:var(--tap-lg);min-height:var(--tap-lg);padding:0 2px;border-radius:var(--r-lg);font-size:var(--fs-sm);font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border:1.5px solid;touch-action:manipulation;-webkit-user-select:none;user-select:none;
   transition:background var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease),transform var(--dur-fast) var(--ease)}
 @media(min-width:600px){.qp-stat-btn{height:64px;min-height:64px}}
@@ -1250,6 +1258,16 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .nm-reprise-l input{width:22px;height:22px;margin:0;min-height:0;flex-shrink:0}
 .fs-barre .sb-row .btn{flex:0 0 auto}
 .fs-barre .sb-row .btn.fs-fin{flex:1 1 auto;min-width:0}
+/* À 320 px, « 🏁 Terminer » n'avait que 83 px pour 88 de texte : son
+   libellé était rogné des deux côtés, et de 5 px de plus quand « 📊
+   Stats » devenait « ✏️ Saisie ». Les trois autres boutons rendent la
+   place : marges intérieures et gouttière resserrées. */
+@media(max-width:359px){
+  .fs-barre .sb-row{gap:6px}
+  .fs-barre .sb-row .btn{padding-left:var(--s2);padding-right:var(--s2)}
+  .fs-barre .sb-row .btn.fs-fin{padding-left:6px;padding-right:6px}
+  .fs-barre .sb-row .bas-fold{min-width:36px}
+}
 .fs-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--danger-ink);flex-shrink:0}
 .fs-set.on .fs-dot{background:var(--on-light)}
 .save-bar .fs-stats.on{border-color:var(--accent-ink);color:var(--accent-ink)}
@@ -1262,6 +1280,9 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .sc-cote .btn.sc-pas{min-width:var(--tap);width:var(--tap);padding:0;font-size:var(--fs-xl);font-weight:800}
 .modal .sc-cote .set-in,.sc-cote .set-in{width:56px;margin:0;text-align:center;font-size:var(--fs-lg);font-weight:800;padding:0}
 .sc-issue,.fin-bilan{margin-top:6px;font-weight:700}
+/* Le 25 posé d'office : en pointillé, pour qu'on voie qu'on ne l'a pas tapé. */
+.sc-cote .set-in.sc-auto{border-style:dashed;border-color:var(--accent);color:var(--accent-ink)}
+.sc-note{font-size:var(--fs-xs);line-height:1.35;color:var(--accent-ink)}
 .fin-sets{display:flex;flex-direction:column;gap:var(--s3)}
 .fin-set{background:var(--sunken);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s2) var(--s3)}
 .fin-lbl{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2);margin-bottom:6px;font-size:var(--fs-xs);color:var(--txt-faint)}
@@ -1295,6 +1316,53 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .st-tete{display:flex;align-items:center;gap:var(--s2);margin:var(--s5) 0 var(--s2)}
 .st-tete .section-title{flex:1;min-width:0;margin:0}
 .st-tete .st-csv{flex-shrink:0}
+/* ── Exporter les statistiques ─────────────────────────────
+   Deux questions, deux groupes de choix exclusifs : chaque option dit
+   ce qu'elle emporte, le choix se lit à sa pastille. */
+.xp-per{margin-bottom:var(--s2);line-height:1.5}
+.xp-per b{color:var(--txt-soft);font-size:var(--fs-sm)}
+.xp-opts{display:flex;flex-direction:column;gap:6px;margin-bottom:var(--s3)}
+.xp-opt{display:flex;align-items:center;gap:var(--s3);width:100%;min-height:var(--tap-lg);padding:var(--s2) var(--s3);
+  background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r-md);color:var(--txt-dim);
+  font-family:inherit;text-align:left;cursor:pointer;touch-action:manipulation}
+.xp-opt .xp-ico{flex-shrink:0;width:24px;text-align:center;font-size:var(--fs-lg);line-height:1}
+.xp-opt .xp-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.xp-opt .xp-ttl{font-size:var(--fs-md);font-weight:700;color:var(--txt-soft)}
+.xp-opt .xp-sub{font-size:var(--fs-xs);line-height:1.35;color:var(--txt-faint)}
+.xp-opt .xp-coche{flex-shrink:0;width:20px;height:20px;border-radius:50%;border:2px solid var(--line-strong)}
+.xp-opt.on{background:var(--raised);border-color:var(--accent)}
+.xp-opt.on .xp-ttl{color:var(--txt-strong)}
+.xp-opt.on .xp-coche{border-color:var(--accent-ink);background:radial-gradient(circle,var(--accent-ink) 0 42%,transparent 48%)}
+.xp-opts.xp-fmts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.xp-opt.xp-fmt{gap:var(--s2);padding:0 var(--s2);min-height:var(--tap)}
+.xp-opt.xp-fmt .xp-ttl{font-size:var(--fs-sm);white-space:nowrap}
+.xp-opt.xp-fmt .xp-ico{width:20px;font-size:var(--fs-md)}
+.xp-apercu{line-height:1.5}
+.xp-apercu b{color:var(--txt-soft)}
+.xp-note{margin-top:var(--s1);color:var(--warn-ink)}
+/* La feuille imprimée : hors de l'écran, seule sur le papier. */
+#impression{display:none}
+@media print{
+  html,body{height:auto!important;overflow:visible!important;background:#fff!important}
+  body>*:not(#impression){display:none!important}
+  #impression{display:block;color:#111;font:10.5px/1.35 var(--ff);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #impression .imp-marque{font-size:9px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#555}
+  #impression h1{font-size:18px;margin:2px 0 2px;color:#000}
+  #impression .imp-per{font-size:12.5px;font-weight:700}
+  #impression .imp-faits{color:#333;margin-bottom:10px}
+  #impression .imp-bloc{margin:0 0 12px;break-inside:avoid-page}
+  #impression h2{font-size:11.5px;margin:0 0 3px;color:#000;break-after:avoid}
+  #impression table{width:auto;max-width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  #impression thead{display:table-header-group}
+  #impression tr{break-inside:avoid}
+  #impression th,#impression td{border:1px solid #bbb;padding:2px 4px;text-align:right;white-space:nowrap}
+  #impression th{background:#e8ecf2;font-weight:700;font-size:9.5px}
+  #impression th.g,#impression td.g{text-align:left}
+  #impression tr.eq td{background:#f1f4f8;font-weight:700}
+  #impression .imp-leg{margin-top:4px;font-size:9px;color:#333;columns:2}
+  #impression .imp-pied{margin-top:8px;font-size:8.5px;color:#555}
+  @page{margin:12mm}
+}
 .st-ctrl{display:flex;gap:var(--s2);align-items:center;margin:var(--s1) 0}
 .st-ctrl .seg{flex:1}
 .st-ctrl .seg button{padding:0 4px;font-size:var(--fs-xs)}
@@ -1306,6 +1374,9 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
 .kpi.mini .k-lbl{font-size:10px;letter-spacing:.3px}
 .kpi.mini .k-val{font-size:var(--fs-lg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kpi.mini .k-hint{font-size:10px;color:var(--txt-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* À 320 px une tuile fait 90 px : « 4 matchs terminés » s'y coupait en
+   « 4 matchs ter… ». La légende passe à la ligne plutôt que de se taire. */
+@media(max-width:359px){.kpi.mini .k-hint{white-space:normal;overflow:visible;line-height:1.25}}
 .kpi.mini.t-pos .k-val{color:var(--ok-ink)}
 .kpi.mini.t-neg .k-val{color:var(--danger-ink)}
 /* Le récap : la sélection, les parties et les objectifs ; puis la
@@ -1438,7 +1509,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.19.0";
+var APP_VERSION = "7.20.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -1518,7 +1589,11 @@ function statProfile(stats){
 }
 function fmtEff(e){
   if(e==null)return "—";
-  return (e>=0?"+":"")+e.toFixed(2);
+  /* On arrondit AVANT de choisir le signe : −1 sur 300 s'écrivait
+     « -0.00 », un zéro négatif qui ne dit rien. */
+  var r=Math.round(e*100)/100;
+  if(!r)r=0;
+  return (r>=0?"+":"")+r.toFixed(2);
 }
 /* Une efficacité se lit mal dans l'absolu : ce qui compte est l'écart aux
    autres athlètes du même moment. On la ramène donc sur la même échelle
@@ -2122,6 +2197,18 @@ function resultLabel(r){
   if(!hasResult(r))return "";
   var s=setsOf(r);
   return s.won+"–"+s.lost;
+}
+/* Le résultat d'un match tel qu'on peut l'AFFIRMER. Tant qu'il se joue,
+   son dernier set est ouvert : à 8–6 il n'est ni gagné ni perdu. Le
+   compter donnait « sets 2–0 » à un match qui menait 1–0, et « gagné »
+   à un set en cours. Les points, eux, se comptent toujours. */
+function setOuvert(se){
+  return (se&&se.live&&sessionIsSplit(se))?nbSetsReels(se)-1:-1;
+}
+function resultatLu(se){
+  var r=se&&se.result,i=setOuvert(se);
+  if(i<0||!r||!Array.isArray(r.sets))return r;
+  return {sets:r.sets.filter(function(x,j){return j!==i})};
 }
 function resultOutcome(r){
   if(!hasResult(r))return null;
@@ -4941,7 +5028,12 @@ var CUMUL_SCOPES=[{k:"all",l:"Toute la saison"},{k:"last3",l:"3 derniers"},{k:"l
    plus récentes en tête (unshift à l'enregistrement). */
 function scopedSessions(team){
   if(!team)return [];
-  var list=team.sessions;
+  /* « Les 3 derniers » sont les trois derniers JOUÉS. L'ordre du tableau
+     est celui de la saisie : une feuille rattrapée le dimanche pour un
+     match de septembre passait devant ceux d'octobre. On range donc par
+     jour de match, la saisie ne départageant que les matchs d'un même
+     jour. */
+  var list=team.sessions.slice().sort(function(a,b){return chronoSe(b,a)});
   if(state.cumulEventId)list=list.filter(function(se){return se.eventId===state.cumulEventId});
   else if(state.cumulKind!=="all")list=list.filter(function(se){
     var ev=eventOf(team,se);return ev&&ev.kind===state.cumulKind;
@@ -10394,30 +10486,48 @@ function pastillesFamille(){
 /* Ce qu'on a joué sur un périmètre — l'équipe, ou une athlète : le
    nombre de matchs, et de sets. Un match non ventilé compte ses sets
    joués au score, ou un seul s'il n'en a pas. */
-function aJoue(se,pid){
-  return (se.entries||[]).some(function(en){return en.playerId===pid&&hasStats(en.stats)});
+/* `qui` : une athlète (son identifiant), un ENSEMBLE d'athlètes (une
+   sous-équipe, un poste : {pid:true}), ou rien pour toute l'équipe.
+
+   Un ensemble joue un match dès qu'une des siennes y a un geste, et un
+   set de même. L'équipe B et la ligne « Libéro » se divisaient par les
+   matchs de TOUTE l'équipe : un amical joué par la seule équipe A
+   comptait au dénominateur de la B, dont les moyennes par match
+   tombaient d'un quart sans qu'elle ait rien joué de moins. Et un set
+   tout juste ouvert, encore vide, comptait déjà pour l'équipe : son
+   « / set » chutait au toucher de « ⏭ ». */
+function quiJoue(qui){
+  if(!qui)return function(){return true};
+  if(typeof qui==="string")return function(pid){return pid===qui};
+  return function(pid){return !!qui[pid]};
 }
-function setsJouesSe(se,pid){
+function aJoue(se,qui){
+  var ok=quiJoue(qui);
+  return (se.entries||[]).some(function(en){return ok(en.playerId)&&hasStats(en.stats)});
+}
+function setsJouesSe(se,qui){
   if(sessionIsSplit(se)){
-    var n=0;
+    var ok=quiJoue(qui),n=0;
     se.sets.forEach(function(b){
       if(b.reconciled)return;
-      if(!pid){n++;return}
-      if((b.entries||[]).some(function(x){return x.playerId===pid&&hasStats(normStats(x.stats))}))n++;
+      if((b.entries||[]).some(function(x){return ok(x.playerId)&&hasStats(normStats(x.stats))}))n++;
     });
     return n;
   }
-  if(pid&&!aJoue(se,pid))return 0;
+  if(!aJoue(se,qui))return 0;
   return ((se.result&&se.result.sets)||[]).filter(setJoue).length||1;
 }
-function jeuDuPerimetre(scope,pid){
+function jeuDuPerimetre(scope,qui){
   if(scope.niveau==="set")return {matchs:1,sets:1};
   var m=0,s=0;
   scope.sessions.forEach(function(se){
-    if(pid&&!aJoue(se,pid))return;
-    m++;s+=setsJouesSe(se,pid);
+    if(!aJoue(se,qui))return;
+    m++;s+=setsJouesSe(se,qui);
   });
   return {matchs:m,sets:s};
+}
+function ensembleDe(pids){
+  var o={};(pids||[]).forEach(function(pid){o[pid]=true});return o;
 }
 function modesDispo(scope,fam){
   var out=[{k:"total",l:"Total"}];
@@ -10489,7 +10599,10 @@ function volCellule(c,st,jeu,mode){
    — une ligne `fixe` (l'équipe, le total) reste en tête quel que soit
    le tri.
    opts : {cle, tete, triable, mode, fam, masquerVides, ordreFiche} */
-function tableauStats(lignes,opts){
+/* Les lignes telles qu'elles se lisent : la ligne fixe en tête, les
+   athlètes sans geste repliées, le tri choisi. Écrit une fois — le
+   tableau et son export ne peuvent pas ranger différemment. */
+function ordreTableau(lignes,opts){
   opts=opts||{};
   var fam=opts.fam||familleLue(),mode=opts.mode||"total",cols=colonnesStats(fam),cle=opts.cle||"t";
   if(!state.tabTri)state.tabTri={};
@@ -10516,6 +10629,12 @@ function tableauStats(lignes,opts){
   else if(tri&&tri.key==="__nom")autres=autres.slice().sort(function(a,b){
     return String(a.nom||a.label).localeCompare(String(b.nom||b.label),"fr");
   });
+  return {fam:fam,mode:mode,cols:cols,cle:cle,tri:tri,col:col,fixes:fixes,autres:autres,cachees:cachees};
+}
+function tableauStats(lignes,opts){
+  opts=opts||{};
+  var o=ordreTableau(lignes,opts);
+  var fam=o.fam,mode=o.mode,cols=o.cols,cle=o.cle,tri=o.tri,col=o.col,fixes=o.fixes,autres=o.autres,cachees=o.cachees;
   if(opts.ordreFiche)state.ficheOrdre=autres.filter(function(l){return l.onclick&&l.id.charAt(0)!=="_"})
     .map(function(l){return l.id});
 
@@ -10598,7 +10717,7 @@ function lignesPerimetre(sq,scope,src){
   else stTete=scopeTeamStats(scope,per);
   var out=[{id:"__equipe",
     label:poste?(poste==="NONE"?"Sans poste":(POS_LABELS[poste]||poste)):(stSE?stSE.name:"Équipe"),
-    sub:plural(choisies.length,"athlète"),stats:stTete,jeu:jeuDuPerimetre(scope,null),fixe:true,
+    sub:plural(choisies.length,"athlète"),stats:stTete,jeu:jeuDuPerimetre(scope,poste?ensembleDe(choisies):per),fixe:true,
     onclick:poste?null:function(){ouvrirFiche("__equipe",src)}}];
   choisies.forEach(function(pid){
     var p=playerById(pid);if(!p)return;
@@ -10614,27 +10733,409 @@ function lignesPerimetre(sq,scope,src){
   return {lignes:out,postes:POS_KEYS.concat(["NONE"]).filter(function(k){return postes[k]}),poste:poste};
 }
 
-/* Exporter ce qu'on lit : le tableau tel qu'il est à l'écran — élément,
-   mode — en CSV pour un tableur. */
-function exporterTableau(scope,lignes,fam,mode){
-  var cols=colonnesStats(fam);
-  var num=function(v,c){
-    if(v==null)return "";
-    if(c.eff)return v.toFixed(2).replace(".",",");
-    if(mode==="pct"&&c.part)return String(Math.round(v));
-    if(mode==="match"||mode==="set")return (Math.round(v*10)/10).toFixed(1).replace(".",",");
-    return String(v);
-  };
-  var ligneTete=["Athlète","Poste"].concat(cols.map(function(c){
-    return (c.lbl+(mode==="pct"&&c.part?" (%)":(mode==="match"&&!c.eff?" /match":(mode==="set"&&!c.eff?" /set":"")))).replace(/;/g,",")}));
-  var lines=[ligneTete.join(";")];
-  lignes.forEach(function(l){
-    lines.push([(l.nom||l.label).replace(/;/g,","),l.fixe?"":(l.sub||"").split(" · ")[0]]
-      .concat(cols.map(function(c){return num(valeurCellule(c,l.stats,l.jeu,mode,fam),c)})).join(";"));
-  });
-  downloadCSV(lines,"stats-"+safeName(scope.label.replace(/^\S+\s/,""))+"-"+(fam==="tout"?"compile":fam)+
-    (mode==="total"?"":"-"+mode)+".csv");
+/* ══════════════════════════════════════════════════════════════
+   EXPORTER LES STATISTIQUES
+
+   L'export était un bouton « 📤 CSV » : le tableau affiché, et rien
+   d'autre. Pour sortir une saison il fallait donc sept fichiers — un
+   par famille —, et aucun ne disait qui avait joué quoi, match par
+   match. Trois défauts s'y ajoutaient : la colonne « Poste » prenait
+   le premier mot du sous-titre de la ligne (« 3 matchs » pour une
+   athlète sans poste), les athlètes repliées à l'écran revenaient
+   dans le fichier, et le tri choisi n'y était pas.
+
+   Une fenêtre, deux questions :
+     QUOI   · le tableau affiché — élément, valeurs, poste, tri ;
+            · tous les compteurs — chaque geste de chaque famille, les
+              efficacités, points et fautes, matchs et sets joués ;
+            · le détail par match, ou par set — une ligne par athlète
+              et par étape, la forme qu'attend un tableau croisé ;
+            · l'évolution — la matrice telle qu'elle est lue.
+     COMMENT · un fichier CSV (tableur), une copie à coller, une
+              feuille à imprimer ou à enregistrer en PDF, et le partage
+              du téléphone quand il sait envoyer un fichier.
+
+   Tout part des mêmes fonctions que l'écran — lignesPerimetre,
+   valeurCellule, sequenceEvolution : un export ne peut pas dire un
+   autre chiffre que le tableau dont il sort. Le périmètre est celui
+   qu'on lit, sous-équipe et poste compris, et la fenêtre le redit.
+   ══════════════════════════════════════════════════════════════ */
+/* Le périmètre lu, selon l'endroit d'où l'on vient : le récap, la
+   feuille (son niveau à elle) ou une partie (son chemin). */
+function perimetreDe(sq,src){
+  if(src==="recap")return scopeRecap(sq);
+  if(src==="feuille"){
+    var se=feuilleCourante(sq);
+    if(se)return feuilleScope(sq,se,niveauFeuille(sq,se));
+  }
+  return evScope(sq,seasonSection()||"matches");
 }
+/* Une TABLE d'export : {titre, cols:[{t, d, s, u}], rows:[[…]]}.
+   `d` décimales, `s` signée à l'impression, `u` unité à l'impression.
+   Une cellule est un nombre, une chaîne, ou rien. */
+function xpTexte(v,c,imprime){
+  if(v==null||v==="")return imprime?"—":"";
+  if(typeof v!=="number")return String(v);
+  if(!isFinite(v))return imprime?"—":"";
+  var d=(c&&c.d)||0,k=Math.pow(10,d),t=Math.round(v*k)/k;
+  if(!t)t=0;
+  var s=t.toFixed(d).replace(".",",");
+  if(!imprime)return s;
+  return ((c&&c.s&&t>=0)?"+":"")+s.replace("-","−")+((c&&c.u)||"");
+}
+/* Un champ de fichier : entre guillemets s'il porte le séparateur, et
+   jamais lu comme une formule par le tableur qui l'ouvre. */
+function xpChamp(v,sep){
+  var s=String(v==null?"":v);
+  if(typeof v==="string"&&/^[=+@\t\r]/.test(s))s="'"+s;
+  if(sep===";")return /[";\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+  return s.replace(/[\t\n\r]+/g," ");
+}
+function xpLignes(t,sep){
+  return [t.cols.map(function(c){return xpChamp(c.t,sep)}).join(sep)].concat(t.rows.map(function(r){
+    return r.map(function(v,i){
+      return xpChamp(typeof v==="number"?xpTexte(v,t.cols[i],false):(v==null?"":v),sep);
+    }).join(sep);
+  }));
+}
+var XP_IDENT=[{t:"N°",g:true},{t:"Athlète",g:true},{t:"Poste",g:true}];
+function xpIdent(sq,l){
+  if(l.fixe)return ["",l.label,""];
+  var e=rosterEntry(sq,l.id);
+  return [(l.num==null||isNaN(l.num))?"":l.num,l.nom||l.label,(e&&e.position)||""];
+}
+/* Le nom de fichier d'un périmètre : son libellé sans son icône. */
+/* « Tout » ne dit pas de quoi : une partie entière porte son nom. */
+function xpPartie(scope){
+  if(scope.label!=="Tout")return "";
+  var s=SECTION_BY_KEY[seasonSection()];
+  return s?s.label:"";
+}
+function xpNom(sq,scope){
+  var st=sousEquipeActive(sq);
+  return safeName(String(xpPartie(scope)||scope.label||"").replace(/^[^0-9A-Za-zÀ-ÿ]+/,""))+(st?"-"+safeName(st.name):"");
+}
+/* Une famille — ou « tout » — en table : les colonnes du tableau, dans
+   le mode voulu. */
+function xpTableFam(sq,lignes,fam,mode,titre){
+  var cols=colonnesStats(fam);
+  return {titre:titre||"",
+    cols:XP_IDENT.concat(cols.map(function(c){
+      var pct=mode==="pct"&&c.part;
+      return {t:c.lbl+(pct?" (%)":((mode==="match"&&!c.eff)?" /match":((mode==="set"&&!c.eff)?" /set":""))),
+        d:c.eff?2:(pct?0:((mode==="match"||mode==="set")?1:0)),s:!!c.eff,u:pct?" %":""};
+    })),
+    fixes:lignes.map(function(l){return !!l.fixe}),
+    rows:lignes.map(function(l){
+      return xpIdent(sq,l).concat(cols.map(function(c){return valeurCellule(c,l.stats,l.jeu,mode,fam)}));
+    })};
+}
+var XP_MODE={match:" — moyennes par match",set:" — moyennes par set",pct:" — parts en %",total:""};
+/* ① Le tableau affiché : mêmes lignes, même ordre, mêmes valeurs. */
+function xpTableau(sq,scope,src){
+  var fam=familleLue(),mode=modeLu(scope,fam),r=lignesPerimetre(sq,scope,src);
+  var o=ordreTableau(r.lignes,{cle:src+"-"+(seasonSection()||""),fam:fam,mode:mode,masquerVides:true});
+  var t=xpTableFam(sq,o.fixes.concat(o.autres),fam,mode,(fam==="tout"?"Tout compilé":FAM_UN[fam])+XP_MODE[mode]);
+  return {fichier:"stats-"+xpNom(sq,scope)+"-"+(fam==="tout"?"compile":fam)+(mode==="total"?"":"-"+mode),
+    large:t,tables:[t],
+    notes:o.cachees.length?[plural(o.cachees.length,"athlète")+" sans geste en "+FAM_UN[fam].toLowerCase()+
+      " : repliée"+(o.cachees.length>1?"s":"")+" à l'écran, absente"+(o.cachees.length>1?"s":"")+" de l'export."]:[]};
+}
+/* Les compteurs d'un relevé, famille après famille. */
+function xpColsCompteurs(){
+  var cols=[];
+  SG_KEYS.forEach(function(f){
+    SG[f].stats.forEach(function(s){cols.push({t:FAM_UN[f]+" · "+s.label})});
+    cols.push({t:FAM_UN[f]+" · Total"});
+    if(!FAM_SANS_EFF[f])cols.push({t:FAM_UN[f]+" · Eff.",d:2,s:true});
+  });
+  return cols.concat([{t:"Points directs"},{t:"Fautes directes"},{t:"Gestes"}]);
+}
+function xpValsCompteurs(st){
+  var out=[];
+  SG_KEYS.forEach(function(f){
+    SG[f].stats.forEach(function(s){out.push((st&&st[s.key])||0)});
+    out.push(familyVolume(st,f));
+    if(!FAM_SANS_EFF[f])out.push(familyEff(st,f));
+  });
+  return out.concat([sommeCles(st,PTS_KEYS),sommeCles(st,FAUTE_KEYS),sumStats(st)]);
+}
+/* ② Tous les compteurs : une ligne par athlète, tout ce qu'elle a fait.
+   À l'impression, une table par famille — vingt-huit colonnes ne
+   tiennent sur aucune feuille. */
+function xpComplet(sq,scope,src){
+  var r=lignesPerimetre(sq,scope,src),L=r.lignes,entr=perimetreEntrainement(sq,scope);
+  var large={titre:"Tous les compteurs",
+    cols:XP_IDENT.concat([{t:entr?"Séances":"Matchs"},{t:"Sets"}]).concat(xpColsCompteurs()),
+    rows:L.map(function(l){
+      return xpIdent(sq,l).concat([l.jeu?l.jeu.matchs:"",l.jeu?l.jeu.sets:""]).concat(xpValsCompteurs(l.stats));
+    })};
+  var tables=[xpTableFam(sq,L,"tout","total","Tout compilé — efficacités, points, fautes, gestes")];
+  SG_KEYS.forEach(function(f){
+    var avec=L.filter(function(l){return l.fixe||familyVolume(l.stats,f)});
+    if(avec.length>1||familyVolume(L[0].stats,f))tables.push(xpTableFam(sq,avec,f,"total",SG[f].name));
+  });
+  return {fichier:"stats-"+xpNom(sq,scope)+"-complet",large:large,tables:tables,notes:[]};
+}
+function xpScoreMatch(se){
+  var sets=((se.result&&se.result.sets)||[]).filter(setJoue).map(function(x){return x.us+"–"+x.them}).join(" ");
+  var rl=resultatLu(se),o=issueDe(se);
+  return [hasResult(rl)?resultLabel(rl)+(o?" "+OUTCOMES[o].short:""):"",se.live?"en cours":"",sets?"("+sets+")":""]
+    .filter(Boolean).join(" ");
+}
+/* ③ Le détail : une ligne par athlète et par étape — match ou set —,
+   dans l'ordre où ils ont été joués. L'équipe ouvre chaque étape. */
+function xpDetail(sq,scope,src,pas){
+  var etapes=sequenceEvolution(sq,scope,pas),per=perimetreSE(sq),r=lignesPerimetre(sq,scope,src);
+  var tete=r.lignes[0],athletes=r.lignes.filter(function(l){return !l.fixe});
+  var entr=perimetreEntrainement(sq,scope);
+  var cols=[{t:"Étape",g:true},{t:pas==="set"?"Set":(entr?"Séance":"Match"),g:true},{t:"Date",g:true},
+    {t:"Adversaire",g:true},{t:"Score",g:true}].concat(XP_IDENT).concat(xpColsCompteurs());
+  var rows=[],tables=[];
+  etapes.forEach(function(it){
+    var se=it.scope.sessions[0],ev=se?eventOf(sq,se):null;
+    var base=[it.court,it.label,se?(se.day||dayOf(se.date)||""):"",se?(se.opponent||(ev&&ev.opponent)||""):"",
+      pas==="set"?(it.info||""):(se?xpScoreMatch(se):"")];
+    var stT;
+    if(r.poste){stT=emptyS();athletes.forEach(function(l){addStats(stT,scopeStats(it.scope,l.id))})}
+    else stT=scopeTeamStats(it.scope,per);
+    if(!sumStats(stT))return;
+    var lignes=[{fixe:true,label:tete.label,stats:stT}];
+    athletes.forEach(function(l){
+      var st=scopeStats(it.scope,l.id);
+      if(sumStats(st))lignes.push({id:l.id,label:l.label,nom:l.nom,num:l.num,stats:st});
+    });
+    lignes.forEach(function(l){rows.push(base.concat(xpIdent(sq,l)).concat(xpValsCompteurs(l.stats)))});
+    tables.push(xpTableFam(sq,lignes,"tout","total",
+      [it.court,it.label,pas==="set"?it.info:(se?xpScoreMatch(se):"")].filter(Boolean).join(" · ")));
+  });
+  var nv=pas==="set"?nonVentiles(scope):0;
+  return {fichier:"stats-"+xpNom(sq,scope)+"-detail-"+(pas==="set"?"sets":(entr?"seances":"matchs")),
+    large:{titre:"Détail par "+(pas==="set"?"set":(entr?"séance":"match")),cols:cols,rows:rows},tables:tables,
+    notes:nv?[plural(nv,"match")+" non ventilé"+(nv>1?"s":"")+" : sans sets à détailler, "+(nv>1?"ils restent":"il reste")+
+      " dans le détail par match."]:[]};
+}
+/* ④ L'évolution : la matrice, telle qu'elle est lue. */
+function xpEvolution(sq,scope,src){
+  var p=pasLu(sq,scope),m=metriqueLue();
+  if(!p)return null;
+  var etapes=sequenceEvolution(sq,scope,p),r=lignesPerimetre(sq,scope,src);
+  var athletes=r.lignes.filter(function(l){return !l.fixe});
+  var rangs=[{l:r.lignes[0],vals:serieEvolution(sq,etapes,m,r.poste?athletes.map(function(l){return l.id}):null)}]
+    .concat(athletes.map(function(l){return {l:l,vals:serieEvolution(sq,etapes,m,l.id)}}));
+  var d=m.eff?2:1;
+  var t={titre:m.l,
+    cols:[{t:"Athlète",g:true}].concat(etapes.map(function(it){return {t:it.court+" "+it.label,d:d,s:!!m.eff}}))
+      .concat([{t:"Tendance",d:d,s:true}]),
+    fixes:rangs.map(function(x,i){return !i}),
+    rows:rangs.map(function(x){
+      var td=tendanceEvolution(x.vals,m);
+      return [x.l.nom||x.l.label].concat(x.vals.map(function(v){return v.v}))
+        .concat([td?(td.sens==="flat"?"stable":td.ecart):null]);
+    })};
+  /* Sur le papier, vingt étapes aux noms entiers ne tiennent pas en
+     largeur : les colonnes portent leur code (M1, M2…), et une légende
+     dit ce qu'est chacune. */
+  var imp={titre:t.titre,fixes:t.fixes,rows:t.rows,
+    cols:[t.cols[0]].concat(etapes.map(function(it){return {t:it.court,d:d,s:!!m.eff}})).concat([t.cols[t.cols.length-1]]),
+    legende:etapes.map(function(it){return it.court+" — "+it.label+(it.info?" · "+it.info:"")})};
+  return {fichier:"evolution-"+xpNom(sq,scope)+"-"+m.k+"-"+p,large:t,tables:[imp],notes:[]};
+}
+function donneesExport(sq,scope,src,contenu){
+  if(contenu==="complet")return xpComplet(sq,scope,src);
+  if(contenu==="match"||contenu==="set")return xpDetail(sq,scope,src,contenu);
+  if(contenu==="evolution")return xpEvolution(sq,scope,src)||xpTableau(sq,scope,src);
+  return xpTableau(sq,scope,src);
+}
+/* Ce qu'on peut exporter d'un périmètre — jamais un choix vide. */
+function contenusExport(sq,scope,src){
+  var fam=familleLue(),mode=modeLu(scope,fam),entr=perimetreEntrainement(sq,scope);
+  var poste=lignesPerimetre(sq,scope,src).poste;
+  var out=[{k:"tableau",ico:"📊",l:"Le tableau affiché",
+    sub:[fam==="tout"?"Tout compilé":FAM_UN[fam],{total:"totaux",match:"par match",set:"par set",pct:"en %"}[mode],
+      poste?"poste "+(poste==="NONE"?"sans poste":poste):null,"lignes et tri de l'écran"].filter(Boolean).join(" · ")},
+    {k:"complet",ico:"🧮",l:"Tous les compteurs",
+     sub:"Chaque geste de chaque famille, les efficacités, points et fautes, "+(entr?"séances":"matchs")+" et sets joués"}];
+  if(scope.niveau!=="match"&&scope.niveau!=="set"&&scope.sessions.length)
+    out.push({k:"match",ico:"🗂️",l:"Le détail par "+(entr?"séance":"match"),
+      sub:"Une ligne par athlète et par "+(entr?"séance":"match")+" — pour un tableau croisé"});
+  if(scope.niveau!=="set"&&sequenceEvolution(sq,scope,"set").length)
+    out.push({k:"set",ico:"🎽",l:"Le détail par set",sub:"Une ligne par athlète et par set, score du set compris"});
+  var p=pasLu(sq,scope);
+  if(p){
+    var pl=pasDispo(sq,scope).filter(function(x){return x.k===p})[0];
+    out.push({k:"evolution",ico:"📈",l:"L'évolution",
+      sub:metriqueLue().l+" · "+(pl?pl.l.toLowerCase():"")+" · la matrice et sa tendance"});
+  }
+  return out;
+}
+/* Le partage du téléphone, s'il sait envoyer un fichier. */
+function xpPartageable(){
+  try{
+    return !!(navigator.share&&navigator.canShare&&window.File&&
+      navigator.canShare({files:[new File(["a"],"a.csv",{type:"text/csv"})]}));
+  }catch(e){return false}
+}
+function formatsExport(){
+  var out=[{k:"csv",ico:"📄",l:"Fichier CSV",sub:"Un fichier pour Excel, Numbers ou Sheets — point-virgule, décimales à virgule.",verbe:"📤 Exporter"},
+    {k:"copier",ico:"📋",l:"Copier",sub:"Dans le presse-papiers : à coller dans un tableur, une note ou un courriel.",verbe:"📋 Copier"},
+    {k:"imprimer",ico:"🖨️",l:"Imprimer · PDF",sub:"Une feuille claire, à imprimer ou à enregistrer en PDF depuis la fenêtre d'impression.",verbe:"🖨️ Imprimer"}];
+  if(xpPartageable())out.push({k:"partager",ico:"↗️",l:"Partager",
+    sub:"Envoie le fichier CSV par la feuille de partage de l'appareil — message, courriel, nuage.",verbe:"↗️ Partager"});
+  return out;
+}
+/* Ce que dit l'en-tête d'une feuille imprimée : l'équipe, la saison,
+   le périmètre, ce qu'il a donné. */
+function xpEntete(sq,scope,src){
+  var eq=equipeDe(sq),sa=seasonById(sq.seasonId),st=sousEquipeActive(sq),r=lignesPerimetre(sq,scope,src);
+  var jours=scope.sessions.map(function(se){return se.day||dayOf(se.date)||""}).filter(Boolean).sort();
+  var entr=perimetreEntrainement(sq,scope);
+  var partie=xpPartie(scope);
+  var bits=[scope.label==="Tout"?(partie?partie+" — toutes les rencontres":"Toutes les rencontres"):scope.label,
+    st?"« "+st.name+" »":null,
+    r.poste?"poste "+(r.poste==="NONE"?"sans poste":(POS_LABELS[r.poste]||r.poste)):null];
+  var faits=[];
+  if(jours.length)faits.push(jours[0]===jours[jours.length-1]?fmtShortDay(jours[0])
+    :"du "+fmtShortDay(jours[0])+" au "+fmtShortDay(jours[jours.length-1]));
+  if(scope.niveau!=="set"&&scope.niveau!=="match")faits.push(plural(scope.sessions.length,entr?"séance":"match"));
+  if(!entr&&scope.niveau!=="set"){
+    var b=bilanPerimetre(scope),n=b.win+b.loss+b.draw;
+    if(scope.niveau==="match"&&scope.sessions[0])faits.push(xpScoreMatch(scope.sessions[0]));
+    else {
+      if(n)faits.push("bilan "+b.win+"V–"+b.loss+"D"+(b.draw?"–"+b.draw+"N":""));
+      if(b.scores)faits.push("sets "+b.setsW+"–"+b.setsL+" · points "+b.ptsP+"–"+b.ptsC);
+    }
+  }
+  faits.push(plural(sumStats(r.lignes[0].stats),"geste"));
+  return {titre:[eq?eq.name:(sq.name||"Équipe"),sa?sa.name:null].filter(Boolean).join(" · "),
+    perimetre:bits.filter(Boolean).join(" · "),faits:faits.filter(Boolean).join(" · ")};
+}
+/* La feuille imprimée : posée à côté de l'application, seule visible à
+   l'impression, retirée ensuite. Aucune fenêtre ne s'ouvre — un
+   téléphone en mode application n'en ouvrirait pas. */
+function feuilleImpression(sq,scope,src,data){
+  var e=xpEntete(sq,scope,src);
+  var root=h("div",{id:"impression"},
+    h("div",{className:"imp-tete"},
+      h("div",{className:"imp-marque"},"WonderStats · statistiques"),
+      h("h1",null,e.titre),
+      h("div",{className:"imp-per"},e.perimetre),
+      h("div",{className:"imp-faits"},e.faits)));
+  data.tables.forEach(function(t){
+    root.appendChild(h("section",{className:"imp-bloc"},
+      t.titre?h("h2",null,t.titre):null,
+      h("table",{className:"imp-t"},
+        h("thead",null,h("tr",null,t.cols.map(function(c){return h("th",{className:c.g?"g":""},c.t)}))),
+        h("tbody",null,t.rows.map(function(r,i){
+          return h("tr",{className:(t.fixes&&t.fixes[i])?"eq":""},r.map(function(v,j){
+            return h("td",{className:t.cols[j].g?"g":""},xpTexte(v,t.cols[j],true));
+          }));
+        }))),
+      t.legende?h("div",{className:"imp-leg"},t.legende.map(function(l){return h("div",null,l)})):null));
+  });
+  root.appendChild(h("div",{className:"imp-pied"},
+    "Efficacité = (réussis − ratés) ÷ total, de −1 à +1 · Points directs : aces, attaques gagnantes, blocs gagnants et solo · "+
+    "Fautes directes : service, attaque, réception, bloc. Édité le "+fmtDay(nowISO())+" — WonderStats v"+APP_VERSION+"."));
+  return root;
+}
+function imprimerStats(sq,scope,src,data){
+  var vieux=document.getElementById("impression");
+  if(vieux&&vieux.parentNode)vieux.parentNode.removeChild(vieux);
+  if(typeof window.print!=="function"){showToast("⚠️ Cet appareil ne sait pas imprimer d'ici — exportez le CSV",{tone:"warn"});return false}
+  var root=feuilleImpression(sq,scope,src,data);
+  document.body.appendChild(root);
+  var fini=function(){
+    window.removeEventListener("afterprint",fini);
+    if(root.parentNode)root.parentNode.removeChild(root);
+  };
+  window.addEventListener("afterprint",fini);
+  /* Le temps que la fenêtre se ferme et que la feuille soit posée. */
+  setTimeout(function(){
+    try{window.print()}
+    catch(err){fini();showToast("⚠️ Impression impossible — exportez le CSV",{tone:"warn"})}
+  },80);
+  return true;
+}
+function executerExport(sq,scope,src,contenu,format){
+  var data=donneesExport(sq,scope,src,contenu);
+  if(!data||!data.large.rows.length){showToast("⚠️ Rien à exporter sur ce périmètre",{tone:"warn"});return false}
+  if(format==="imprimer")return imprimerStats(sq,scope,src,data);
+  if(format==="copier"){
+    var txt=xpLignes(data.large,"\t").join("\n");
+    var fait=function(ok){showToast(ok?"📋 Copié — "+plural(data.large.rows.length,"ligne")+" à coller dans un tableur"
+      :"⚠️ Copie refusée par l'appareil — exportez le CSV",ok?{tone:"ok"}:{tone:"warn"})};
+    if(navigator.clipboard&&navigator.clipboard.writeText)
+      navigator.clipboard.writeText(txt).then(function(){fait(true)},function(){fait(false)});
+    else fait(false);
+    return true;
+  }
+  var lignes=xpLignes(data.large,";"),nom=data.fichier+".csv";
+  if(format==="partager"){
+    try{
+      var f=new File(["﻿"+lignes.join("\n")],nom,{type:"text/csv"});
+      navigator.share({files:[f],title:"Statistiques — "+(scope.label==="Tout"?"toutes les rencontres":scope.label)})
+        .then(function(){showToast("↗️ Statistiques partagées",{tone:"ok"})},
+          function(err){if(!err||err.name!=="AbortError")downloadCSV(lignes,nom)});
+      return true;
+    }catch(e){}
+  }
+  downloadCSV(lignes,nom);
+  return true;
+}
+function ouvrirExportStats(src){
+  state.modalDraft=null;
+  openModal("exportstats",{src:src||"part"});
+}
+function renderExportStatsModal(){
+  var sq=curSquad();if(!sq)return null;
+  var src=(state.modalCtx&&state.modalCtx.src)||"part";
+  var scope=perimetreDe(sq,src);
+  var contenus=contenusExport(sq,scope,src),formats=formatsExport();
+  var d=state.modalDraft;
+  /* Le choix vit dans un sous-objet : un brouillon de chaînes ferait
+     demander « Abandonner cette saisie ? » à qui touche le fond. */
+  if(!d||!d.xp)d=state.modalDraft={xp:{format:"csv",
+    contenu:(state.statVue==="evolution"&&contenus.some(function(c){return c.k==="evolution"}))?"evolution":"tableau"}};
+  var x=d.xp;
+  if(!contenus.some(function(c){return c.k===x.contenu}))x.contenu=contenus[0].k;
+  if(!formats.some(function(f){return f.k===x.format}))x.format=formats[0].k;
+  var e=xpEntete(sq,scope,src),data=donneesExport(sq,scope,src,x.contenu);
+  var fmt=formats.filter(function(f){return f.k===x.format})[0];
+  function choix(o,on,pick,petit){
+    return h("button",{className:"xp-opt"+(petit?" xp-fmt":"")+(on?" on":""),type:"button",role:"radio",
+      "aria-checked":on?"true":"false","aria-label":o.l+(petit?"":" — "+o.sub),
+      onclick:function(){if(!on){pick(o.k);render()}}},
+      h("span",{className:"xp-ico","aria-hidden":"true"},o.ico),
+      h("span",{className:"xp-body"},
+        h("span",{className:"xp-ttl"},o.l),
+        petit?null:h("span",{className:"xp-sub"},o.sub)),
+      petit?null:h("span",{className:"xp-coche","aria-hidden":"true"}));
+  }
+  var nL=data.large.rows.length,nC=data.large.cols.length;
+  var body=h("div",{className:"xp"},
+    h("div",{className:"muted xp-per"},h("b",null,e.perimetre),h("br"),e.faits),
+    h("div",{className:"section-title"},"Quoi exporter"),
+    h("div",{className:"xp-opts",role:"radiogroup","aria-label":"Quoi exporter"},
+      contenus.map(function(o){return choix(o,o.k===x.contenu,function(k){x.contenu=k})})),
+    h("div",{className:"section-title"},"Sous quelle forme"),
+    h("div",{className:"xp-opts xp-fmts",role:"radiogroup","aria-label":"Sous quelle forme"},
+      formats.map(function(o){return choix(o,o.k===x.format,function(k){x.format=k},true)})),
+    h("div",{className:"muted xp-apercu",role:"status","aria-live":"polite"},
+      h("b",null,x.format==="imprimer"
+        ?plural(data.tables.length,"tableau","tableaux")+" · "+plural(data.tables.reduce(function(n,t){return n+t.rows.length},0),"ligne")
+        :plural(nL,"ligne")+" × "+plural(nC,"colonne")),
+      " — "+fmt.sub,
+      data.notes.map(function(n){return h("div",{className:"xp-note"},n)})));
+  var ok=h("button",{id:"modalOk",className:"btn btn-save full",type:"button",disabled:nL?null:"disabled",
+    onclick:function(){
+      var c=x.contenu,f=x.format;
+      state.modalDraft=null;closeModal();
+      executerExport(sq,scope,src,c,f);
+    }},fmt.verbe);
+  return sheetShell({title:"Exporter les statistiques",
+    buttons:[h("button",{className:"btn btn-ghost full",type:"button",onclick:closeModal},"Fermer"),ok]},body);
+}
+defModal("exportstats",renderExportStatsModal,{autofocus:false});
 function legendeStats(fam,mode){
   var t=fam==="tout"
     ?"Efficacité de −1 à +1, volume dessous. Pts : aces, attaques gagnantes, blocs gagnants et solo · Fautes : service, attaque, réception, bloc."
@@ -10671,15 +11172,15 @@ function blocStatistiques(sq,scope,src){
   if(vue==="evolution")return h("div",{className:"st-bloc"},
     h("div",{className:"st-tete"},
       h("div",{className:"section-title"},"Évolution · "+nomPer),
-      h("button",{className:"btn btn-ghost xs st-csv",type:"button","aria-label":"Exporter cette évolution en CSV",
-        onclick:function(){exporterEvolution(sq,scope,src)}},"📤 CSV")),
+      h("button",{className:"btn btn-ghost xs st-csv",type:"button","aria-label":"Exporter cette évolution",
+        onclick:function(){ouvrirExportStats(src)}},"📤 Exporter")),
     bascule,
     blocEvolution(sq,scope,src,choixPoste));
   return h("div",{className:"st-bloc"},
     h("div",{className:"st-tete"},
       h("div",{className:"section-title"},"Statistiques · "+nomPer+" · "+plural(total,"geste")),
-      h("button",{className:"btn btn-ghost xs st-csv",type:"button","aria-label":"Exporter ce tableau en CSV",
-        onclick:function(){exporterTableau(scope,r.lignes,fam,mode)}},"📤 CSV")),
+      total?h("button",{className:"btn btn-ghost xs st-csv",type:"button","aria-label":"Exporter ces statistiques",
+        onclick:function(){ouvrirExportStats(src)}},"📤 Exporter"):null),
     bascule,
     total?pastillesFamille():null,
     !total?emptyState({icon:"📊",title:"Aucun geste relevé",small:true,
@@ -10860,9 +11361,9 @@ function serieEvolution(sq,etapes,m,qui){
   var per=perimetreSE(sq);
   return etapes.map(function(it){
     var st,jeu,pid=null;
-    if(!qui){st=scopeTeamStats(it.scope,per);jeu=jeuDuPerimetre(it.scope,null)}
+    if(!qui){st=scopeTeamStats(it.scope,per);jeu=jeuDuPerimetre(it.scope,per)}
     else if(typeof qui==="string"){pid=qui;st=scopeStats(it.scope,qui);jeu=jeuDuPerimetre(it.scope,qui)}
-    else {st=emptyS();qui.forEach(function(x){addStats(st,scopeStats(it.scope,x))});jeu=jeuDuPerimetre(it.scope,null)}
+    else {st=emptyS();qui.forEach(function(x){addStats(st,scopeStats(it.scope,x))});jeu=jeuDuPerimetre(it.scope,ensembleDe(qui))}
     return valeurMetrique(m,st,jeu,pid);
   });
 }
@@ -11236,22 +11737,6 @@ function ficheEvolution(sq,scope,pid){
   return wrap;
 }
 
-/* L'export de la matrice, telle qu'elle est lue. */
-function exporterEvolution(sq,scope,src){
-  var p=pasLu(sq,scope),m=metriqueLue();if(!p)return;
-  var etapes=sequenceEvolution(sq,scope,p),r=lignesPerimetre(sq,scope,src);
-  var num=function(v){return v==null?"":(m.eff?v.toFixed(2):(Math.round(v*10)/10).toFixed(1)).replace(".",",")};
-  var lines=[["Athlète"].concat(etapes.map(function(it){return (it.court+" "+it.label).replace(/;/g,",")})).concat(["Tendance"]).join(";")];
-  var rangs=[{l:r.lignes[0],vals:serieEvolution(sq,etapes,m,r.poste?r.lignes.filter(function(l){return !l.fixe}).map(function(l){return l.id}):null)}]
-    .concat(r.lignes.filter(function(l){return !l.fixe}).map(function(l){return {l:l,vals:serieEvolution(sq,etapes,m,l.id)}}));
-  rangs.forEach(function(x){
-    var t=tendanceEvolution(x.vals,m);
-    lines.push([(x.l.nom||x.l.label).replace(/;/g,",")].concat(x.vals.map(function(v){return num(v.v)}))
-      .concat([t?(t.sens==="flat"?"stable":num(t.ecart)):""]).join(";"));
-  });
-  downloadCSV(lines,"evolution-"+safeName(scope.label.replace(/^\S+\s/,""))+"-"+m.k+"-"+p+".csv");
-}
-
 /* Les enfants d'un périmètre : les sets d'un match, les matchs d'une
    rencontre, les rencontres d'une partie. C'est ce qui fait lire une
    athlète — ou l'équipe — par set, par match, par tournoi. */
@@ -11267,9 +11752,9 @@ function enfantsDuPerimetre(sq,scope){
   if(scope.niveau==="rencontre"){
     var ss=scope.sessions.slice().sort(function(a,b){return String(a.date||"").localeCompare(String(b.date||""))});
     return ss.map(function(x){
-      var ev=eventOf(sq,x),o=issueDe(x);
+      var ev=eventOf(sq,x),o=issueDe(x),rl=resultatLu(x);
       return mkScope((ev?matchLabel(ev,x):x.name)+(x.opponent?" · "+x.opponent:"")+
-        (hasResult(x.result)?" · "+resultLabel(x.result)+(o?" "+OUTCOMES[o].short:""):""),[x],null,null,"match");
+        (hasResult(rl)?" · "+resultLabel(rl)+(o?" "+OUTCOMES[o].short:""):"")+(x.live?" · en cours":""),[x],null,null,"match");
     });
   }
   var parEv={},ordre=[];
@@ -11304,14 +11789,7 @@ function ouvrirFiche(pid,src){
   state.ficheVue=state.statVue==="evolution"?"evolution":"detail";
   openModal("evathlete",pid);
 }
-function perimetreFiche(sq){
-  if(state.ficheSrc==="recap")return scopeRecap(sq);
-  if(state.ficheSrc==="feuille"){
-    var se=feuilleCourante(sq);
-    if(se)return feuilleScope(sq,se,niveauFeuille(sq,se));
-  }
-  return evScope(sq,seasonSection()||"matches");
-}
+function perimetreFiche(sq){return perimetreDe(sq,state.ficheSrc)}
 /* Une efficacité se lit sur une jauge centrée : à droite du zéro ce qui
    rapporte, à gauche ce qui coûte. Le chiffre est à côté — la couleur
    ne fait que le confirmer. */
@@ -11359,7 +11837,7 @@ function renderEvAthleteModal(){
   var per=perimetreSE(sq),stSE=sousEquipeActive(sq);
   var scope=perimetreFiche(sq),fam=familleLue();
   function statsDe(sc){return equipe?scopeTeamStats(sc,per):scopeStats(sc,pid)}
-  var st=statsDe(scope),total=sumStats(st),jeu=jeuDuPerimetre(scope,equipe?null:pid);
+  var st=statsDe(scope),total=sumStats(st),jeu=jeuDuPerimetre(scope,equipe?per:pid);
   var titre=equipe?(stSE?"« "+stSE.name+" »":"L'équipe"):fullName(p);
   var corps=h("div",null);
   /* D'une athlète à la suivante, dans l'ordre du tableau d'où l'on vient. */
@@ -11448,13 +11926,15 @@ function evKpis(sq,scope,max){
   function ton(e){return e==null?"":(e>0?"pos":(e<0?"neg":""))}
   if(scope.niveau==="set"&&scope.session){
     var sc=scoreSet(scope.session,scope.setIdx);
+    /* Le set qui se joue n'est ni gagné ni perdu : il est en cours. */
+    var ouvert=setOuvert(scope.session)===scope.setIdx;
     if(!training)tuiles.push(kpiMini("Score du set",(sc.us||sc.them)?sc.us+"–"+sc.them:"—",
-      (sc.us||sc.them)?(sc.us>sc.them?"gagné":(sc.them>sc.us?"perdu":"à égalité")):"non saisi",
-      sc.us>sc.them?"pos":(sc.them>sc.us?"neg":"")));
+      ouvert?"en cours":((sc.us||sc.them)?(sc.us>sc.them?"gagné":(sc.them>sc.us?"perdu":"à égalité")):"non saisi"),
+      ouvert?"":(sc.us>sc.them?"pos":(sc.them>sc.us?"neg":""))));
   } else if(scope.niveau==="match"&&scope.sessions[0]){
-    var se=scope.sessions[0],o=resultOutcome(se.result);
+    var se=scope.sessions[0],o=resultOutcome(se.result),rl=resultatLu(se);
     if(!training){
-      tuiles.push(kpiMini("Résultat",hasResult(se.result)?resultLabel(se.result):"—",
+      tuiles.push(kpiMini(se.live?"Sets":"Résultat",hasResult(rl)?resultLabel(rl):"—",
         se.live?"en cours":(o?OUTCOMES[o].label:"score non saisi"),se.live?"":(o==="win"?"pos":(o==="loss"?"neg":""))));
       var pp=0,pc=0;((se.result&&se.result.sets)||[]).forEach(function(x){if(setJoue(x)){pp+=x.us;pc+=x.them}});
       tuiles.push(kpiMini("Points",(pp||pc)?pp+"–"+pc:"—",(pp||pc)?(pp-pc>0?"+":"")+(pp-pc)+" d'écart":"non saisis"));
@@ -11679,7 +12159,8 @@ function rangeeMatch(sq,ev,se){
       h("span",{className:"nr-sub"},
         [se.opponent?"contre "+se.opponent:null,
          se.live?"en cours":null,
-         hasResult(se.result)?resultLabel(se.result)+(o?" "+OUTCOMES[o].short:""):(ev.kind==="training"?null:"score non saisi"),
+         hasResult(resultatLu(se))?resultLabel(resultatLu(se))+(o?" "+OUTCOMES[o].short:"")
+           :((ev.kind==="training"||se.live)?null:"score non saisi"),
          sessionIsSplit(se)?plural(nbSetsReels(se),"set"):"non ventilé",
          plural(gestesMatch(se),"geste")]
         .filter(Boolean).join(" · "))),
@@ -11800,7 +12281,7 @@ function evChildren(sq,k){
            taisait un — et un match seul dit son score. */
         var seul=!multi?g.sessions[0]:null,os=seul?issueDe(seul):null;
         var bilanTxt=multi?((v||d||nn)?v+"V–"+d+"D"+(nn?"–"+nn+"N":""):null)
-          :((seul&&hasResult(seul.result))?resultLabel(seul.result)+(os?" "+OUTCOMES[os].short:""):null);
+          :((seul&&hasResult(resultatLu(seul)))?resultLabel(resultatLu(seul))+(os?" "+OUTCOMES[os].short:""):null);
         return h("button",{className:"navRow"+(live?" is-live":""),type:"button",
           onclick:function(){
             /* Un match seul n'a pas de niveau intermédiaire : on descend
@@ -18181,7 +18662,7 @@ function rangeeMatchEnCours(sq,se){
       h("span",{className:"nr-ttl"},titre),
       h("span",{className:"nr-sub"},
         [se.opponent?"contre "+se.opponent:null,"en cours",
-         k.key==="training"?null:(hasResult(se.result)?"sets "+resultLabel(se.result):null),
+         k.key==="training"?null:(hasResult(resultatLu(se))?"sets "+resultLabel(resultatLu(se)):null),
          plural(gestesMatch(se),"geste")].filter(Boolean).join(" · "))),
     h("span",{className:"nr-arw","aria-hidden":"true"},"›"));
 }
@@ -18901,15 +19382,65 @@ defModal("matchfeuille",renderMatchFeuilleModal,{autofocus:false});
 /* ── Les fenêtres de la feuille ──────────────────────────────────── */
 
 /* Un score « nous – eux » : deux champs, et « − » / « + » pour
-   suivre le set point par point sans clavier. `sc` porte des chaînes. */
-function editeurScore(sc,onchange,prefixe){
+   suivre le set point par point sans clavier. `sc` porte des chaînes.
+
+   L'autre score se pose d'office : un set se gagne à 25. Taper 22 d'un
+   côté écrit 25 de l'autre — un seul chiffre à saisir pour un set perdu
+   25–22 ou gagné 25–18. À 25 ou plus, rien : 25–23, 27–25, 31–29, on ne
+   devine pas. Trois garde-fous :
+     · jamais par-dessus un score saisi dans cette fenêtre — un set
+       décisif, 15–10, se tape donc sans lutter ;
+     · le 25 d'office se retire si le chiffre tapé atteint 25 : « 2 »
+       puis « 5 » ne laisse pas 25–25 ;
+     · les « − » / « + » ne déclenchent rien, ni le score du set qui se
+       joue encore (opts.auto === false) : à 8–6, on suit, on ne conclut
+       pas.
+   Le champ posé d'office se reconnaît — pointillé, et une ligne le dit. */
+var SET_GAGNE=25;
+function editeurScore(sc,onchange,prefixe,opts){
+  var auto=!(opts&&opts.auto===false);
+  var st=sc._||(sc._={auto:"",avant:"",main:{}});
+  var champs={};
+  var note=h("div",{className:"sc-note",role:"status","aria-live":"polite"});
+  function marquer(){
+    ["us","them"].forEach(function(k){if(champs[k])champs[k].classList.toggle("sc-auto",st.auto===k)});
+    note.textContent=st.auto?SET_GAGNE+" posé d'office pour "+(st.auto==="us"?"nous":"l'adversaire")+
+      " — corrigez-le si le set est allé au-delà.":"";
+    note.style.display=st.auto?"":"none";
+  }
+  function saisi(cle){
+    var autre=cle==="us"?"them":"us";
+    st.main[cle]=true;
+    if(st.auto===cle)st.auto="";
+    if(auto){
+      var v=sc[cle]===""?NaN:parseInt(sc[cle],10);
+      if(v<SET_GAGNE){
+        /* Un champ vidé redevient libre : on l'a effacé pour le refaire. */
+        if(st.auto!==autre&&(!st.main[autre]||!sc[autre])&&(parseInt(sc[autre],10)||0)<SET_GAGNE){
+          st.avant=sc[autre]||"";sc[autre]=String(SET_GAGNE);st.auto=autre;
+          champs[autre].value=sc[autre];
+        }
+      } else if(st.auto===autre){
+        sc[autre]=st.avant;st.auto="";champs[autre].value=sc[autre];
+      }
+    }
+    marquer();
+  }
   function cote(cle,nom){
     var inp=h("input",{className:"set-in sc-in",inputmode:"numeric",maxlength:"2",value:sc[cle]||"",
       placeholder:"0","aria-label":(prefixe?prefixe+" — ":"")+(cle==="us"?"nos points":"points de l'adversaire")});
-    inp.addEventListener("input",function(e){sc[cle]=cleanNum(e.target.value).slice(0,2);e.target.value=sc[cle];if(onchange)onchange()});
+    champs[cle]=inp;
+    inp.addEventListener("input",function(e){
+      sc[cle]=cleanNum(e.target.value).slice(0,2);e.target.value=sc[cle];
+      saisi(cle);
+      if(onchange)onchange();
+    });
     function pas(d){
       var v=Math.max(0,Math.min(99,(parseInt(sc[cle],10)||0)+d));
-      sc[cle]=String(v);inp.value=sc[cle];if(onchange)onchange();
+      sc[cle]=String(v);inp.value=sc[cle];
+      st.main[cle]=true;if(st.auto===cle)st.auto="";
+      marquer();
+      if(onchange)onchange();
     }
     return h("div",{className:"sc-cote"},
       h("span",{className:"sc-nom"},nom),
@@ -18917,7 +19448,9 @@ function editeurScore(sc,onchange,prefixe){
       inp,
       h("button",{className:"btn btn-ghost sc-pas",type:"button","aria-label":"Un point de plus — "+nom,onclick:function(){pas(1)}},"+"));
   }
-  return h("div",{className:"score-ed"},cote("us","Nous"),cote("them","Eux"));
+  var ed=h("div",{className:"score-ed"},cote("us","Nous"),cote("them","Eux"),note);
+  marquer();
+  return ed;
 }
 function lireScore(sc){return {us:parseInt(sc.us,10)||0,them:parseInt(sc.them,10)||0}}
 function scoreBancal(sc){return (String(sc.us||"")==="")!==(String(sc.them||"")==="")}
@@ -19060,14 +19593,18 @@ function renderSetFeuilleModal(){
   var body=h("div",null);
   if(avecScore){
     var issue=h("div",{className:"muted sc-issue","aria-live":"polite"});
+    /* Le set qu'on relève encore n'est pas « gagné » à 8–6 : on y mène.
+       Il ne se dit gagné qu'en le clôturant, ou une fois le match fini. */
+    var enJeu=!fin&&setOuvert(se)===b.idx;
     var majIssue=function(){
       var x=lireScore(d.sc);
       issue.textContent=scoreBancal(d.sc)?"⚠️ Il manque un des deux scores.":
         (!(x.us||x.them)?"Score facultatif — vous pourrez le saisir plus tard."
-          :(x.us>x.them?"Set gagné":(x.them>x.us?"Set perdu":"À égalité")));
+          :(enJeu?"Set en cours — "+(x.us>x.them?"nous menons":(x.them>x.us?"l'adversaire mène":"à égalité"))
+            :(x.us>x.them?"Set gagné":(x.them>x.us?"Set perdu":"À égalité"))));
     };
     body.appendChild(h("div",{className:"field"},h("span",null,fin?"Score de fin de set":"Score du set"),
-      editeurScore(d.sc,majIssue,b.label)));
+      editeurScore(d.sc,majIssue,b.label,{auto:!enJeu})));
     majIssue();
     body.appendChild(issue);
   }
@@ -19266,7 +19803,7 @@ function renderEditMatchModal(){
       lignes.appendChild(h("div",{className:"fin-set"},
         h("div",{className:"fin-lbl"},h("b",null,"Set "+(i+1)),
           split?h("span",null,plural(gestesBloc(se,i),"geste")):null),
-        editeurScore(x,majBilan,"Set "+(i+1))));
+        editeurScore(x,majBilan,"Set "+(i+1),{auto:setOuvert(se)!==i})));
     });
     body.appendChild(h("div",{className:"field"},h("span",null,"Scores — nos points, puis les leurs"),lignes));
     if(!split)body.appendChild(h("div",{className:"btn-row",style:{marginBottom:"var(--s2)"}},
@@ -19501,8 +20038,16 @@ function renderStatsTable(team,modeRow,tete){
   }):[h("tr",null,h("td",{colspan:String(g.stats.length+2),style:{padding:"30px",textAlign:"center",color:"#94A3B8"}},
     isG?"Aucune donnée cumulée":"Aucune statistique saisie"))];
 
+  /* Le total « par match » est le total divisé par les matchs où ces
+     athlètes ont joué — pas la somme de leurs moyennes : deux athlètes
+     qui se relaient, dix kills chacune dans son match, faisaient lire
+     « 20 par match » à une équipe qui en marque dix. */
+  var moyenne=state.cumulMode==="avg"&&isG;
+  var quiT=ensembleDe(filtered.map(function(p){return p.id}));
+  var nJoues=moyenne?scopedSessions(team).filter(function(se){return aJoue(se,quiT)}).length:0;
   var totals=h("div",{className:"totals-bar"},g.stats.map(function(s){
-    var t=filtered.reduce(function(sum,p){return sum+val(p,s.key)},0);
+    var t=filtered.reduce(function(sum,p){return sum+(p.stats[s.key]||0)},0);
+    if(moyenne)t=nJoues?t/nJoues:0;
     return h("div",{style:{textAlign:"center"}},h("div",{className:"t-lbl"},s.label),
       h("div",{className:"t-val",style:{color:encreFam(g)}},fmtVal(t)));
   }));

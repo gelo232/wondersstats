@@ -14,7 +14,7 @@ server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
 GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
-tests/          suite de non-régression Playwright — trente-six suites
+tests/          suite de non-régression Playwright — trente-huit suites
 ```
 
 ---
@@ -353,7 +353,9 @@ numérotent dès le premier (`Match 1`, `Match 2`) et gardent chacun leur advers
   construction, toujours. On revient corriger le set 1 pendant le set 3 d'un
   toucher dans la bande des sets : rien ne glisse d'un set à l'autre.
 - **`⏭ Set suivant`** demande le score du set qui se clôt (deux champs « nous – eux »,
-  ou `−` / `+` pour le suivre point par point), puis ouvre le suivant.
+  ou `−` / `+` pour le suivre point par point), puis ouvre le suivant. **Un seul
+  chiffre suffit** : taper `22` d'un côté pose `25` de l'autre (voir
+  [Le score d'un set](#le-score-dun-set)).
 - **`📊 Stats`** consulte sans quitter la feuille : le set, le match ou tout le
   tournoi ; l'équipe en tête et chaque athlète dessous ; un élément de stat ou tous
   compilés (voir [Lire les statistiques](#lire-les-statistiques)).
@@ -363,8 +365,27 @@ numérotent dès le premier (`Match 1`, `Match 2`) et gardent chacun leur advers
   geste ni un score est retiré.
 
 Un match **en cours** compte déjà dans tous les cumuls — on consulte en tout temps —
-mais **pas au bilan** : un set à 12–10 n'est pas une victoire. Il survit au
+mais **pas au bilan** : un set à 12–10 n'est pas une victoire. Son set ouvert n'est
+ni gagné ni perdu : à 25–22 puis 8–6 le match se lit `Sets 1–0 · en cours`, le set
+`8–6 · en cours`, et sa fenêtre dit « nous menons ». Il survit au
 rechargement ; sa partie, et la tuile du tableau de bord, proposent `▶️ Reprendre`.
+
+### Le score d'un set
+
+Un set se gagne à 25 : le score du perdant suffit à le dire. Dans chaque fenêtre qui
+porte un score — la fin d'un set, un set déjà clos, `🏁 Terminer`, `ⓘ Match et
+scores` —, **taper un score sous 25 pose 25 en face**. Le champ posé d'office est en
+pointillé, et une ligne le dit (« 25 posé d'office pour l'adversaire — corrigez-le si
+le set est allé au-delà »).
+
+| On tape | Il se passe |
+|---|---|
+| `22` pour nous | `25` se pose pour eux : 22–25 |
+| `19` pour eux | `25` se pose pour nous : 25–19 |
+| `25`, `27`… | rien — 25–23, 27–25, 31–29 ne se devinent pas ; « 2 » puis « 5 » ne laisse pas 25–25 |
+| un score en face, puis le sien | rien n'est écrasé : un set décisif, 15–10, se tape dans un ordre comme dans l'autre |
+| `−` / `+` | rien : on suit le set point par point |
+| le score du set **en cours** | rien : à 8–6, on suit, on ne conclut pas |
 
 ### Annuler, supprimer
 
@@ -427,8 +448,8 @@ n'est pas un progrès. Pour les fautes, descendre est un progrès, et se lit en 
 
 Une ligne ouvre la **fiche** de l'athlète sur son évolution : sa courbe, l'équipe en
 référence grise, la tendance, l'étape la meilleure et la plus faible, puis chaque
-étape avec son volume, son écart à la précédente et la valeur de l'équipe. `📤 CSV`
-exporte la matrice.
+étape avec son volume, son écart à la précédente et la valeur de l'équipe. `📤 Exporter`
+propose d'emblée la matrice (voir [Exporter les statistiques](#exporter-les-statistiques)).
 
 ### Lire les statistiques
 
@@ -451,10 +472,10 @@ Le tableau se règle sans quitter l'écran :
 | Réglage | Ce qu'il fait |
 |---|---|
 | Élément de stat | `Tout` compile les familles en efficacité (−1 à +1, volume en petit), puis **Pts** (aces, attaques gagnantes, blocs gagnants et blocs solo), **Fautes** (service, attaque, réception, bloc) et gestes. `Service`, `Réception`, `Passe`, `Attaque`, `Bloc`, `Défense`, `Habiletés` montrent leurs compteurs, leur total et leur efficacité — sauf les habiletés, qui n'ont aucun compteur négatif et se lisent en volume |
-| Valeurs | `Total`, `/ match`, `/ set` — divisés par ce que **chacune** a joué : une titulaire à quatre matchs et une remplaçante à un se comparent —, ou `%` de la famille (« 41 % de kills ») |
+| Valeurs | `Total`, `/ match`, `/ set` — divisés par ce que **chacune** a joué : une titulaire à quatre matchs et une remplaçante à un se comparent —, ou `%` de la famille (« 41 % de kills »). Une **sous-équipe** et la ligne d'un **poste** se divisent par *leurs* matchs et *leurs* sets : ceux où l'une des leurs a un geste |
 | Poste | N'affiche qu'un poste ; la première ligne devient le total de ce poste |
 | Colonnes | Un toucher trie, un second inverse. `Athlète` trie par numéro, puis par nom, puis rend l'ordre de l'équipe |
-| `📤 CSV` | Exporte le tableau tel qu'il est lu, pour un tableur |
+| `📤 Exporter` | Ouvre **Exporter les statistiques** : le tableau, tous les compteurs, le détail par match ou par set, l'évolution |
 
 L'en-tête et la colonne des noms restent en place quand on fait défiler ; une ombre
 dit qu'il reste des colonnes à droite. Une athlète sans geste dans l'élément lu est
@@ -477,6 +498,34 @@ donnée qu'on n'a pas — et comptent à l'identique dans tous les cumuls. Leur 
 offre la **Ventilation** : reporter les sets d'une feuille papier, sans que le total
 bouge d'un compteur.
 
+### Exporter les statistiques
+
+`📤 Exporter`, en tête du tableau comme de l'évolution — dans chaque partie, à chaque
+niveau, au Récap global et dans le `📊` de la feuille —, ouvre une fenêtre qui redit
+le périmètre lu (`🎪 Coupe d'automne · « Équipe B » · 2 matchs · bilan 2V–0D`) et
+pose deux questions.
+
+| Quoi exporter | Ce que le fichier porte |
+|---|---|
+| **Le tableau affiché** | L'élément, les valeurs (`Total`, `/ match`, `/ set`, `%`), le poste et le tri de l'écran ; les athlètes repliées n'y reviennent pas |
+| **Tous les compteurs** | Une ligne par athlète : matchs et sets joués, chaque geste de chaque famille, son total et son efficacité, points directs, fautes directes, gestes — 44 colonnes |
+| **Le détail par match** (par séance) | Une ligne par athlète **et par match**, l'équipe en tête de chacun, avec sa date, l'adversaire et le score — la forme qu'attend un tableau croisé |
+| **Le détail par set** | La même chose, set par set, avec le score du set |
+| **L'évolution** | La matrice de l'indicateur lu, étape par étape, et sa tendance |
+
+| Sous quelle forme | Ce qui en sort |
+|---|---|
+| `📄 Fichier CSV` | Un fichier pour Excel, Numbers ou Sheets : point-virgule, décimales à virgule, accents lisibles |
+| `📋 Copier` | Le même tableau au presse-papiers, à coller dans un tableur, une note ou un courriel |
+| `🖨️ Imprimer · PDF` | Une feuille claire : l'équipe, la saison, le périmètre et son bilan en tête ; pour « Tous les compteurs », une table par famille. La fenêtre d'impression de l'appareil l'enregistre en PDF |
+| `↗️ Partager` | N'apparaît que si l'appareil sait envoyer un fichier : le CSV part par la feuille de partage — message, courriel, nuage |
+
+L'export part des mêmes fonctions que l'écran : il ne peut pas dire un autre chiffre
+que le tableau dont il sort. La **sous-équipe** et le **poste** choisis le bornent,
+et se lisent dans la fenêtre comme dans le nom du fichier. Un nom qui porte un
+point-virgule est mis entre guillemets ; un nom qui commence par `=` ne se lit pas
+comme une formule. Rien ne quitte l'appareil sans votre geste.
+
 ### Lire le cumul
 
 Trois axes se composent : la **nature** (toutes, championnat, tournoi, amical), la
@@ -484,7 +533,10 @@ Trois axes se composent : la **nature** (toutes, championnat, tournoi, amical), 
 derniers matchs). Le bandeau rappelle en clair ce qui est cumulé.
 
 `÷ Par match` divise par le nombre de sessions jouées par chaque joueuse : une
-titulaire à 8 matchs et une arrivante à 1 se lisent alors sur la même échelle.
+titulaire à 8 matchs et une arrivante à 1 se lisent alors sur la même échelle. Le
+total de l'équipe, lui, se divise par les matchs relevés — ce n'est pas la somme des
+moyennes. « Les 3 derniers » sont les trois derniers matchs **joués** : une feuille
+rattrapée après coup ne passe pas devant ceux d'après.
 
 ---
 
@@ -1108,6 +1160,46 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 ---
 
 ## Notes de version
+
+### v7.20 — exporter les statistiques, un score de set d'un seul chiffre, et un audit des calculs
+
+Nouvelles suites : `tests/export.js` (vingt-neuf contrôles) et `tests/score.js` (douze
+contrôles). Trente-huit suites.
+
+- **Exporter les statistiques.** `📤 CSV` n'emportait que le tableau affiché : sortir
+  une saison demandait sept fichiers, dont aucun ne disait qui avait joué quoi, match
+  par match. `📤 Exporter` ouvre une fenêtre — **quoi** (le tableau affiché, tous les
+  compteurs, le détail par match, le détail par set, l'évolution) et **sous quelle
+  forme** (fichier CSV, copie, feuille à imprimer ou à enregistrer en PDF, partage du
+  téléphone). Voir [Exporter les statistiques](#exporter-les-statistiques). Trois
+  défauts de l'ancien fichier tombent avec lui : la colonne « Poste » prenait le
+  premier mot du sous-titre de la ligne (« 3 matchs » pour une athlète sans poste),
+  les athlètes repliées à l'écran revenaient dans le fichier, et le tri n'y était pas.
+- **Le score d'un set, d'un seul chiffre.** Taper `22` d'un côté pose `25` de
+  l'autre ; à 25 ou plus, rien. Jamais par-dessus un score saisi, jamais sur le set
+  en cours, jamais au `−` / `+`. Voir [Le score d'un set](#le-score-dun-set).
+- **Les calculs, recalculés à part.** 47 173 valeurs affichées — sept périmètres,
+  trois sous-équipes, trois postes, huit éléments, quatre modes — ont été refaites
+  depuis les relevés bruts. Totaux, efficacités, parts, points et fautes tombaient
+  juste. Cinq erreurs, toutes corrigées :
+  - les **moyennes d'une sous-équipe ou d'un poste** (`/ match`, `/ set`, et les
+    rythmes de l'évolution) se divisaient par les matchs de **toute** l'équipe : un
+    amical joué par la seule équipe A comptait au dénominateur de la B (5,0 aces par
+    match affichés pour 6,7 réels). Elles se divisent par les matchs et les sets où
+    l'une des leurs a un geste ; un set tout juste ouvert, encore vide, ne compte plus ;
+  - le **set en cours comptait comme gagné** : à 25–22 puis 8–6, le match se lisait
+    « sets 2–0 », le set « gagné », sa fenêtre « Set gagné ». Il est en cours ;
+  - **« les 3 derniers matchs »** du tableau détaillé suivaient l'ordre de saisie,
+    pas la date du match ;
+  - le **total « ÷ par match »** de ce tableau additionnait les moyennes de chaque
+    athlète au lieu de diviser le total par les matchs ;
+  - une efficacité de −1 sur 300 s'écrivait **« -0.00 »**.
+- **L'affichage de la saisie**, écran par écran, à 320, 375, 768 et 1024 px : à
+  320 px, `🏁 Terminer` était rogné des deux côtés (83 px pour 88 de texte, 5 de moins
+  en consultation), « Couverture » coupé en « Couvert… », et la légende d'une tuile
+  en « 4 matchs ter… » ; sur tablette, les compteurs d'une famille de trois faisaient
+  180 px et ceux d'une famille de quatre 162 — les colonnes ne tombaient plus l'une
+  sous l'autre. Toutes les familles suivent la même grille.
 
 ### v7.19 — les Objectifs refaits, tout se replie, et chaque fenêtre de saisie passée au crible
 
