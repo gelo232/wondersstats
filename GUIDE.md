@@ -1281,31 +1281,40 @@ La page `six-deux.html` explique le 6-2 sans libéro aux athlètes, sur un terra
 animé. Elle ne demande rien : ni compte, ni nom. Envoyez le lien, ou montrez-la sur
 la tablette au gymnase — elle s'ouvre aussi sans réseau.
 
-**Une première fois, ensemble.** La page s'ouvre en R1, `On reçoit`, toute l'équipe.
-Touchez `▶ Voir l'échange` : la passeuse arrière part vers 2,5 dès le service, la
-réception lui arrive, et tout s'arrête sur `Pause pour observer`. Demandez « à
-gauche, au centre ou à droite ? », puis touchez `4`, `3` ou `2` : l'attaquante
-frappe, les cinq autres vont au soutien. `Essayer une autre attaque` revient au même
-instant.
+**Une première fois, ensemble.** La page s'ouvre en R1, `On reçoit`. Le pion à
+l'anneau doré est la passeuse. Touchez `▶` : elle court à la cible dès le service,
+la réception lui arrive, et tout s'arrête. Trois cibles `4`, `3`, `2` clignotent au
+filet : demandez « où va la passe ? », touchez-en une. L'attaquante frappe ; les
+disques verts et bleus montrent le soutien — trois proches, deux plus loin. Touchez
+une autre cible pour comparer, puis `R2 ▸` pour la rotation suivante.
 
-**Puis chacune son poste.** `Je suis… → Opp` (ou toucher son pion) : le contour
-`Toi` la suit, et le texte dit ce qu'elle fait maintenant et ensuite. Faites défiler
-R3, R4, R5 : en R4, son pion devient `S` et la page dit « Tu passes à l'arrière : tu
-deviens S, la passeuse ». Pour une centrale, regardez R4 à R6 : elle reste sur le
-terrain et rejoint 5 en défense.
+**Revenir sur un instant.** Faites glisser la barre de temps : l'échange se place où
+vous voulez, à l'arrêt. C'est le moyen le plus simple de montrer « regarde où tu es
+au moment de la réception ».
 
-**Pour revoir à son rythme.** `Étape suivante` avance d'un repère, `Étape
-précédente` recule. `Ralenti` divise la vitesse par deux. `Affichage → Réduire les
-mouvements` remplace l'animation par des états successifs et des flèches. `Affichage
-→ Copier le lien de cette vue` donne un lien qui rouvre la même rotation, le même
-poste et la même situation : pratique pour un devoir du type « regarde R4 en
-suivant ton poste ».
+**Puis chacune son poste.** Chaque athlète touche son pion : il s'entoure, seul son
+trajet reste, et la phrase lui parle (« Reçois vers la cible »). Enchaînez R3, R4,
+R5 avec `▸` : en R4, le pion de l'athlète Opp affiche `S` et la page dit « Tu passes
+à l'arrière : tu deviens S, la passeuse ». Pour une centrale, regardez R4 à R6 :
+elle reste sur le terrain et défend en 5.
 
-**À la fin.** `À toi` pose trois questions courtes ; une erreur propose de revoir
-l'étape, sans score. `Comprendre → Comprendre la rotation` montre pourquoi on tourne :
-on gagne le service en recevant, chacune avance d'un cran, la joueuse venue de 2 sert.
+**Ce que la page enseigne.** Trois formations de réception seulement, où l'on se
+déplace peu : la passeuse court, les autres sont déjà presque à leur place. En R1 et
+R4, l'Opp reste à gauche et l'ailière avant à droite — la phrase le rappelle au
+départ de ces rotations. Dans `On sert`, chacune rejoint sa base : centrale en 5,
+ailière en 6, passeuse en 1.
 
-Les placements (réception, soutien à trois proches et deux plus loin, défense) sont
-ceux que vous avez choisis ; ils sont décrits dans le README. Relisez les rotations
-R1, R3, R4 et R6 avant la première séance : elles couvrent le départ de P1, le
-déplacement depuis P5 et le changement de passeuse.
+**Découvrir** (`💡`). Huit cartes, une image chacune : touchez-en une et la
+démonstration se joue sur le terrain — les deux passeuses qui se relaient, la cible,
+le soutien, le ballon contré, le dépannage quand la passeuse touche le premier
+ballon, la défense, la rotation. La dernière est un quiz de trois questions : on
+répond en touchant le terrain, sans score ni chrono.
+
+**Réglages** (`⚙`). `Ralenti`, `Réduire les mouvements` (des états successifs au
+lieu de l'animation), `English`, et `Copier le lien de cette vue` : le lien rouvre
+la même rotation, le même poste et la même situation — pratique pour un devoir du
+type « regarde R4 en suivant ton poste ».
+
+Les placements sont décrits dans le README ; ils se règlent en tête du script de
+`six-deux.html`. Relisez R1, R3, R4 et R6 avant la première séance : elles couvrent la
+passeuse en 1, la passeuse en 5 et le changement de passeuse.
