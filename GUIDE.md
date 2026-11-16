@@ -1301,20 +1301,29 @@ elle reste sur le terrain et défend en 5.
 **Ce que la page enseigne.** Trois formations de réception seulement, où l'on se
 déplace peu : la passeuse court, les autres sont déjà presque à leur place. En R1 et
 R4, l'Opp reste à gauche et l'ailière avant à droite — la phrase le rappelle au
-départ de ces rotations. Dans `On sert`, chacune rejoint sa base : centrale en 5,
-ailière en 6, passeuse en 1 — la centrale et la passeuse un pied sur la ligne de
-côté. Au soutien, regardez les disques depuis l'attaquante : trois proches, deux
-plus loin dans les intervalles, personne derrière une autre.
+départ de ces rotations. Au soutien, regardez les disques depuis l'attaquante :
+trois proches, deux plus loin dans les intervalles, personne derrière une autre.
+
+**La défense, dans `On sert`.** Après le service, chacune rejoint sa base : la
+centrale (5) et la passeuse (1) un pied sur la ligne de côté, l'ailière (6) au fond.
+L'échange s'arrête alors : touchez d'où attaque l'adversaire — à droite, au centre
+ou à gauche. Le contre se forme et son ombre se dessine sur le terrain : faites
+remarquer que personne ne défend dedans, sauf l'ailière arrière, au fond, pour les
+ballons touchés par le contre. L'arrière du côté de l'attaque garde la ligne et la
+piscine ; l'arrière opposée la grande diagonale ; l'avant qui ne contre pas la
+petite diagonale. Rejouez en changeant de côté : à gauche, la passeuse et la
+centrale échangent leurs rôles.
 
 **Découvrir** (`💡`). Huit cartes, une image chacune : touchez-en une et la
 démonstration se joue sur le terrain — les deux passeuses qui se relaient, la cible,
 le soutien, le ballon contré, le dépannage quand la passeuse touche le premier
-ballon, la défense, la rotation. La dernière est un **quiz de vingt questions** : on
+ballon, la défense, la rotation. La dernière est un **quiz de vingt-deux questions** : on
 répond en touchant un pion, un endroit ou une cible, sans chrono, et la bonne
 réponse se joue aussitôt sur le terrain. Comptez cinq minutes ; `✕` l'arrête quand
 on veut.
 
-**Réglages** (`⚙`). `Ralenti`, `Réduire les mouvements` (des états successifs au
+**Réglages** (`⚙`). `Ralenti` (la vitesse ½ est le réglage de départ ; décochez-la
+pour la vitesse réelle), `Réduire les mouvements` (des états successifs au
 lieu de l'animation), `English`, et `Copier le lien de cette vue` : le lien rouvre
 la même rotation, le même poste et la même situation — pratique pour un devoir du
 type « regarde R4 en suivant ton poste ».

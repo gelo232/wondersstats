@@ -12,8 +12,19 @@ confirmation (consigne du propriétaire du dépôt) :
 5. vérification du déploiement : le site public sert la nouvelle version
    (`APP_VERSION` dans `index.html`, `CACHE` dans `sw.js`).
 
-Avant de livrer : `./tests/run.sh` (voir `tests/README.md`). Une suite qui
-échoue déjà sur `main` n'empêche pas la livraison, mais se signale.
+Avant de livrer : **ne lancer que les suites des applications modifiées** (consigne
+du propriétaire). Le dépôt porte trois applications, chacune avec ses suites :
+
+- `six-deux.html` (Comprendre le 6-2) → `./tests/run.sh six-deux` ;
+- `chrono.html` (Chrono d'entraînement) → `./tests/run.sh chrono` ;
+- `index.html` (WonderStats) → `./tests/run.sh wonderstats`.
+
+Ne pas lancer les suites des autres applications. Le changement de `APP_VERSION` et
+du `CACHE`, qui accompagne toute livraison, ne compte pas comme une modification de
+WonderStats. `./tests/run.sh` sans argument lance tout : à réserver à un changement
+qui touche plusieurs applications ou le service worker lui-même (voir
+`tests/README.md`). Une suite qui échoue déjà sur `main` n'empêche pas la livraison,
+mais se signale.
 
 ## Rappels
 
