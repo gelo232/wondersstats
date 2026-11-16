@@ -1302,13 +1302,17 @@ elle reste sur le terrain et défend en 5.
 déplace peu : la passeuse court, les autres sont déjà presque à leur place. En R1 et
 R4, l'Opp reste à gauche et l'ailière avant à droite — la phrase le rappelle au
 départ de ces rotations. Dans `On sert`, chacune rejoint sa base : centrale en 5,
-ailière en 6, passeuse en 1.
+ailière en 6, passeuse en 1 — la centrale et la passeuse un pied sur la ligne de
+côté. Au soutien, regardez les disques depuis l'attaquante : trois proches, deux
+plus loin dans les intervalles, personne derrière une autre.
 
 **Découvrir** (`💡`). Huit cartes, une image chacune : touchez-en une et la
 démonstration se joue sur le terrain — les deux passeuses qui se relaient, la cible,
 le soutien, le ballon contré, le dépannage quand la passeuse touche le premier
-ballon, la défense, la rotation. La dernière est un quiz de trois questions : on
-répond en touchant le terrain, sans score ni chrono.
+ballon, la défense, la rotation. La dernière est un **quiz de vingt questions** : on
+répond en touchant un pion, un endroit ou une cible, sans chrono, et la bonne
+réponse se joue aussitôt sur le terrain. Comptez cinq minutes ; `✕` l'arrête quand
+on veut.
 
 **Réglages** (`⚙`). `Ralenti`, `Réduire les mouvements` (des états successifs au
 lieu de l'animation), `English`, et `Copier le lien de cette vue` : le lien rouvre
