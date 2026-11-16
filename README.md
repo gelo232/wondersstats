@@ -1174,41 +1174,96 @@ quand se déplacer et comment aider l'équipe dans un **6-2 sans libéro**. Comm
 chrono, elle ne lit ni n'écrit rien de WonderStats : pas de compte, pas de nom, pas
 de score. Elle fonctionne hors ligne une fois ouverte.
 
-**La boucle** : choisir son poste (`Je suis…` : toute l'équipe, OH1, OH2, MB1, MB2,
-Opp, S — ou toucher un pion), une situation (`On reçoit` / `On sert`) et une
-rotation (R1 à R6), puis `▶ Voir l'échange`. L'échange s'arrête à la passe :
-`4 · À gauche`, `3 · Au centre` ou `2 · À droite`, avec le nom de l'attaquante de
-cette situation. L'attaque se joue, les cinq autres vont au **soutien** — trois
-proches, deux plus loin. Ensuite : `Essayer une autre attaque` (retour exact au
-même instant), `Et si le ballon revient ?` (bloc adverse, reprise par la joueuse
-concernée), `Voir le retour en défense` (MB en 5, OH en 6, passeuse en 1).
+**Un écran, une boucle.** Sur téléphone, tout tient sans défiler : la situation
+(`On reçoit` / `On sert`), les six rotations, le terrain, **une phrase**, et la barre
+de lecture.
 
-**Identité et rôle.** L'athlète suivie garde sa couleur et son contour `Toi` sur les
-six rotations. Pour la paire S/Opp, le pion affiche en grand le **rôle du moment** —
-`S` à l'arrière, `Opp` à l'avant — et en petit l'identité (`suivie : Opp`). En R4,
-l'athlète suivie Opp lit « Tu passes à l'arrière : tu deviens S, la passeuse ».
+1. Choisir une rotation (`R1` à `R6` ; le trait sous chaque bouton a la couleur de
+   la passeuse du moment).
+2. `▶` lance l'échange. Il s'arrête **à la passe** : trois cibles `4`, `3`, `2`
+   apparaissent au filet, avec le nom de l'attaquante. En toucher une joue l'attaque.
+3. À la fin, les deux autres cibles restent offertes — une autre attaque repart
+   exactement du même instant — et `R2 ▸` passe à la rotation suivante : les joueuses
+   glissent à leur nouvelle place. Les six rotations s'enchaînent d'un seul bouton.
 
-**Les choix du coach, encodés tels quels** : en réception R1 et R4 (passeuse en P1),
-les ailes ne permutent pas — Opp attaque en 4 et OH1 en 2 en R1, S en 4 et OH2 en 2
-en R4 ; partout ailleurs, et dans `On sert`, OH à gauche et S/Opp à droite. Les
-placements de réception, de soutien et de défense sont ceux de l'annexe de la
-spécification ; les placements au contact du service respectent l'ordre de
-Volleyball Canada 2026-2027. Les rôles se calculent depuis la rotation et la
-situation, jamais depuis la place d'un pion.
+**La barre de temps** place l'échange où l'on veut : on la fait glisser, à l'arrêt,
+en avant comme en arrière. Les petits repères marquent la réception, la passe (en
+doré) et la frappe.
 
-**Le reste** : `Étape précédente` / `Étape suivante` d'un repère à l'autre (sans
-rejouer le ballon à l'envers), `Ralenti` (0,5×), `Réduire les mouvements` (états
-successifs et flèches ; suit la préférence du système), `Voir les trajets`. Les
-panneaux `Comprendre` (définitions, et une démonstration de la rotation au gain du
-service), `Et si…` (la passeuse touche le premier ballon : sa partenaire avant fait
-la passe, l'attaque qu'elle aurait jouée disparaît), `À toi` (trois questions, sans
-score ni minuteur). Français et anglais. Un lien (`#r=4&p=Opp&sit=recoit&lang=fr`)
-rouvre une rotation et un poste ; la langue, le poste, le ralenti et la réduction des
-mouvements sont retenus sur l'appareil.
+**Se suivre.** Toucher son pion — ou une puce de `Je suis…` — l'entoure, ne montre
+plus que son trajet, et fait parler la phrase à la deuxième personne (« Cours à la
+cible ! »). Le retoucher revient à toute l'équipe.
+
+**Identité et rôle.** Chaque athlète garde sa couleur sur les six rotations. Pour la
+paire S/Opp, le pion affiche en grand le **rôle du moment** — `S` à l'arrière (anneau
+doré : c'est la passeuse), `Opp` à l'avant — et une petite étiquette rappelle
+l'identité quand elle diffère. En R4, l'athlète suivie Opp lit « Tu passes à
+l'arrière : tu deviens S, la passeuse ».
+
+**Le contenu : on se déplace peu.** Le 6-2 n'a que trois formations de réception
+— passeuse en 1, en 6 ou en 5 — rejouées deux fois. Chacune place déjà les joueuses
+au plus près de leur travail suivant :
+
+- seule la passeuse court, vers la cible `2,5` ; en 6 et en 5 elle part à 3 m
+  environ ;
+- les trois réceptionneuses (les deux ailières et la centrale arrière : pas de
+  libéro, elle reste sur le terrain) ne bougent pas tant que le ballon n'est pas joué ;
+- les attaquantes qui ne reçoivent pas sont déjà à leur départ d'élan ;
+- **en réception, passeuse en P1 (R1, R4), les ailes ne permutent pas** : l'Opp
+  reste en 4, l'ailière avant reste en 2. Partout ailleurs, et dans `On sert`,
+  ailière à gauche, centrale au centre, S/Opp à droite ;
+- au **soutien**, chacune fait un pas vers l'attaquante depuis là où elle est : les
+  trois plus proches couvrent court (disques verts), les deux plus loin couvrent
+  profond (disques bleus). Personne ne traverse le terrain ;
+- dans `On sert`, les joueuses se serrent près de leur base avant le service, la
+  serveuse sert du côté où elle défend, puis chacune rejoint sa base : centrale en 5,
+  ailière en 6, passeuse en 1. Suit une attaque adverse exemple à droite — bloc à
+  deux, défense vers la cible — et le même choix 4 / 3 / 2.
+
+Les placements au contact du service respectent l'ordre de rotation (Volleyball
+Canada 2026-2027). Les rôles se calculent depuis la rotation et la situation, jamais
+depuis la place d'un pion.
+
+**Découvrir** (`💡`, ou la colonne de droite sur ordinateur) remplace les
+explications écrites par huit cartes : une image, quelques mots, et la démonstration
+sur le terrain — `Deux passeuses` (les six rotations défilent), `La cible`,
+`Le soutien`, `Ballon contré`, `Dépannage` (la passeuse touche le premier ballon :
+sa partenaire avant fait la passe, l'attaque qu'elle aurait jouée se retire),
+`Défense`, `On tourne`, et un `Quiz` de trois questions où l'on répond **en touchant
+le terrain**.
+
+**Réglages** (`⚙`) : français / anglais, ralenti, trajets, réduction des mouvements
+(états successifs, sans glissement ; suit la préférence du système), et un lien qui
+rouvre la même rotation, le même poste et la même situation
+(`#r=4&p=Opp&sit=recoit&lang=fr`). La langue, le poste, le ralenti et la réduction
+des mouvements sont retenus sur l'appareil. `Espace` lance ou arrête la lecture.
 
 ---
 
 ## Notes de version
+
+### v7.22 — Comprendre le 6-2, refait : moins de texte, moins de course, une barre de temps
+
+La page `six-deux.html` est réécrite (v2). Voir [Comprendre le 6-2](#comprendre-le-6-2).
+
+- **L'écran repensé** : tout tient sur un téléphone sans défiler — rotations, terrain,
+  une phrase, lecture. Plus de panneaux de texte : huit cartes illustrées
+  (`Découvrir`) lancent leur démonstration sur le terrain, et le quiz se joue en
+  touchant les pions.
+- **Une barre de temps** : on fait glisser l'échange à l'instant voulu, en avant
+  comme en arrière.
+- **Les rotations s'enchaînent** : `R2 ▸` toujours sous le pouce, mis en avant à la
+  fin de l'échange ; les joueuses glissent à leur nouvelle place.
+- **Le contenu refait pour qu'on se déplace peu** : trois formations de réception où
+  seule la passeuse court, des attaquantes déjà à leur départ d'élan, des arrières
+  qui ne bougent pas avant la passe, un soutien d'un pas vers l'attaquante. En
+  réception, passeuse en P1, l'Opp reste en 4 et l'ailière avant en 2. Toujours sans
+  libéro.
+- **Corrigé** : les étiquettes qui se chevauchaient, les détours de trajets, le
+  terrain trop petit, la lecture hors de l'écran.
+
+`tests/six-deux.js` est réécrite : quarante-cinq contrôles, dont cinq sur l'économie
+de déplacement (moins de 24 m à six sur un échange en réception).
 
 ### v7.21 — Comprendre le 6-2
 
