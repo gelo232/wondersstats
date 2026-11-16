@@ -156,6 +156,15 @@ const ERRORS=[];let PASS=0;
     const d=await M(()=>[1,2,3].map(r=>{const sc=SixDeux.construire({sit:"recoit",r,att:4}),p=sc.pos("S",0),c=SixDeux.constantes.CIBLE;return +Math.hypot(p.x-c.x,p.y-c.y).toFixed(1)}));
     attendre(d[1]<=3.2&&d[2]<=3.2&&d[0]>d[1]&&d[0]<=5.4,"distances "+d.join(" / "));
   });
+  await step("réception R2 et R5 : S et Opp au filet autour de la cible 2,5, la centrale avant sur la ligne des 3 m côté 2",async()=>{
+    const r=await M(()=>[2,5].map(r=>{const sc=SixDeux.construire({sit:"recoit",r,att:4}),c=SixDeux.constantes.CIBLE,d=p=>Math.hypot(p.x-c.x,p.y-c.y);
+      const s=sc.pos(sc.R.BS,0),o=sc.pos(sc.R.FR,0),m=sc.pos(sc.R.FC,0);
+      return {roles:[SixDeux.roleAffiche(r,sc.R.BS),SixDeux.roleAffiche(r,sc.R.FR)],dS:+d(s).toFixed(2),dO:+d(o).toFixed(2),yS:s.y,yO:o.y,mb:[m.x,m.y]}}));
+    r.forEach((x,i)=>{const R="R"+[2,5][i];egal(x.roles,["S","Opp"],R);
+      attendre(x.dS<=1&&x.dO<=1,R+" : S à "+x.dS+" m et Opp à "+x.dO+" m de la cible");
+      attendre(x.yO<1.2&&x.yS<2.2&&x.yS>x.yO+0.3,R+" : S (y "+x.yS+") doit être au filet, juste derrière Opp (y "+x.yO+")");
+      attendre(Math.abs(x.mb[1]-3)<0.15&&x.mb[0]>6,R+" : centrale avant en "+x.mb.join(" ; "))});
+  });
 
   say("— La page");
   await step("état initial : français, R1, On reçoit, toute l'équipe, à l'arrêt",async()=>{

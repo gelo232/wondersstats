@@ -1204,8 +1204,11 @@ l'arrière : tu deviens S, la passeuse ».
 — passeuse en 1, en 6 ou en 5 — rejouées deux fois. Chacune place déjà les joueuses
 au plus près de leur travail suivant :
 
-- seule la passeuse court, vers la cible `2,5` ; en 6 et en 5 elle part à 3 m
-  environ ;
+- seule la passeuse court, vers la cible `2,5` ; en 5 elle part à 3 m environ ;
+- **passeuse en 6 (R2, R5)** : S et Opp sont déjà au filet, autour de la cible `2,5`
+  (la passeuse juste derrière l'Opp), et la centrale avant sur la ligne des 3 m,
+  côté 2. Au service, l'Opp recule vers son élan à droite, la centrale glisse au
+  centre le long des 3 m, la passeuse fait un pas ;
 - les trois réceptionneuses (les deux ailières et la centrale arrière : pas de
   libéro, elle reste sur le terrain) ne bougent pas tant que le ballon n'est pas joué ;
 - les attaquantes qui ne reçoivent pas sont déjà à leur départ d'élan ;
@@ -1262,7 +1265,7 @@ La page `six-deux.html` est réécrite (v2). Voir [Comprendre le 6-2](#comprendr
 - **Corrigé** : les étiquettes qui se chevauchaient, les détours de trajets, le
   terrain trop petit, la lecture hors de l'écran.
 
-`tests/six-deux.js` est réécrite : quarante-cinq contrôles, dont cinq sur l'économie
+`tests/six-deux.js` est réécrite : quarante-six contrôles, dont cinq sur l'économie
 de déplacement (moins de 24 m à six sur un échange en réception).
 
 ### v7.21 — Comprendre le 6-2
