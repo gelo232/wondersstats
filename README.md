@@ -9,12 +9,13 @@ manifest.json   métadonnées PWA
 chrono.html     chrono d'entraînement — une page à part, sans lien avec les données
 chrono.webmanifest  métadonnées PWA du chrono
 chrono-icon-*.png   logo du chrono (192, 512, 180 pour iOS) ; source : chrono-icon.svg
-sw.js           service worker (app-shell en cache-first, chrono compris)
+six-deux.html   « Comprendre le 6-2 » — page pédagogique des athlètes, sans lien avec les données
+sw.js           service worker (app-shell en cache-first, chrono et 6-2 compris)
 server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
 GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
-tests/          suite de non-régression Playwright — trente-huit suites
+tests/          suite de non-régression Playwright — trente-neuf suites
 ```
 
 ---
@@ -1166,7 +1167,59 @@ dupliquée. La page fonctionne hors ligne une fois ouverte.
 
 ---
 
+## Comprendre le 6-2
+
+`six-deux.html` est une page à part, pour les athlètes de 12-13 ans : où se placer,
+quand se déplacer et comment aider l'équipe dans un **6-2 sans libéro**. Comme le
+chrono, elle ne lit ni n'écrit rien de WonderStats : pas de compte, pas de nom, pas
+de score. Elle fonctionne hors ligne une fois ouverte.
+
+**La boucle** : choisir son poste (`Je suis…` : toute l'équipe, OH1, OH2, MB1, MB2,
+Opp, S — ou toucher un pion), une situation (`On reçoit` / `On sert`) et une
+rotation (R1 à R6), puis `▶ Voir l'échange`. L'échange s'arrête à la passe :
+`4 · À gauche`, `3 · Au centre` ou `2 · À droite`, avec le nom de l'attaquante de
+cette situation. L'attaque se joue, les cinq autres vont au **soutien** — trois
+proches, deux plus loin. Ensuite : `Essayer une autre attaque` (retour exact au
+même instant), `Et si le ballon revient ?` (bloc adverse, reprise par la joueuse
+concernée), `Voir le retour en défense` (MB en 5, OH en 6, passeuse en 1).
+
+**Identité et rôle.** L'athlète suivie garde sa couleur et son contour `Toi` sur les
+six rotations. Pour la paire S/Opp, le pion affiche en grand le **rôle du moment** —
+`S` à l'arrière, `Opp` à l'avant — et en petit l'identité (`suivie : Opp`). En R4,
+l'athlète suivie Opp lit « Tu passes à l'arrière : tu deviens S, la passeuse ».
+
+**Les choix du coach, encodés tels quels** : en réception R1 et R4 (passeuse en P1),
+les ailes ne permutent pas — Opp attaque en 4 et OH1 en 2 en R1, S en 4 et OH2 en 2
+en R4 ; partout ailleurs, et dans `On sert`, OH à gauche et S/Opp à droite. Les
+placements de réception, de soutien et de défense sont ceux de l'annexe de la
+spécification ; les placements au contact du service respectent l'ordre de
+Volleyball Canada 2026-2027. Les rôles se calculent depuis la rotation et la
+situation, jamais depuis la place d'un pion.
+
+**Le reste** : `Étape précédente` / `Étape suivante` d'un repère à l'autre (sans
+rejouer le ballon à l'envers), `Ralenti` (0,5×), `Réduire les mouvements` (états
+successifs et flèches ; suit la préférence du système), `Voir les trajets`. Les
+panneaux `Comprendre` (définitions, et une démonstration de la rotation au gain du
+service), `Et si…` (la passeuse touche le premier ballon : sa partenaire avant fait
+la passe, l'attaque qu'elle aurait jouée disparaît), `À toi` (trois questions, sans
+score ni minuteur). Français et anglais. Un lien (`#r=4&p=Opp&sit=recoit&lang=fr`)
+rouvre une rotation et un poste ; la langue, le poste, le ralenti et la réduction des
+mouvements sont retenus sur l'appareil.
+
+---
+
 ## Notes de version
+
+### v7.21 — Comprendre le 6-2
+
+Une nouvelle page, `six-deux.html`, pour les athlètes : le 6-2 sans libéro sur un
+terrain animé, rotation par rotation, du service au soutien de l'attaque. Voir
+[Comprendre le 6-2](#comprendre-le-6-2). L'application elle-même ne change pas ; le
+service worker met la page en cache, et le déploiement la publie à côté du chrono.
+
+Nouvelle suite : `tests/six-deux.js` (trente-sept contrôles, dont les 180 scènes
+vérifiées une à une). `tests/hors-ligne.js` ouvre aussi la page sans réseau.
+Trente-neuf suites.
 
 ### v7.20.1 — l'export porte son barème, et les volumes par geste
 
