@@ -49,6 +49,7 @@ const ERRORS=[];let PASS=0;
     if(!r.urls.some(u=>/index\.html$/.test(u)))throw new Error("index.html absent du cache : "+r.urls.join(","));
     if(!r.urls.some(u=>/chrono\.html$/.test(u)))throw new Error("chrono.html absent du cache : "+r.urls.join(","));
     if(!r.urls.some(u=>/chrono-icon-192\.png$/.test(u)))throw new Error("l'icône du chrono est absente du cache : "+r.urls.join(","));
+    if(!r.urls.some(u=>/six-deux\.html$/.test(u)))throw new Error("six-deux.html absent du cache : "+r.urls.join(","));
   });
 
   say("\n── La racine de confiance");
@@ -80,6 +81,15 @@ const ERRORS=[];let PASS=0;
     p.on("pageerror",e=>ERRORS.push("PAGEERROR[chrono]: "+e.message));
     await p.goto(BASE+"/chrono.html");
     await p.waitForSelector("#p-tot",{timeout:10000});
+    await p.close();
+  });
+  await step("sans réseau, « Comprendre le 6-2 » s'ouvre et se joue",async()=>{
+    /* Montrée au gymnase sur la tablette du coach : elle se suffit à elle-même. */
+    const p=await ctx.newPage();
+    p.on("pageerror",e=>ERRORS.push("PAGEERROR[6-2]: "+e.message));
+    await p.goto(BASE+"/six-deux.html");
+    await p.waitForFunction(()=>window.SixDeux,null,{timeout:10000});
+    if((await p.$$eval(".pion",e=>e.length))!==6)throw new Error("terrain incomplet hors ligne");
     await p.close();
   });
   await step("sans réseau, la racine de confiance se lit depuis le cache",async()=>{

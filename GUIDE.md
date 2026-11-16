@@ -1272,3 +1272,40 @@ vous demande de régler le verrouillage automatique sur « Jamais ». Une séanc
 cours survit à un rechargement ; le son, lui, attend un toucher pour revenir — le
 bandeau `🔕 Son inactif` le rappelle. Pour passer les séances de la tablette au
 téléphone : `Séances → Exporter`, puis `Importer` sur l'autre appareil.
+
+---
+
+## 12 · Comprendre le 6-2, avec les athlètes
+
+La page `six-deux.html` explique le 6-2 sans libéro aux athlètes, sur un terrain
+animé. Elle ne demande rien : ni compte, ni nom. Envoyez le lien, ou montrez-la sur
+la tablette au gymnase — elle s'ouvre aussi sans réseau.
+
+**Une première fois, ensemble.** La page s'ouvre en R1, `On reçoit`, toute l'équipe.
+Touchez `▶ Voir l'échange` : la passeuse arrière part vers 2,5 dès le service, la
+réception lui arrive, et tout s'arrête sur `Pause pour observer`. Demandez « à
+gauche, au centre ou à droite ? », puis touchez `4`, `3` ou `2` : l'attaquante
+frappe, les cinq autres vont au soutien. `Essayer une autre attaque` revient au même
+instant.
+
+**Puis chacune son poste.** `Je suis… → Opp` (ou toucher son pion) : le contour
+`Toi` la suit, et le texte dit ce qu'elle fait maintenant et ensuite. Faites défiler
+R3, R4, R5 : en R4, son pion devient `S` et la page dit « Tu passes à l'arrière : tu
+deviens S, la passeuse ». Pour une centrale, regardez R4 à R6 : elle reste sur le
+terrain et rejoint 5 en défense.
+
+**Pour revoir à son rythme.** `Étape suivante` avance d'un repère, `Étape
+précédente` recule. `Ralenti` divise la vitesse par deux. `Affichage → Réduire les
+mouvements` remplace l'animation par des états successifs et des flèches. `Affichage
+→ Copier le lien de cette vue` donne un lien qui rouvre la même rotation, le même
+poste et la même situation : pratique pour un devoir du type « regarde R4 en
+suivant ton poste ».
+
+**À la fin.** `À toi` pose trois questions courtes ; une erreur propose de revoir
+l'étape, sans score. `Comprendre → Comprendre la rotation` montre pourquoi on tourne :
+on gagne le service en recevant, chacune avance d'un cran, la joueuse venue de 2 sert.
+
+Les placements (réception, soutien à trois proches et deux plus loin, défense) sont
+ceux que vous avez choisis ; ils sont décrits dans le README. Relisez les rotations
+R1, R3, R4 et R6 avant la première séance : elles couvrent le départ de P1, le
+déplacement depuis P5 et le changement de passeuse.
