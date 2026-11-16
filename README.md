@@ -1223,11 +1223,27 @@ au plus près de leur travail suivant :
   filet, côté intérieur ; la centrale avant juste derrière ; l'attaquante opposée
   plus loin — et s'arrête sur sa direction au plus près d'où elle vient ;
 - dans `On sert`, les joueuses se serrent près de leur base avant le service, la
-  serveuse sert du côté où elle défend, puis chacune rejoint sa base : centrale en 5,
-  ailière en 6, passeuse en 1. **La centrale et la passeuse défendent un pied sur la
-  ligne de côté.** Suit une attaque adverse exemple à droite — bloc à deux, défense
-  vers la cible ; la centrale quitte alors sa ligne et se recentre pour le soutien —
-  et le même choix 4 / 3 / 2.
+  serveuse sert du côté où elle défend, puis chacune rejoint sa **base de défense, sur
+  le périmètre** : la centrale (5) et la passeuse (1) un pied sur la ligne de côté,
+  l'ailière (6) au fond. De là, chaque zone de défense est à un pas (1 m au plus), et
+  l'on ne se déplace que vers le centre.
+- **la défense** : l'échange s'arrête quand l'adversaire va attaquer — trois cibles
+  demandent d'où. Le contre ferme un couloir, dessiné en ombre sur le terrain ; les
+  autres couvrent le reste, et la « piscine » (le milieu du terrain) est tracée :
+  - *attaque à droite, du côté de la passeuse* : la centrale avant et l'Opp contrent
+    à deux. La **passeuse**, un pied sur la ligne, garde la ligne et reste à portée de
+    la piscine ; la **centrale arrière**, un pied sur sa ligne, couvre la grande
+    diagonale que le contre laisse ; l'**ailière avant** recule du filet sur la petite
+    diagonale ; l'**ailière arrière** reste au fond, dans l'axe du trou du contre,
+    pour les ballons touchés par le contre ;
+  - *attaque à gauche, du côté de l'ailière* : le même scénario en miroir — la
+    centrale arrière garde la ligne, la passeuse la grande diagonale, l'Opp recule sur
+    la petite diagonale ;
+  - *attaque au centre* : la centrale contre, aidée de l'avant de droite ; les autres
+    couvrent autour du contre.
+
+  Le ballon défendu, la centrale et l'ailière arrière se recentrent pour le soutien,
+  la passeuse court à la cible, et l'on retrouve le choix 4 / 3 / 2.
 
 Les placements au contact du service respectent l'ordre de rotation (Volleyball
 Canada 2026-2027). Les rôles se calculent depuis la rotation et la situation, jamais
@@ -1238,14 +1254,16 @@ explications écrites par huit cartes : une image, quelques mots, et la démonst
 sur le terrain — `Deux passeuses` (les six rotations défilent), `La cible`,
 `Le soutien`, `Ballon contré`, `Dépannage` (la passeuse touche le premier ballon :
 sa partenaire avant fait la passe, l'attaque qu'elle aurait jouée se retire),
-`Défense`, `On tourne`, et un `Quiz` de **vingt questions** où l'on répond **en
+`Défense`, `On tourne`, et un `Quiz` de **vingt-deux questions** où l'on répond **en
 touchant le terrain** : un pion, un endroit ou une des cibles 4 / 3 / 2. Chaque
 question pose sa rotation et son instant — qui passe, qui est à l'avant, qui reçoit,
 qui attaque en 4 ou en 2, où attaque l'Opp, qui couvre court ou loin, qui sert, qui
-défend en 5, qui bloque, qui dépanne — et la bonne réponse se joue aussitôt sur le
-terrain. Pas de chrono ; le score compte les réponses justes du premier coup.
+garde la ligne, qui couvre la grande ou la petite diagonale, qui contre, qui dépanne
+— et la bonne réponse se joue aussitôt sur le terrain. Pas de chrono ; le score
+compte les réponses justes du premier coup.
 
-**Réglages** (`⚙`) : français / anglais, ralenti, trajets, réduction des mouvements
+**Réglages** (`⚙`) : français / anglais, ralenti (**la vitesse ½ est activée par
+défaut** ; la décocher est retenu), trajets, réduction des mouvements
 (états successifs, sans glissement ; suit la préférence du système), et un lien qui
 rouvre la même rotation, le même poste et la même situation
 (`#r=4&p=Opp&sit=recoit&lang=fr`). La langue, le poste, le ralenti et la réduction
@@ -1254,6 +1272,24 @@ des mouvements sont retenus sur l'appareil. `Espace` lance ou arrête la lecture
 ---
 
 ## Notes de version
+
+### v7.24 — 6-2 : la défense par zones, trois attaques adverses, la vitesse ½ par défaut
+
+- **Défense refaite.** Dans `On sert`, l'échange s'arrête pour demander d'où attaque
+  l'adversaire : à droite (côté passeuse), au centre ou à gauche (côté ailière). Le
+  contre ferme un couloir, dessiné en ombre ; l'arrière du côté de l'attaque garde la
+  ligne et la piscine un pied sur la ligne, l'arrière opposée couvre la grande
+  diagonale, l'avant qui ne contre pas la petite diagonale, l'ailière arrière le fond
+  et le trou du contre. L'attaque à gauche est le miroir de l'attaque à droite.
+- **Bases sur le périmètre** : depuis sa base, chaque arrière rejoint sa zone en un
+  pas (1 m au plus).
+- **Vitesse ½ par défaut.**
+- **Quiz** : vingt-deux questions, dont quatre sur la défense.
+- **Tests** : on ne lance plus que les suites de l'application modifiée —
+  `./tests/run.sh six-deux`, `chrono` ou `wonderstats` (consigne enregistrée dans
+  `CLAUDE.md`).
+
+`tests/six-deux.js` : cinquante-neuf contrôles, dont sept sur la défense.
 
 ### v7.23 — 6-2 : un soutien sans trou, la défense un pied sur la ligne, un quiz de vingt questions
 

@@ -81,7 +81,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .puce{pointer-events:auto;min-height:44px;border-radius:var(--r-pill);border:1px solid var(--gold);background:rgba(11,18,32,.9);color:var(--txt-strong);
   font-weight:700;font-size:15px;padding:0 14px;display:inline-flex;align-items:center;gap:6px}
 /* Seuls les pions, les cibles et les endroits du quiz se touchent : le ballon, les trajets et les repères laissent passer. */
-#g-fond,#g-bases,#g-couv,#g-chemins,#g-trace,#g-adv,#g-ballon{pointer-events:none}
+#g-fond,#g-bases,#g-ombre,#g-couv,#g-chemins,#g-trace,#g-adv,#g-ballon{pointer-events:none}
 .zone-num{font:800 .62px var(--ff);fill:#F1F5F9;opacity:.2}
 .opp-lbl{font:700 .34px var(--ff);fill:var(--txt-dim);text-anchor:middle;letter-spacing:.04em}
 .cible-lbl{font:800 .36px var(--ff);fill:var(--gold);text-anchor:middle}
@@ -122,6 +122,10 @@ button{font:inherit;color:inherit;cursor:pointer}
 .but.off{cursor:not-allowed}.but.off .rond{stroke:#64748B;stroke-dasharray:.14 .1}.but.off .num,.but.off .qui{fill:#94A3B8}
 .but.choisi .rond{fill:rgba(180,120,10,.9)}
 @keyframes pulse{0%,100%{stroke-width:.08}50%{stroke-width:.2}}
+.but.adv .num{font-size:.46px}
+.ombre{fill:rgba(2,6,16,.42)}
+.piscine ellipse{fill:rgba(56,189,248,.13);stroke:#7DD3FC;stroke-width:.05;stroke-dasharray:.16 .12}
+.piscine text{font:700 .3px var(--ff);fill:#BAE6FD;text-anchor:middle;dominant-baseline:central;letter-spacing:.04em}
 .spot{cursor:pointer}.spot circle{fill:rgba(248,250,252,.14);stroke:#F8FAFC;stroke-width:.07;stroke-dasharray:.2 .14}
 .spot text{font:800 .6px var(--ff);fill:#F8FAFC;text-anchor:middle;dominant-baseline:central}
 
@@ -214,6 +218,7 @@ dialog::backdrop{background:rgba(2,6,16,.72)}
       <defs id="defs"></defs>
       <g id="g-fond"></g>
       <g id="g-bases" class="base"></g>
+      <g id="g-ombre"></g>
       <g id="g-couv"></g>
       <g id="g-chemins"></g>
       <g id="g-trace"></g>
@@ -221,6 +226,7 @@ dialog::backdrop{background:rgba(2,6,16,.72)}
       <g id="g-spots"></g>
       <g id="g-joueuses"></g>
       <g id="g-buts"></g>
+      <g id="g-advbuts"></g>
       <g id="g-ballon"></g>
     </svg>
     <div class="sur g"><button type="button" class="puce" id="b-exc-fin" hidden></button></div>
@@ -284,7 +290,7 @@ dialog::backdrop{background:rgba(2,6,16,.72)}
 <script>
 (function(){
 "use strict";
-var VERSION="2.1.0";
+var VERSION="2.2.0";
 
 /* ══ 1. Modèle sportif ═══════════════════════════════════════════════════
    Les identités de suivi (OH1, OH2, MB1, MB2, Opp, S) ne changent jamais.
@@ -338,15 +344,32 @@ var RECEPTRICE={1:"MB2",2:"OH2",3:"OH1",4:"MB1",5:"OH1",6:"OH2"};
 /* Notre service : les joueuses se serrent près de leur base, la serveuse
    sert du côté où elle défend. P1 → P6 ; P1 est la serveuse.            */
 var SERVICE={
-  1:[[8.4,9.7],[5.6,2],[4.5,1.2],[3.4,3.3],[1.5,6.7],[2.5,5.4]],
-  6:[[4.5,9.7],[6.3,1],[5.3,2.4],[1.8,1.3],[0.3,5.4],[8.7,5.4]],
-  5:[[0.6,9.7],[7.3,1.3],[3.4,2.5],[2.5,1],[6.8,5.2],[7.8,6.6]]};
-/* En défense, les deux ailes arrière — centrale en 5, passeuse en 1 — ont un pied sur la ligne de côté. */
-var BASE={FL:P(1.8,1.3),FC:P(4.5,1.2),FR:P(7.3,1.3),BS:P(8.7,5.4),BC:P(0.3,5.4),BA:P(4.5,6.6)};
+  1:[[8.4,9.7],[5.6,2],[4.5,1.2],[3.4,3.3],[1.5,7.2],[2.5,5.3]],
+  6:[[4.5,9.7],[6.3,1],[5.3,2.4],[1.8,1.3],[0.3,5.3],[8.7,5.3]],
+  5:[[0.6,9.7],[7.3,1.3],[3.4,2.5],[2.5,1],[6.8,5.1],[7.8,7.3]]};
+/* Défense de base, après notre service : les arrières partent du périmètre — la centrale (5) et la
+   passeuse (1) un pied sur la ligne de côté, l'ailière (6) au fond. De là, chaque zone de défense
+   est à un pas, et l'on ne se déplace que vers le centre du terrain.                             */
+var BASE={FL:P(1.8,1.3),FC:P(4.5,1.2),FR:P(7.3,1.3),BS:P(8.7,5.3),BC:P(0.3,5.3),BA:P(4.5,7.5)};
 var ZONES={5:BASE.BC,6:BASE.BA,1:BASE.BS};
-/* L'attaque adverse exemple arrive sur notre droite : bloc à deux, les autres ajustent d'un pas. */
-var DEFENSE={FC:P(6.4,0.65),FR:P(7.5,0.65),FL:P(2.6,3),BS:P(8.7,5),BC:P(0.3,4.8),BA:P(5,6.8)};
-var HADV=P(7.3,-1),RECENTRE=P(2.2,5.6);
+/* L'attaque adverse vient de notre droite (D, le côté de la passeuse), du centre (C) ou de notre
+   gauche (G, le côté de l'ailière). Le contre ferme une partie du terrain ; les autres couvrent le
+   reste :
+   · ligne  — l'arrière du côté de l'attaque, un pied sur la ligne : la ligne, et la « piscine »
+              (le milieu du terrain, derrière le contre) ;
+   · grande — l'arrière opposée, un pied sur sa ligne : la grande diagonale que le contre laisse ;
+   · petite — l'avant qui ne contre pas recule du filet : la petite diagonale ;
+   · fond   — l'ailière arrière, au fond, dans l'axe du trou du contre : les ballons touchés par
+              le contre et ceux qui passent entre les deux contreuses.
+   G est le miroir de D. Au centre, la centrale contre avec l'aide de l'avant de droite.          */
+var ADVERSE={
+  D:{h:P(7.8,-1),bloc:{FC:P(6.1,0.65),FR:P(7.2,0.65)},def:{FL:P(1.4,3.2),BS:P(8.7,4.6),BC:P(0.3,6),BA:P(5.1,7.8)},ligne:"BS",grande:"BC",petite:"FL"},
+  C:{h:P(4.5,-0.9),bloc:{FC:P(4.3,0.65),FR:P(5.4,0.65)},def:{FL:P(1.6,3.1),BS:P(8.7,4.8),BC:P(0.3,5.7),BA:P(5.3,7.8)},ligne:"BS",grande:"BC",petite:"FL"},
+  G:{h:P(1.2,-1),bloc:{FC:P(2.9,0.65),FL:P(1.8,0.65)},def:{FR:P(7.6,3.2),BS:P(8.7,6),BC:P(0.3,4.6),BA:P(3.9,7.8)},ligne:"BC",grande:"BS",petite:"FR"}};
+/* L'ombre du contre se trace comme au tableau : depuis un point reculé derrière l'attaquante, entre
+   les mains extérieures des deux contreuses. La ligne et la grande diagonale restent ouvertes. */
+var OMBRE_RECUL=-4.5,MAINS=0.35;
+var PISCINE=P(4.5,4.2),RECENTRE=P(2.2,5.6),RECENTRE_6=P(4.7,6.6);
 /* Soutien 3-2 : une coupe autour de l'attaquante, vue depuis le ballon. Cinq rayons partent du
    point de frappe, régulièrement espacés : trois places proches (p) et, dans les intervalles,
    deux places plus loin (l). Aucune joueuse n'est derrière une autre par rapport au ballon, et
@@ -474,30 +497,35 @@ function recoit(sc){
 function sert(sc){
   var r=sc.o.r,rot=rotation(r),R=sc.R,exc=sc.o.exc,srv=rot[0],S=SERVICE[sc.type];sc.serveuse=srv;
   rot.forEach(function(id,i){sc.start[id]=P(S[i][0],S[i][1])});
-  sc.adv=["A1","A2","A3"];sc.start.A1=P(4.5,-6.5);sc.start.A2=P(3.2,-1.8);sc.start.A3=P(7.6,-4.4);
-  var T1=1.3,T2=2.5,T3=3.5,T4=4.2,T5=6.1,dig=exc?R.BS:R.BA,pd=DEFENSE[sc.role[dig]];sc.digger=dig;
+  var cote=sc.o.adv||"D",A=ADVERSE[cote],h=A.h;sc.cote=cote;
+  sc.adv=["A1","A2","A3"];sc.start.A1=P(4.5,-6.5);sc.start.A2=P(3.2,-1.8);sc.start.A3=P(h.x+0.3,h.y-3.4);
+  var T1=1.3,T2=2.5,T3=3.7,T4=4.4,T5=6.5,dig=exc?R.BS:R.BA,pd=A.def[sc.role[dig]];sc.digger=dig;
   sc.balle(0,T1,sc.start[srv],sc.start.A1,2.7,0.8,4.4,"service",srv);
   sc.balle(T1,T2,sc.start.A1,sc.start.A2,0.8,2.3,4.2,"adv","A1");
-  sc.balle(T2,T3,sc.start.A2,HADV,2.3,3,3.8,"adv","A2");
-  sc.balle(T3,T4,HADV,pd,3,0.6,3.1,"attaqueAdv","A3");
+  sc.balle(T2,T3,sc.start.A2,h,2.3,3,3.8,"adv","A2");
+  sc.balle(T3,T4,h,pd,3,0.6,3.1,"attaqueAdv","A3");
   sc.balle(T4,T5,pd,CIBLE,0.6,2.3,4.4,"defense",dig);
-  sc.direct("A3",T3-0.9,T3,HADV);
+  sc.direct("A3",T3-0.9,T3,h);
   /* Passeuse au service (R1, R4) : les deux ailes se croisent, chacune dans son couloir. */
   if(sc.type===1){sc.move(R.FL,0.12,1.8,BASE.FL,{via:[P(4.5,2.25)]});sc.move(R.FR,0.12,1.8,BASE.FR,{via:[P(4.9,3.35)]})}
   ["FC","FR","FL","BC","BA","BS"].forEach(function(k){var id=R[k];
     if(sc.type===1&&(k==="FL"||k==="FR"))return;sc.vers(id,id===srv?0.3:0.12,BASE[k])});
-  sc.move(R.FC,T2+0.1,T3-0.05,DEFENSE.FC);sc.move(R.FR,T2+0.3,T3-0.05,DEFENSE.FR);
-  sc.move(R.FL,T2+0.15,T3,DEFENSE.FL);
-  ["BS","BC","BA"].forEach(function(k){sc.move(R[k],T2+0.35,T3,DEFENSE[k])});
+  /* La passe adverse part : le contre se forme, chacune prend sa zone — un pas depuis sa base. */
+  ["FC","FR","FL","BS","BC","BA"].forEach(function(k){sc.move(R[k],T2+(A.bloc[k]?0.1:0.25),T3-0.05,A.bloc[k]||A.def[k])});
   if(exc)sc.move(sc.backup,T4+0.1,T5-0.3,CIBLE,{fixe:true});
   else sc.move(R.BS,T4+0.05,T5-0.35,CIBLE);
   ["FC","FR","FL"].forEach(function(k){var id=R[k];if(exc&&id===sc.backup)return;sc.vers(id,T4+0.1,ELAN[ATT_ROLE[k]])});
-  /* Le ballon est défendu : la centrale quitte sa ligne et se recentre de deux pas, prête pour le soutien. */
-  sc.move(R.BC,T4+0.3,T4+1.4,RECENTRE);
-  sc.phase("avant",0);sc.phase("service",EPS);sc.phase("adverse",T2);sc.phase("defense",T3);
+  /* Le ballon est défendu : la centrale quitte sa ligne et l'ailière arrière remonte du fond — elles se
+     recentrent, prêtes pour le soutien quel que soit le côté de notre attaque. */
+  sc.move(R.BC,T4+0.3,T4+1.4,RECENTRE);sc.move(R.BA,T4+0.3,T4+1.4,RECENTRE_6);
+  sc.phase("avant",0);sc.phase("service",EPS);sc.phase("choixAdv",T2);sc.phase("adverse",T2+EPS);sc.phase("defense",T3);
   sc.phase("relance",T4);sc.phase("choix",T5);
   sc.repere(0);sc.repere(T2);sc.repere(T3,true);sc.repere(T4,true);sc.repere(T5,true);
-  sc.T1=T2;sc.Tadv=T3;sc.Tc=T5;sc.tBases=T4;
+  sc.T1=T2;sc.Tq=T2;sc.Tadv=T3;sc.Tc=T5;sc.tBases=T2+0.3;
+  /* La zone que le contre ferme : du point de frappe, entre les deux bords du contre. */
+  var xs=Object.keys(A.bloc).map(function(k){return A.bloc[k].x});
+  sc.ombre={h:P(h.x,OMBRE_RECUL),g:Math.min.apply(null,xs)-MAINS,d:Math.max.apply(null,xs)+MAINS,y:0.65};
+  sc.zone={ligne:R[A.ligne],grande:R[A.grande],petite:R[A.petite],fond:R.BA};
 }
 
 /* Passe, attaque et soutien. Les quatre partenaires libres prennent la
@@ -557,7 +585,7 @@ fr:{
   pied:"Système 6-2 sans libéro · organisation choisie par le coach · v{v}",
   /* étapes */
   n_avant:"Avant le service",n_service:"Service",n_reception:"Réception",n_choix:"La passe",n_passe:"La passe",n_attaque:"Attaque",n_fin:"Soutien",
-  n_adverse:"Attaque adverse",n_defense:"Défense",n_relance:"Relance",n_bloc:"Contré",n_reprise:"Soutien",n_finbloc:"Soutien",n_tour:"Rotation",n_quiz:"Quiz",
+  n_choixAdv:"Attaque adverse",n_adverse:"Attaque adverse",n_defense:"Défense",n_relance:"Relance",n_bloc:"Contré",n_reprise:"Soutien",n_finbloc:"Soutien",n_tour:"Rotation",n_quiz:"Quiz",
   /* toute l'équipe */
   e_avant_recoit:"R{n} : {qui} est la passeuse.",e_avant_sert:"R{n} : {srv} sert. Passeuse : {qui}.",
   e_indice:"Touche ton poste sur le terrain pour te suivre.",
@@ -568,7 +596,11 @@ fr:{
   e_choix:"Où va la passe ? Touche 4, 3 ou 2.",
   e_passe:"Passe en {n} : {qui} attaque.",e_attaque:"Soutien : 3 proches 🟢, 2 loin 🔵.",e_fin:"Soutien : 3 proches 🟢, 2 loin 🔵.",
   e_bloc:"Contré ! Le ballon revient chez nous.",e_reprise:"{qui} relève le ballon.",e_finbloc:"Grâce au soutien, on continue !",
-  e_service_sert:"Service ! Chacune rejoint sa base.",e_adverse:"L'adversaire attaque à droite : bloc à deux.",
+  e_service_sert:"Service ! Chacune rejoint sa base.",e_choixAdv:"D'où attaque l'adversaire ? Touche un côté.",
+  e_adverse_D:"Attaque à droite : contre à deux. {l} garde la ligne, {g} la grande diagonale.",
+  e_adverse_G:"Attaque à gauche : contre à deux. {l} garde la ligne, {g} la grande diagonale.",
+  e_adverse_C:"Attaque au centre : {c} contre, {a} l'aide. Les autres couvrent autour.",
+  advAria_D:"Attaque adverse à droite, du côté de la passeuse",advAria_C:"Attaque adverse au centre",advAria_G:"Attaque adverse à gauche, du côté de l'ailière",piscine:"PISCINE",
   e_defense:"{qui} défend vers la cible.",e_relance:"La passeuse court à la cible.",e_relance_exc:"La passeuse a défendu : {qui} passe à sa place.",
   /* moi */
   m_avant_cible:"Au service, tu cours à la cible.",m_avant_recois:"Attention : le service peut venir sur toi.",
@@ -585,10 +617,12 @@ fr:{
   m_soutien_p:"Rapproche-toi : soutien proche.",m_soutien_l:"Reste derrière : soutien loin.",
   m_releve:"Relève le ballon contré !",m_pret_retour:"Prête : le ballon peut revenir.",
   m_sers:"Sers !",m_attends_service:"Attends le service à ta place.",
-  m_base5:"Va en 5 : un pied sur la ligne.",m_base6:"Va à ta base : le 6.",m_base1:"Va en 1 : un pied sur la ligne.",
+  m_base5:"Va en 5 : un pied sur la ligne.",m_base6:"Va en 6, au fond du terrain.",m_base1:"Va en 1 : un pied sur la ligne.",
   m_filet4:"Va au filet, à gauche.",m_filet3:"Va au filet, au centre.",m_filet2:"Va au filet, à droite.",m_deja:"Tu es à ta base. Reste prête.",
-  m_bloc:"Bloc à deux, à droite !",m_recule:"Recule du filet pour défendre.",m_zone:"Défends ta zone.",
-  m_defends:"Défends vers la cible !",m_recule_elan:"Recule du filet, prête pour ton élan.",m_recentre:"Quitte ta ligne : recentre-toi pour le soutien.",
+  m_lis:"Regarde d'où vient l'attaque.",m_bloc_D:"Contre à deux, à droite !",m_bloc_G:"Contre à deux, à gauche !",m_bloc_C:"Contre au centre !",
+  m_ligne:"Un pied sur la ligne : garde la ligne et la piscine.",m_grande:"Un pied sur la ligne : couvre la grande diagonale.",
+  m_petite:"Recule du filet : couvre la petite diagonale.",m_fond:"Reste au fond, dans le trou du contre.",
+  m_defends:"Défends vers la cible !",m_recule_elan:"Recule du filet, prête pour ton élan.",m_recentre:"Recentre-toi, prête pour le soutien.",
   /* au départ d'une rotation */
   d_versArriere:"Tu passes à l'arrière : tu deviens S, la passeuse.",d_arriere:"Tu es arrière : tu es S, la passeuse.",
   d_versAvantOpp:"Tu passes à l'avant : tu redeviens Opp et tu attaques.",d_versAvantS:"Tu passes à l'avant : tu deviens Opp et tu attaques.",
@@ -602,9 +636,9 @@ fr:{
   k_soutien:"Le soutien",k_soutien_t:"3 proches, 2 plus loin.",
   k_bloc:"Ballon contré",k_bloc_t:"Le soutien le relève.",
   k_depannage:"Dépannage",k_depannage_t:"La passeuse touche le 1er ballon ? Sa partenaire passe.",
-  k_defense:"Défense",k_defense_t:"MB en 5, passeuse en 1 : un pied sur la ligne. OH en 6.",
+  k_defense:"Défense",k_defense_t:"Contre à deux. Les autres couvrent la ligne, les diagonales et le fond.",
   k_rotation:"On tourne",k_rotation_t:"Service gagné : un cran, sens horaire.",
-  k_quiz:"Quiz",k_quiz_t:"20 questions sur le terrain.",
+  k_quiz:"Quiz",k_quiz_t:"22 questions sur le terrain.",
   t_tour:"R{n} : {qui} est la passeuse.",t_tourne:"On tourne d'un cran.",
   /* quiz */
   qz_passeuse:"Touche la passeuse.",qz_passeuse_ok:"Oui ! {qui} est arrière : elle passe.",qz_passeuse_non:"Pas elle. Cherche S ou Opp : celle de l'arrière.",
@@ -620,7 +654,9 @@ fr:{
   qz_soutienLoin:"Touche une joueuse du soutien loin.",qz_soutienLoin_ok:"Oui ! {qui} couvre plus loin.",qz_soutienLoin_non:"Pas elle. Les deux plus loin de l'attaquante.",
   qz_ouSoutien:"La passe va en 4. Tu n'attaques pas : où vas-tu ?",qz_ouSoutien_ok:"Oui ! Tu te rapproches de l'attaquante.",qz_ouSoutien_non:"Pas là. Rapproche-toi de l'attaquante.",
   qz_quiSert:"Touche celle qui sert.",qz_quiSert_ok:"Oui ! {qui} est au poste 1 : elle sert.",qz_quiSert_non:"Pas elle. La serveuse est derrière la ligne de fond.",
-  qz_defend5:"Touche celle qui défend en 5.",qz_defend5_ok:"Oui ! {qui}, un pied sur la ligne.",qz_defend5_non:"Pas elle. Le 5 est à l'arrière, à gauche.",
+  qz_ligne:"L'adversaire attaque. Touche celle qui garde la ligne.",qz_ligne_ok:"Oui ! {qui}, un pied sur la ligne : la ligne et la piscine.",qz_ligne_non:"Pas elle. Cherche l'arrière du côté de l'attaque.",
+  qz_grande:"Touche celle qui couvre la grande diagonale.",qz_grande_ok:"Oui ! {qui} couvre la grande diagonale.",qz_grande_non:"Pas elle. Cherche l'arrière du côté opposé à l'attaque.",
+  qz_petite:"Touche celle qui couvre la petite diagonale.",qz_petite_ok:"Oui ! {qui} a reculé du filet : la petite diagonale.",qz_petite_non:"Pas elle. C'est l'avant qui ne contre pas.",
   qz_basePasseuse:"Où défend la passeuse ? Touche sa base.",qz_basePasseuse_ok:"Oui ! En 1, un pied sur la ligne.",qz_basePasseuse_non:"Pas là. La passeuse défend à droite.",
   qz_bloc:"Touche une joueuse du bloc.",qz_bloc_ok:"Oui ! {qui} bloque.",qz_bloc_non:"Pas elle. Seules les avants bloquent, au filet.",
   qz_depanne:"La passeuse a touché le premier ballon. Qui passe ?",qz_depanne_ok:"Oui ! {qui} dépanne : elle fait la passe.",qz_depanne_non:"Pas elle. C'est sa partenaire, l'Opp.",
@@ -641,7 +677,7 @@ en:{
   noteCoach:"These positions are the ones your coach chose.",
   pied:"6-2 system, no libero · organisation chosen by the coach · v{v}",
   n_avant:"Before the serve",n_service:"Serve",n_reception:"Serve receive",n_choix:"The set",n_passe:"The set",n_attaque:"Attack",n_fin:"Cover",
-  n_adverse:"Opponent attack",n_defense:"Defense",n_relance:"Transition",n_bloc:"Blocked",n_reprise:"Cover",n_finbloc:"Cover",n_tour:"Rotation",n_quiz:"Quiz",
+  n_choixAdv:"Opponent attack",n_adverse:"Opponent attack",n_defense:"Defense",n_relance:"Transition",n_bloc:"Blocked",n_reprise:"Cover",n_finbloc:"Cover",n_tour:"Rotation",n_quiz:"Quiz",
   e_avant_recoit:"R{n}: {qui} is the setter.",e_avant_sert:"R{n}: {srv} serves. Setter: {qui}.",
   e_indice:"Tap your position on the court to follow yourself.",
   e_ailes:"Here, {g} stays on the left and {d} on the right.",
@@ -651,7 +687,11 @@ en:{
   e_choix:"Where does the set go? Tap 4, 3 or 2.",
   e_passe:"Set to {n}: {qui} attacks.",e_attaque:"Cover: 3 close 🟢, 2 deeper 🔵.",e_fin:"Cover: 3 close 🟢, 2 deeper 🔵.",
   e_bloc:"Blocked! The ball comes back to us.",e_reprise:"{qui} digs the ball up.",e_finbloc:"Thanks to cover, we play on!",
-  e_service_sert:"Serve! Everyone moves to their base.",e_adverse:"The opponent attacks on the right: double block.",
+  e_service_sert:"Serve! Everyone moves to their base.",e_choixAdv:"Where does the opponent attack from? Tap a side.",
+  e_adverse_D:"Attack on the right: double block. {l} guards the line, {g} the deep cross-court.",
+  e_adverse_G:"Attack on the left: double block. {l} guards the line, {g} the deep cross-court.",
+  e_adverse_C:"Attack in the middle: {c} blocks, {a} helps. The others cover around.",
+  advAria_D:"Opponent attack on the right, the setter's side",advAria_C:"Opponent attack in the middle",advAria_G:"Opponent attack on the left, the outside hitter's side",piscine:"MIDDLE GAP",
   e_defense:"{qui} digs to the target.",e_relance:"The setter runs to the target.",e_relance_exc:"The setter dug the ball: {qui} sets instead.",
   m_avant_cible:"On the serve, you run to the target.",m_avant_recois:"Careful: the serve may come to you.",
   m_avant_depanne:"If your setter passes, you set.",
@@ -667,10 +707,12 @@ en:{
   m_soutien_p:"Move in: close cover.",m_soutien_l:"Stay back: deep cover.",
   m_releve:"Dig the blocked ball!",m_pret_retour:"Ready: the ball may come back.",
   m_sers:"Serve!",m_attends_service:"Wait for the serve in your spot.",
-  m_base5:"Go to 5: one foot on the line.",m_base6:"Go to your base: zone 6.",m_base1:"Go to 1: one foot on the line.",
+  m_base5:"Go to 5: one foot on the line.",m_base6:"Go to 6, deep in the court.",m_base1:"Go to 1: one foot on the line.",
   m_filet4:"Go to the net, on the left.",m_filet3:"Go to the net, in the middle.",m_filet2:"Go to the net, on the right.",m_deja:"You are at your base. Stay ready.",
-  m_bloc:"Double block, on the right!",m_recule:"Back off the net to defend.",m_zone:"Defend your zone.",
-  m_defends:"Dig to the target!",m_recule_elan:"Back off the net, ready to approach.",m_recentre:"Leave your line: move in, ready to cover.",
+  m_lis:"Watch where the attack comes from.",m_bloc_D:"Double block, on the right!",m_bloc_G:"Double block, on the left!",m_bloc_C:"Block in the middle!",
+  m_ligne:"One foot on the line: guard the line and the middle gap.",m_grande:"One foot on the line: cover the deep cross-court.",
+  m_petite:"Back off the net: cover the sharp cross-court.",m_fond:"Stay deep, in the seam of the block.",
+  m_defends:"Dig to the target!",m_recule_elan:"Back off the net, ready to approach.",m_recentre:"Move back in, ready to cover.",
   d_versArriere:"You move to the back row: you become S, the setter.",d_arriere:"You are back row: you are S, the setter.",
   d_versAvantOpp:"You move to the front row: you become Opp again and attack.",d_versAvantS:"You move to the front row: you become Opp and attack.",
   d_avant:"You are front row: you are Opp, you attack.",d_garde4:"Here, you attack on the left, in 4.",d_droite:"You attack on the right, in 2.",
@@ -682,9 +724,9 @@ en:{
   k_soutien:"Cover",k_soutien_t:"3 close, 2 deeper.",
   k_bloc:"Blocked ball",k_bloc_t:"Cover digs it up.",
   k_depannage:"Backup",k_depannage_t:"Setter touches the 1st ball? Her partner sets.",
-  k_defense:"Defense",k_defense_t:"MB in 5, setter in 1: one foot on the line. OH in 6.",
+  k_defense:"Defense",k_defense_t:"Double block. The others cover the line, the cross-courts and the deep court.",
   k_rotation:"We rotate",k_rotation_t:"Serve won: one spot, clockwise.",
-  k_quiz:"Quiz",k_quiz_t:"20 questions on the court.",
+  k_quiz:"Quiz",k_quiz_t:"22 questions on the court.",
   t_tour:"R{n}: {qui} is the setter.",t_tourne:"We rotate one spot.",
   qz_passeuse:"Tap the setter.",qz_passeuse_ok:"Yes! {qui} is back row: she sets.",qz_passeuse_non:"Not her. Look for S or Opp: the one in the back row.",
   qz_attaquePaire:"S or Opp: tap the one who attacks.",qz_attaquePaire_ok:"Yes! {qui} is front row: she attacks.",qz_attaquePaire_non:"Not her. The front-row one attacks.",
@@ -699,7 +741,9 @@ en:{
   qz_soutienLoin:"Tap a deep-cover player.",qz_soutienLoin_ok:"Yes! {qui} covers deeper.",qz_soutienLoin_non:"Not her. The two farthest from the hitter.",
   qz_ouSoutien:"The set goes to 4. You are not hitting: where do you go?",qz_ouSoutien_ok:"Yes! You move in toward the hitter.",qz_ouSoutien_non:"Not there. Move in toward the hitter.",
   qz_quiSert:"Tap the server.",qz_quiSert_ok:"Yes! {qui} is in position 1: she serves.",qz_quiSert_non:"Not her. The server is behind the end line.",
-  qz_defend5:"Tap the player defending in 5.",qz_defend5_ok:"Yes! {qui}, one foot on the line.",qz_defend5_non:"Not her. Zone 5 is back left.",
+  qz_ligne:"The opponent attacks. Tap the player guarding the line.",qz_ligne_ok:"Yes! {qui}, one foot on the line: the line and the middle gap.",qz_ligne_non:"Not her. Look for the back-row player on the attack side.",
+  qz_grande:"Tap the player covering the deep cross-court.",qz_grande_ok:"Yes! {qui} covers the deep cross-court.",qz_grande_non:"Not her. Look for the back-row player opposite the attack.",
+  qz_petite:"Tap the player covering the sharp cross-court.",qz_petite_ok:"Yes! {qui} backed off the net: the sharp cross-court.",qz_petite_non:"Not her. It is the front-row player who is not blocking.",
   qz_basePasseuse:"Where does the setter defend? Tap her base.",qz_basePasseuse_ok:"Yes! In 1, one foot on the line.",qz_basePasseuse_non:"Not there. The setter defends on the right.",
   qz_bloc:"Tap a blocker.",qz_bloc_ok:"Yes! {qui} blocks.",qz_bloc_non:"Not her. Only front-row players block, at the net.",
   qz_depanne:"The setter touched the first ball. Who sets?",qz_depanne_ok:"Yes! {qui} is the backup: she sets.",qz_depanne_non:"Not her. It is her partner, Opp.",
@@ -712,8 +756,8 @@ function nomJoueuse(r,id){var ra=roleAffiche(r,id);return ra===id?id:ra+" ("+id+
 
 /* ══ 5. État ═════════════════════════════════════════════════════════════ */
 var CLE="wonders.six-deux";
-var etat={lang:"fr",poste:"equipe",sit:"recoit",r:1,exc:false,att:4,fin:null,t:0,joue:false,cible:0,choisi:false,
-  lent:false,reduit:false,trajets:true,sc:null,trans:null,tour:null,quiz:null,vu:false};
+var etat={lang:"fr",poste:"equipe",sit:"recoit",r:1,exc:false,att:4,adv:"D",fin:null,t:0,joue:false,cible:0,choisi:false,choisiAdv:false,
+  lent:true,reduit:false,trajets:true,sc:null,trans:null,tour:null,quiz:null,vu:false};   // vitesse ½ par défaut
 function lirePrefs(){try{return JSON.parse(localStorage.getItem(CLE)||"{}")||{}}catch(e){return {}}}
 function ecrirePrefs(){try{localStorage.setItem(CLE,JSON.stringify({lang:etat.lang,poste:etat.poste,lent:etat.lent,reduit:etat.reduit}))}catch(e){}}
 function lireLien(){
@@ -730,13 +774,14 @@ function valide(o){
   if(/^[1-6]$/.test(String(o.r||"")))etat.r=+o.r;
   if(o.sit==="recoit"||o.sit==="sert")etat.sit=o.sit;
 }
-function reconstruire(){etat.sc=construire({sit:etat.sit,r:etat.r,exc:etat.exc,att:etat.att,fin:etat.fin})}
+function reconstruire(){etat.sc=construire({sit:etat.sit,r:etat.r,exc:etat.exc,att:etat.att,fin:etat.fin,adv:etat.adv})}
 /* Sans mouvements continus, on ne montre que les repères : états successifs. */
 function vueT(){
   if(!etat.reduit||!etat.joue)return etat.t;
   var v=0;etat.sc.reperes().forEach(function(x){if(x<=etat.t+1e-6)v=x});return v;
 }
 function auChoix(){var sc=etat.sc;return !etat.joue&&!etat.trans&&Math.abs(etat.t-sc.Tc)<1e-6}
+function auChoixAdv(){var sc=etat.sc;return sc.Tq!=null&&!etat.joue&&!etat.trans&&Math.abs(etat.t-sc.Tq)<1e-6}
 function aLaFin(){return !etat.trans&&Math.abs(etat.t-etat.sc.fin)<1e-6}
 
 /* ══ 6. Horloge unique ═══════════════════════════════════════════════════ */
@@ -769,10 +814,20 @@ function voir(){
   if(etat.quiz)return;
   if(etat.trans||etat.tour){toutArreter();rendre();majUI()}
   if(etat.joue){arreter();return}
-  if(aLaFin()){etat.t=0;etat.choisi=false;if(etat.fin){etat.fin=null;reconstruire()}}
+  if(aLaFin()){etat.t=0;etat.choisi=false;etat.choisiAdv=false;if(etat.fin){etat.fin=null;reconstruire()}}
   var sc=etat.sc;
-  if(Math.abs(etat.t-sc.Tc)<1e-6)etat.choisi=true;          // ▶ à la pause : on garde l'attaque affichée
-  lancer(!etat.choisi&&etat.t<sc.Tc-1e-6?sc.Tc:sc.fin);
+  if(sc.Tq!=null&&Math.abs(etat.t-sc.Tq)<1e-6)etat.choisiAdv=true;   // ▶ à une pause : on garde le choix affiché
+  if(Math.abs(etat.t-sc.Tc)<1e-6)etat.choisi=true;
+  lancer(prochainArret());
+}
+function prochainArret(){
+  var sc=etat.sc;
+  if(sc.Tq!=null&&!etat.choisiAdv&&etat.t<sc.Tq-1e-6)return sc.Tq;
+  return !etat.choisi&&etat.t<sc.Tc-1e-6?sc.Tc:sc.fin;
+}
+function choisirAdverse(c){
+  if(etat.quiz)return;
+  toutArreter();etat.adv=c;etat.choisiAdv=true;etat.fin=null;reconstruire();majScene();etat.t=etat.sc.Tq;majUI();lancer(prochainArret());
 }
 function choisirAttaque(a){
   var def=question();if(def&&def.type==="but"){quizJuge(def.bon(etat.sc)===a,null,a);return}
@@ -782,7 +837,7 @@ function choisirAttaque(a){
 function glisser(v){
   toutArreter();etat.vu=true;
   var sc=etat.sc,x=v/1000*sc.fin;
-  etat.t=clamp(x,0,sc.fin);if(etat.t>sc.Tc+1e-6)etat.choisi=true;
+  etat.t=clamp(x,0,sc.fin);if(etat.t>sc.Tc+1e-6)etat.choisi=true;if(sc.Tq!=null&&etat.t>sc.Tq+1e-6)etat.choisiAdv=true;
   rendre();majUI();
 }
 function aimanter(){var m=etat.sc.reperes();for(var i=0;i<m.length;i++)if(Math.abs(m[i]-etat.t)<0.12){etat.t=m[i];rendre();majUI();return}}
@@ -795,7 +850,7 @@ function changerScene(mut,o){
   o=o||{};
   var avant={},k;for(k in aff)avant[k]=aff[k];
   arreter();etat.trans=null;if(!o.tour)etat.tour=null;if(!o.quiz)etat.quiz=null;
-  mut();etat.fin=null;etat.choisi=false;etat.t=0;reconstruire();
+  mut();etat.fin=null;etat.choisi=false;etat.choisiAdv=false;etat.t=0;reconstruire();
   if(!etat.reduit&&o.anim!==false&&avant[IDS[0]])etat.trans={t:0,dur:o.dur||0.8,de:avant,puis:o.puis,rot:!!o.rot};
   else{if(etat.tour)etat.tour.attente=1.6;}
   ecrireLien();majScene();rendre();majUI();
@@ -817,12 +872,13 @@ function $(id){return document.getElementById(id)}
 function Y(y){return y<0?y*0.25:y}
 function f(v){return Math.round(v*1000)/1000}
 var COUL={};IDS.forEach(function(id){COUL[id]=getComputedStyle(document.documentElement).getPropertyValue("--c-"+id).trim()||"#ccc"});
-var pions={},advEls={},balleEls={},labelPrec={},buts={};
+var pions={},advEls={},balleEls={},labelPrec={},buts={},advButs={};
 function activable(g,fn){g.addEventListener("click",fn);g.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();fn()}})}
 
 function dessinerFond(){
   var g=$("g-fond");g.textContent="";
   var defs=$("defs");defs.textContent="";
+  el("rect",{x:0,y:0,width:9,height:9},el("clipPath",{id:"clip-terrain"},defs));
   IDS.forEach(function(id){
     var m=el("marker",{id:"fl-"+id,viewBox:"0 0 10 10",refX:"7",refY:"5",markerWidth:"3.4",markerHeight:"3.4",orient:"auto-start-reverse"},defs);
     el("path",{d:"M0 0L10 5L0 10z",fill:COUL[id]},m)});
@@ -867,6 +923,9 @@ function creerPions(){
   [4,3,2].forEach(function(a){var H=FRAPPE[a],g=el("g",{"class":"but","data-att":a,tabindex:"0",role:"button",transform:"translate("+H.x+" 0.55)"},gb);
     el("circle",{"class":"rond",r:.7},g);var n=el("text",{"class":"num",y:-.14},g);n.textContent=a;
     el("text",{"class":"qui",y:.42},g);activable(g,function(){choisirAttaque(a)});buts[a]=g});
+  var ga=$("g-advbuts");ga.textContent="";
+  ["G","C","D"].forEach(function(c){var g=el("g",{"class":"but adv","data-adv":c,tabindex:"0",role:"button",transform:"translate("+ADVERSE[c].h.x+" -0.9)"},ga);
+    el("circle",{"class":"rond",r:.52},g);var n=el("text",{"class":"num",y:.04},g);n.textContent="▼";activable(g,function(){choisirAdverse(c)});advButs[c]=g});
   var gbal=$("g-ballon");gbal.textContent="";
   balleEls.ombre=el("ellipse",{rx:.2,ry:.1,fill:"rgba(0,0,0,.5)"},gbal);
   balleEls.g=el("g",{},gbal);
@@ -885,9 +944,9 @@ function fenetre(vt){
 }
 function majChemins(vt){
   var g=$("g-chemins"),sc=etat.sc,w=etat.trans?[0,0,false]:fenetre(vt),a=w[0],b=w[1];
-  var cle=[etat.trajets,etat.poste,a,b,w[2],sc.a,sc.o.fin,sc.o.exc,sc.o.r,sc.o.sit,!!etat.trans,!!etat.quiz,auChoix()&&!etat.choisi].join("|");
+  var cle=[etat.trajets,etat.poste,a,b,w[2],sc.a,sc.o.fin,sc.o.exc,sc.o.r,sc.o.sit,sc.cote,!!etat.trans,!!etat.quiz,auChoix()&&!etat.choisi,auChoixAdv()&&!etat.choisiAdv].join("|");
   if(cle===cleChemins)return;cleChemins=cle;g.textContent="";
-  if(!etat.trajets||b-a<1e-6||etat.quiz||(auChoix()&&!etat.choisi))return;
+  if(!etat.trajets||b-a<1e-6||etat.quiz||(auChoix()&&!etat.choisi)||(auChoixAdv()&&!etat.choisiAdv))return;
   var suivi=etat.poste!=="equipe";
   IDS.forEach(function(id){
     if(suivi&&id!==etat.poste)return;
@@ -903,7 +962,7 @@ function majTrace(vt){
   var g=$("g-trace"),sc=etat.sc;g.textContent="";
   if(!etat.trajets||etat.trans||etat.quiz)return;
   var seg=null;sc.ballon.forEach(function(b){if(!seg&&b.t0<=vt+1e-6&&b.t1>vt+1e-6)seg=b});
-  if(!seg||(Math.abs(vt-sc.Tc)<1e-6&&!etat.choisi&&!etat.joue))return;
+  if(!seg||(Math.abs(vt-sc.Tc)<1e-6&&!etat.choisi&&!etat.joue)||(auChoixAdv()&&!etat.choisiAdv))return;
   var p=[];for(var i=0;i<=18;i++){var s=i/18,h=seg.apex-(seg.z0+seg.z1)/2,z=seg.z0+(seg.z1-seg.z0)*s+4*h*s*(1-s);
     p.push(f(seg.a.x+(seg.b.x-seg.a.x)*s)+","+f(Y(seg.a.y+(seg.b.y-seg.a.y)*s)-z*0.3))}
   el("polyline",{points:p.join(" "),"class":"trace-ballon"},g);
@@ -915,6 +974,19 @@ function majCouv(vt){
   if(!vis)return;
   Object.keys(sc.soutien).forEach(function(id){var s=sc.soutien[id],gg=el("g",{"class":"couv "+s.k},g);el("circle",{cx:s.p.x,cy:s.p.y,r:.82},gg)});
 }
+/* Ce que le contre ferme, du point de frappe jusqu'au fond : les défenseuses se placent autour.
+   La piscine est le milieu du terrain, derrière le contre. */
+var cleOmbre="";
+function majOmbre(vt){
+  var g=$("g-ombre"),sc=etat.sc,o=sc.ombre,vis=!!o&&!etat.trans&&vt>=sc.Tq+0.45&&vt<=sc.Tadv+0.9;
+  var cle=vis+"|"+sc.cote+"|"+etat.lang;
+  if(cle===cleOmbre)return;cleOmbre=cle;g.textContent="";
+  if(!vis)return;
+  var k=2.2,far=function(x){return f(x+(x-o.h.x)*k)+","+f(o.y+(o.y-o.h.y)*k)};
+  el("polygon",{"class":"ombre","clip-path":"url(#clip-terrain)",points:f(o.g)+","+o.y+" "+f(o.d)+","+o.y+" "+far(o.d)+" "+far(o.g)},g);
+  var gp=el("g",{"class":"piscine"},g);el("ellipse",{cx:PISCINE.x,cy:PISCINE.y,rx:1.75,ry:1},gp);
+  var tx=el("text",{x:PISCINE.x,y:PISCINE.y},gp);tx.textContent=t("piscine");
+}
 function majAdv(){
   var g=$("g-adv"),sc=etat.sc,cle=sc.adv.join();
   if(cle===cleAdv)return;cleAdv=cle;g.textContent="";advEls={};
@@ -925,7 +997,7 @@ var phasePrec=null;
 function rendre(){
   try{rendreTerrain()}catch(e){if(window.console)console.warn(e)}
   var sc=etat.sc,vt=vueT(),k=etat.trans?"trans":sc.phaseA(vt);
-  var ph=[k,sc.o.r,sc.o.sit,sc.a,sc.o.fin,sc.o.exc,etat.poste,etat.lang,!!etat.tour,etat.quiz?etat.quiz.i+"/"+etat.quiz.etat:"",auChoix()&&!etat.choisi].join("|");
+  var ph=[k,sc.o.r,sc.o.sit,sc.a,sc.cote,sc.o.fin,sc.o.exc,etat.poste,etat.lang,!!etat.tour,etat.quiz?etat.quiz.i+"/"+etat.quiz.etat:"",auChoix()&&!etat.choisi].join("|");
   if(ph!==phasePrec){phasePrec=ph;majLegende()}
   var tp=$("temps");if(document.activeElement!==tp||etat.joue){var v=Math.round(vt/sc.fin*1000);if(+tp.value!==v)tp.value=v}
   tp.style.setProperty("--p",(vt/sc.fin*100).toFixed(1)+"%");
@@ -956,7 +1028,7 @@ function rendreTerrain(){
     balleEls.ombre.setAttribute("cx",f(bal.x));balleEls.ombre.setAttribute("cy",f(Y(bal.y)));
     balleEls.g.setAttribute("transform","translate("+f(bal.x)+" "+f(Y(bal.y)-bal.z*0.3)+") scale("+f(1+bal.z*0.05)+")")}
   else{balleEls.ombre.style.display="none";balleEls.g.style.display="none"}
-  majChemins(vt);majTrace(vt);majCouv(vt);
+  majChemins(vt);majTrace(vt);majCouv(vt);majOmbre(vt);
   $("g-bases").style.display=(!tr&&!etat.quiz&&sc.tBases>0&&vt<sc.tBases+1e-6)?"":"none";
 }
 
@@ -985,17 +1057,22 @@ function action(sc,id,k){
     if(exc&&id===bk)return "m_depanne";
     if(id===sc.rec)return av?"m_recu_elan":"m_recu";
     return av?(bouge(sc.T1,sc.Tc)?"m_elan"+n:pret):"m_reste_prete";
-  case "adverse":return rk==="FC"||rk==="FR"?"m_bloc":rk==="FL"?"m_recule":"m_zone";
-  case "defense":return id===sc.digger?"m_defends":rk==="FC"||rk==="FR"?"m_bloc":"m_zone";
+  case "choixAdv":return "m_lis";
+  case "adverse":return enDefense(sc,id);
+  case "defense":return id===sc.digger?"m_defends":enDefense(sc,id);
   case "relance":
     if(rk==="BS")return exc?"m_laisse":"m_cible";
     if(exc&&id===bk)return "m_depanne";
-    return av?"m_recule_elan":rk==="BC"?"m_recentre":"m_reste_prete";
+    return av?"m_recule_elan":"m_recentre";
   case "choix":return id===pn?"m_passe":av?"m_pret_attaque":"m_reste_prete";
   case "passe":return id===sc.att?"m_attaque":sup;
   case "attaque":case "fin":return id===sc.att?"m_retombe":sup;
   default:return id===sc.releveuse?"m_releve":id===sc.att?"m_retombe":"m_pret_retour";
   }
+}
+function enDefense(sc,id){
+  var z=sc.zone;if(ADVERSE[sc.cote].bloc[sc.role[id]])return "m_bloc_"+sc.cote;
+  return id===z.ligne?"m_ligne":id===z.grande?"m_grande":id===z.petite?"m_petite":"m_fond";
 }
 function depart(id,r,sit){
   var s=[],av=estAvant(r,id),k=garderAiles(r,sit),R=rolesScene(r,sit);
@@ -1013,6 +1090,7 @@ function legendeEquipe(sc,k){
   case "avant":return t("e_avant_"+o.sit,{n:r,qui:q(sc.passeuse),srv:q(sc.serveuse||"")});
   case "service":return t(o.sit==="sert"?"e_service_sert":o.exc?"e_service_recoit_exc":"e_service_recoit");
   case "reception":return t(o.exc?"e_reception_exc":"e_reception",{qui:q(o.exc?sc.backup:sc.rec)});
+  case "adverse":return t("e_adverse_"+sc.cote,{l:q(sc.zone.ligne),g:q(sc.zone.grande),c:q(sc.R.FC),a:q(sc.R.FR)});
   case "defense":return t("e_defense",{qui:q(sc.digger)});
   case "relance":return t(o.exc?"e_relance_exc":"e_relance",{qui:q(sc.backup)});
   case "passe":return t("e_passe",{n:sc.a,qui:q(sc.att)});
@@ -1064,9 +1142,9 @@ function construireSelecteurs(){
 function majScene(){
   var sc=etat.sc,tk=$("ticks");tk.textContent="";
   sc.reperes().forEach(function(m){if(m<=0||m>=sc.fin)return;var i=document.createElement("i");i.style.left=(m/sc.fin*100)+"%";
-    if(Math.abs(m-sc.Tc)<1e-6)i.className="choix";tk.appendChild(i)});
+    if(Math.abs(m-sc.Tc)<1e-6||(sc.Tq!=null&&Math.abs(m-sc.Tq)<1e-6))i.className="choix";tk.appendChild(i)});
   IDS.forEach(function(id){pions[id].classList.remove("bon","faux")});majSpots();
-  cleChemins="";cleCouv="";phasePrec=null;
+  cleChemins="";cleCouv="";cleOmbre="";phasePrec=null;
 }
 function majUI(){
   var sc=etat.sc,choix=auChoix()&&!etat.quiz,fin=aLaFin()&&!etat.joue&&!etat.quiz&&!etat.tour;
@@ -1095,6 +1173,9 @@ function majUI(){
     /* Pendant le quiz, la cible ne dit pas qui attaque : ce serait la réponse. */
     g.querySelector(".qui").textContent=etat.quiz?"":roleAffiche(etat.r,A[a]);
     g.setAttribute("aria-label",etat.quiz?a+", "+t(cote[a]):t("butAria",{n:a,cote:t(cote[a]),qui:nomJoueuse(etat.r,A[a])})+(off?" — "+t("butOff"):""))});
+  var ca=auChoixAdv()&&!etat.quiz;
+  ["G","C","D"].forEach(function(c){var g=advButs[c];g.style.display=ca?"":"none";g.classList.toggle("pulse",ca&&!etat.choisiAdv);
+    g.classList.toggle("choisi",ca&&etat.choisiAdv&&c===etat.adv);g.setAttribute("aria-label",t("advAria_"+c))});
   var bc=$("b-contre");bc.hidden=!(fin&&etat.fin!=="bloc");bc.textContent="🧱 "+t("contre");
   var be=$("b-exc-fin");be.hidden=!etat.exc||!!etat.quiz;be.textContent=t("excFin");be.setAttribute("aria-label",t("excFinAria"));
   var bl=$("b-langue");bl.textContent=etat.lang.toUpperCase();bl.setAttribute("aria-label",t("langueBtn"));
@@ -1131,8 +1212,8 @@ function mini(k){
     rond(0.9,1.4,"#F8FAFC",5)+rond(2,4,"#34D399",5)+'<path d="M'+X(0.9)+' 11Q'+X(2.2)+' '+Yy(1)+' '+X(2)+' '+Yy(3.1)+'" fill="none" stroke="#FDE047" stroke-width="2" stroke-dasharray="3 2" marker-end="url(#mf)"/>';break;
   case "depannage":s+=cible+rond(8,5.9,COUL.S,6)+rond(1.2,3.2,COUL.Opp,6)+fleche(2.2,3,5.2,1.5,"#F8FAFC")+
     '<text x="'+X(8)+'" y="'+(Yy(5.9)+3.5)+'" font-size="9" font-weight="800" text-anchor="middle" fill="#0B1220">1</text><text x="'+X(1.2)+'" y="'+(Yy(3.2)+3.5)+'" font-size="9" font-weight="800" text-anchor="middle" fill="#0B1220">2</text>';break;
-  case "defense":[[0.5,5.4,COUL.MB1,"5"],[4.5,6.6,COUL.OH1,"6"],[8.5,5.4,COUL.S,"1"]].forEach(function(c){s+=rond(c[0],c[1],c[2],7)+
-    '<text x="'+X(c[0])+'" y="'+(Yy(c[1])+3.5)+'" font-size="10" font-weight="800" text-anchor="middle" fill="#0B1220">'+c[3]+'</text>'});break;
+  case "defense":s+='<polygon points="'+X(5.75)+','+Yy(0.65)+' '+X(7.55)+','+Yy(0.65)+' '+X(7.15)+','+Yy(9)+' '+X(2.4)+','+Yy(9)+'" fill="rgba(2,6,16,.5)"/>';
+    [[6.1,0.7,COUL.MB1],[7.2,0.7,COUL.Opp],[8.6,4.6,COUL.S],[0.4,6,COUL.MB2],[5.1,7.8,COUL.OH2],[1.4,3.2,COUL.OH1]].forEach(function(c){s+=rond(c[0],c[1],c[2],5.5)});break;
   case "rotation":[[1.5,2],[4.5,2],[7.5,2],[7.5,6.5],[4.5,6.5],[1.5,6.5]].forEach(function(c,i){s+=rond(c[0],c[1],COUL[["Opp","MB1","OH1","S","MB2","OH2"][i]],5)});
     s+=fleche(2.5,2,3.5,2,"#F8FAFC")+fleche(5.5,2,6.5,2,"#F8FAFC")+fleche(7.5,3.2,7.5,5.3,"#F8FAFC")+fleche(6.5,6.5,5.5,6.5,"#F8FAFC")+fleche(3.5,6.5,2.5,6.5,"#F8FAFC")+fleche(1.5,5.3,1.5,3.2,"#F8FAFC");break;
   default:s+='<text x="60" y="52" font-size="26" font-weight="800" text-anchor="middle" fill="#FBBF24">★★★</text>';
@@ -1143,7 +1224,7 @@ var CARTES=[["passeuses",lancerTour],["cible",function(){changerScene(function()
   ["soutien",function(){changerScene(function(){etat.exc=false},{anim:false,puis:function(){etat.choisi=true;etat.t=etat.sc.Tc;lancer(etat.sc.fin)}})}],
   ["bloc",function(){changerScene(function(){etat.exc=false},{anim:false,puis:contre})}],
   ["depannage",function(){changerScene(function(){etat.exc=true},{anim:false,puis:function(){lancer(etat.sc.Tc)}})}],
-  ["defense",function(){changerScene(function(){etat.sit="sert";etat.exc=false},{puis:function(){lancer(etat.sc.T1)}})}],
+  ["defense",function(){changerScene(function(){etat.sit="sert";etat.exc=false},{puis:function(){lancer(etat.sc.Tq)}})}],
   ["rotation",rotationSuivante],["quiz",lancerQuiz]];
 function construireCartes(){
   [["cartes","carte"],["cartes-cote","carteCote"]].forEach(function(ou){
@@ -1170,14 +1251,16 @@ var QUIZ=[
   {q:"receptionneuse",sit:"recoit",r:2,type:"pion",bon:function(sc){return [ohAvant(sc),sc.R.BA,sc.R.BC]}},
   {q:"attaque4",sit:"recoit",r:1,quand:"passe",att:4,type:"pion",bon:function(sc){return [sc.R.FL]},suite:"fin"},
   {q:"attaque2",sit:"recoit",r:1,quand:"passe",att:2,type:"pion",bon:function(sc){return [sc.R.FR]},suite:"fin"},
-  {q:"attaque4",sit:"recoit",r:2,quand:"passe",att:4,type:"pion",bon:function(sc){return [sc.R.FL]},suite:"fin"},
   {q:"ouOpp",sit:"recoit",r:4,type:"but",bon:function(sc){return ATT_ROLE[sc.role[sc.backup]]}},
   {q:"ouOpp",sit:"recoit",r:2,type:"but",bon:function(sc){return ATT_ROLE[sc.role[sc.backup]]}},
   {q:"soutienProche",sit:"recoit",r:1,quand:"fin",att:4,type:"pion",bon:duSoutien("p")},
   {q:"soutienLoin",sit:"recoit",r:2,quand:"fin",att:2,type:"pion",bon:duSoutien("l")},
   {q:"ouSoutien",sit:"recoit",r:3,quand:"passe",att:4,type:"spot",spots:function(sc){return [[P(8,7.6),0],[sc.soutien[sc.releveuse].p,1],[P(4.5,8.2),0]]},suite:"fin"},
   {q:"quiSert",sit:"sert",r:3,type:"pion",bon:function(sc){return [sc.serveuse]}},
-  {q:"defend5",sit:"sert",r:2,quand:"bases",type:"pion",bon:function(sc){return [sc.R.BC]}},
+  {q:"ligne",sit:"sert",r:1,adv:"D",quand:"bloc",type:"pion",bon:function(sc){return [sc.zone.ligne]}},
+  {q:"grande",sit:"sert",r:2,adv:"D",quand:"bloc",type:"pion",bon:function(sc){return [sc.zone.grande]}},
+  {q:"ligne",sit:"sert",r:3,adv:"G",quand:"bloc",type:"pion",bon:function(sc){return [sc.zone.ligne]}},
+  {q:"petite",sit:"sert",r:4,adv:"D",quand:"bloc",type:"pion",bon:function(sc){return [sc.zone.petite]}},
   {q:"basePasseuse",sit:"sert",r:1,type:"spot",spots:function(){return [[ZONES[5],0],[ZONES[6],0],[ZONES[1],1]]},suite:"bases"},
   {q:"bloc",sit:"sert",r:5,quand:"bloc",type:"pion",bon:function(sc){return [sc.R.FC,sc.R.FR]}},
   {q:"depanne",sit:"recoit",r:3,exc:true,quand:"reception",type:"pion",bon:function(sc){return [sc.backup]},suite:"passe"}];
@@ -1185,7 +1268,7 @@ function question(){var Q=etat.quiz;return Q&&Q.etat==="question"?QUIZ[Q.i]:null
 function lancerQuiz(){toutArreter();etat.quiz={i:0,etat:"question",score:0,rate:false,msg:""};quizPoser(0)}
 function quizPoser(i){
   var Q=etat.quiz,def=QUIZ[i];Q.i=i;Q.etat="question";Q.rate=false;Q.msg="";
-  changerScene(function(){etat.sit=def.sit;etat.r=def.r;etat.exc=!!def.exc;if(def.att)etat.att=def.att},{quiz:true,anim:false});
+  changerScene(function(){etat.sit=def.sit;etat.r=def.r;etat.exc=!!def.exc;etat.adv=def.adv||"D";if(def.att)etat.att=def.att},{quiz:true,anim:false});
   var sc=etat.sc;etat.t={passe:sc.Tc,fin:sc.fin,bases:sc.T1,bloc:sc.Tadv,reception:sc.T1}[def.quand]||0;etat.choisi=def.quand==="fin";
   majSpots();majUI();
 }
@@ -1218,7 +1301,7 @@ function quizSuite(){
 
 /* ══ 10. Démarrage ═══════════════════════════════════════════════════════ */
 function init(){
-  var pr=lirePrefs();valide(pr);if(pr.lent===true)etat.lent=true;
+  var pr=lirePrefs();valide(pr);if(typeof pr.lent==="boolean")etat.lent=pr.lent;
   var sys=false;try{sys=matchMedia("(prefers-reduced-motion: reduce)").matches}catch(e){}
   etat.reduit=typeof pr.reduit==="boolean"?pr.reduit:sys;
   valide(lireLien());
@@ -1256,8 +1339,8 @@ window.SixDeux={version:VERSION,IDS:IDS,rotation:rotation,posRot:posRot,estAvant
   passeuseActive:passeuseActive,partenaireAvant:partenaireAvant,garderAiles:garderAiles,rolesScene:rolesScene,
   baseDefense:baseDefense,attaquantes:attaquantes,construire:construire,indispo:indispo,action:action,
   cles:function(l){return Object.keys(I18N[l])},
-  constantes:{CIBLE:CIBLE,ELAN:ELAN,FRAPPE:FRAPPE,COUPE:COUPE,BASE:BASE,ZONES:ZONES,RECEPTRICE:RECEPTRICE,ROLE_ATT:ROLE_ATT},
-  etat:function(){var sc=etat.sc;return {lang:etat.lang,poste:etat.poste,sit:etat.sit,r:etat.r,exc:etat.exc,att:sc.a,fin:etat.fin,
+  constantes:{CIBLE:CIBLE,ELAN:ELAN,FRAPPE:FRAPPE,COUPE:COUPE,BASE:BASE,ADVERSE:ADVERSE,PISCINE:PISCINE,ZONES:ZONES,RECEPTRICE:RECEPTRICE,ROLE_ATT:ROLE_ATT},
+  etat:function(){var sc=etat.sc;return {lang:etat.lang,poste:etat.poste,sit:etat.sit,r:etat.r,exc:etat.exc,att:sc.a,adv:etat.adv,choisiAdv:etat.choisiAdv,Tq:sc.Tq==null?null:sc.Tq,fin:etat.fin,
     t:etat.t,vt:vueT(),joue:etat.joue,choisi:etat.choisi,lent:etat.lent,reduit:etat.reduit,phase:sc.phaseA(vueT()),Tc:sc.Tc,T3:sc.T3,duree:sc.fin,
     trans:!!etat.trans,tour:!!etat.tour,quiz:etat.quiz?{i:etat.quiz.i,etat:etat.quiz.etat,score:etat.quiz.score,total:QUIZ.length}:null}},
   /* Pour la suite de tests : ce qu'attend la question en cours (pions, numéro d'endroit ou cible). */
