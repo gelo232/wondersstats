@@ -1215,13 +1215,19 @@ au plus près de leur travail suivant :
 - **en réception, passeuse en P1 (R1, R4), les ailes ne permutent pas** : l'Opp
   reste en 4, l'ailière avant reste en 2. Partout ailleurs, et dans `On sert`,
   ailière à gauche, centrale au centre, S/Opp à droite ;
-- au **soutien**, chacune fait un pas vers l'attaquante depuis là où elle est : les
-  trois plus proches couvrent court (disques verts), les deux plus loin couvrent
-  profond (disques bleus). Personne ne traverse le terrain ;
+- au **soutien**, les cinq partenaires forment une coupe autour de l'attaquante.
+  Vues depuis le ballon, elles occupent cinq directions régulièrement espacées :
+  trois places proches (disques verts) et, dans les intervalles, deux places plus
+  loin (disques bleus). Aucune n'est derrière une autre par rapport au ballon, et il
+  ne reste pas de trou entre deux voisines. Chacune garde son côté — la passeuse au
+  filet, côté intérieur ; la centrale avant juste derrière ; l'attaquante opposée
+  plus loin — et s'arrête sur sa direction au plus près d'où elle vient ;
 - dans `On sert`, les joueuses se serrent près de leur base avant le service, la
   serveuse sert du côté où elle défend, puis chacune rejoint sa base : centrale en 5,
-  ailière en 6, passeuse en 1. Suit une attaque adverse exemple à droite — bloc à
-  deux, défense vers la cible — et le même choix 4 / 3 / 2.
+  ailière en 6, passeuse en 1. **La centrale et la passeuse défendent un pied sur la
+  ligne de côté.** Suit une attaque adverse exemple à droite — bloc à deux, défense
+  vers la cible ; la centrale quitte alors sa ligne et se recentre pour le soutien —
+  et le même choix 4 / 3 / 2.
 
 Les placements au contact du service respectent l'ordre de rotation (Volleyball
 Canada 2026-2027). Les rôles se calculent depuis la rotation et la situation, jamais
@@ -1232,8 +1238,12 @@ explications écrites par huit cartes : une image, quelques mots, et la démonst
 sur le terrain — `Deux passeuses` (les six rotations défilent), `La cible`,
 `Le soutien`, `Ballon contré`, `Dépannage` (la passeuse touche le premier ballon :
 sa partenaire avant fait la passe, l'attaque qu'elle aurait jouée se retire),
-`Défense`, `On tourne`, et un `Quiz` de trois questions où l'on répond **en touchant
-le terrain**.
+`Défense`, `On tourne`, et un `Quiz` de **vingt questions** où l'on répond **en
+touchant le terrain** : un pion, un endroit ou une des cibles 4 / 3 / 2. Chaque
+question pose sa rotation et son instant — qui passe, qui est à l'avant, qui reçoit,
+qui attaque en 4 ou en 2, où attaque l'Opp, qui couvre court ou loin, qui sert, qui
+défend en 5, qui bloque, qui dépanne — et la bonne réponse se joue aussitôt sur le
+terrain. Pas de chrono ; le score compte les réponses justes du premier coup.
 
 **Réglages** (`⚙`) : français / anglais, ralenti, trajets, réduction des mouvements
 (états successifs, sans glissement ; suit la préférence du système), et un lien qui
@@ -1244,6 +1254,24 @@ des mouvements sont retenus sur l'appareil. `Espace` lance ou arrête la lecture
 ---
 
 ## Notes de version
+
+### v7.23 — 6-2 : un soutien sans trou, la défense un pied sur la ligne, un quiz de vingt questions
+
+- **Soutien refait en coupe.** Vues depuis le ballon, les joueuses de soutien
+  s'alignaient parfois l'une derrière l'autre en laissant des trous. Elles occupent
+  désormais cinq directions régulières autour de l'attaquante : trois proches, deux
+  plus loin dans les intervalles. Chacune garde son côté. Le prix : quand l'attaque
+  part du côté où aucune arrière ne se trouve, une joueuse a jusqu'à 4,5 m à faire.
+- **Défense** : la centrale (5) et la passeuse (1) défendent un pied sur la ligne de
+  côté. Après la défense, la centrale se recentre pour le soutien.
+- **Quiz : vingt questions** au lieu de trois, sur toutes les rotations, en touchant
+  un pion, un endroit ou une cible.
+- **Corrigé** : le ballon interceptait le toucher — on ne pouvait pas toucher la
+  serveuse, ni une joueuse au moment où elle joue le ballon. La passe monte un peu
+  plus longtemps (1,6 s), le soutien se place sans sprinter.
+
+`tests/six-deux.js` : cinquante contrôles — la coupe vue depuis le ballon, le pied
+sur la ligne, les vingt questions jouées une à une.
 
 ### v7.22 — Comprendre le 6-2, refait : moins de texte, moins de course, une barre de temps
 

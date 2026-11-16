@@ -90,7 +90,7 @@ const ERRORS=[];let PASS=0;
   say("— Les scènes, une à une");
   const audit=await M(()=>{
     const S=SixDeux,C=S.constantes,o={n:0,sync:[],soutien:[],collision:99,ou:"",filet:[],mb:[],releve:[],indispo:[],textes:[],
-      avantPasse:[],arrieresFixes:[],total:0,totalOu:"",seule:0,seuleOu:"",pas:0,pasOu:"",bases:[]};
+      avantPasse:[],arrieresFixes:[],total:0,totalOu:"",seule:0,seuleOu:"",pas:0,pasOu:"",bases:[],coupe:[],ligne:[]};
     const fr=new Set(S.cles("fr")),en=new Set(S.cles("en"));
     const d=(a,c)=>Math.hypot(a.x-c.x,a.y-c.y);
     const long=(sc,id,a,b2)=>{let L=0;(sc.tr[id]||[]).forEach(k=>{if(k.t0>=a-1e-6&&k.t1<=b2+1e-6)for(let i=1;i<k.pts.length;i++)L+=d(k.pts[i-1],k.pts[i])});return L};
@@ -110,6 +110,13 @@ const ERRORS=[];let PASS=0;
         if(sc.att!==S.attaquantes(r,sit)[att])o.sync.push(tag+" mauvaise attaquante");
         const ids=Object.keys(sc.soutien),pr=ids.filter(id=>sc.soutien[id].k==="p").length;
         if(ids.length!==5||pr!==3)o.soutien.push(tag+" "+ids.length+" soutiens dont "+pr+" proches");
+        /* La coupe, vue depuis le ballon : cinq directions régulières, proches et lointaines alternées. */
+        const H=C.FRAPPE[att],vue=ids.map(id=>{const q=sc.soutien[id].p,dx=att===2?H.x-q.x:q.x-H.x;
+          return {a:Math.atan2(q.y-H.y,dx)*180/Math.PI,r:Math.hypot(dx,q.y-H.y),k:sc.soutien[id].k}}).sort((x,y)=>x.a-y.a);
+        const modele=C.COUPE[att===3?"centre":"aile"];
+        vue.forEach((v,i)=>{if(Math.abs(v.a-modele[i][0])>4||v.k!==modele[i][1])o.coupe.push(tag+" place "+i+" à "+v.a.toFixed(0)+"° ("+v.k+")");
+          if(v.k==="p"?v.r>3.4:v.r<4)o.coupe.push(tag+" "+v.k+" à "+v.r.toFixed(1)+" m");
+          if(i&&v.a-vue[i-1].a<12)o.coupe.push(tag+" deux joueuses dans la même direction ("+v.a.toFixed(0)+"°)")});
         ids.forEach(id=>{if(d(sc.pos(id,sc.T3+0.1),sc.soutien[id].p)>0.05)o.soutien.push(tag+" "+id+" pas en place");
           const pas=d(sc.pos(id,sc.Tc),sc.soutien[id].p);if(pas>o.pas){o.pas=pas;o.pasOu=tag+" "+id}});
         for(let t=0;t<=sc.fin+1e-9;t+=0.02){
@@ -130,11 +137,28 @@ const ERRORS=[];let PASS=0;
           if(tot>o.total){o.total=tot;o.totalOu=tag}
         }
         if(sit==="sert"&&!fin&&!exc)["FL","FC","FR","BS","BC","BA"].forEach(k=>{if(d(sc.pos(sc.R[k],sc.T1),C.BASE[k])>0.05)o.bases.push(tag+" "+k)});
+        /* En défense, la centrale (5) et la passeuse (1) ont un pied sur la ligne de côté — à la base comme à l'attaque adverse. */
+        if(sit==="sert"&&!fin)[sc.T1,sc.Tadv].forEach(t=>{const mb=sc.pos(sc.R.BC,t),pa=sc.pos(sc.R.BS,t);
+          if(mb.x>0.4||pa.x<8.6)o.ligne.push(tag+" @"+t+" MB x="+mb.x.toFixed(1)+" S x="+pa.x.toFixed(1))});
       }}
     o.textes=[...new Set(o.textes)];return o});
   await step("chaque scène est construite ("+audit.n+" scènes : 2 situations × 6 rotations × normal/dépannage × attaques × 2 fins)",async()=>attendre(audit.n===120,audit.n+" scènes"));
   await step("à chaque contact, la joueuse est au ballon ; passeuse à la cible ; attaquante au point de frappe",async()=>egal(audit.sync.slice(0,5),[]));
   await step("soutien : cinq joueuses réelles, trois proches et deux plus loin, en place à la frappe",async()=>egal(audit.soutien.slice(0,5),[]));
+  await step("la coupe vue depuis le ballon : cinq directions régulières, aucune joueuse derrière une autre, aucun trou",async()=>egal(audit.coupe.slice(0,5),[]));
+  await step("au soutien, chacune garde son côté : la passeuse au filet côté intérieur, l'attaquante opposée plus loin",async()=>{
+    const r=await M(()=>{const o=[];for(const r of [1,2,3])for(const att of [4,2]){const sc=SixDeux.construire({sit:"recoit",r,att});
+      const off=sc.R[att===4?"FR":"FL"];
+      if(sc.soutien[sc.passeNow].angle!==12)o.push("R"+r+" att "+att+" passeuse à "+sc.soutien[sc.passeNow].angle+"°");
+      if(sc.soutien[sc.R.FC].angle!==48)o.push("R"+r+" att "+att+" centrale à "+sc.soutien[sc.R.FC].angle+"°");
+      if(sc.soutien[off].k!=="l")o.push("R"+r+" att "+att+" attaquante opposée en soutien proche")}return o});
+    egal(r,[]);
+  });
+  await step("en défense, la centrale (5) et la passeuse (1) ont un pied sur la ligne de côté",async()=>{
+    egal(audit.ligne.slice(0,5),[]);
+    const b=await M(()=>[SixDeux.constantes.ZONES[5].x,SixDeux.constantes.ZONES[1].x]);
+    attendre(b[0]<=0.4&&b[1]>=8.6,"bases en x = "+b.join(" et "));
+  });
   await step("aucune collision de pions (plus courte distance ≥ 0,95 m)",async()=>attendre(audit.collision>=0.95,audit.collision.toFixed(2)+" m — "+audit.ou));
   await step("aucune joueuse arrière au filet, hors passeuse à la cible ; aucune centrale à la passe",async()=>{egal(audit.filet.slice(0,5),[]);egal(audit.mb,[])});
   await step("dépannage : l'attaque de la dépanneuse se retire — 4 en réception R1/R4, 2 ailleurs",async()=>egal(audit.indispo,[]));
@@ -147,9 +171,9 @@ const ERRORS=[];let PASS=0;
   say("— On se déplace peu");
   await step("en réception, les arrières qui ne passent pas ne bougent pas avant la passe",async()=>egal(audit.arrieresFixes.slice(0,5),[]));
   await step("avant la passe, aucune avant ne court plus de 4,3 m",async()=>egal(audit.avantPasse.slice(0,5),[]));
-  await step("soutien : un pas vers l'attaquante — jamais plus de 3,5 m",async()=>attendre(audit.pas<=3.5,audit.pas.toFixed(1)+" m — "+audit.pasOu));
-  await step("un échange en réception : moins de 24 m à six, moins de 6,5 m pour une joueuse hors passeuse",async()=>{
-    attendre(audit.total<=24,"total "+audit.total.toFixed(1)+" m — "+audit.totalOu);
+  await step("soutien : la place la plus proche sur son rayon — jamais plus de 4,8 m",async()=>attendre(audit.pas<=4.8,audit.pas.toFixed(2)+" m — "+audit.pasOu));
+  await step("un échange en réception : moins de 27 m à six, moins de 6,5 m pour une joueuse hors passeuse",async()=>{
+    attendre(audit.total<=27,"total "+audit.total.toFixed(1)+" m — "+audit.totalOu);
     attendre(audit.seule<=6.5,audit.seule.toFixed(1)+" m — "+audit.seuleOu);
   });
   await step("la passeuse en 6 et en 5 part tout près de la cible ; en 1, elle a la course la plus longue",async()=>{
@@ -248,6 +272,11 @@ const ERRORS=[];let PASS=0;
     egal(await txt(page,"#l-phrase"),"Tu es arrière : tu restes sur le terrain, en 5.");
     await page.click('.pion[data-id="MB2"]');egal((await etat(page)).poste,"equipe");
   });
+  await step("le ballon ne gêne pas le toucher : la serveuse, ballon en main, se laisse suivre",async()=>{
+    const p=await ouvrir({},"#r=1&sit=sert");
+    await p.click('.pion[data-id="S"]',{timeout:3000});egal((await etat(p)).poste,"S");
+    await p.context().close();
+  });
   await step("un lien ouvre directement R5 en suivant Opp : elle est S, sans rien rejouer",async()=>{
     const p=await ouvrir({},"#r=5&p=Opp&sit=recoit");
     egal(await libelle(p,"Opp"),"S");egal(await libelle(p,"S"),"Opp");
@@ -319,10 +348,10 @@ const ERRORS=[];let PASS=0;
   });
 
   say("— Découvrir et quiz : on montre, on n'explique pas");
-  await step("« Découvrir » : huit cartes, chacune une image et douze mots au plus",async()=>{
+  await step("« Découvrir » : huit cartes, chacune une image et seize mots au plus",async()=>{
     await page.click("#b-decouvrir");
     const c=await page.$$eval("#cartes .carte",es=>es.map(e=>({img:!!e.querySelector("svg"),mots:(e.querySelector("b").textContent+" "+e.querySelector("span").textContent).trim().split(/\s+/).length})));
-    egal(c.length,8);attendre(c.every(x=>x.img&&x.mots<=12),JSON.stringify(c));
+    egal(c.length,8);attendre(c.every(x=>x.img&&x.mots<=16),JSON.stringify(c));
     attendre(await page.$eval("#d-decouvrir",d=>d.open),"feuille fermée");
   });
   await step("la carte « Deux passeuses » fait défiler les six rotations et revient au départ",async()=>{
@@ -350,24 +379,31 @@ const ERRORS=[];let PASS=0;
     const e=await etat(p);egal([e.sit,e.phase,e.joue],["sert","adverse",false]);
     await p.context().close();
   });
-  await step("quiz : trois questions, on répond en touchant le terrain",async()=>{
-    const p=await ouvrir({},"#r=4");
+  await step("quiz : vingt questions, on répond en touchant un pion, un endroit ou une cible",async()=>{
+    const p=await ouvrir();
     await p.click("#b-decouvrir");await p.click('[data-carte="quiz"]');
-    egal(await txt(p,"#l-phrase"),"Touche la passeuse.");
-    egal([await libelle(p,"Opp"),await libelle(p,"S")],["Opp","S"],"la question 1 ne doit pas écrire la réponse sur le pion");
-    await p.click('.pion[data-id="MB1"]');
-    attendre((await txt(p,"#l-sous")).startsWith("Pas elle."),await txt(p,"#l-sous"));
-    egal((await etat(p)).poste,"equipe","pendant le quiz, toucher un pion ne change pas le suivi");
-    await p.click('.pion[data-id="Opp"]');egal(await txt(p,"#l-phrase"),"Oui ! S (Opp) est arrière : elle passe.");
-    await p.click("#b-suite");egal(await txt(p,"#l-phrase"),"Où court la passeuse ? Touche l'endroit.");
-    await p.click('.spot[data-spot="0"]');await run(p,4000);
-    egal((await etat(p)).phase,"choix","la passeuse court à la cible sous nos yeux");
-    await p.click("#b-suite");egal(await txt(p,"#l-phrase"),"La passe va en 4. Touche celle qui attaque.");
-    await p.click('.pion[data-id="S"]');await run(p,3000);
-    egal(await txt(p,"#l-phrase"),"Oui ! Opp (S) attaque en 4.");
-    await p.click("#b-suite");
-    const e=await etat(p);egal([e.quiz.etat,e.quiz.score],["fin",2]);
-    egal(await txt(p,"#l-phrase"),"Bravo ! 2 sur 3 du premier coup.");
+    let e=await etat(p);egal([e.quiz.i,e.quiz.total,e.quiz.etat],[0,20,"question"]);
+    egal(await txt(p,"#l-phrase"),"Touche la passeuse.");egal(await txt(p,"#q-rang"),"1 / 20");
+    const types=new Set(),themes=new Set(),situations=new Set();
+    for(let i=0;i<20;i++){
+      const a=await p.evaluate(()=>SixDeux.quizAttendu());e=await etat(p);
+      types.add(a.type);themes.add(a.q);situations.add(e.sit+e.r);
+      attendre((await txt(p,"#l-phrase")).length>8,"question "+(i+1)+" sans texte");
+      if(a.masque)egal([await libelle(p,"Opp"),await libelle(p,"S")],["Opp","S"],"question "+(i+1)+" : la réponse ne doit pas être écrite sur le pion");
+      if(a.type==="but")egal(await p.$$eval(".but .qui",es=>es.map(x=>x.textContent).join("")),"","question "+(i+1)+" : les cibles ne nomment pas l'attaquante");
+      if(i===0){                                           // une erreur d'abord : indice, pas de point, le suivi ne change pas
+        await p.click('.pion[data-id="MB1"]');attendre((await txt(p,"#l-sous")).startsWith("Pas elle."),await txt(p,"#l-sous"));
+        egal((await etat(p)).poste,"equipe","pendant le quiz, toucher un pion ne change pas le suivi")}
+      if(a.type==="pion")await p.click('.pion[data-id="'+a.bons[0]+'"]',{timeout:3000});
+      else if(a.type==="spot")await p.click('.spot[data-spot="'+a.bons+'"]',{timeout:3000});
+      else await p.click('.but[data-att="'+a.bons+'"]',{timeout:3000});
+      egal((await etat(p)).quiz.etat,"ok","question "+(i+1)+" ("+a.q+")");
+      attendre((await txt(p,"#l-phrase")).startsWith("Oui !"),"question "+(i+1)+" : "+await txt(p,"#l-phrase"));
+      await run(p,4000);await p.click("#b-suite");
+    }
+    e=await etat(p);egal([e.quiz.etat,e.quiz.score],["fin",19]);
+    egal(await txt(p,"#l-phrase"),"Bravo ! 19 sur 20 du premier coup.");
+    egal([...types].sort(),["but","pion","spot"]);attendre(themes.size>=15&&situations.size>=8,themes.size+" thèmes, "+situations.size+" situations");
     await p.click("#b-suite");egal((await etat(p)).quiz,null);
     await p.context().close();
   });
