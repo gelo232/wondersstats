@@ -304,6 +304,81 @@ const ERRORS=[];let PASS=0;
     if(r.modele!==2||r.paliers!==1||r.dl!=="")throw new Error(JSON.stringify(r));
   });
 
+  say("\n── Un objectif atteint se relève — le service d'abord");
+  /* Vingt services par relevé : l'efficacité vaut (aces − fautes) / 20.
+     Une U15 face à des réceptions fragiles sert au-dessus de
+     l'équilibre ; le plafond à zéro bloquait alors tout (v7.19–7.24). */
+  const servir=(nb,aces,fautes)=>page.evaluate(([nb,a,f])=>{
+    var sq=curSquad();var ev=sq.events.filter(function(e){return e.kind==="friendly"})[0];
+    for(var i=0;i<nb;i++)sq.sessions.push({id:uid(),name:"Service "+(sq.sessions.length+1),date:nowISO(),day:todayISO(),
+      opponent:"X",eventId:ev.id,teamName:sq.name,result:{sets:[{us:25,them:20}]},sets:[],splitAt:null,
+      entries:sq.playerIds.map(function(pid,k){var st=emptyS();
+        if(k===2){st.srv_ace=a;st.srv_err=f;st.srv_in=20-a-f}else{st.srv_ace=2;st.srv_err=4;st.srv_in=14}
+        return {playerId:pid,name:"",number:"",position:"",stats:st}})});
+    DB=normalizeDB(DB);recalcGoals(curSquad());saveNow();render();
+  },[nb,aces,fautes]);
+  const maya=async()=>await page.evaluate(()=>curSquad().playerIds[2]);
+  await step("un service atteint au-dessus de l'équilibre propose « ⬆ Viser », et la cible monte",async()=>{
+    await servir(4,2,4);                       /* Maya à −0,10 */
+    await page.evaluate(()=>{var sq=curSquad();creerObjectif(sq,"player",sq.playerIds[2],"services")});
+    await servir(4,5,3);                       /* puis à +0,10 */
+    let g=(await goalsDe(await maya(),"services"))[0];
+    if(!g)throw new Error("objectif de service non créé");
+    if(g.etat!=="atteint")throw new Error("état "+g.etat);
+    if(!(g.prop>0.1))throw new Error("aucune cible proposée au-dessus de son niveau : "+g.prop);
+    await page.evaluate(()=>{closeModal();state.goalSujet="players";navToSection("goals");openModal("goalsathlete",curSquad().playerIds[2])});await pause();
+    const viser=page.locator(".modal .goalCard").filter({hasText:"Services"}).locator("button").filter({hasText:"Viser"});
+    if(!(await viser.count()))throw new Error("pas de « ⬆ Viser » sur le service atteint");
+    await viser.click();await pause(300);
+    g=(await goalsDe(await maya(),"services"))[0];
+    if(Math.abs(g.base-0.1)>0.001||Math.abs(g.cible-0.14)>0.011)throw new Error("relevé : "+g.base+" → "+g.cible);
+    if(g.etat==="atteint")throw new Error("la nouvelle cible naît atteinte");
+  });
+  await step("« Modifier » un objectif atteint part d'aujourd'hui, propose la suite, et monte sans plafond",async()=>{
+    await servir(4,9,2);                       /* Maya à +0,35 : atteint de nouveau */
+    let g=(await goalsDe(await maya(),"services"))[0];
+    if(g.etat!=="atteint")throw new Error("état "+g.etat);
+    await page.evaluate(()=>{closeModal();openModal("goalsathlete",curSquad().playerIds[2])});await pause();
+    await page.locator(".modal .goalCard").filter({hasText:"Services"}).locator("button").filter({hasText:"Modifier"}).click();await pause();
+    const r=await page.evaluate(()=>({dep:(document.querySelector(".modal .ng-dep b")||{}).textContent,
+      seg:(document.querySelector(".modal .seg[aria-label=\"Départ de l'objectif\"] button.on")||{}).textContent,
+      cible:document.querySelector(".modal .ce-in").value}));
+    if(r.dep!=="+0.35")throw new Error("départ "+r.dep+" — pas le niveau d'aujourd'hui");
+    if(!/Aujourd'hui/.test(r.seg||""))throw new Error("choix du départ : "+r.seg);
+    if(!(parseFloat(r.cible)>0.35))throw new Error("cible proposée "+r.cible);
+    for(let i=0;i<3;i++){await page.getByRole("button",{name:"Monter la cible d'un centième"}).click();await pause(80)}
+    const v=parseFloat(await page.locator(".modal .ce-in").inputValue());
+    if(Math.abs(v-(parseFloat(r.cible)+0.03))>0.001)throw new Error("le « + » bute : "+r.cible+" → "+v);
+    await page.locator("#modalOk").click();await pause(300);
+    g=(await goalsDe(await maya(),"services"))[0];
+    if(Math.abs(g.base-0.35)>0.001)throw new Error("départ enregistré "+g.base);
+    if(Math.abs(g.cible-v)>0.001)throw new Error("cible enregistrée "+g.cible+" au lieu de "+v);
+    if(g.etat==="atteint")throw new Error("toujours atteint après avoir visé plus haut");
+    if(g.evts[g.evts.length-1]!=="raised"&&g.evts.indexOf("raised")===-1)throw new Error("historique : "+g.evts.join(","));
+  });
+  await step("garder le départ d'origine sous le niveau du jour se dit, sans bloquer",async()=>{
+    await servir(3,12,1);                      /* +0,55 : atteint encore */
+    await page.evaluate(()=>{closeModal();openModal("goalsathlete",curSquad().playerIds[2])});await pause();
+    await page.locator(".modal .goalCard").filter({hasText:"Services"}).locator("button").filter({hasText:"Modifier"}).click();await pause();
+    await page.locator(".modal .seg[aria-label=\"Départ de l'objectif\"] button").filter({hasText:"L'origine"}).click();await pause();
+    const r=await page.evaluate(()=>({aide:(document.querySelector(".modal .ng-aide")||{}).textContent||"",
+      ok:document.getElementById("modalOk").disabled}));
+    if(r.ok)throw new Error("« Enregistrer » bloqué");
+    await page.locator(".modal .ce-in").fill("+0.40");await page.locator(".modal .ce-in").dispatchEvent("change");await pause();
+    const aide=await page.evaluate(()=>(document.querySelector(".modal .ng-aide")||{}).textContent||"");
+    if(!/déjà franchie/.test(aide))throw new Error("rien ne dit que la cible est déjà franchie : « "+aide+" »");
+    await page.locator(".modal .m-foot button").filter({hasText:"Annuler"}).click();await pause();
+  });
+  await step("une athlète déjà au-dessus de l'équilibre peut se fixer un objectif de service",async()=>{
+    const r=await page.evaluate(()=>{var sq=curSquad(),pid=sq.playerIds[2];
+      var ctx=ctxDePerimetre("tout"),dep=departGoal(sq,"player",pid,"services",ctx);
+      return {dep:dep.valeur,prop:cibleProposee(sq,"services",ctx,dep.valeur),
+        plafondPropose:cibleProposee(sq,"services",ctx,-0.03)};
+    });
+    if(!(r.prop>r.dep))throw new Error("départ "+r.dep+", proposition "+r.prop);
+    if(r.plafondPropose!==0)throw new Error("sous l'équilibre, la proposition doit s'y arrêter : "+r.plafondPropose);
+  });
+
   say("\n── À 320 px");
   await step("la partie, la fiche et la création tiennent sans déborder",async()=>{
     await page.setViewportSize({width:320,height:640});

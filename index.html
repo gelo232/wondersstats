@@ -1511,7 +1511,7 @@ textarea.txt{resize:vertical;min-height:64px;line-height:1.5}
    sélectionneur · soumissions). Toute référence à une joueuse passe
    par un identifiant stable (playerId), jamais par un index.
    ══════════════════════════════════════════════════════════════ */
-var APP_VERSION = "7.24.0";
+var APP_VERSION = "7.25.0";
 
 /* ─── Constantes métier ─────────────────────────────────────── */
 var POSITIONS=[{key:"ALL",label:"Toutes"},{key:"NONE",label:"—"},{key:"S",label:"S"},{key:"OH",label:"OH"},{key:"OPP",label:"OPP"},{key:"MB",label:"MB"},{key:"L",label:"L"}];
@@ -12573,9 +12573,12 @@ function renderEventPart(sq,k){
    Deux familles n'ont pas d'objectif chiffré, et il faut le dire :
      · `habiletes` n'a aucun compteur négatif — sa valeur décrit le
        type de ballon reçu, pas la qualité du geste ;
-     · `services` a une efficacité structurellement négative (aces
-       moins fautes) : même l'élite plafonne à l'équilibre, donc une
-       cible positive serait inatteignable par construction.
+     · `services` a une efficacité souvent négative (aces moins
+       fautes) : l'élite passe rarement l'équilibre, donc l'application
+       n'y propose pas de cible au-dessus — tant que l'athlète est en
+       dessous. Chez les jeunes, face à des réceptions fragiles, une
+       serveuse le dépasse : on lui propose alors plus haut, et la cible
+       que fixe l'entraîneur n'est jamais bornée (v7.25).
    ══════════════════════════════════════════════════════════════ */
 
 /* `fenetreMax` : jusqu'où la fenêtre remonte pour réunir son volume.
@@ -12879,12 +12882,13 @@ function departGoal(sq,scope,pid,fam,ctx){
   if(t&&t.depart&&c&&t.depart[c]!=null)return {valeur:t.depart[c],source:"bareme",mesure:m};
   return {valeur:null,source:null,mesure:m};
 }
-/* La cible proposée : le départ plus un pas. Nulle quand le plafond
-   l'empêche de dépasser le départ. */
+/* La cible proposée : le départ plus un pas — l'équilibre au plus pour
+   le service, tant que le départ est en dessous. Nulle seulement quand
+   rien ne dépasse le départ (+1, le maximum). */
 function cibleProposee(sq,fam,ctx,depart){
   if(depart==null)return null;
   var pas=pasObjectif(sq,fam,ctx)||0.05;
-  var c=plafonner(fam,borneEff(depart+pas));
+  var c=plafonner(fam,borneEff(depart+pas),depart);
   return c>depart?c:null;
 }
 
@@ -12970,11 +12974,21 @@ function echeanceGoal(g){
   if(!isFinite(j))return null;
   return {date:g.deadline,jours:j,passee:g.deadline<auj};
 }
-/* Le service ne peut pas viser au-dessus de l'équilibre : aces moins
-   fautes, même l'élite mondiale n'y passe pas durablement. */
-function plafonner(fam,v){
+/* Le plafond du service — l'équilibre, aces moins fautes — ne borne
+   que ce que l'application PROPOSE, et seulement tant que l'athlète
+   est en dessous. Il bornait tout : une U15 mesurée à +0,10, face à des
+   réceptions fragiles, avait atteint sa cible, et ne pouvait plus ni
+   viser plus haut (aucune proposition au-dessus de zéro) ni relever la
+   cible à la main (le « + » s'arrêtait à +0,00). Mesurée au-dessus, elle
+   prouve que l'équilibre n'est pas SON plafond. `niveau` : le niveau
+   mesuré ; sans lui, le plafond s'applique. La cible choisie par
+   l'entraîneur ne passe jamais par ici. */
+function plafonner(fam,v,niveau){
   var t=GOAL_THRESHOLDS[fam];
-  if(t&&t.plafond!=null&&v>t.plafond)return t.plafond;
+  if(t&&t.plafond!=null&&v>t.plafond){
+    if(niveau!=null&&niveau>=t.plafond)return v;
+    return t.plafond;
+  }
   return v;
 }
 
@@ -13088,7 +13102,7 @@ function creerObjectif(sq,scope,playerId,fam,opts){
      n'est le niveau de personne. */
   if(dep.valeur==null)return null;
   var cible=(opts.cible!=null&&isFinite(+opts.cible))
-    ? plafonner(fam,borneEff(+opts.cible))
+    ? borneEff(+opts.cible)
     : cibleProposee(sq,fam,ctx,dep.valeur);
   /* Une cible qui n'excède pas le départ ne demande rien. */
   if(cible==null||!(cible>dep.valeur))return null;
@@ -13123,7 +13137,7 @@ function histoPlus(g,ligne){
 function repartirObjectif(sq,g,cible,motif){
   var r=evaluerObjectif(sq,g);
   if(r.valeur==null||cible==null)return false;
-  cible=plafonner(g.metric.family,borneEff(cible));
+  cible=borneEff(cible);
   Store.tx(function(){
     Store.patch("goals",g.id,{baseline:r.valeur,baselineAt:nowISO(),baselineSource:"mesure",
       target:cible,targetAt:nowISO(),reference:r.valeur,referenceAt:nowISO(),
@@ -13135,13 +13149,28 @@ function repartirObjectif(sq,g,cible,motif){
   return true;
 }
 /* Modifier un objectif : cible, périmètre, échéance, note. Changer le
-   périmètre change ce qui est mesuré — la référence repart à zéro. */
+   périmètre change ce qui est mesuré — la référence repart à zéro.
+   `ch.repartir` : le départ devient le niveau d'aujourd'hui — c'est ce
+   que veut dire « viser plus haut » une fois la cible atteinte. */
 function modifierObjectif(sq,g,ch){
   var patch={},histo=null;
-  var fam=g.metric.family;
+  if(ch.repartir){
+    /* Le niveau se lit sur le périmètre qu'aura l'objectif. */
+    var autre=ch.perimetre&&ch.perimetre!==perimetreGoal(g);
+    var r0=evaluerObjectif(sq,autre?Object.assign({},g,{context:ctxDePerimetre(ch.perimetre),
+      reference:null,achievedAt:null,enRecul:false,reculAuReleve:null}):g);
+    if(r0.valeur!=null&&!r0.provisoire){
+      patch.baseline=r0.valeur;patch.baselineAt=nowISO();patch.baselineSource="mesure";
+      patch.reference=r0.valeur;patch.referenceAt=nowISO();patch.achievedAt=null;
+      patch.regressStreak=0;patch.enRecul=false;patch.reculAuReleve=null;
+    }
+  }
   if(ch.cible!=null&&isFinite(+ch.cible)){
-    var c=plafonner(fam,borneEff(+ch.cible));
-    if(Math.abs(c-g.target)>1e-9){patch.target=c;patch.targetAt=nowISO();patch.achievedAt=null;histo="readjusted"}
+    var c=borneEff(+ch.cible);
+    if(Math.abs(c-g.target)>1e-9||patch.baseline!=null){
+      patch.target=c;patch.targetAt=nowISO();patch.achievedAt=null;
+      histo=(patch.baseline!=null&&c>g.target)?"raised":"readjusted";
+    }
   }
   if(ch.perimetre&&ch.perimetre!==perimetreGoal(g)){
     patch.context=ctxDePerimetre(ch.perimetre);
@@ -13397,7 +13426,7 @@ function editeurCible(d,fam,onchange){
   var inp=h("input",{className:"ce-in",inputmode:"decimal",value:d.cible==null?"":fmtEff(d.cible),
     "aria-label":"Cible (efficacité, de −1 à +1)"});
   function poser(v){
-    v=plafonner(fam,borneEff(v));d.cible=v;inp.value=fmtEff(v);if(onchange)onchange();
+    v=borneEff(v);d.cible=v;inp.value=fmtEff(v);if(onchange)onchange();
   }
   inp.addEventListener("change",function(e){
     var v=parseFloat(String(e.target.value).replace(",",".").replace("−","-"));
@@ -13409,7 +13438,9 @@ function editeurCible(d,fam,onchange){
     inp,
     h("button",{className:"btn btn-ghost ce-pas",type:"button","aria-label":"Monter la cible d'un centième",
       onclick:function(){poser((d.cible||0)+0.01)}},"+"),
-    t.plafond!=null?h("span",{className:"muted ce-plaf"},"plafond "+fmtEff(t.plafond)):null);
+    /* L'équilibre n'est plus un mur : il se dit, il ne bloque pas. */
+    (t.plafond!=null&&d.cible!=null&&d.cible>t.plafond)
+      ?h("span",{className:"muted ce-plaf"},"au-delà de l'équilibre ("+fmtEff(t.plafond)+")"):null);
 }
 function choixPerimetre(sq,valeur,onpick){
   return h("div",{className:"seg-dense"},segmented({label:"Ce que l'objectif compte",value:valeur,
@@ -13477,7 +13508,7 @@ function renderNewGoalModal(){
     var m=dep.mesure,pourquoi,hors=false;
     if(deja){hors=true;pourquoi="Un objectif est déjà en cours sur cette famille"}
     else if(dep.valeur==null){hors=true;pourquoi="Pas encore de repère : trop peu de relevés, ou catégorie non reconnue"}
-    else if(prop==null){hors=true;pourquoi="Déjà au plafond ("+fmtEff(dep.valeur)+") — rien à viser au-dessus"}
+    else if(prop==null){hors=true;pourquoi="Déjà au maximum ("+fmtEff(dep.valeur)+") — rien à viser au-dessus"}
     else if(!equipe&&m.horsDePortee){hors=true;pourquoi="Trop peu sollicitée (≈ "+Math.round(m.parReleve)+" gestes par relevé) pour être jugée"}
     else if(dep.source==="mesure")pourquoi=(equipe?"Niveau de l'équipe ":"Son niveau ")+fmtEff(dep.valeur)+" · "+plural(m.volume,"geste");
     else if(dep.source==="provisoire")pourquoi="Niveau provisoire "+fmtEff(dep.valeur)+" · "+plural(m.volumeTotal,"geste")+
@@ -13529,8 +13560,9 @@ function renderNewGoalModal(){
   }
   body.appendChild(h("div",{className:"hint",style:{marginTop:"10px"}},
     "Les habiletés n'ont pas d'objectif chiffré : sans compteur d'erreur, leur valeur décrit le "+
-    "ballon reçu, pas la qualité du geste. Au service, la cible est plafonnée à l'équilibre — "+
-    "aces moins fautes, même l'élite ne passe pas durablement au-dessus de zéro."));
+    "ballon reçu, pas la qualité du geste. Au service, la cible proposée s'arrête à l'équilibre "+
+    "(aces moins fautes, l'élite y passe rarement) tant que l'athlète est en dessous ; déjà "+
+    "au-dessus, on lui propose plus haut. La cible reste toujours la vôtre."));
 
   function retour(){
     if(ctx.retour)openModal(ctx.retour.type,ctx.retour.ctx);else closeModal();
@@ -13562,12 +13594,31 @@ function renderEditGoalModal(){
   if(!g)return null;
   var fam=g.metric.family,gfam=SG[fam]||{name:fam};
   var d=state.modalDraft;
-  if(!d||d.type!=="editgoal"||d.id!==g.id||d.ctx!==state.modalCtx)
-    d=state.modalDraft={type:"editgoal",id:g.id,ctx:state.modalCtx,cible:g.target,perim:perimetreGoal(g),
+  var perimDraft=(d&&d.type==="editgoal"&&d.id===g.id&&d.ctx===state.modalCtx)?d.perim:perimetreGoal(g);
+  /* Lu sur le périmètre en cours de choix : « aujourd'hui » doit dire
+     ce que l'objectif mesurera une fois enregistré. */
+  var r=evaluerObjectif(sq,perimDraft===perimetreGoal(g)?g:Object.assign({},g,{context:ctxDePerimetre(perimDraft),
+    reference:null,achievedAt:null,enRecul:false,reculAuReleve:null}));
+  /* Le niveau d'aujourd'hui, s'il est jugeable : c'est de lui qu'on
+     repart pour viser plus haut. Sur un objectif atteint, la fenêtre
+     s'ouvre là — départ d'aujourd'hui, cible suivante déjà proposée.
+     Elle s'ouvrait sur l'ancienne cible, déjà dépassée, et le seul
+     moyen de monter était un « + » qui butait au plafond. */
+  var auj=(r.valeur!=null&&!r.provisoire)?r.valeur:null;
+  var atteint=r.etat==="atteint";
+  if(!d||d.type!=="editgoal"||d.id!==g.id||d.ctx!==state.modalCtx){
+    var pasG=pasObjectif(sq,fam,g.context)||0.05;
+    d=state.modalDraft={type:"editgoal",id:g.id,ctx:state.modalCtx,perim:perimetreGoal(g),
+      repartir:atteint&&auj!=null,
+      cible:(atteint&&auj!=null)?(r.proposition!=null?r.proposition:borneEff(auj+pasG)):g.target,
       echeance:g.deadline||"",note:g.note||""};
+  }
   function retour(){if(c.retour)openModal(c.retour.type,c.retour.ctx);else closeModal()}
-  var r=evaluerObjectif(sq,g);
-  var invalide=!(d.cible>g.baseline)?"La cible doit dépasser le départ ("+fmtEff(g.baseline)+").":null;
+  var depart=(d.repartir&&auj!=null)?auj:g.baseline;
+  var invalide=!(d.cible>depart)?"La cible doit dépasser le départ ("+fmtEff(depart)+").":null;
+  /* Gardée sous le niveau d'aujourd'hui, la cible est déjà franchie : ce
+     n'est pas interdit — on le dit. */
+  var dejaFranchie=!invalide&&auj!=null&&!d.repartir&&d.cible<=auj;
   var body=h("div",null,
     h("div",{className:"muted",style:{marginBottom:"8px"}},
       (g.scope==="team"?"L'équipe":fullName(playerById(g.playerId)||{}))+" · "+gfam.name+
@@ -13577,12 +13628,25 @@ function renderEditGoalModal(){
     d.perim!==perimetreGoal(g)?h("div",{className:"hint"},
       "Changer le périmètre change ce qui est mesuré : la référence de recul repartira de la prochaine mesure."):null,
     h("div",{className:"section-title"},"La cible"),
+    (auj!=null&&Math.abs(auj-g.baseline)>0.005)
+      ? h("div",{className:"field"},h("span",null,"Partir de"),
+          h("div",{className:"seg-dense"},segmented({label:"Départ de l'objectif",value:d.repartir?"auj":"orig",
+            options:[{k:"orig",l:"L'origine "+fmtEff(g.baseline)},{k:"auj",l:"Aujourd'hui "+fmtEff(auj)}],
+            onpick:function(v){
+              d.repartir=v==="auj";
+              if(d.repartir&&!(d.cible>auj))d.cible=r.proposition!=null&&r.proposition>auj?r.proposition:borneEff(auj+(pasObjectif(sq,fam,g.context)||0.05));
+              render();
+            }})))
+      : null,
     h("div",{className:"ng-cible"},
-      h("div",{className:"ng-dep"},h("span",{className:"muted"},"Départ"),h("b",null,fmtEff(g.baseline)),
-        h("span",{className:"muted"},GOAL_SOURCES[g.baselineSource]||"au jour où il a été fixé")),
+      h("div",{className:"ng-dep"},h("span",{className:"muted"},"Départ"),h("b",null,fmtEff(depart)),
+        h("span",{className:"muted"},d.repartir&&auj!=null?"niveau d'aujourd'hui":(GOAL_SOURCES[g.baselineSource]||"au jour où il a été fixé"))),
       h("span",{className:"ng-fl","aria-hidden":"true"},"→"),
       editeurCible(d,fam,function(){render()})),
-    invalide?h("div",{className:"hint warn",style:{marginTop:"6px"}},invalide):null,
+    invalide?h("div",{className:"hint warn ng-aide"},invalide)
+      :(dejaFranchie?h("div",{className:"hint ng-aide"},
+          "Aujourd'hui "+fmtEff(auj)+" : cette cible est déjà franchie, l'objectif restera atteint. "+
+          "Pour viser plus haut, partez d'aujourd'hui."):null),
     champEcheance(d),
     champNote(d),
     h("div",{className:"section-title"},"Et ensuite"),
@@ -13599,7 +13663,8 @@ function renderEditGoalModal(){
     buttons:[
       h("button",{className:"btn btn-ghost full",type:"button",onclick:retour},"Annuler"),
       h("button",{className:"btn btn-save full",type:"button",id:"modalOk",disabled:!!invalide,onclick:function(){
-        var ok=modifierObjectif(sq,g,{cible:d.cible,perimetre:d.perim,echeance:d.echeance,note:d.note});
+        var ok=modifierObjectif(sq,g,{cible:d.cible,perimetre:d.perim,echeance:d.echeance,note:d.note,
+          repartir:!!(d.repartir&&auj!=null)});
         showToast(ok?"✅ Objectif modifié":"Rien n'a changé");
         retour();render();
       }},"Enregistrer")]},body);

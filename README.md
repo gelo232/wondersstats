@@ -830,7 +830,11 @@ l'autre, la courbe relevé après relevé, et pourquoi l'état est ce qu'il est 
 
 `✏️ Modifier` change la cible, le périmètre, l'échéance ou la consigne, et ouvre
 `🔒 Clore` (l'objectif sort du suivi, son historique reste, `Rouvrir` le rend) et
-`🗑️ Supprimer`. `📜 Historique` garde chaque mesure et chaque décision.
+`🗑️ Supprimer`. Sur un objectif **atteint**, il s'ouvre pour viser plus haut : `Partir de
+· Aujourd'hui +0,35` (le niveau du jour devient le départ), la cible suivante déjà
+proposée et libre de monter ; `L'origine` garde le départ d'avant, et la fenêtre dit
+quand la cible choisie est déjà franchie. `📜 Historique` garde chaque mesure et chaque
+décision.
 
 **Les compteurs disent l'état d'aujourd'hui** — l'en-tête de la partie, son bandeau
 (`Suivis`, `Atteints`, `En recul`, `À mesurer`), la tuile du tableau de bord, le récap.
@@ -860,10 +864,12 @@ C'est le plus important. Un objectif faux coûte plus cher que pas d'objectif.
   monde a baissé autant, c'est le calendrier, pas elle.
 - **Pas d'objectif sur les habiletés** : cette famille n'a aucun compteur d'erreur,
   donc sa valeur décrit le type de ballon reçu, pas la qualité du geste.
-- **Au service, la cible est plafonnée à l'équilibre.** L'efficacité y est la
-  différence entre les aces et les fautes ; même au plus haut niveau elle ne passe
-  pas durablement au-dessus de zéro, et viser plus serait inatteignable par
-  construction.
+- **Au service, l'application ne propose pas de cible au-dessus de l'équilibre**
+  tant que l'athlète est en dessous. L'efficacité y est la différence entre les aces
+  et les fautes ; au plus haut niveau, elle passe rarement au-dessus de zéro. Chez les
+  jeunes, face à des réceptions fragiles, une serveuse le dépasse : mesurée au-dessus,
+  on lui propose plus haut. Et la cible que fixe l'entraîneur n'est jamais bornée — la
+  fenêtre dit seulement « au-delà de l'équilibre ».
 - **Si les attaques « réussie » ne sont pas saisies**, l'efficacité d'attaque est
   gonflée et n'est plus un pourcentage d'attaque. L'application affiche « saisie
   incomplète » plutôt qu'un objectif faux.
@@ -1272,6 +1278,22 @@ des mouvements sont retenus sur l'appareil. `Espace` lance ou arrête la lecture
 ---
 
 ## Notes de version
+
+### v7.25 — un objectif atteint se relève, le service d'abord
+
+Quatre contrôles de plus dans `tests/objectifs-ecran.js` (vingt-deux), tous en échec
+sur la v7.24.
+
+- **Le plafond du service ne bloque plus.** Il bornait tout à l'équilibre (+0,00) :
+  une serveuse mesurée à +0,10 avait atteint sa cible et ne pouvait plus ni `⬆ Viser`
+  (aucune proposition au-dessus de zéro) ni relever la cible à la main (le `+`
+  s'arrêtait à +0,00). Il ne borne désormais que les **propositions**, et seulement
+  tant que l'athlète est en dessous ; la cible choisie n'est jamais bornée.
+- **`✏️ Modifier` sur un objectif atteint vise plus haut** : il part du niveau du jour,
+  la cible suivante déjà proposée ; `L'origine` garde l'ancien départ et dit quand la
+  cible est déjà franchie.
+- Une athlète déjà au-dessus de l'équilibre peut se fixer un objectif de service : la
+  famille n'est plus fermée « Déjà au plafond ».
 
 ### v7.24 — 6-2 : la défense par zones, trois attaques adverses, la vitesse ½ par défaut
 

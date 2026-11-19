@@ -1019,8 +1019,8 @@ attaquante, est à **+0,30** en attaque sur les matchs, et ses coéquipières au
 1. **Pour** : Léa. **Ce que l'objectif compte** : `Compétition` — ses ateliers du
    mardi ne doivent pas tirer sa mesure.
 2. **Sur quoi porter l'effort** : la ligne `Attaques` dit `Son niveau +0,30 · 200
-   gestes`. Une famille fermée dit pourquoi : déjà suivie, trop peu sollicitée pour
-   être jugée, déjà au plafond (le service, à l'équilibre).
+   gestes`. Une famille fermée dit pourquoi : déjà suivie, ou trop peu sollicitée
+   pour être jugée.
 3. **La cible** : départ `+0,30 · niveau mesuré`, cible proposée `+0,35` — un pas,
    réglé sur la dispersion de l'équipe. `+` `+` : `+0,37`. Échéance le 15 mars,
    consigne « Viser la ligne ».
@@ -1030,7 +1030,13 @@ attaquante, est à **+0,30** en attaque sur les matchs, et ses coéquipières au
 Ensuite, l'application **constate** et l'entraîneur **décide** :
 
 - Léa passe +0,37 : la carte dit `🏅 Atteint` et propose `⬆ Viser +0,50`. Tant qu'on
-  n'y touche pas, la cible reste celle qu'on a fixée.
+  n'y touche pas, la cible reste celle qu'on a fixée. Pour choisir soi-même la suite,
+  `✏️ Modifier` : sur un objectif atteint, il part d'**aujourd'hui** (+0,45), la cible
+  suivante déjà proposée, et le `+` monte autant qu'on veut.
+- Au service, Maya passe de −0,10 à +0,10 face à des réceptions fragiles : au-dessus
+  de l'équilibre, ce qui est rare plus haut mais courant en U15. La carte propose
+  `⬆ Viser +0,14` ; l'équilibre ne retient que les propositions faites à une serveuse
+  qui est encore en dessous, jamais la cible que vous choisissez.
 - Elle retombe à +0,25 : `↘ Recul à confirmer` — un seul relevé ne suffit pas à le
   dire à une athlète de quinze ans. Au relevé suivant, toujours là : `↘ En recul`, et
   `↘ Réajuster à +0,30`. Si toute l'équipe a reculé autant, la carte le dit : c'est le
