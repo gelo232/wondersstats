@@ -12,10 +12,11 @@
      · un entraînement se dit en séances (« Par séance », E1, « Supprimer
        la séance ») ; un amical ne redit pas son adversaire ;
      · le Récap global compte le bilan des matchs TERMINÉS, comme chaque
-       partie ; ses parties ont les mêmes chiffres-clés ; la saison — ou
-       une nature — se lit au même tableau, avec l'évolution ; sa fiche
-       a des jauges, ses points et fautes, son évolution, et passe d'une
-       athlète à la suivante. */
+       partie ; le bilan de la compétition en tête, puis chaque partie sur
+       sa ligne ; la compétition — ou une nature, jamais les séances mêlées
+       aux matchs (v7.26) — se lit au même tableau, avec l'évolution ; sa
+       fiche a des jauges, ses points et fautes, son évolution, et passe
+       d'une athlète à la suivante. */
 const {chromium}=require("playwright");
 const {nouveauContexte,sansRacine,franchirGarde}=require("./gate-helper");
 const fs=require("fs");
@@ -199,37 +200,38 @@ function saison(){
     if(r.recap.win!==1||r.recap.loss!==1||r.recap.win+r.recap.loss+r.recap.draw!==2)throw new Error("récap : "+JSON.stringify(r.recap));
     if(JSON.stringify(r.recap)!==JSON.stringify({win:r.partie.win,loss:r.partie.loss,draw:r.partie.draw}))throw new Error(JSON.stringify(r));
   });
-  await step("chaque partie y a ses chiffres-clés, et sa porte",async()=>{
+  await step("le bilan de la compétition en tête, puis chaque partie sur sa ligne, avec sa porte",async()=>{
     await partie("recap");
-    /* Les parties de rencontres, dans la colonne de navigation ; la porte
-       des Objectifs (v7.19) vit avec eux, plus bas. */
-    const r=await page.evaluate(()=>({parts:Array.from(document.querySelectorAll(".rc-nav .rc-part .section-title")).map(e=>e.textContent),
+    /* Le bilan de la compétition, puis un tableau : une ligne par partie,
+       qui est aussi sa porte (v7.26). Les Objectifs et la sélection vivent
+       plus bas. */
+    const r=await page.evaluate(()=>({parts:Array.from(document.querySelectorAll(".rc-nav .rc-bilan .rc-pl")).map(e=>e.textContent),
       lbl:Array.from(document.querySelectorAll(".rc-nav .kpiStrip .k-lbl")).map(e=>e.textContent),
+      matchs:Array.from(document.querySelectorAll(".rc-bilan tbody tr")).filter(tr=>/Matchs/.test(tr.textContent)).map(tr=>tr.querySelector("td").textContent)[0],
       trop:/trop peu/.test(document.getElementById("app").textContent)}));
-    if(r.parts.join("|")!=="🎽 Entraînements|🤝 Matchs|🎪 Tournois")throw new Error(r.parts.join("|"));
-    if(!r.lbl.includes("Bilan V–D")||!r.lbl.includes("Séances"))throw new Error(r.lbl.join("|"));
+    if(r.parts.join("|")!=="🤝 Matchs|🎪 Tournois|🎽 Entraînements")throw new Error(r.parts.join("|"));
+    /* Laval : une victoire et un nul ; les amicaux : une de chaque. */
+    if(!r.lbl.includes("Bilan V–D–N"))throw new Error(r.lbl.join("|"));
     if(r.trop)throw new Error("« trop peu » est encore là");
-    const m=await page.evaluate(()=>{var b=Array.from(document.querySelectorAll(".rc-part")).filter(x=>/Matchs/.test(x.textContent))[0];
-      var s=b.nextElementSibling;return Array.from(s.querySelectorAll(".kpi")).map(k=>k.querySelector(".k-lbl").textContent+"="+k.querySelector(".k-val").textContent)});
-    if(!m.includes("Bilan V–D=1–1"))throw new Error("bilan des matchs : "+m.join(" | "));
-    await page.locator(".rc-part").filter({hasText:"Tournois"}).click();await pause();
+    if(r.matchs!=="1V–1D")throw new Error("bilan des matchs : "+r.matchs);
+    await page.locator(".rc-bilan tbody tr").filter({hasText:"Tournois"}).locator(".rc-porte").click();await pause();
     if(await page.evaluate(()=>state.seasonSection)!=="tournaments")throw new Error("la porte ne mène pas à la partie");
   });
-  await step("la saison se lit au même tableau, et une nature la borne",async()=>{
+  await step("la compétition se lit au même tableau, et une nature la borne",async()=>{
     await partie("recap");
     const r=await page.evaluate(()=>{
-      var sq=curSquad(),tout=0;sq.sessions.forEach(se=>tout+=gestesMatch(se));
+      var sq=curSquad(),tout=0;sq.sessions.forEach(se=>{var ev=eventOf(sq,se);if(ev&&ev.kind!=="training")tout+=gestesMatch(se)});
       var eq=document.querySelector(".rc-stats .st-table tbody tr.st-team");
       return {tout:tout,eq:+eq.lastElementChild.textContent,titre:document.querySelector(".rc-stats .st-tete .section-title").textContent,
         nat:Array.from(document.querySelectorAll(".rc-nature .seg button")).map(b=>b.textContent)};
     });
-    if(r.eq!==r.tout||!/Toute la saison/.test(r.titre))throw new Error(JSON.stringify(r));
-    if(r.nat.join("|")!=="Saison|🎽 Entr.|🤝 Matchs|🎪 Tournois")throw new Error(r.nat.join("|"));
+    if(r.eq!==r.tout||!/Compétition/.test(r.titre))throw new Error(JSON.stringify(r));
+    if(r.nat.join("|")!=="Compét.|Matchs|Tournois|Entr.")throw new Error(r.nat.join("|"));
     await page.locator(".rc-nature .seg button").filter({hasText:"Entr."}).click();await pause();
     const e=await page.evaluate(()=>{var sq=curSquad(),n=0;sessionsOfSection(sq,"training").forEach(se=>n+=gestesMatch(se));
       return {n:n,eq:+document.querySelector(".rc-stats .st-table tbody tr.st-team").lastElementChild.textContent}});
     if(e.eq!==e.n)throw new Error(JSON.stringify(e));
-    await page.locator(".rc-nature .seg button").filter({hasText:"Saison"}).click();await pause();
+    await page.locator(".rc-nature .seg button").filter({hasText:"Compét."}).click();await pause();
   });
   await step("l'évolution de la saison s'y lit aussi, par rencontre",async()=>{
     await page.locator(".rc-stats .st-vue .seg button").filter({hasText:"Évolution"}).click();await pause();
@@ -238,10 +240,10 @@ function saison(){
     if(!r.svg||r.pas[0]!=="Par rencontre")throw new Error(JSON.stringify(r));
     await page.locator(".rc-stats .st-vue .seg button").filter({hasText:"Tableau"}).click();await pause();
   });
-  await step("une ligne du tableau ouvre sa fiche sur toute la saison",async()=>{
+  await step("une ligne du tableau ouvre sa fiche sur la compétition",async()=>{
     await page.locator(".rc-stats .st-table tbody tr").filter({hasText:"Léa"}).locator(".st-btn").click();await pause();
     const t=await page.evaluate(()=>document.querySelector(".modal .m-body").textContent);
-    if(!/Toute la saison/.test(t)||!/Par rencontre/.test(t))throw new Error(t.slice(0,140));
+    if(!/Compétition/.test(t)||!/Par rencontre/.test(t))throw new Error(t.slice(0,140));
     await page.evaluate(()=>closeModal());await pause();
   });
   await step("la fiche du récap : jauges, points et fautes, évolution, et d'une athlète à l'autre",async()=>{
@@ -249,9 +251,13 @@ function saison(){
     await page.locator(".listRow .body").first().click();await pause();
     const r=await page.evaluate(()=>({t:document.querySelector(".modal .m-body").textContent,
       jauges:document.querySelectorAll(".modal .fx-row").length,evo:!!document.querySelector(".modal .evo-svg"),
-      nav:!!document.querySelector(".modal .fiche-nav"),kpis:document.querySelectorAll(".modal .kpiStrip").length}));
+      nav:!!document.querySelector(".modal .fiche-nav"),kpis:document.querySelectorAll(".modal .kpiStrip").length,
+      parts:document.querySelectorAll(".modal .rc-ath tbody tr").length}));
     if(/trop peu/.test(r.t))throw new Error("« trop peu »");
-    if(!r.jauges||!/Points directs/.test(r.t)||!r.evo||!r.nav||r.kpis<2)throw new Error(JSON.stringify({jauges:r.jauges,evo:r.evo,nav:r.nav,kpis:r.kpis}));
+    /* Un seul jeu de chiffres-clés — la nature lue —, puis les parties
+       sur une ligne chacune (v7.26). */
+    if(!r.jauges||!/Points directs/.test(r.t)||!r.evo||!r.nav||r.kpis<1||r.parts!==3)
+      throw new Error(JSON.stringify({jauges:r.jauges,evo:r.evo,nav:r.nav,kpis:r.kpis,parts:r.parts}));
     const avant=await page.evaluate(()=>state.modalCtx);
     await page.locator(".modal .fiche-nav button").last().click();await pause();
     if(await page.evaluate(()=>state.modalCtx)===avant)throw new Error("la navigation ne change pas d'athlète");

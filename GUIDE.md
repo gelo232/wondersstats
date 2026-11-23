@@ -924,11 +924,20 @@ Descendez jusqu'au match (`🎪 Tournois → le tournoi → le match`) :
 - `ⓘ Match et scores` change le nom, l'adversaire, la date, les scores de chaque set,
   et la **rencontre** — un match rangé dans le mauvais tournoi s'y déplace avec ses
   compteurs. `🗑️ Supprimer ce match` est au bas de la même fenêtre ;
+- **relevé dans la mauvaise partie ?** `🤝 Vers Matchs` (sur un match de tournoi) ou
+  `🎪 Vers Tournois` (sur un amical, une journée de championnat) ouvre **Déplacer**.
+  Vers les Matchs : `Amical` ou `Championnat`, un nom, la date et le lieu sont déjà
+  remplis. Vers les Tournois : le tournoi du même jour est proposé, ou `➕ Nouveau
+  tournoi` à nommer. `Déplacer` — ses gestes, ses sets et son score le suivent, rien
+  n'est recopié ; on arrive sur le match dans sa nouvelle partie, et `Annuler` dans le
+  bandeau le remet où il était. Le même bouton est dans `ⓘ Match et scores`, feuille
+  comprise ;
 - un set (`→ Set 2`) se corrige aussi depuis sa page : `✏️ Corriger` ouvre la
   feuille sur lui.
 
 Au niveau du tournoi, `➕ Match` en ajoute un, et `ⓘ Infos du tournoi` change son
-nom, sa date, son lieu ou sa nature.
+nom, sa date, son lieu ou sa nature — tous ses matchs d'un coup ; l'écran la suit dans
+sa nouvelle partie.
 
 **Une saisie d'avant la mise à jour** — des compteurs relevés mais jamais
 enregistrés — n'est pas perdue : la fenêtre **Nouveau relevé** l'annonce. Cochez
@@ -937,17 +946,23 @@ commence vide.
 
 ### Lire le cumul
 
-`📊 Récap global` réunit la saison. En haut, la sélection ; puis chaque partie —
-Entraînements, Matchs, Tournois — avec les mêmes chiffres-clés qu'elle porte en tête
-(`Bilan V–D–N` des matchs terminés, sets, points), et sa porte. Dessous, la **saison
-au même tableau que chaque partie** : `Saison`, ou une seule nature (`Entr.`,
-`Matchs`, `Tournois`) ; `📊 Tableau` ou `📈 Évolution` ; les éléments, `/ match` et
-`/ set` pour comparer une titulaire à 8 matchs et une arrivante à 1, le poste, le tri,
-l'export. Touchez une athlète : sa fiche sur toute la saison.
+`📊 Récap global` est le **bilan** de la saison ; sa tuile en donne déjà le chiffre
+(`5–3–1 · bilan V–D–N`). En haut, **`🏐 Bilan · Compétition`** : le bilan des matchs
+terminés, les sets, les points et l'écart, puis l'attaque, la réception et le service —
+matchs et tournois réunis, sans les séances. Dessous, **`Par partie`** : un tableau,
+une ligne par partie (`🤝 Amicaux`, `🏆 Championnat`, `🎪 Tournois`, `🎽 Entraînements`)
+avec son bilan (`3V–2D–1N`), ses sets et ses points ; touchez une ligne pour ouvrir sa
+partie. Puis le **même tableau que chaque partie**, sur la `Compét.` ou une seule
+nature (`Matchs`, `Tournois`, `Entr.`) : `📊 Tableau` ou `📈 Évolution` ; les éléments,
+`/ match` et `/ set` pour comparer une titulaire à 8 matchs et une arrivante à 1, le
+poste, le tri, l'export. Les objectifs d'équipe et la sélection ferment la page.
+Touchez une athlète : sa fiche sur la nature lue.
 
-`👥 Les athlètes` ouvre la fiche « récap » de chacune — sa sélection, ses chiffres par
-partie, sa saison en jauges, son évolution, ses objectifs — à montrer à l'athlète ou à
-ses parents ; `‹ ›` passe à la suivante. L'ancien tableau détaillé, avec sa fenêtre des
+`👥 Les athlètes` dit pour chacune combien de matchs elle a joués et ses points
+directs ; triez par `Matchs joués` ou `Points directs`. Sa fiche — à montrer à
+l'athlète ou à ses parents — lit un seul périmètre, dit en titre : ses chiffres-clés,
+ses jauges, puis **par partie** sur une ligne chacune, son évolution, ses objectifs, sa
+sélection ; `‹ ›` passe à la suivante. L'ancien tableau détaillé, avec sa fenêtre des
 3, 5 ou 10 derniers matchs, s'ouvre par `🗂 Détaillé`.
 
 ### Lire un tournoi, un match, un set
