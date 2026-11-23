@@ -1029,21 +1029,21 @@ const ERRORS=[];let PASS=0;
     const n=await page.locator(".listRow").count();
     if(n<10)throw new Error("athlètes listées="+n);
     await pasDeDebordement("Récap → athlètes");
-    /* Le tri par résultat doit vraiment ranger. */
-    await ouvrirTris(page);await choisirOption(page,"Résultat");await fermerFeuilleListe(page);
+    /* Le tri par matchs joués doit vraiment ranger. */
+    await ouvrirTris(page);await choisirOption(page,"Matchs joués");await fermerFeuilleListe(page);
     await page.waitForTimeout(200);
     const vals=await page.evaluate(()=>
       Array.prototype.slice.call(document.querySelectorAll(".listRow .trail"))
         .map(function(e){return parseInt(e.textContent,10)}).filter(function(x){return !isNaN(x)}));
     for(let i=1;i<vals.length;i++)
-      if(vals[i]>vals[i-1])throw new Error("tri par résultat faux : "+vals.slice(0,5).join(","));
+      if(vals[i]>vals[i-1])throw new Error("tri par matchs joués faux : "+vals.slice(0,5).join(","));
     await shot("s14-recap-athletes");
   });
   await step("la fiche d'une athlète réunit sa saison entière",async()=>{
     await page.locator(".listRow .body").first().click();
     await page.waitForTimeout(600);
     const t=await page.textContent(".modal");
-    for(const m of ["Sélection","Entraînements","Matchs","Tournois","Toute la saison","Objectifs"])
+    for(const m of ["Sélection","Entr.","Matchs","Tournois","Compétition","Objectifs"])
       if(!t.includes(m))throw new Error("section absente : "+m);
     await pasDeDebordement("fiche d'athlète");
     await shot("s15-fiche");

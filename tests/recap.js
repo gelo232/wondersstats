@@ -170,7 +170,9 @@ const ERRORS=[];let PASS=0;
   await step("le récap d'équipe montre les cinq parties",async()=>{
     await partie("Récap global");
     const t=await txt();
-    for(const m of ["Sélection","Entraînements","Matchs","Tournois","Objectifs","Toute la saison"])
+    /* La compétition — matchs et tournois — d'abord, les séances jamais
+       mêlées aux matchs (v7.26). */
+    for(const m of ["Sélection","Entraînements","Matchs","Tournois","Objectifs","Compétition"])
       if(!t.includes(m))throw new Error("section absente : "+m);
   });
   await step("il dit où en est l'effectif et les offres",async()=>{
@@ -200,7 +202,9 @@ const ERRORS=[];let PASS=0;
     if(await page.locator(".lt-tri").count()){
       await ouvrirTris(page);
       const sb=await texteFeuilleListe(page);
-      for(const s of ["Numéro","Nom","Âge","Résultat"])
+      /* « Résultat » rangeait au nombre de gestes, qui n'est pas un
+         résultat : il cède la place à ce qui en est un (v7.26). */
+      for(const s of ["Numéro","Nom","Âge","Matchs joués","Points directs"])
         if(!sb.includes(s))throw new Error("tri absent : "+s);
       await fermerFeuilleListe(page);
     }
@@ -244,7 +248,7 @@ const ERRORS=[];let PASS=0;
     await page.locator(".listRow .body").first().click();
     await page.waitForTimeout(350);
     const t=await page.textContent(".modal");
-    for(const m of ["Sélection","Entraînements","Matchs","Tournois","Toute la saison","Objectifs"])
+    for(const m of ["Sélection","Entr.","Matchs","Tournois","Compétition","Objectifs"])
       if(!t.includes(m))throw new Error("section absente de la fiche : "+m);
     await page.locator(".modal button").filter({hasText:"Fermer"}).first().click();
     await page.waitForTimeout(200);

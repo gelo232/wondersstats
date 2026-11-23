@@ -7,7 +7,7 @@
 # On ne lance que les suites des applications modifiées (voir CLAUDE.md).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-TOUTES="smoke migration selection rencontres feuille score consultation export annuler evolution lecture objectifs objectifs-ecran replis recap saison-complete e2e modals campaigns roles sync invitation season gate github owner parcours config sauvegarde ventilation onglets groupes suivi terrain numeros saisie chrono six-deux hors-ligne"
+TOUTES="smoke migration selection rencontres feuille score consultation export annuler evolution lecture objectifs objectifs-ecran replis recap bilan saison-complete e2e modals campaigns roles sync invitation season gate github owner parcours config sauvegarde ventilation onglets groupes suivi terrain numeros saisie chrono six-deux hors-ligne"
 SUITES=""
 if [ $# -eq 0 ]; then
   SUITES="$TOUTES"

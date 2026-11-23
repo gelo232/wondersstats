@@ -1247,3 +1247,76 @@ statistiques »). V1–V4 : feuille de style.
 
 `tests/export.js` — vingt-neuf contrôles ; `tests/score.js` — douze contrôles, pour
 le score d'un set saisi d'un seul chiffre, demandé pendant l'audit.
+
+
+## Audit v7.26 — le bilan (Récap global), et un match qui change de partie
+
+### La méthode
+
+Une saison de douze athlètes et une treizième convoquée sans décision : deux
+tournois (quatre et deux matchs, dont un nul), deux amicaux, deux journées de
+championnat — l'une **en cours** à 25–22 puis 8–6 —, deux séances. Chaque chiffre du
+Récap global — la tuile du tableau de bord, les chiffres-clés de chaque partie, le
+tableau de la saison, la liste des athlètes, la fiche — a été refait hors de
+l'application depuis les relevés bruts, puis l'écran relu à 320, 375 et 1024 px en
+se demandant, pour chaque élément : est-ce l'information qu'on vient chercher ?
+
+### Ce qui tenait
+
+Les totaux de gestes, les efficacités, l'équipe égale à la somme de ses athlètes, le
+bilan V–D–N des seuls matchs terminés : 0 écart. Rien n'était stocké.
+
+### Ce qui ne tenait pas — mesuré
+
+| | Défaut | Mesure |
+|---|---|---|
+| B1 | Les sets clos et les points d'un match en cours manquaient au bilan de sa partie, alors que sa page les comptait : la somme des pages de match ne valait plus leur partie | Matchs : points 185–164 affichés, 218–192 sur les pages ; sets 6–2 pour 7–2 |
+| B2 | « Toute la saison », lecture par défaut, mêlait les séances aux matchs : une séance s'y comptait « match », et `/ match` divisait par elle | « 12 matchs » pour 10 matchs et 2 séances, chez chaque titulaire |
+| B3 | Aux Entraînements, une athlète « jouait des matchs » et les valeurs se lisaient `/ match` | « OH · 2 matchs » pour 2 séances |
+| B4 | `Retenues · toutes tranchées` dès qu'aucune **offre** n'attendait, quelles que soient les décisions | affiché avec une athlète sans décision |
+| B5 | La tuile du tableau de bord : le nombre d'athlètes au-dessus du nombre de relevés — ni l'un ni l'autre un bilan | « 12 · 12 relevés » |
+| B6 | Le tri `Résultat` de la liste des athlètes rangeait au nombre de gestes, séances comprises ; la ligne n'affichait que ce nombre | « 196 gestes » |
+| B7 | La fiche lisait ses jauges sur toute la saison et son évolution sur la nature choisie, sous des titres voisins | deux périmètres dans une fiche |
+| B8 | L'ancien tableau détaillé taisait les nuls dans ses totaux | `Total 5V–3D` pour neuf matchs terminés dont un nul ; `4 matchs · 2V–1D` pour le tournoi qui le porte |
+| B9 | `recapLignes` appelait « sets » le nombre de matchs ventilés | 6 « sets » pour six matchs de tournoi joués en 14 sets |
+| E1 | Le bilan de la compétition n'apparaissait nulle part : il fallait additionner de tête les matchs et les tournois | — |
+| E2 | En tête, un bandeau d'explication, puis la sélection ; le bilan venait après, une rangée de tuiles par partie, à comparer de mémoire | bandeau et sélection avant le premier chiffre de jeu |
+| E3 | Douze jetons « ✅ Retenue » à la suite, qui redisaient le liseré | — |
+| E4 | La nature lue (`Saison · 🎽 Entr. · 🤝 Matchs · 🎪 Tournois`) passait sur deux lignes à 375 px | « 🎪 / Tournois » |
+| E5 | La fiche d'une athlète : la sélection d'abord, puis dix-huit tuiles en trois rangées par partie | — |
+| D1 | Un match relevé dans la mauvaise partie (un match de tournoi saisi en amical, ou l'inverse) ne pouvait que rejoindre une rencontre **existante**, mêlée à toutes les autres dans un menu ; aucun moyen d'en faire sa propre rencontre ni d'ouvrir un tournoi pour lui | — |
+| D2 | Changer la nature d'une rencontre la faisait disparaître de l'écran lu, sans `Annuler` | — |
+
+### Ce qui a été fait
+
+B1 : `bilanPerimetre` compte les sets clos d'un match en cours (pas son set ouvert) et
+tous ses points ; la tuile `Sets` dit « 1 match en cours ». B2–B3 : le Récap lit la
+**compétition** (matchs et tournois) par défaut, et chaque nature à part — les séances
+ne sont plus jamais mêlées aux matchs ; le tableau dit « séance » et `/ séance` sur un
+périmètre d'entraînement. B4 : « N à trancher » d'après la campagne ouverte. B5 : la
+tuile porte le bilan de la compétition. B6 : chaque ligne dit les matchs joués et les
+points directs ; on trie par l'un ou l'autre. B7 : un seul périmètre, dit en titre.
+B8 : `fmtBilanVD` partout. B9 : de vrais sets.
+
+E1–E5 : le Récap s'ouvre sur `🏐 Bilan · Compétition` (six chiffres), puis `Par
+partie` — un tableau, une ligne par partie, amicaux et championnat distingués, chaque
+ligne la porte de sa partie —, puis le tableau de la nature lue, les objectifs, la
+sélection en dernier. Le bandeau est retiré ; le jeton de décision ne paraît que
+lorsqu'elle sort de l'ordinaire ; la nature lue tient sur une ligne. La fiche :
+chiffres-clés et jauges de la nature lue, puis les parties sur une ligne chacune,
+l'évolution, les objectifs, la sélection.
+
+D1 : **Déplacer** (`🤝 Vers Matchs`, `🎪 Vers Tournois`) — vers un amical ou une journée
+de championnat qui naît avec le match, vers le tournoi de son jour (proposé), un autre,
+ou un nouveau. Le match change de rencontre : rien n'est recopié, donc rien ne peut se
+perdre ni compter deux fois. La rencontre vidée disparaît, les rangs d'un tournoi se
+refont sans trou, `Annuler` rend tout. `ⓘ Match et scores` ne liste plus que les
+rencontres de la partie du match. D2 : la nature changée suit la rencontre dans sa
+partie, et s'annule.
+
+### Vérification
+
+`tests/bilan.js` — vingt-quatre contrôles, **vingt-trois en échec sur la v7.25** ; le
+vingt-quatrième est l'invariant qui doit tenir : après six déplacements et une nature
+changée, la saison compte le même total de gestes et le récap concorde. `recap.js`,
+`lecture.js` et `saison-complete.js` suivent la nouvelle forme du Récap.

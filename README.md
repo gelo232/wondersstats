@@ -15,7 +15,7 @@ server/         relais de synchronisation optionnel (deux implémentations)
 AUDIT.md        audit du workflow, modèle de données, suivi des corrections
 ROLES.md        profils, matrice des accès, contrat de relais
 GUIDE.md        guide d'utilisation — une sélection, puis une demi-saison
-tests/          suite de non-régression Playwright — trente-neuf suites
+tests/          suite de non-régression Playwright — quarante suites
 ```
 
 ---
@@ -333,8 +333,11 @@ réelle et son lieu.
 
 Les trois parties de rencontres — **Entraînements**, **Matchs**, **Tournois** —
 lisent les **mêmes** rencontres, filtrées par nature. Rien n'est dupliqué : un match
-rangé dans la mauvaise rencontre s'y déplace (`ⓘ Match et scores → Rencontre`), une
-rencontre mal classée change de nature.
+rangé dans la mauvaise rencontre s'y déplace (`ⓘ Match et scores → Rencontre`), un
+match relevé dans la mauvaise partie passe des **Tournois aux Matchs et inversement**
+(`🤝 Vers Matchs`, `🎪 Vers Tournois` — voir
+[Déplacer un match](#déplacer-un-match-entre-tournois-et-matchs)), une rencontre mal
+classée change de nature.
 
 Le **championnat n'a pas de partie à lui** : il se compte et s'affiche exactement
 comme un amical, et lui donner son propre écran en aurait fait le jumeau de celui
@@ -366,7 +369,9 @@ numérotent dès le premier (`Match 1`, `Match 2`) et gardent chacun leur advers
   geste ni un score est retiré.
 
 Un match **en cours** compte déjà dans tous les cumuls — on consulte en tout temps —
-mais **pas au bilan** : un set à 12–10 n'est pas une victoire. Son set ouvert n'est
+mais **pas au bilan** : un set à 12–10 n'est pas une victoire. Ses sets clos et ses
+points, eux, comptent dans les sets et les points de sa partie comme sur sa page — la
+tuile `Sets` le dit (`1 match en cours`). Son set ouvert n'est
 ni gagné ni perdu : à 25–22 puis 8–6 le match se lit `Sets 1–0 · en cours`, le set
 `8–6 · en cours`, et sa fenêtre dit « nous menons ». Il survit au
 rechargement ; sa partie, et la tuile du tableau de bord, proposent `▶️ Reprendre`.
@@ -414,9 +419,32 @@ un autre match, et une saisie d'avant la mise à jour n'y entre que si on coche
   qu'au bord du terrain, puis `✅ Fini`. On corrige le match lui-même : l'ancien
   « Charger », qui recopiait un match dans la saisie et faisait un doublon à
   l'enregistrement, n'existe plus.
-- **`ⓘ Match et scores`** : nom, adversaire, date, rencontre, score de chaque set ;
-  et `🗑️ Supprimer ce match`. Une rencontre vidée de son dernier match disparaît avec
-  lui.
+- **`ⓘ Match et scores`** : nom, adversaire, date, rencontre — parmi celles de sa
+  partie —, score de chaque set ; `🗑️ Supprimer ce match`, et le passage dans l'autre
+  partie. Une rencontre vidée de son dernier match disparaît avec lui.
+- **`ⓘ Infos du tournoi`** (ou de la rencontre) change son nom, sa date, son lieu ou
+  sa **nature** ; une nature qui la fait changer de partie l'y suit, et `Annuler` la
+  rend.
+
+### Déplacer un match entre Tournois et Matchs
+
+Un match de tournoi relevé comme un amical, ou l'inverse : on ne le ressaisit pas, on
+le **déplace**. Sur la page du match (et dans `ⓘ Match et scores`, feuille comprise),
+`🤝 Vers Matchs` ou `🎪 Vers Tournois` ouvre **Déplacer** :
+
+| Vers | Ce qu'on choisit | Ce qui se passe |
+|---|---|---|
+| 🤝 **Matchs** | `Amical` ou `Championnat`, le nom (`Amical contre Ours` par défaut), la date et le lieu — ceux du match | Le match devient sa propre rencontre, dans la partie Matchs |
+| 🎪 **Tournois** | un tournoi de la saison — **celui du jour du match est proposé** — ou `➕ Nouveau tournoi`, à nommer | Il en devient le match suivant de sa journée (« Il devient le match 4 ») et prend la date du tournoi |
+
+Rien n'est recopié : le match change de rencontre, et **ses gestes, ses sets et son
+score le suivent** tels quels — la saison ne compte ni un geste de plus ni un de
+moins. La rencontre quittée disparaît si c'était son seul match (la fenêtre le dit), et
+les matchs qui restent dans un tournoi se renumérotent sans trou (`Match 1`,
+`Match 2`) ; un nom choisi (`Finale`) ne bouge pas. On arrive sur le match dans sa
+nouvelle partie — sur la feuille, on y reste — et `Annuler` dans le bandeau rend tout.
+Une séance d'entraînement ne se déplace pas : sans adversaire ni score, elle n'a rien
+d'un match.
 
 La date de la rencontre est distincte de l'horodatage de saisie : un tournoi joué
 samedi et saisi dimanche reste daté de samedi, et ses matchs avec lui.
@@ -460,7 +488,8 @@ Puis :
 
 - **six chiffres-clés**, trois par rangée : le **bilan** qui nomme son ordre
   (`Bilan V–D–N`, matchs terminés seulement), les **sets** gagnés–perdus et les
-  **points** pour–contre avec leur écart — ou, pour un match, son résultat et ses
+  **points** pour–contre avec leur écart (ceux d'un match en cours compris, comme sur
+  sa page) — ou, pour un match, son résultat et ses
   points ; pour un set, son score — puis les efficacités d'**attaque**, de
   **réception** et de **service** ;
 - ce que le niveau contient — les rencontres (avec leurs nuls : `2V–1D–1N`), les
@@ -885,28 +914,43 @@ le dit.
 
 ## Récap global
 
-La compilation des cinq autres parties, par athlète et pour l'équipe entière.
-**Rien n'y est stocké** : tout se recalcule à l'affichage, depuis les mêmes
-fonctions que les parties. C'est la seule façon qu'un total ne puisse pas
-contredire le détail dont il sort — un cache se serait désynchronisé au premier
-score corrigé, sans que personne le voie.
+Le **bilan** de la saison : la compilation des cinq autres parties, par athlète et
+pour l'équipe entière. **Rien n'y est stocké** : tout se recalcule à l'affichage,
+depuis les mêmes fonctions que les parties. C'est la seule façon qu'un total ne puisse
+pas contredire le détail dont il sort — un cache se serait désynchronisé au premier
+score corrigé, sans que personne le voie. Sa tuile, au tableau de bord, porte le bilan
+de la compétition (`5–3–1 · bilan V–D–N · 9 matchs`).
 
-`📊 L'équipe` montre :
+Il lit la **compétition** — matchs et tournois — et **jamais les séances mêlées aux
+matchs** : une séance n'est pas un match, et l'efficacité d'un exercice ne se fond pas
+dans celle d'un samedi de tournoi. `Compét. · Matchs · Tournois · Entr.` choisit la
+nature lue ; chaque bouton n'apparaît que si la saison en contient.
 
-- la **sélection** — dans l'équipe, retenues, campagnes ;
-- chaque **partie** — Entraînements, Matchs, Tournois — avec les chiffres-clés qu'elle
-  porte en tête (`Bilan V–D–N` des matchs **terminés**, sets, points ; ou séances,
-  gestes, points et fautes), et sa porte (`5 matchs ›`) ;
-- la **saison** au même bloc que chaque partie — `📊 Tableau` et `📈 Évolution`,
-  élément de stat, valeurs, poste, tri, export, fiches —, sur toute la saison ou une
-  seule nature (`Saison · Entr. · Matchs · Tournois`) ;
-- les **objectifs** d'équipe.
+`📊 L'équipe`, de haut en bas — l'essentiel d'abord :
 
-`👥 Les athlètes` liste l'effectif avec sa décision, son offre et ses objectifs. La
-fiche d'une athlète réunit sa sélection, ses chiffres-clés par partie, sa saison en
-jauges avec ses points et fautes directs, son **évolution** (l'équipe en référence) et
-ses objectifs ; `‹ ›` passe à la suivante dans l'ordre de la liste. Sur tablette, la
-saison se lit à droite. L'ancien tableau détaillé s'ouvre par `🗂 Détaillé`.
+1. **`🏐 Bilan · Compétition`** — six chiffres : `Bilan V–D–N` des matchs
+   **terminés**, sets, points et leur écart, puis les efficacités d'attaque, de
+   réception et de service ;
+2. **`Par partie`** — le même bilan dans un seul tableau, une ligne par partie :
+   `🤝 Amicaux` et `🏆 Championnat` (ou `🤝 Matchs` s'il n'y a pas de championnat),
+   `🎪 Tournois`, `🎽 Entraînements`. Le bilan s'y écrit `3V–2D–1N` ; chaque ligne est
+   la **porte** de sa partie, sous le bon filtre ;
+3. la nature choisie au même bloc que chaque partie — `📊 Tableau` et `📈 Évolution`,
+   élément de stat, valeurs, poste, tri, export, fiches ;
+4. les **objectifs** d'équipe ;
+5. la **sélection**, en fin de page — dans l'équipe, retenues (avec ce qui reste **à
+   trancher** ou les offres **en attente**), campagnes.
+
+`👥 Les athlètes` liste l'effectif : chaque ligne dit **ce qu'elle a joué** sur la
+nature lue (`10 matchs`) et ses points directs ; la décision se lit au liseré, et son
+jeton ne paraît que lorsqu'elle sort de l'ordinaire. On trie par numéro, nom, âge,
+**matchs joués** ou **points directs**. La fiche d'une athlète lit **un seul
+périmètre**, dit en titre (`🏐 Compétition`) : ses chiffres-clés, ses familles en
+jauges avec ses points et fautes directs ; puis **par partie**, une ligne chacune
+(joués, attaque, réception, service, points / fautes) ; son **évolution** (l'équipe en
+référence) ; ses objectifs ; sa sélection. `‹ ›` passe à la suivante dans l'ordre de
+la liste. Sur tablette, le bilan est à gauche et le tableau à droite. L'ancien tableau
+détaillé s'ouvre par `🗂 Détaillé`.
 
 ---
 
@@ -1278,6 +1322,34 @@ des mouvements sont retenus sur l'appareil. `Espace` lance ou arrête la lecture
 ---
 
 ## Notes de version
+
+### v7.26 — déplacer un match entre Tournois et Matchs, et le bilan audité
+
+Une suite de plus, `tests/bilan.js` — vingt-quatre contrôles, dont **vingt-trois en
+échec sur la v7.25** ; le vingt-quatrième est l'invariant qui doit tenir (la saison
+garde son total). Le détail de l'audit est dans [`AUDIT.md`](AUDIT.md), « Audit
+v7.26 ».
+
+- **Un match passe des Tournois aux Matchs, et inversement** : `🤝 Vers Matchs` ou
+  `🎪 Vers Tournois` sur sa page, dans `ⓘ Match et scores` et depuis la feuille. Vers
+  les Matchs, il devient un amical ou une journée de championnat ; vers les Tournois,
+  il rejoint le tournoi de son jour, un autre, ou un nouveau. Ses gestes, ses sets et
+  son score le suivent ; la rencontre vidée disparaît ; les rangs se refont ; `Annuler`
+  rend tout. `ⓘ Match et scores` ne liste plus que les rencontres de la partie du
+  match, et changer la nature d'une rencontre la suit dans sa nouvelle partie.
+- **Le bilan compte juste.** Les sets clos et les points d'un match en cours manquaient
+  au bilan de sa partie, alors que sa page les comptait (185–164 au lieu de 218–192) ;
+  le Récap appelait « matchs » des séances (`12 matchs` pour 10 matchs et 2 séances) et
+  divisait les moyennes `/ match` par elles ; les Entraînements disaient « 2 matchs » et
+  `/ match` ; `Retenues · toutes tranchées` s'affichait avec une athlète sans décision ;
+  la tuile disait `12 · 12 relevés` ; le tri `Résultat` rangeait au nombre de gestes ;
+  la fiche lisait ses jauges sur toute la saison et son évolution sur une autre
+  nature ; l'ancien tableau détaillé taisait les nuls de ses totaux.
+- **Le Récap global, refait pour l'essentiel** : le bilan de la compétition en tête, le
+  même bilan partie par partie dans un tableau dont chaque ligne est une porte, la
+  compétition au tableau par défaut, la sélection en fin de page ; plus de bandeau
+  d'explication en tête. La fiche d'une athlète : un seul périmètre, les parties sur
+  une ligne chacune, la sélection en dernier.
 
 ### v7.25 — un objectif atteint se relève, le service d'abord
 
